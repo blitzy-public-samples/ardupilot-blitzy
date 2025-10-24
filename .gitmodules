@@ -1,21 +1,3 @@
-[submodule "modules/gbenchmark"]
-	path = modules/gbenchmark
-	url = https://github.com/google/benchmark.git
-[submodule "gtest"]
-	path = modules/gtest
-	url = https://github.com/ArduPilot/googletest
-[submodule "modules/DroneCAN/DSDL"]
-	path = modules/DroneCAN/DSDL
-	url = https://github.com/DroneCAN/DSDL.git
-[submodule "modules/DroneCAN/pydronecan"]
-	path = modules/DroneCAN/pydronecan
-	url = https://github.com/DroneCAN/pydronecan
-[submodule "modules/DroneCAN/dronecan_dsdlc"]
-	path = modules/DroneCAN/dronecan_dsdlc
-	url = https://github.com/DroneCAN/dronecan_dsdlc
-[submodule "modules/DroneCAN/libcanard"]
-	path = modules/DroneCAN/libcanard
-	url = https://github.com/DroneCAN/libcanard
 [submodule "modules/waf"]
 	path = modules/waf
 	url = https://github.com/blitzy-public-samples/waf.git
@@ -61,3 +43,21 @@
 [submodule "modules/littlefs"]
 	path = modules/littlefs
 	url = https://github.com/blitzy-public-samples/littlefs.git
+[submodule "modules/gbenchmark"]
+	path = modules/gbenchmark
+	url = https://github.com/blitzy-public-samples/benchmark.git
+[submodule "modules/gtest"]
+	path = modules/gtest
+	url = https://github.com/blitzy-public-samples/googletest.git
+[submodule "modules/DroneCAN/DSDL"]
+	path = modules/DroneCAN/DSDL
+	url = https://github.com/blitzy-public-samples/DSDL.git
+[submodule "modules/DroneCAN/pydronecan"]
+	path = modules/DroneCAN/pydronecan
+	url = https://github.com/blitzy-public-samples/pydronecan.git
+[submodule "modules/DroneCAN/dronecan_dsdlc"]
+	path = modules/DroneCAN/dronecan_dsdlc
+	url = https://github.com/blitzy-public-samples/dronecan_dsdlc.git
+[submodule "modules/DroneCAN/libcanard"]
+	path = modules/DroneCAN/libcanard
+	url = https://github.com/blitzy-public-samples/libcanard.git
