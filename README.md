@@ -51,6 +51,30 @@ It is continually being expanded to provide support for new emerging vehicle typ
 
 - Developer chat: <https://discord.com/channels/ardupilot>
 
+## Documentation ##
+
+ArduPilot includes extensive in-code documentation and architectural guides:
+
+- **API Documentation**: Auto-generated Doxygen documentation covering all C++ libraries and vehicle implementations
+  - Build locally: `./Tools/scripts/build_docs.sh`
+  - View generated docs: Open `$HOME/build/ArduPilot-docs/libraries/html/index.html` in browser
+  
+- **Module Documentation**: README files in major directories explaining architecture and usage:
+  - Vehicle implementations: ArduCopter/, ArduPlane/, Rover/, ArduSub/, Blimp/, AntennaTracker/
+  - Core libraries: libraries/ (150+ libraries with README files)
+  - Development tools: Tools/autotest/, Tools/Replay/, Tools/ros2/
+  
+- **Build Documentation**: [BUILD.md](BUILD.md) - Comprehensive build system guide
+  
+- **Documentation Generation Guide**: [docs/README.md](docs/README.md) - How to build and contribute to documentation
+  
+- **Inline Documentation**: All public APIs include Doxygen-style comments (@brief, @param, @return, @warning)
+  - Safety-critical code paths are extensively documented
+  - Coordinate frames and units are explicitly specified
+  - Algorithm implementations reference mathematical foundations
+
+For developer onboarding and contribution guidelines, see the documentation in your area of interest.
+
 ## Top Contributors ##
 
 - [Flight code contributors](https://github.com/ArduPilot/ardupilot/graphs/contributors)
