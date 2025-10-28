@@ -14,8 +14,48 @@
  */
 #pragma once
 
-/* Umbrella header for all private headers of the AP_HAL_QURT module.
- * Only import this header from inside AP_HAL_QURT
+/**
+ * @file AP_HAL_QURT_Private.h
+ * @brief Private umbrella header for AP_HAL_QURT module internal implementation
+ * 
+ * @details This header provides internal-only aggregation of QURT-specific HAL
+ *          implementation headers for use within the AP_HAL_QURT module. It serves
+ *          as a centralized include point for QURT platform implementation files,
+ *          keeping Qualcomm Hexagon DSP-specific implementation details encapsulated
+ *          and hidden from other ArduPilot modules.
+ *          
+ *          The header currently includes:
+ *          - UARTDriver.h: QURT UART device implementation
+ *          - Util.h: QURT utility functions and platform-specific helpers
+ *          
+ *          These headers contain QURT RTOS API dependencies including pthreads,
+ *          sl_client_* RPC interfaces, and other Qualcomm Hexagon DSP platform-specific
+ *          APIs that should not be exposed outside this module.
+ * 
+ * @warning THIS IS A PRIVATE HEADER - Only include from within AP_HAL_QURT module!
+ *          External code must NOT include this header. All external access to QURT
+ *          HAL functionality must go through the abstract AP_HAL interfaces defined
+ *          in libraries/AP_HAL/*.h. This encapsulation ensures platform independence
+ *          and prevents tight coupling to QURT-specific implementation details.
+ * 
+ * Rationale for Encapsulation:
+ * The HAL (Hardware Abstraction Layer) architecture isolates platform-specific
+ * implementations behind abstract interfaces. External ArduPilot code depends only
+ * on AP_HAL abstract interfaces (UARTDriver, SPIDevice, Scheduler, etc.), allowing
+ * the same vehicle and library code to run on multiple platforms (ChibiOS, Linux,
+ * ESP32, QURT, SITL) without modification. Including platform-specific private
+ * headers would break this abstraction and create unmaintainable platform dependencies.
+ * 
+ * @note Other HAL platform modules follow the same encapsulation pattern:
+ *       - AP_HAL_ChibiOS_Private.h (ARM/ChibiOS RTOS platforms)
+ *       - AP_HAL_Linux_Private.h (Linux-based platforms)
+ *       - AP_HAL_ESP32_Private.h (ESP32 WiFi platforms)
+ *       - AP_HAL_SITL_Private.h (Software-In-The-Loop simulation)
+ * 
+ * Platform Context:
+ * QURT is the Qualcomm Hexagon RTOS running on Qualcomm Snapdragon Flight and
+ * similar DSP-based autopilot platforms. This HAL implementation provides ArduPilot
+ * support for Hexagon DSP architecture with its unique RTOS and RPC communication model.
  */
 
 #include "UARTDriver.h"
