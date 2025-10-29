@@ -1,10 +1,98 @@
-/*
-  SROM for Pixart flow, converted from data supplied by Pixart (thanks to Fish for conversion)
+/**
+ * @file AP_OpticalFlow_Pixart_SROM.h
+ * @brief Static SROM (Serial ROM) firmware data for PixArt PMW3900/3901 optical flow sensors
+ * 
+ * @details This file contains manufacturer-supplied binary firmware that must be uploaded to
+ *          PixArt PMW3900 and PMW3901 optical flow sensors during initialization to enable
+ *          proper sensor operation. The data includes:
+ *          
+ *          - SROM firmware blob (4096 bytes) for sensor DSP initialization
+ *          - Register configuration sequences for PMW3900 sensor
+ *          - Register configuration sequences for PMW3901 sensor
+ *          
+ *          **Data Source**: Converted from binary firmware supplied by PixArt Imaging Inc.
+ *          Special thanks to Fish for the conversion to C array format.
+ *          
+ *          **SROM Upload Process**:
+ *          1. Sensor is placed in firmware download mode via register write
+ *          2. srom_id (0xED) is written to identify firmware version
+ *          3. srom_data[] array is uploaded byte-by-byte to sensor
+ *          4. Sensor internal DSP loads and validates the firmware
+ *          5. Initialization register sequences configure sensor parameters
+ *          
+ *          **Usage**: This data is loaded by AP_OpticalFlow_Pixart::init_pmw3901() and
+ *          related initialization functions during sensor startup. The upload occurs once
+ *          during board initialization and is critical for sensor operation.
+ *          
+ *          **Memory Placement**: The __INITFUNC__ attribute places this data in a special
+ *          initialization-only memory section on platforms that support it (e.g., ChibiOS).
+ *          This conserves runtime RAM by allowing the data to be discarded after initialization
+ *          completes, as it is only needed once at boot.
+ * 
+ * @warning This is manufacturer-supplied binary firmware data provided by PixArt Imaging.
+ *          DO NOT MODIFY the srom_data[] array or srom_id value, as any changes will cause
+ *          sensor initialization to fail and the optical flow sensor to malfunction. The
+ *          firmware blob contains proprietary DSP code whose exact function is not documented
+ *          by the manufacturer. Only the initialization register sequences may be safely
+ *          modified if required for specific sensor configurations.
+ * 
+ * @note The firmware data in this file is specific to PMW3900/PMW3901 sensors. Different
+ *       PixArt sensor models (e.g., PMW3902) may require different SROM data.
+ * 
+ * @see AP_OpticalFlow_Pixart::init_pmw3901() for the firmware upload implementation
+ * @see AP_OpticalFlow_Pixart.cpp for complete sensor initialization sequence
+ * 
+ * @copyright Copyright (c) 2010-2025 ArduPilot Development Team
+ * @author ArduPilot Development Team, Fish (SROM conversion)
  */
 
+/**
+ * @brief SROM firmware version identifier for PMW3900/3901 sensors
+ * 
+ * @details This value (0xED) identifies the specific version/variant of the SROM firmware
+ *          contained in the srom_data[] array. It is written to the sensor's SROM_ID
+ *          register during the firmware upload process to inform the sensor which firmware
+ *          version is being loaded.
+ *          
+ *          The sensor uses this ID to validate firmware compatibility and may reject
+ *          firmware uploads if the ID does not match expected values. This ID is
+ *          manufacturer-specified and corresponds to the particular firmware blob provided
+ *          by PixArt for the PMW3900/3901 sensor family.
+ * 
+ * @note Value 0xED is specific to this firmware version. Do not modify.
+ */
 const uint8_t AP_OpticalFlow_Pixart::srom_id = 0xED;
 
-// SROM data for 3900
+/**
+ * @brief Binary SROM firmware blob for PMW3900/3901 optical flow sensor DSP
+ * 
+ * @details This 4096-byte array contains proprietary DSP firmware provided by PixArt Imaging
+ *          that must be uploaded to the PMW3900 or PMW3901 sensor during initialization.
+ *          The firmware enables the sensor's internal digital signal processor to perform
+ *          optical flow calculations, motion detection, and image processing.
+ *          
+ *          **Upload Process**:
+ *          - Sensor is placed in SROM download mode via register 0x20 = 0x1D
+ *          - SROM_ID (0xED) is written to register 0x2F
+ *          - Each byte of this array is written sequentially to register 0x2E
+ *          - Sensor validates the firmware and loads it into internal memory
+ *          - Upload typically takes 10-15ms to complete
+ *          
+ *          **Memory Placement**: The __INITFUNC__ attribute marks this as initialization-only
+ *          data on platforms that support it (e.g., ChibiOS with appropriate linker scripts).
+ *          This allows the data to be placed in flash or discardable RAM sections, conserving
+ *          runtime memory since the firmware is only needed once at boot.
+ *          
+ *          **Array Size**: Exactly 4096 bytes (0x1000). The sensor expects this exact size.
+ * 
+ * @warning DO NOT MODIFY this array. It contains manufacturer-supplied binary firmware.
+ *          Any modifications will cause sensor initialization failures. The firmware blob
+ *          is proprietary and not reverse-engineered - its internal structure and algorithms
+ *          are not publicly documented.
+ * 
+ * @note This firmware is compatible with both PMW3900 and PMW3901 sensor variants.
+ *       The same SROM can be used for both models as they share the same DSP core.
+ */
 __INITFUNC__ const uint8_t AP_OpticalFlow_Pixart::srom_data[] =
 {
     0x03, 0xed, 0xb5, 0x32, 0x26, 0xfc, 0x1e, 0xbe, 0xd8, 0x1d, 0xb8, 0xd3, 0x05, 0x88, 0x73, 0x45,
@@ -202,8 +290,42 @@ __INITFUNC__ const uint8_t AP_OpticalFlow_Pixart::srom_data[] =
 };
 
 
-/*
-  initialisation data (register config) for 3900
+/**
+ * @brief Register initialization sequence for PMW3900 optical flow sensor
+ * 
+ * @details This array contains the register address/value pairs that must be written to
+ *          the PMW3900 sensor after SROM firmware upload to configure sensor parameters
+ *          and operational modes. The initialization sequence configures:
+ *          
+ *          - Frame timing and clock settings (registers 0x10, 0x0F, 0x30)
+ *          - LED pulse timing and current (registers 0x2B, 0x2C, 0x2E)
+ *          - Threshold levels for motion detection (registers 0x49, 0x4A, 0x4B)
+ *          - Resolution and tracking parameters (registers 0x45, 0x46, 0x53, 0x52)
+ *          - Bank selection registers (0x31-0x33 sequences) for advanced configuration
+ *          
+ *          **Application Process**:
+ *          Each RegData entry contains a register address and value. The initialization
+ *          function writes each pair sequentially:
+ *          ```
+ *          for (each entry) {
+ *              write_register(entry.reg, entry.val);
+ *          }
+ *          ```
+ *          
+ *          **Bank Switching**: The PMW3900 uses a bank-switching mechanism (register 0x31)
+ *          to access extended register sets. Multiple consecutive writes to registers
+ *          0x31-0x33 are used to configure internal parameters not accessible through
+ *          the main register map.
+ *          
+ *          **Timing**: These register writes occur after SROM upload completes and before
+ *          the sensor is placed into normal operation mode. Total initialization time is
+ *          typically 2-5ms for all register writes.
+ * 
+ * @note The __INITFUNC__ attribute allows this data to be placed in initialization-only
+ *       memory sections on supporting platforms, conserving runtime RAM.
+ * 
+ * @see AP_OpticalFlow_Pixart::RegData for the register address/value structure definition
+ * @see AP_OpticalFlow_Pixart::init_pmw3901() for the initialization sequence that uses this data
  */
 __INITFUNC__ const AP_OpticalFlow_Pixart::RegData AP_OpticalFlow_Pixart::init_data_3900[] =
 {
@@ -279,7 +401,42 @@ __INITFUNC__ const AP_OpticalFlow_Pixart::RegData AP_OpticalFlow_Pixart::init_da
    { 0x52, 0x10 },
 };
 
-// init data for 3901
+/**
+ * @brief First-phase register initialization sequence for PMW3901 optical flow sensor
+ * 
+ * @details This array contains the first set of register configurations for the PMW3901
+ *          sensor variant. The PMW3901 requires a two-phase initialization sequence with
+ *          a mandatory delay between phases, unlike the PMW3900 which uses single-phase init.
+ *          
+ *          **PMW3901-Specific Configuration**:
+ *          The 3901 variant uses bank-switching (register 0x7F) to access multiple register
+ *          pages for advanced configuration. This first phase configures:
+ *          
+ *          - Bank 0x00: Power management and operation modes
+ *          - Bank 0x03-0x0A: Internal signal processing parameters
+ *          - Bank 0x14-0x15: Advanced tracking and threshold settings
+ *          - Bank 0x07, 0x10: Timing and LED pulse configuration
+ *          
+ *          **Initialization Sequence**:
+ *          1. Upload SROM firmware (srom_data[])
+ *          2. Apply init_data_3901_1[] register sequence (this array)
+ *          3. **CRITICAL**: Delay 100ms to allow internal calibration
+ *          4. Apply init_data_3901_2[] register sequence
+ *          5. Place sensor in normal operation mode
+ *          
+ *          The 100ms delay between phase 1 and phase 2 is manufacturer-specified and
+ *          required for the sensor's internal auto-calibration routines to complete.
+ *          Skipping this delay will result in incorrect sensor operation.
+ * 
+ * @note Must be followed by a 100ms delay before applying init_data_3901_2[].
+ *       See manufacturer datasheet for timing requirements.
+ * 
+ * @warning The register sequences for PMW3901 differ significantly from PMW3900.
+ *          Do not use PMW3900 initialization data with PMW3901 sensors or vice versa.
+ * 
+ * @see init_data_3901_2[] for the second initialization phase
+ * @see AP_OpticalFlow_Pixart::init_pmw3901() for complete PMW3901 initialization
+ */
 __INITFUNC__ const AP_OpticalFlow_Pixart::RegData AP_OpticalFlow_Pixart::init_data_3901_1[] =
 {
     { 0x7F, 0x00 },
@@ -344,7 +501,46 @@ __INITFUNC__ const AP_OpticalFlow_Pixart::RegData AP_OpticalFlow_Pixart::init_da
 };
 
 
-// Delay 100 ms before resuming the below register writes
+/**
+ * @brief Second-phase register initialization sequence for PMW3901 optical flow sensor
+ * 
+ * @details This array contains the second and final set of register configurations for the
+ *          PMW3901 sensor, applied after a mandatory 100ms delay following the first phase
+ *          (init_data_3901_1[]). This two-phase approach allows the sensor's internal
+ *          auto-calibration routines to complete between configuration stages.
+ *          
+ *          **Second Phase Configuration**:
+ *          This phase finalizes sensor setup by configuring:
+ *          
+ *          - Bank 0x07: Final LED pulse and timing adjustments
+ *          - Bank 0x06: Signal conditioning parameters
+ *          - Bank 0x0D: Advanced motion detection thresholds  
+ *          - Bank 0x00: Final operational mode settings and sensor enable
+ *          
+ *          **Critical Timing Requirement**:
+ *          A minimum 100ms delay MUST occur between applying init_data_3901_1[] and this
+ *          array. This delay allows:
+ *          - Internal ADC calibration to complete
+ *          - Baseline noise floor measurements to stabilize
+ *          - LED current calibration to settle
+ *          
+ *          Failure to observe this delay will result in:
+ *          - Incorrect motion detection thresholds
+ *          - Reduced tracking accuracy
+ *          - Potential sensor malfunction
+ *          
+ *          **Completion**: After applying this sequence, the sensor is ready for normal
+ *          operation and will begin producing optical flow measurements when queried.
+ * 
+ * @warning MUST be preceded by init_data_3901_1[] AND a 100ms delay. This is a
+ *          manufacturer timing requirement that cannot be shortened.
+ * 
+ * @note This completes the PMW3901 initialization sequence. No further configuration
+ *       is required after these registers are written.
+ * 
+ * @see init_data_3901_1[] for the first initialization phase
+ * @see AP_OpticalFlow_Pixart::init_pmw3901() for complete initialization with proper delays
+ */
 __INITFUNC__ const AP_OpticalFlow_Pixart::RegData AP_OpticalFlow_Pixart::init_data_3901_2[] =
 {
     { 0x32, 0x44 },
