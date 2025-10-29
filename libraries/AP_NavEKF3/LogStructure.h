@@ -1,8 +1,81 @@
+/**
+ * @file LogStructure.h
+ * @brief EKF3 binary logging structures and registration system
+ * 
+ * @details This file defines the binary log message structures used by NavEKF3 (Navigation Extended Kalman Filter 3)
+ *          for high-speed data recording during flight. These structures are designed for:
+ *          - Compact binary representation to minimize storage and bandwidth requirements
+ *          - High-frequency logging (typically 10-25 Hz) of estimator states and diagnostics
+ *          - Post-flight analysis and algorithm debugging
+ *          - Ground station real-time telemetry display
+ * 
+ *          The log structures use packed binary format with scaled integer fields where possible
+ *          to reduce message sizes. For example, angles are stored as int16_t in centidegrees rather
+ *          than float in radians, achieving 4:1 size reduction while maintaining sufficient precision.
+ * 
+ *          Log Message Categories:
+ *          - XKF0: Beacon positioning sensor diagnostics
+ *          - XKF1: Primary estimator outputs (attitude, velocity, position, gyro bias)
+ *          - XKF2: Secondary outputs (accel bias, wind, magnetometer, drag/sideslip)
+ *          - XKF3: Innovation values for sensor measurements
+ *          - XKF4: Variance estimates and filter status
+ *          - XKF5: Optical flow and rangefinder innovations, error magnitudes
+ *          - XKFD: Body frame odometry errors
+ *          - XKFM: On-ground-not-moving diagnostic data
+ *          - XKFS: Sensor selection indices
+ *          - XKQ: Attitude quaternion representation
+ *          - XKT: Timing and sample rate diagnostics
+ *          - XKTV: Yaw estimator tilt error variances
+ *          - XKV1/XKV2: Complete EKF state variance vector (split across two messages)
+ * 
+ *          Each log structure includes:
+ *          - LOG_PACKET_HEADER: Standard header with message type and length
+ *          - time_us: Microsecond timestamp for precise time correlation
+ *          - core: EKF core instance identifier (0-2 for multi-EKF configurations)
+ *          - Scaled sensor/state data optimized for size and precision
+ * 
+ * @note All structures use PACKED attribute to eliminate padding bytes and ensure consistent
+ *       binary layout across different compilers and architectures.
+ * 
+ * @warning These structures define the on-disk and over-the-wire binary format. Changes to field
+ *          types, ordering, or sizes will break compatibility with existing ground station software,
+ *          log analysis tools, and historical log files. When modifications are necessary:
+ *          - Create new message types with incremented suffixes (e.g., XKF6)
+ *          - Maintain old message types for backward compatibility
+ *          - Update ground station message definitions in sync
+ *          - Document format changes in release notes
+ * 
+ * @see AP_Logger for the logging infrastructure and message registration system
+ * @see NavEKF3_core.h for the EKF algorithm implementation that generates these log values
+ * @see LogStructure.cpp in AP_Logger for format string documentation
+ * 
+ * Source: libraries/AP_NavEKF3/LogStructure.h:1-463
+ */
+
 #pragma once
 
 #include <AP_Logger/LogStructure.h>
 #include <AP_AHRS/AP_AHRS_config.h>
 
+/**
+ * @brief EKF3 log message ID enumeration for registration with AP_Logger
+ * 
+ * @details This macro expands to a comma-separated list of log message IDs that are registered
+ *          with the AP_Logger system during initialization. Each ID corresponds to a specific
+ *          log message type (XKF0, XKF1, etc.) and is used by the logging system to:
+ *          - Allocate message type numbers in the global log message registry
+ *          - Enable/disable specific message types via logging parameters
+ *          - Route log data to appropriate storage backends (SD card, flash, MAVLink)
+ * 
+ *          This macro is typically used in the LOG_MSG enumeration in AP_Logger/LogStructure.h
+ *          to incorporate EKF3 messages into the system-wide message catalog.
+ * 
+ * @note The order of IDs in this list does not affect functionality but should remain consistent
+ *       for code maintainability. Message IDs are assigned dynamically at compile time.
+ * 
+ * @see LOG_STRUCTURE_FROM_NAVEKF3 for the corresponding structure definitions
+ * @see AP_Logger/LogStructure.h for the global message registration system
+ */
 #define LOG_IDS_FROM_NAVEKF3 \
     LOG_XKF0_MSG, \
     LOG_XKF1_MSG, \
@@ -38,6 +111,22 @@
 // @Field: OFN: North position of receiver rel to EKF origin
 // @Field: OFE: East position of receiver rel to EKF origin
 // @Field: OFD: Down position of receiver rel to EKF origin
+
+/**
+ * @brief Binary log structure for EKF3 beacon positioning system diagnostics
+ * 
+ * @details Records innovation (measurement residual) data for beacon-based positioning systems.
+ *          Beacons provide range measurements to known fixed positions, enabling indoor or GPS-denied
+ *          navigation. This message logs the difference between predicted and measured beacon ranges,
+ *          along with statistical measures (variance, test ratio) used to accept/reject measurements.
+ *          
+ *          All position fields use centimeter scaling (int16_t) for compact storage, providing
+ *          ±327 meter range with 1cm resolution. Range innovations help diagnose beacon configuration
+ *          issues, multipath interference, or EKF state estimation errors.
+ * 
+ * @note Logged only when beacon positioning is active and configured (AP_Beacon library enabled).
+ *       Typical logging rate: 10 Hz per active beacon.
+ */
 struct PACKED log_XKF0 {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -76,6 +165,31 @@ struct PACKED log_XKF0 {
 // @Field: GY: Estimated gyro bias, Y axis
 // @Field: GZ: Estimated gyro bias, Z axis
 // @Field: OH: Height of origin above WGS-84
+
+/**
+ * @brief Primary EKF3 state estimates - attitude, velocity, position, and gyro bias
+ * 
+ * @details This is the most important EKF3 log message, containing the core navigation solution
+ *          used for flight control. It includes:
+ *          - Attitude: Roll/pitch in centidegrees (±180°), yaw in centidegrees (0-360°)
+ *          - Velocity: NED frame in m/s (float precision for accuracy)
+ *          - Position: NED frame relative to EKF origin in meters (float)
+ *          - Gyro bias: Estimated sensor errors in body frame (centidegrees/sec)
+ *          - Origin height: EKF reference altitude above WGS-84 ellipsoid
+ * 
+ *          The EKF origin is established at initialization (typically first GPS lock) and remains
+ *          fixed unless explicitly reset. All position values are relative to this origin.
+ *          
+ *          Attitude uses scaled integers (int16_t centidegrees) for roll/pitch to save space,
+ *          while velocities and positions use float for the precision required by navigation.
+ *          The posD_dot field provides filtered vertical velocity for altitude hold controllers.
+ * 
+ * @note This message is logged at high rate (typically 10-25 Hz) as it represents the primary
+ *       navigation solution. Used extensively in post-flight analysis and real-time telemetry.
+ * 
+ * @warning Ground control stations depend on this message format for attitude/position display.
+ *          Field order and types must remain stable across firmware versions.
+ */
 struct PACKED log_XKF1 {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -115,6 +229,27 @@ struct PACKED log_XKF1 {
 // @Field: IDX: Innovation in vehicle drag acceleration (X-axis component)
 // @Field: IDY: Innovation in vehicle drag acceleration (Y-axis component)
 // @Field: IS: Innovation in vehicle sideslip
+
+/**
+ * @brief Secondary EKF3 state estimates - sensor biases, wind, magnetometer, and aerodynamics
+ * 
+ * @details Complementary to XKF1, this message logs additional estimated states:
+ *          - Accelerometer bias: Body-frame sensor errors in cm/s² (scaled int16_t)
+ *          - Wind velocity: Earth-frame (NED) wind estimation in cm/s for fixed-wing energy management
+ *          - Magnetometer: Earth-frame (NED) and body-frame field strengths in milligauss
+ *          - Drag innovations: Aerodynamic model residuals in m/s² (float) for fixed-wing
+ *          - Sideslip innovation: Lateral aerodynamic model residual in radians (float)
+ * 
+ *          Magnetometer fields are stored in both NED (for declination/inclination) and body frame
+ *          (for magnetometer calibration validation). Drag and sideslip innovations are used only
+ *          for fixed-wing aircraft with aerodynamic fusion enabled (EK3_DRAG_CTRL parameter).
+ * 
+ *          Scaling: Accelerometer and wind use cm/s (int16_t) for ±327 m/s range with cm resolution.
+ *          Magnetometer uses milligauss (int16_t) for Earth field strengths typically 200-600 mG.
+ * 
+ * @note Wind estimation requires airspeed sensor or GPS velocity comparison during maneuvering.
+ *       Magnetometer fusion can be disabled (EK3_MAG_CAL parameter) for indoor/GPS-based navigation.
+ */
 struct PACKED log_XKF2 {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -153,6 +288,40 @@ struct PACKED log_XKF2 {
 // @Field: IVT: Innovation in true-airspeed
 // @Field: RErr: Accumulated relative error of this core with respect to active primary core
 // @Field: ErSc: A consolidated error score where higher numbers are less healthy
+
+/**
+ * @brief EKF3 measurement innovations (residuals between predicted and measured values)
+ * 
+ * @details Innovations are the cornerstone of Kalman filter health monitoring. Each innovation
+ *          represents the difference between what the EKF predicted a sensor would measure
+ *          and what it actually measured:
+ *          
+ *          Innovation = Measurement - Prediction
+ * 
+ *          Small innovations indicate good filter performance (predictions match reality).
+ *          Large innovations indicate:
+ *          - Sensor malfunction or interference
+ *          - Incorrect EKF modeling (e.g., wrong noise parameters)
+ *          - Vehicle dynamics exceeding EKF assumptions
+ *          - External disturbances (e.g., GPS multipath, magnetic interference)
+ * 
+ *          This message includes innovations for:
+ *          - GPS velocity (NED frame, cm/s scaled to int16_t)
+ *          - GPS position (NED frame, cm scaled to int16_t)
+ *          - Magnetometer (body frame, milligauss scaled to int16_t)
+ *          - Yaw (centidegrees scaled to int16_t)
+ *          - Airspeed (cm/s scaled to int16_t)
+ * 
+ *          Additionally logs:
+ *          - RErr: Divergence metric for multi-EKF lane switching
+ *          - ErSc: Composite health score combining all innovation magnitudes
+ * 
+ * @note Essential for post-flight analysis of navigation failures. Spikes in innovations
+ *       correlate with sensor issues or adverse flight conditions. Compare with XKF4 variances
+ *       to determine if innovations exceeded expected statistical bounds (innovation gate failures).
+ * 
+ * @see XKF4 for innovation variance and test ratio information
+ */
 struct PACKED log_XKF3 {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -191,6 +360,44 @@ struct PACKED log_XKF3 {
 // @FieldBitmaskEnum: SS: NavFilterStatusBit
 // @Field: GPS: Filter GPS status
 // @Field: PI: Primary core index
+
+/**
+ * @brief EKF3 state variances, innovation test ratios, and filter health status
+ * 
+ * @details This message provides comprehensive EKF health diagnostics:
+ * 
+ *          **Variance Fields (uncertainty estimates)**:
+ *          - SV, SP, SH, SVT: Square root of state covariance diagonal elements
+ *          - Represent 1-sigma (68% confidence) uncertainty bounds
+ *          - Values increase with poor sensor quality or dynamic maneuvering
+ *          - Values decrease as sensors converge and filter stabilizes
+ *          - SM: Actually contains squared innovation test ratio for magnetometer (see description)
+ * 
+ *          **Innovation Test Ratios** (measurement acceptance/rejection):
+ *          Despite field names suggesting variance, SV/SP/SH/SM actually represent squared
+ *          innovation test ratios during measurement updates:
+ *          - Value < 1.0: Innovation within gate, measurement accepted
+ *          - Value > 1.0: Innovation exceeded gate, measurement rejected
+ *          - Formula: (innovation / gate_threshold)²
+ *          - Gate thresholds set by EK3_*_I_GATE parameters (typically 3-5 sigma)
+ * 
+ *          **Status Fields**:
+ *          - errRP: Roll/pitch tilt error magnitude (radians)
+ *          - OFN/OFE: Position reset applied when GPS glitch detected or EKF reinitialized
+ *          - FS: Fault bitmask indicating detected sensor failures
+ *          - TS: Timeout bitmask indicating sensors not providing recent measurements
+ *          - SS: Solution status bitmask (using NavFilterStatusBit enum)
+ *          - GPS: GPS quality metrics and fix type
+ *          - PI: Which EKF core is currently active (primary) for flight control
+ * 
+ * @note Critical for diagnosing navigation failures. Position resets (OFN/OFE non-zero) indicate
+ *       GPS glitches or EKF reinitialization events. Timeout bits indicate missing sensor data.
+ *       Fault bits indicate rejected sensors. High variances indicate low confidence in estimates.
+ * 
+ * @warning Multi-EKF configurations run 2-3 parallel filters. The PI (primary index) field indicates
+ *          which core is currently trusted for flight control. Lane switches occur when a core's
+ *          errorScore (XKF3) becomes significantly better than the current primary.
+ */
 struct PACKED log_XKF4 {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -227,6 +434,41 @@ struct PACKED log_XKF4 {
 // @Field: eAng: Magnitude of angular error
 // @Field: eVel: Magnitude of velocity error
 // @Field: ePos: Magnitude of position error
+
+/**
+ * @brief EKF3 optical flow, rangefinder innovations, and consolidated error metrics
+ * 
+ * @details This message combines terrain-relative sensor diagnostics with overall filter error magnitudes:
+ * 
+ *          **Optical Flow Data**:
+ *          - FIX/FIY: Flow innovation in body X/Y axes (rad/s scaled to int16_t)
+ *          - AFI: Terrain estimator flow innovation (rad/s scaled to int16_t)
+ *          - NI: Normalized flow variance for quality assessment (dimensionless)
+ *          - Used for GPS-denied navigation and precision landing
+ * 
+ *          **Rangefinder/Terrain Data**:
+ *          - RI: Range innovation (measured - predicted) in cm
+ *          - rng: Raw rangefinder measurement in cm
+ *          - HAGL: Estimated height above ground level in cm
+ *          - offset: Terrain height relative to EKF origin in cm
+ *          - Herr: Terrain estimation uncertainty in cm
+ * 
+ *          **Consolidated Error Magnitudes**:
+ *          - eAng: Total angular error magnitude combining roll/pitch/yaw (radians)
+ *          - eVel: Total velocity error magnitude combining N/E/D components (m/s)
+ *          - ePos: Total position error magnitude combining N/E/D components (m)
+ *          - Provide single-number health metrics for quick assessment
+ * 
+ *          Optical flow measures ground-relative motion using downward camera, enabling position hold
+ *          without GPS. Rangefinder provides direct height-above-ground measurement for terrain following
+ *          and precision landing. Both are integrated with GPS/IMU in the main EKF for robust navigation.
+ * 
+ * @note "General dumping ground" refers to this message's historical use for miscellaneous diagnostic
+ *       data that didn't fit cleanly into other message types. The consolidated error magnitudes
+ *       (eAng, eVel, ePos) provide quick health assessment without analyzing individual state variances.
+ * 
+ * @see XKF3 for individual sensor innovations, XKF4 for detailed variance information
+ */
 struct PACKED log_XKF5 {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -256,6 +498,32 @@ struct PACKED log_XKF5 {
 // @Field: IVX: Variance in velocity (X-axis)
 // @Field: IVY: Variance in velocity (Y-axis)
 // @Field: IVZ: Variance in velocity (Z-axis)
+
+/**
+ * @brief Body-frame odometry velocity innovations and variances
+ * 
+ * @details Records measurement residuals for body-frame velocity sensors such as:
+ *          - Visual odometry from cameras (e.g., Intel RealSense T265)
+ *          - Wheel odometry from encoders (ground vehicles)
+ *          - Optical flow integration
+ *          - DVL (Doppler Velocity Log) for underwater vehicles
+ * 
+ *          Unlike GPS which provides earth-frame (NED) velocity, these sensors measure velocity
+ *          in the vehicle body frame (forward/right/down). Body-frame measurements are particularly
+ *          useful for:
+ *          - Indoor/GPS-denied navigation
+ *          - Precision hovering and slow-speed maneuvering
+ *          - Operations where GPS is unavailable or unreliable
+ * 
+ *          Fields use full float precision (not scaled) as body-frame velocity innovations are
+ *          critical for camera-based navigation accuracy. Variances indicate measurement quality
+ *          and are used to weight the sensor fusion appropriately.
+ * 
+ * @note Only logged when body-frame odometry sensors are configured and actively providing data.
+ *       Common with AP_VisualOdom library integration. Typical logging rate: 10-30 Hz.
+ * 
+ * @see AP_VisualOdom for visual odometry sensor integration
+ */
 struct PACKED log_XKFD {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -281,6 +549,39 @@ struct PACKED log_XKFD {
 // @Field: AngMax: accumulated measurement time interval for the delta angle (maximum)
 // @Field: VMin: accumulated measurement time interval for the delta velocity (minimum)
 // @Field: VMax: accumulated measurement time interval for the delta velocity (maximum)
+
+/**
+ * @brief EKF3 timing diagnostics for IMU sample rates and filter update intervals
+ * 
+ * @details Records timing statistics essential for diagnosing CPU performance and IMU configuration:
+ * 
+ *          **IMU Sample Timing**:
+ *          - IMUMin/IMUMax: Range of time intervals between raw IMU samples (seconds)
+ *          - AngMin/AngMax: Range of delta-angle integration periods (seconds)
+ *          - VMin/VMax: Range of delta-velocity integration periods (seconds)
+ *          - Ideal: Consistent timing with Min ≈ Max (indicates stable sample rate)
+ *          - Problem indicators: Large Min-Max spread suggests timing jitter or CPU overload
+ * 
+ *          **EKF Update Timing**:
+ *          - EKFMin/EKFMax: Range of achieved EKF update rates (seconds per update)
+ *          - Low-pass filtered to show sustained timing, not instantaneous
+ *          - Should match target EKF rate (typically 10-50 Hz depending on platform)
+ * 
+ *          **Sample Counting**:
+ *          - Cnt: Number of IMU samples accumulated in this logging period
+ *          - Used to calculate statistics and detect dropped samples
+ * 
+ *          IMUs typically provide delta-angle (integrated gyro) and delta-velocity (integrated accel)
+ *          over a measurement interval rather than instantaneous readings. These intervals must be
+ *          known accurately for correct EKF integration. Timing variations directly affect state
+ *          estimation accuracy and can cause filter divergence if excessive.
+ * 
+ * @note Critical for debugging EKF performance issues. Consistent timing (Min≈Max) is essential
+ *       for optimal performance. Timing jitter > 10% indicates CPU overload or IMU driver issues.
+ * 
+ * @warning CPU overload causing timing variations can lead to navigation failures. If Min/Max spread
+ *          is large, reduce logging rates, disable expensive features, or upgrade to faster hardware.
+ */
 struct PACKED log_XKT {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -306,6 +607,47 @@ struct PACKED log_XKT {
 // @Field: ALR: Accelerometer length ratio
 // @Field: GDR: Gyroscope rate of change ratio
 // @Field: ADR: Accelerometer rate of change ratio
+
+/**
+ * @brief EKF3 on-ground-not-moving detector diagnostic data
+ * 
+ * @details The EKF uses an "on ground and not moving" (OGNM) detector to:
+ *          - Enable gyro bias learning while stationary
+ *          - Inhibit GPS glitch detection during initialization
+ *          - Manage state covariance growth appropriately for static vs dynamic conditions
+ *          - Optimize filter parameters for different operational states
+ * 
+ *          Detection algorithm uses four statistical measures:
+ * 
+ *          **Gyroscope Length Ratio (GLR)**:
+ *          - Ratio of current gyro magnitude to moving-threshold
+ *          - Values < 1.0 indicate rotation below movement detection threshold
+ *          - Detects vehicle rotational motion
+ * 
+ *          **Accelerometer Length Ratio (ALR)**:
+ *          - Ratio of current accel magnitude deviation from gravity to threshold
+ *          - Values < 1.0 indicate near-zero vibration and linear acceleration
+ *          - Detects vehicle translation and vibration
+ * 
+ *          **Gyroscope Diff Ratio (GDR)**:
+ *          - Ratio of gyro rate-of-change to threshold
+ *          - Values < 1.0 indicate steady (non-changing) rotation rate
+ *          - Detects angular acceleration
+ * 
+ *          **Accelerometer Diff Ratio (ADR)**:
+ *          - Ratio of accel rate-of-change to threshold
+ *          - Values < 1.0 indicate steady (non-changing) acceleration
+ *          - Detects linear jerk
+ * 
+ *          OGNM flag is set true only when ALL four ratios remain below 1.0 for a sustained period
+ *          (typically several seconds), ensuring the vehicle is genuinely stationary and not just
+ *          momentarily hovering or experiencing temporary low motion.
+ * 
+ * @note Useful for diagnosing why EKF may not be learning gyro biases (requires OGNM true) or why
+ *       GPS glitches are being detected during initialization (OGNM should be true at startup).
+ * 
+ * @see NavEKF3_core::setOnGroundAndNotMoving() for detector implementation
+ */
 struct PACKED log_XKFM {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -326,6 +668,39 @@ struct PACKED log_XKFM {
 // @Field: Q2: Quaternion b term
 // @Field: Q3: Quaternion c term
 // @Field: Q4: Quaternion d term
+
+/**
+ * @brief EKF3 attitude quaternion representation
+ * 
+ * @details Provides the full-precision quaternion representation of vehicle attitude, complementing
+ *          the scaled Euler angles in XKF1. Quaternions are the internal EKF attitude representation
+ *          because they:
+ *          - Avoid gimbal lock at ±90° pitch
+ *          - Enable efficient attitude integration and updates
+ *          - Provide continuous (no wrap-around) representation
+ *          - Support direct composition and interpolation
+ * 
+ *          Quaternion represents rotation from NED (North-East-Down) reference frame to body frame:
+ *          - Q = [q1, q2, q3, q4] where q4 is the scalar (real) component
+ *          - Normalized: q1² + q2² + q3² + q4² = 1.0
+ *          - Convention: Hamilton (not JPL), right-handed rotation
+ *          - Passive rotation (transforms vectors from NED to body frame)
+ * 
+ *          All four components use full float precision (not scaled) to maintain the numerical
+ *          accuracy required for quaternion operations. Even small denormalization accumulates
+ *          and causes attitude drift if quaternions are stored with reduced precision.
+ * 
+ *          Relationship to Euler angles (XKF1):
+ *          - Roll: atan2(2*(q4*q1 + q2*q3), 1 - 2*(q1² + q2²))
+ *          - Pitch: asin(2*(q4*q2 - q3*q1))
+ *          - Yaw: atan2(2*(q4*q3 + q1*q2), 1 - 2*(q2² + q3²))
+ * 
+ * @note Use quaternion logs for attitude analysis requiring full precision or at high pitch angles
+ *       where Euler singularities occur. For routine analysis, XKF1 Euler angles are more intuitive.
+ * 
+ * @see XKF1 for Euler angle representation (roll, pitch, yaw)
+ * @see AP_Math/quaternion.h for quaternion math operations
+ */
 struct PACKED log_XKQ {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -349,6 +724,47 @@ struct PACKED log_XKQ {
 // @Field: GPS_GTA: GPS good to align
 // @Field: GPS_CHK_WAIT: Waiting for GPS checks to pass
 // @Field: MAG_FUSION: Magnetometer fusion (0=not fusing/1=fuse yaw/2=fuse mag)
+
+/**
+ * @brief EKF3 sensor selection indices and fusion status
+ * 
+ * @details Tracks which physical sensors are actively used by each EKF core. ArduPilot supports
+ *          multiple instances of each sensor type (e.g., GPS1, GPS2, Compass1-3, Baro1-3) for
+ *          redundancy. The EKF can:
+ *          - Use a single "best" sensor from each type
+ *          - Blend measurements from multiple sensors
+ *          - Switch between sensors when failures are detected
+ * 
+ *          **Sensor Selection Indices**:
+ *          - MI (Magnetometer Index): Which compass (0-3) is used for yaw/mag fusion
+ *          - BI (Barometer Index): Which barometer (0-2) is used for altitude
+ *          - GI (GPS Index): Which GPS receiver (0-1) is used for position/velocity
+ *          - AI (Airspeed Index): Which airspeed sensor (0-1) is used (fixed-wing only)
+ * 
+ *          **Source Set**:
+ *          - ArduPilot supports up to 3 source sets (primary/secondary/tertiary)
+ *          - Each set defines a consistent combination of sensors
+ *          - EKF can switch source sets if primary set fails health checks
+ *          - SS field: 0=primary, 1=secondary, 2=tertiary
+ * 
+ *          **GPS Alignment Status**:
+ *          - GPS_GTA: GPS quality sufficient to initialize/align EKF (boolean)
+ *          - GPS_CHK_WAIT: Waiting for GPS checks to pass before using (boolean)
+ *          - EKF requires good GPS (hdop, satellite count, movement) before first use
+ * 
+ *          **Magnetometer Fusion Mode**:
+ *          - MAG_FUSION: 0=not using magnetometer, 1=fusing yaw only, 2=fusing full 3D field
+ *          - Mode 1: Uses mag for yaw but not for position (reduces mag interference effects)
+ *          - Mode 2: Full 3D magnetometer fusion (better heading accuracy in benign environments)
+ *          - Mode 0: GPS yaw or no mag (indoor flight, mag disabled, or compass failure)
+ * 
+ * @note Essential for diagnosing sensor redundancy behavior. Sensor index changes indicate automatic
+ *       failover due to detected problems. Compare with XKF4 fault/timeout bits to understand why
+ *       sensors were rejected.
+ * 
+ * @see AP_AHRS for source set management
+ * @see EKF3_SRC* parameters for configuring source sets
+ */
 struct PACKED log_XKFS {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -369,6 +785,47 @@ struct PACKED log_XKFS {
 // @Field: C: EKF3 core this data is for
 // @Field: TVS: Tilt Error Variance from symbolic equations (rad^2)
 // @Field: TVD: Tilt Error Variance from difference method (rad^2)
+
+/**
+ * @brief EKF3 GSF (Gaussian Sum Filter) yaw estimator variance diagnostics
+ * 
+ * @details The EKF3 includes a specialized Gaussian Sum Filter for yaw initialization in challenging
+ *          conditions where magnetometer is unavailable, unreliable, or disabled. The GSF runs multiple
+ *          parallel yaw hypotheses and converges to the correct yaw through GPS velocity observations
+ *          during vehicle movement.
+ * 
+ *          This message logs tilt error variance estimates computed by two independent methods:
+ * 
+ *          **TVS (Symbolic Equations Method)**:
+ *          - Tilt variance derived from symbolic differentiation of measurement equations
+ *          - Analytically computed from state covariances and Jacobian matrices
+ *          - Theoretically correct under linear approximation assumptions
+ *          - Units: rad² (variance of tilt error)
+ * 
+ *          **TVD (Difference Method)**:
+ *          - Tilt variance estimated from empirical differences between filter hypotheses
+ *          - Based on actual spread of the parallel yaw estimates
+ *          - Captures nonlinear effects and real-world variance
+ *          - Units: rad² (variance of tilt error)
+ * 
+ *          **Comparison Usage**:
+ *          - TVS and TVD should agree when filter is operating correctly
+ *          - Large TVS >> TVD indicates analytical model mismatch with reality
+ *          - Large TVD >> TVS indicates unexpected measurement noise or dynamics
+ *          - Both decreasing indicates yaw hypothesis convergence during flight
+ * 
+ *          The GSF is particularly valuable for:
+ *          - Fixed-wing launch where initial yaw is unknown
+ *          - Indoor flight with magnetometer disabled
+ *          - Environments with severe magnetic distortion
+ *          - Recovery from magnetometer failures during flight
+ * 
+ * @note Only logged when GSF yaw estimator is active (EK3_GSF_USE_MASK parameter).
+ *       Tilt error variance decreases as vehicle maneuvers provide yaw observability through
+ *       GPS velocity measurements. Sustained straight flight provides poor yaw observability.
+ * 
+ * @see NavEKF3_core::runYawEstimatorPrediction() for GSF implementation
+ */
 struct PACKED log_XKTV {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -410,6 +867,53 @@ struct PACKED log_XKTV {
 // @Field: V21: Variance for state 21 (body-frame mag-field-bias-z)
 // @Field: V22: Variance for state 22 (wind-north)
 // @Field: V23: Variance for state 23 (wind-east)
+
+/**
+ * @brief Complete EKF3 state covariance diagonal elements (split across XKV1 and XKV2 messages)
+ * 
+ * @details The Extended Kalman Filter maintains a state vector and covariance matrix representing
+ *          the estimate and its uncertainty. This structure logs the diagonal elements of the
+ *          covariance matrix, which represent the variance (squared uncertainty) of each state:
+ * 
+ *          **State Vector Organization** (24 states total):
+ *          - States 0-3: Attitude quaternion error components (rad²)
+ *          - States 4-6: Velocity NED (m²/s²)
+ *          - States 7-9: Position NED (m²)
+ *          - States 10-12: Gyro delta-angle bias XYZ (rad²)
+ *          - States 13-15: Accel delta-velocity bias XYZ (m²/s²)
+ *          - States 16-18: Earth magnetic field bias NED (mG²)
+ *          - States 19-21: Body magnetic field bias XYZ (mG²)
+ *          - States 22-23: Wind velocity NE (m²/s²)
+ * 
+ *          **Message Split Rationale**:
+ *          Due to binary log message size constraints, the 24 variances are split across two
+ *          messages (XKV1 and XKV2), each carrying 12 float values plus header/timestamp/core.
+ *          This maintains compatibility with existing logging infrastructure while providing
+ *          complete state covariance visibility.
+ * 
+ *          **Variance Interpretation**:
+ *          - Variance = σ² (square of standard deviation)
+ *          - √Variance = 1-sigma uncertainty bound (68% confidence)
+ *          - Small variance: High confidence in state estimate
+ *          - Large variance: Low confidence, needs better sensor data or tuning
+ *          - Growing variance: Filter divergence or insufficient sensor updates
+ *          - Shrinking variance: Filter convergence as sensors provide information
+ * 
+ *          **Usage in Analysis**:
+ *          - Initial variances reflect EK3_*_P_NOISE parameter settings (process noise)
+ *          - Variances evolve according to filter dynamics and sensor measurements
+ *          - Compare with XKF4 aggregate variances (SV, SP, SH) which are derived from these
+ *          - Essential for advanced EKF tuning and algorithm development
+ *          - Diagnose which states are poorly observable (persistently high variance)
+ * 
+ * @note Full state covariance logging has significant storage overhead (2 messages × 13 fields × 4 bytes
+ *       = 104 bytes per logging cycle). Typically enabled only for detailed analysis or algorithm
+ *       development. For routine operations, XKF4 aggregate variances are sufficient.
+ * 
+ * @see XKF4 for aggregate variance measures and innovation test ratios
+ * @see EK3_*_P_NOISE parameters for process noise tuning (affects variance growth)
+ * @see NavEKF3_core::CovariancePrediction() for covariance propagation implementation
+ */
 struct PACKED log_XKV {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -428,7 +932,122 @@ struct PACKED log_XKV {
     float v11;
 };
 
+/**
+ * @brief Conditional compilation guard for EKF3 feature availability
+ * 
+ * @details HAL_NAVEKF3_AVAILABLE is a compile-time feature flag that determines whether the
+ *          NavEKF3 library is included in the firmware build. This flag is controlled by:
+ *          - Board hardware capabilities (RAM, flash, CPU speed)
+ *          - Vehicle-specific feature requirements
+ *          - hwdef (hardware definition) files for each board
+ *          - Global feature configuration settings
+ * 
+ *          When HAL_NAVEKF3_AVAILABLE is 0 (disabled):
+ *          - NavEKF3 library code is not compiled or linked
+ *          - LOG_STRUCTURE_FROM_NAVEKF3 expands to empty (no log structures registered)
+ *          - Firmware falls back to EKF2, DCM, or external AHRS
+ *          - Binary size reduced by ~100KB (significant for small boards)
+ * 
+ *          When HAL_NAVEKF3_AVAILABLE is 1 (enabled):
+ *          - Full EKF3 functionality compiled and available
+ *          - Log structures registered with AP_Logger for data recording
+ *          - EKF3 can be selected via AHRS_EKF_TYPE parameter
+ * 
+ *          Typical scenarios where EKF3 is disabled:
+ *          - Small F1/F4 microcontrollers with limited flash (<1MB)
+ *          - Minimal builds for specific applications (antenna tracker, periph nodes)
+ *          - Memory-constrained platforms where EKF2 is sufficient
+ *          - Custom builds optimizing for binary size
+ * 
+ * @note Most modern ArduPilot boards (F7, H7 processors) have EKF3 enabled by default.
+ *       Check your board's hwdef file or use "param show AHRS_EKF_TYPE" to determine availability.
+ * 
+ * @see AP_HAL_ChibiOS/hwdef for board-specific feature definitions
+ * @see AHRS_EKF_TYPE parameter to select between EKF2 (2) and EKF3 (3)
+ */
 #if HAL_NAVEKF3_AVAILABLE
+
+/**
+ * @brief EKF3 log structure registration macro for integration with AP_Logger
+ * 
+ * @details This macro expands to a complete set of log message structure definitions that are
+ *          incorporated into the system-wide logging configuration. Each entry in the macro
+ *          defines a log message type with the following components:
+ * 
+ *          **Structure Definition Format**:
+ *          { LOG_*_MSG, sizeof(log_*), "NAME", "FORMAT", "LABELS", "UNITS", "MULTIPLIERS", streaming }
+ * 
+ *          **Field Descriptions**:
+ *          1. Message ID: LOG_XKF*_MSG enumeration constant
+ *          2. Size: sizeof(log_*) for memory allocation and validation
+ *          3. Name: 4-character message name (e.g., "XKF1") for log readers
+ *          4. Format: Type specification string defining field sizes and encodings:
+ *             - Q: uint64_t (8 bytes) - typically time_us timestamp
+ *             - B: uint8_t (1 byte) - flags, indices, booleans
+ *             - b: int8_t (1 byte) - signed small integers
+ *             - H: uint16_t (2 bytes) - unsigned short integers
+ *             - h: int16_t (2 bytes) - signed short integers (common for scaled values)
+ *             - I: uint32_t (4 bytes) - unsigned integers
+ *             - i: int32_t (4 bytes) - signed integers
+ *             - f: float (4 bytes) - IEEE-754 single precision
+ *             - d: double (8 bytes) - IEEE-754 double precision (rarely used)
+ *             - c: int16_t (2 bytes) - legacy centidegree/centimeter scaling
+ *             - C: uint16_t (2 bytes) - legacy unsigned scaling
+ *          5. Labels: Comma-separated field names matching structure members
+ *          6. Units: Single-character unit codes (s=seconds, m=meters, n=m/s, d=degrees, etc.)
+ *          7. Multipliers: Scaling indicators (F=format, B=base, 0=no scaling, etc.)
+ *          8. Streaming: Boolean indicating if message should be streamed via MAVLink telemetry
+ * 
+ *          **Unit Encoding**:
+ *          - s: seconds
+ *          - d: degrees
+ *          - k: degrees Kelvin
+ *          - r: radians
+ *          - m: meters
+ *          - n: meters/second
+ *          - N: newton
+ *          - G: gauss (magnetic field)
+ *          - o: ohm
+ *          - A: ampere
+ *          - V: volt
+ *          - v: volt/cell
+ *          - ?: unknown/dimensionless
+ *          - -: no unit
+ * 
+ *          **Multiplier Encoding**:
+ *          - F: Format-specified (no additional scaling)
+ *          - B: Base unit (1:1 scaling)
+ *          - 0: Not scaled/not applicable
+ *          - C: Centi scale (×100 in log, ×0.01 in real units)
+ *          - ?: Unknown scaling
+ * 
+ *          **Integration with AP_Logger**:
+ *          This macro is included in the global LOG_STRUCTURE_FROM_* aggregation in
+ *          AP_Logger/LogStructure.h. During system initialization:
+ *          1. AP_Logger allocates message buffers sized by sizeof(log_*)
+ *          2. Format strings enable ground stations to parse binary logs
+ *          3. Unit/multiplier metadata enables automatic scaling in analysis tools
+ *          4. Streaming flag determines if messages go to MAVLink in addition to SD card
+ * 
+ * @note Binary log format compatibility is critical. Ground stations (Mission Planner, QGroundControl,
+ *       MAVExplorer) parse logs using these format strings. Changes to field order, types, or count
+ *       break compatibility with existing tools and historical log analysis.
+ * 
+ * @warning When modifying log structures:
+ *          - Never change existing message field order or types (breaks historical log parsing)
+ *          - Never reuse message names for different structures (confuses ground stations)
+ *          - Create new message types (e.g., XKF6, XKF7) for new data instead of modifying existing
+ *          - Update ground station message definitions in sync with firmware changes
+ *          - Test with multiple ground station software before releasing
+ *          - Document changes in release notes for log analysis tool developers
+ * 
+ * @see AP_Logger/LogStructure.h for the global log structure registration system
+ * @see AP_Logger/LogStructure.cpp for format string documentation and parsing code
+ * @see Tools/Replay for log replay system that validates message formats
+ * @see https://ardupilot.org/dev/docs/code-overview-dataflash.html for logging system documentation
+ * 
+ * Source: libraries/AP_NavEKF3/LogStructure.h:432-459
+ */
 #define LOG_STRUCTURE_FROM_NAVEKF3        \
     { LOG_XKF0_MSG, sizeof(log_XKF0), \
       "XKF0","QBBccCCcccccccc","TimeUS,C,ID,rng,innov,SIV,TR,BPN,BPE,BPD,OFH,OFL,OFN,OFE,OFD", "s#-m---mmmmmmmm", "F--B---BBBBBBBB" , true }, \
@@ -457,6 +1076,30 @@ struct PACKED log_XKV {
       "XKV1","QBffffffffffff","TimeUS,C,V00,V01,V02,V03,V04,V05,V06,V07,V08,V09,V10,V11", "s#------------", "F-------------" , true }, \
     { LOG_XKV2_MSG, sizeof(log_XKV), \
       "XKV2","QBffffffffffff","TimeUS,C,V12,V13,V14,V15,V16,V17,V18,V19,V20,V21,V22,V23", "s#------------", "F-------------" , true },
+
+/**
+ * @brief Empty macro definition when EKF3 is not available
+ * 
+ * @details When HAL_NAVEKF3_AVAILABLE is 0 (false), this branch defines LOG_STRUCTURE_FROM_NAVEKF3
+ *          as an empty macro. This allows the logging system's structure aggregation to work correctly
+ *          regardless of whether EKF3 is compiled into the firmware.
+ * 
+ *          Effect of empty macro:
+ *          - No EKF3 log messages registered with AP_Logger
+ *          - No EKF3 message IDs allocated in the log message enumeration
+ *          - Reduces logging system memory footprint
+ *          - Ground stations will not see EKF3 log entries in recorded logs
+ *          - Log analysis tools can still parse logs from EKF3-enabled builds
+ * 
+ *          This pattern is used throughout ArduPilot for optional subsystems, ensuring that
+ *          feature flags cleanly enable/disable entire modules without requiring extensive
+ *          #ifdef blocks throughout the codebase.
+ * 
+ * @note The macro must still be defined (even if empty) because LOG_STRUCTURE_FROM_NAVEKF3
+ *       is referenced in AP_Logger's structure aggregation regardless of EKF3 availability.
+ * 
+ * @see AP_Logger/LogStructure.h for how optional log structures are aggregated
+ */
 #else
   #define LOG_STRUCTURE_FROM_NAVEKF3
-#endif
+#endif // HAL_NAVEKF3_AVAILABLE
