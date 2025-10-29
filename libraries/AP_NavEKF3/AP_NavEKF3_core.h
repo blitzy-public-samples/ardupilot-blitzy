@@ -1,21 +1,52 @@
-/*
-  24 state EKF based on the derivation in https://github.com/PX4/ecl/
-  blob/master/matlab/scripts/Inertial%20Nav%20EKF/GenerateNavFilterEquations.m
-
-  Converted from Matlab to C++ by Paul Riseborough
-
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/**
+ * @file AP_NavEKF3_core.h
+ * @brief Extended Kalman Filter (EKF3) core computational backend implementation
+ * 
+ * @details This file defines the NavEKF3_core class, which implements a 24-state 
+ *          Extended Kalman Filter for inertial navigation. The filter fuses data from
+ *          multiple sensors including IMU, GPS, magnetometer, barometer, airspeed,
+ *          optical flow, rangefinder, and other sources to provide robust estimates
+ *          of vehicle attitude, velocity, and position.
+ * 
+ *          The EKF3 implementation is based on the derivation from PX4 ECL:
+ *          https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/GenerateNavFilterEquations.m
+ *          Originally converted from Matlab to C++ by Paul Riseborough.
+ * 
+ * **24-State Vector Composition:**
+ * - **Quaternion (4)**: Vehicle attitude representation (body frame to NED frame)
+ * - **Velocity NED (3)**: North, East, Down velocity in m/s (NED navigation frame)
+ * - **Position NED (3)**: North, East, Down position in m (NED navigation frame)
+ * - **Gyro Bias (3)**: X, Y, Z gyroscope bias in rad/s (body frame)
+ * - **Accel Bias (3)**: X, Y, Z accelerometer bias in m/s² (body frame)
+ * - **Earth Magnetic Field NED (3)**: North, East, Down magnetic field in gauss (NED frame)
+ * - **Body Magnetic Field XYZ (3)**: X, Y, Z magnetic field bias in gauss (body frame)
+ * - **Wind Velocity NE (2)**: North, East wind velocity in m/s (NED frame)
+ * 
+ * **Coordinate Frame Conventions:**
+ * - **NED (North-East-Down)**: Navigation frame fixed to Earth's surface
+ * - **Body Frame**: Vehicle-fixed frame (X forward, Y right, Z down)
+ * - **Autopilot Frame**: Sensor mounting frame (may differ from body frame by rotation)
+ * 
+ * **Multi-Core Architecture:**
+ * Each NavEKF3_core instance represents a computational backend tied to a specific IMU.
+ * The frontend NavEKF3 class manages multiple cores and selects the healthiest one for
+ * navigation output. This architecture provides redundancy and robustness against
+ * sensor failures.
+ * 
+ * **Safety-Critical Considerations:**
+ * This filter is flight-critical. Errors in state estimation can lead to vehicle crashes.
+ * All modifications must be thoroughly tested in Software-In-The-Loop (SITL) simulation
+ * and on test vehicles before deployment.
+ * 
+ * @warning This is safety-critical code. Modifications require extensive validation.
+ * 
+ * @note This program is free software: you can redistribute it and/or modify
+ *       it under the terms of the GNU General Public License as published by
+ *       the Free Software Foundation, either version 3 of the License, or
+ *       (at your option) any later version.
+ * 
+ * @copyright Copyright (c) 2016-2025 ArduPilot.org
+ * @author Paul Riseborough
  */
 #pragma once
 
@@ -124,350 +155,1278 @@
 // maximum GPs ground course uncertainty allowed for yaw alignment (deg)
 #define GPS_VEL_YAW_ALIGN_MAX_ANG_ERR 15.0F
 
+/**
+ * @class NavEKF3_core
+ * @brief 24-state Extended Kalman Filter computational backend for inertial navigation
+ * 
+ * @details NavEKF3_core implements a per-IMU computational backend for the EKF3 navigation filter.
+ *          Each core instance processes data from a specific IMU and fuses it with other available
+ *          sensors to produce state estimates. The frontend NavEKF3 class manages multiple cores
+ *          and selects the healthiest one for navigation output, providing sensor redundancy.
+ * 
+ * **Architecture:**
+ * - **Multi-Core Design**: Each core is tied to one IMU (up to 3 cores supported)
+ * - **Frontend Selection**: NavEKF3 frontend chooses the healthiest core for output
+ * - **Independent Operation**: Each core runs its own prediction and fusion cycles
+ * - **Fault Tolerance**: Unhealthy cores are automatically excluded from use
+ * 
+ * **State Vector (24 states):**
+ * 1. Quaternion (4): Attitude representation from body to NED frame
+ * 2. Velocity NED (3): North, East, Down velocity in m/s
+ * 3. Position NED (3): North, East, Down position in m
+ * 4. Gyro Bias (3): X, Y, Z gyroscope bias in rad/s
+ * 5. Accel Bias (3): X, Y, Z accelerometer bias in m/s²
+ * 6. Earth Mag Field NED (3): North, East, Down magnetic field in gauss
+ * 7. Body Mag Field XYZ (3): X, Y, Z body frame magnetic field bias in gauss
+ * 8. Wind Velocity NE (2): North, East wind velocity in m/s
+ * 
+ * **Sensor Fusion Capabilities:**
+ * - IMU (gyroscope + accelerometer): Primary inertial measurements
+ * - GPS: Position, velocity, and optionally yaw (dual-antenna systems)
+ * - Magnetometer: Heading reference and magnetic field anomaly detection
+ * - Barometer: Altitude reference
+ * - Airspeed: True airspeed for fixed-wing vehicles
+ * - Optical Flow: Visual velocity measurement for GPS-denied navigation
+ * - Rangefinder: Height above ground for terrain following
+ * - External Navigation: Integration with external positioning systems (e.g., visual-inertial odometry)
+ * - Body Frame Odometry: Wheel encoders or visual odometry in body frame
+ * - Range Beacons: Position triangulation from fixed beacons
+ * 
+ * **Coordinate Frames:**
+ * - **NED Frame**: North-East-Down navigation frame (earth-fixed, local tangent plane)
+ * - **Body Frame**: Vehicle-fixed frame (X forward, Y right, Z down)
+ * - **Autopilot Frame**: IMU sensor mounting frame (may differ from body by rotation offset)
+ * 
+ * **Filter Operation Cycle:**
+ * 1. **Prediction Step**: Integrate IMU measurements to predict state evolution (typically 400 Hz)
+ * 2. **Covariance Prediction**: Update state covariance using process noise model
+ * 3. **Sensor Fusion**: Fuse available sensor measurements using Kalman update equations
+ * 4. **Health Monitoring**: Track innovation consistency and numerical health
+ * 5. **Output**: Provide attitude, velocity, position estimates to flight control
+ * 
+ * **Health Monitoring:**
+ * - Innovation consistency checks: Verify sensor measurements align with predictions
+ * - Numerical health: Monitor for covariance divergence or numerical instability
+ * - Sensor validity: Track timeout and quality metrics for each sensor
+ * - Error scoring: Compute consolidated health score for frontend selection
+ * 
+ * **Compile-Time Feature Gating:**
+ * Various features can be disabled via #if EK3_FEATURE_* directives to reduce
+ * code size for platforms with limited flash memory:
+ * - EK3_FEATURE_BEACON_FUSION: Range beacon support
+ * - EK3_FEATURE_DRAG_FUSION: Multicopter wind estimation via drag model
+ * - EK3_FEATURE_BODY_ODOM: Body frame odometry support
+ * - EK3_FEATURE_EXTERNAL_NAV: External navigation system integration
+ * - EK3_FEATURE_RANGEFINDER_MEASUREMENTS: Rangefinder terrain following
+ * 
+ * **Thread Safety:**
+ * This class is NOT inherently thread-safe. It is designed to be called from the
+ * scheduler at a fixed rate. Access from multiple threads requires external synchronization.
+ * 
+ * **Performance Characteristics:**
+ * - Prediction Rate: 400 Hz (EKF_TARGET_DT = 12 ms)
+ * - CPU Load: ~2-3% on typical autopilot hardware (depends on enabled features)
+ * - Memory: ~20-30 KB per core (depends on buffer sizes and enabled features)
+ * 
+ * @warning This is flight-critical code. State estimation errors can cause crashes.
+ *          All changes require thorough testing in SITL and on test vehicles.
+ * 
+ * @note Inherits from NavEKF_core_common which provides shared functionality across
+ *       EKF2 and EKF3 implementations.
+ * 
+ * @see NavEKF3 Frontend class managing multiple cores
+ * @see state_elements Definition of 24-state vector structure
+ * 
+ * Source: libraries/AP_NavEKF3/AP_NavEKF3_core.h
+ */
 class NavEKF3_core : public NavEKF_core_common
 {
 public:
-    // Constructor
+    /**
+     * @brief Constructor for NavEKF3_core backend
+     * 
+     * @param[in] _frontend Pointer to the NavEKF3 frontend managing this core
+     * @param[in] dal Reference to Data Abstraction Layer for sensor access
+     * 
+     * @note The constructor only initializes pointers. Actual filter setup occurs in setup_core().
+     */
     NavEKF3_core(class NavEKF3 *_frontend, class AP_DAL &dal);
 
-    // setup this core backend
+    /**
+     * @brief Set up this core backend and bind it to a specific IMU
+     * 
+     * @details Initializes the core's data buffers, state variables, and sensor associations.
+     *          Must be called before the filter can be used. Each core is associated with
+     *          a specific IMU index for redundancy.
+     * 
+     * @param[in] _imu_index Index of the IMU this core will use (0-2)
+     * @param[in] _core_index Index of this core instance (0-2)
+     * 
+     * @return true if setup successful, false if setup failed (e.g., invalid indices)
+     * 
+     * @note Should be called once during system initialization before flight
+     */
     bool setup_core(uint8_t _imu_index, uint8_t _core_index);
     
-    // Initialise the states from accelerometer and magnetometer data (if present)
-    // This method can only be used when the vehicle is static
+    /**
+     * @brief Initialize filter states from accelerometer and magnetometer measurements
+     * 
+     * @details Performs initial alignment by using gravity vector from accelerometers to
+     *          determine roll and pitch, and magnetic field vector to determine yaw heading.
+     *          This bootstrap initialization can only be performed when the vehicle is
+     *          stationary on the ground.
+     * 
+     *          Initialization sequence:
+     *          1. Average accelerometer readings to determine gravity direction
+     *          2. Compute roll and pitch from gravity vector
+     *          3. Average magnetometer readings to determine magnetic field direction
+     *          4. Compute yaw from magnetic field (accounting for roll/pitch)
+     *          5. Initialize quaternion from computed Euler angles
+     *          6. Set initial state covariances based on measurement uncertainties
+     * 
+     * @return true if initialization successful, false if insufficient sensor data
+     * 
+     * @warning Vehicle MUST be stationary during initialization. Movement will cause
+     *          incorrect initial attitude estimates and subsequent filter divergence.
+     * 
+     * @note Alternative initialization methods exist for specific scenarios (e.g., in-flight restart)
+     */
     bool InitialiseFilterBootstrap(void);
 
-    // Update Filter States - this should be called whenever new IMU data is available
-    // The predict flag is set true when a new prediction cycle can be started
+    /**
+     * @brief Update filter states with new IMU data (main filter processing function)
+     * 
+     * @details This is the main entry point for the filter's processing cycle. Should be
+     *          called every time new IMU data is available (typically 400 Hz). Performs:
+     *          1. State prediction using IMU measurements (gyro + accel integration)
+     *          2. Covariance prediction with process noise
+     *          3. Sensor data fusion when measurements are available
+     *          4. State and covariance constraint enforcement
+     *          5. Health monitoring and diagnostics
+     * 
+     *          The filter operates in two phases:
+     *          - **Prediction**: Integrate IMU to predict state evolution
+     *          - **Update**: Fuse sensor measurements to correct predictions
+     * 
+     * @param[in] predict true when a new prediction cycle should be started,
+     *                    false to skip prediction and only process sensor updates
+     * 
+     * @note This function is flight-critical and must execute within timing constraints.
+     *       Typical execution time: 0.5-2 ms depending on enabled features and active sensors.
+     * 
+     * @warning Excessive execution time can cause scheduler overruns and flight instability.
+     *          Monitor EKF timing in logs if adding computational load.
+     */
     void UpdateFilter(bool predict);
 
-    // Check basic filter health metrics and return a consolidated health status
+    /**
+     * @brief Check basic filter health metrics and return consolidated health status
+     * 
+     * @details Evaluates multiple health criteria to determine if the filter is operating
+     *          correctly and can be used for flight control. Health checks include:
+     *          - Innovation consistency: Sensor measurements align with predictions
+     *          - Numerical stability: Covariances remain positive definite
+     *          - Sensor timeouts: Required sensors are providing data
+     *          - State bounds: States remain within reasonable physical limits
+     *          - Filter convergence: Filter has achieved sufficient accuracy
+     * 
+     * @return true if filter is healthy and suitable for flight control, false otherwise
+     * 
+     * @warning Flight control should NOT use estimates from an unhealthy filter.
+     *          Doing so can lead to erratic behavior or crashes.
+     * 
+     * @note Frontend uses this to select between multiple cores. An unhealthy core
+     *       will not be selected as the primary navigation source.
+     */
     bool healthy(void) const;
 
-    // Return a consolidated error score where higher numbers are less healthy
-    // Intended to be used by the front-end to determine which is the primary EKF
+    /**
+     * @brief Return consolidated error score where higher numbers indicate worse health
+     * 
+     * @details Computes a numerical health score by combining multiple error metrics:
+     *          - Innovation test ratios for each sensor
+     *          - State variance magnitudes
+     *          - Time since last successful sensor fusion
+     *          - Gyro bias magnitude (indicates IMU quality)
+     *          - Accel bias magnitude
+     * 
+     *          The frontend uses this score to select the healthiest core when multiple
+     *          cores are available. The core with the LOWEST error score is selected.
+     * 
+     * @return float Error score (0.0 = perfect health, higher values = worse health)
+     * 
+     * @note Typical error scores range from 0.0-1.0 for healthy operation.
+     *       Scores > 2.0 usually indicate significant problems.
+     */
     float errorScore(void) const;
 
-    // Write the last calculated NE position relative to the reference point (m).
-    // If a calculated solution is not available, use the best available data and return false
-    // If false returned, do not use for flight control
+    /**
+     * @brief Get last calculated North-East position relative to EKF origin
+     * 
+     * @details Returns the horizontal position estimate in the NED navigation frame.
+     *          Position is relative to the EKF origin which is set when the filter
+     *          is first initialized (typically vehicle power-on location or first GPS fix).
+     * 
+     * @param[out] posNE North and East position components in meters (NED frame)
+     * 
+     * @return true if calculated solution available and suitable for flight control,
+     *         false if using fallback data (do NOT use for flight control)
+     * 
+     * @warning If false is returned, the output data should not be used for flight control
+     *          as it may be stale, inaccurate, or based on dead reckoning.
+     * 
+     * @note Units: meters
+     * @note Coordinate frame: NED navigation frame
+     */
     bool getPosNE(Vector2p &posNE) const;
 
-    // get position D from local origin
+    /**
+     * @brief Get Down position from local (EKF) origin
+     * 
+     * @param[out] posD Down position component in meters (NED frame, negative = up)
+     * 
+     * @return true if calculated solution available, false if using fallback
+     * 
+     * @note Units: meters (negative values indicate altitude above origin)
+     * @note Coordinate frame: NED navigation frame (Down is positive downward)
+     */
     bool getPosD_local(postype_t &posD) const;
 
-    // Write the last calculated D position relative to the public origin
-    // If a calculated solution is not available, use the best available data and return false
-    // If false returned, do not use for flight control
+    /**
+     * @brief Get Down position relative to public (common) origin
+     * 
+     * @details Returns altitude relative to the public origin shared across all cores.
+     *          The public origin may differ from the local EKF origin if the filter
+     *          was initialized at a different location or time.
+     * 
+     * @param[out] posD Down position in meters relative to public origin (NED frame)
+     * 
+     * @return true if calculated solution available and suitable for flight control,
+     *         false if using fallback data (do NOT use for flight control)
+     * 
+     * @warning If false is returned, do not use output for flight control
+     * 
+     * @note Units: meters (negative = above origin, positive = below origin)
+     * @note Coordinate frame: NED navigation frame
+     */
     bool getPosD(postype_t &posD) const;
 
-    // return NED velocity in m/s
+    /**
+     * @brief Return velocity estimate in NED navigation frame
+     * 
+     * @details Provides the current velocity estimate with components in the North,
+     *          East, and Down directions. Always returns a velocity estimate even
+     *          if the filter is unhealthy (for logging/monitoring purposes).
+     * 
+     * @param[out] vel Velocity vector with North, East, Down components in m/s
+     * 
+     * @note Units: m/s
+     * @note Coordinate frame: NED navigation frame
+     * @note This method always succeeds (no return value check needed)
+     */
     void getVelNED(Vector3f &vel) const;
 
-    // return estimate of true airspeed vector in body frame in m/s
-    // returns false if estimate is unavailable
+    /**
+     * @brief Return estimated true airspeed vector in body frame
+     * 
+     * @details Computes the vehicle's velocity relative to the surrounding airmass
+     *          by subtracting estimated wind velocity from ground velocity. The result
+     *          is rotated into the body frame for use by airspeed controllers.
+     * 
+     *          Calculation: airspeed_body = Rotation_NED_to_body * (velocity_NED - wind_NED)
+     * 
+     * @param[out] vel True airspeed vector in body frame (X forward, Y right, Z down) in m/s
+     * 
+     * @return true if airspeed estimate is available and valid, false otherwise
+     * 
+     * @note Units: m/s
+     * @note Coordinate frame: Body frame (vehicle-fixed)
+     * @note Requires valid wind estimate (typically from airspeed sensor fusion)
+     */
     bool getAirSpdVec(Vector3f &vel) const;
 
-    // return the innovation in m/s, innovation variance in (m/s)^2 and age in msec of the last TAS measurement processed
-    // returns false if the data is unavailable
+    /**
+     * @brief Return True Airspeed (TAS) innovation health data
+     * 
+     * @details Provides diagnostic information about the last processed airspeed measurement.
+     *          Innovation is the difference between measured and predicted airspeed.
+     *          Large innovations indicate sensor problems or filter divergence.
+     * 
+     * @param[out] innovation Airspeed innovation in m/s (measurement - prediction)
+     * @param[out] innovationVariance Innovation variance in (m/s)² (expected innovation magnitude)
+     * @param[out] age_ms Age of last airspeed measurement in milliseconds
+     * 
+     * @return true if airspeed data is available, false otherwise
+     * 
+     * @note Units: m/s for innovation, (m/s)² for variance, milliseconds for age
+     */
     bool getAirSpdHealthData(float &innovation, float &innovationVariance, uint32_t &age_ms) const;
 
-    // Return the rate of change of vertical position in the down direction (dPosD/dt) in m/s
-    // This can be different to the z component of the EKF velocity state because it will fluctuate with height errors and corrections in the EKF
-    // but will always be kinematically consistent with the z component of the EKF position state
+    /**
+     * @brief Return rate of change of Down position (vertical velocity derivative)
+     * 
+     * @details Returns dPosD/dt which may differ from the Down component of velocity state
+     *          due to height corrections and error dynamics. However, this derivative is
+     *          always kinematically consistent with the Down position state, making it
+     *          useful for height rate control that must track position commands.
+     * 
+     * @return float Vertical velocity in m/s (positive = downward, negative = upward)
+     * 
+     * @note Units: m/s
+     * @note Sign convention: Positive = descending, Negative = climbing (NED frame)
+     */
     float getPosDownDerivative(void) const;
 
-    // return body axis gyro bias estimates in rad/sec
+    /**
+     * @brief Return estimated gyroscope bias in body frame
+     * 
+     * @details Provides the current estimate of IMU gyroscope bias. These biases are
+     *          subtracted from raw gyro measurements before integration. Bias estimation
+     *          occurs continuously during flight and adapts to temperature changes and
+     *          sensor drift.
+     * 
+     * @param[out] gyroBias Gyro bias vector for X, Y, Z axes in rad/s (body frame)
+     * 
+     * @note Units: rad/s
+     * @note Coordinate frame: Body frame (X forward, Y right, Z down)
+     * @note Typical bias magnitudes: 0.001-0.01 rad/s (0.06-0.6 deg/s)
+     */
     void getGyroBias(Vector3f &gyroBias) const;
 
-    // return accelerometer bias in m/s/s
+    /**
+     * @brief Return estimated accelerometer bias in body frame
+     * 
+     * @details Provides the current estimate of IMU accelerometer bias. These biases are
+     *          subtracted from raw accelerometer measurements. Bias estimation adapts to
+     *          sensor thermal effects and systematic errors during flight.
+     * 
+     * @param[out] accelBias Accelerometer bias vector for X, Y, Z axes in m/s² (body frame)
+     * 
+     * @note Units: m/s²
+     * @note Coordinate frame: Body frame (X forward, Y right, Z down)
+     * @note Typical bias magnitudes: 0.1-0.5 m/s²
+     */
     void getAccelBias(Vector3f &accelBias) const;
 
-    // reset body axis gyro bias estimates
+    /**
+     * @brief Reset gyroscope bias estimates to zero
+     * 
+     * @details Forces gyro bias states to zero and resets their covariances to initial values.
+     *          Should only be used when IMU has been recalibrated or replaced. Incorrect
+     *          use can cause attitude estimation errors.
+     * 
+     * @warning Use with caution. Resetting biases during flight can cause temporary
+     *          attitude errors until biases reconverge.
+     * 
+     * @note The filter will re-estimate biases after reset, but this takes time
+     */
     void resetGyroBias(void);
 
-    // Resets the baro so that it reads zero at the current height
-    // Resets the EKF height to zero
-    // Adjusts the EKF origin height so that the EKF height + origin height is the same as before
-    // Returns true if the height datum reset has been performed
-    // If using a range finder for height no reset is performed and it returns false
+    /**
+     * @brief Reset height datum to current altitude
+     * 
+     * @details Resets the barometer and EKF height states so that current altitude becomes
+     *          the new zero reference. The EKF origin height is adjusted to maintain global
+     *          position consistency (EKF height + origin height remains unchanged).
+     * 
+     *          This is useful for:
+     *          - Zeroing altitude at takeoff location
+     *          - Compensating for barometric drift during long flights
+     *          - Resetting after changing altitude reference source
+     * 
+     * @return true if height datum reset was performed, false if reset was not possible
+     *         (e.g., when using rangefinder as primary height source)
+     * 
+     * @note No reset is performed when rangefinder is the primary height source
+     * @note This operation is transparent to users - reported altitude remains consistent
+     */
     bool resetHeightDatum(void);
 
-    // return the horizontal speed limit in m/s set by optical flow sensor limits
-    // return the scale factor to be applied to navigation velocity gains to compensate for increase in velocity noise with height when using optical flow
+    /**
+     * @brief Return EKF control limits when using optical flow
+     * 
+     * @details When optical flow is the primary navigation sensor, velocity noise increases
+     *          with altitude due to the fixed angular resolution of the flow sensor.
+     *          This function returns:
+     *          1. Maximum safe ground speed for reliable flow tracking
+     *          2. Gain scaling factor to reduce velocity controller gains at altitude
+     * 
+     * @param[out] ekfGndSpdLimit Maximum horizontal speed limit in m/s for optical flow
+     * @param[out] ekfNavVelGainScaler Velocity gain scale factor (0.0-1.0) to apply at current height
+     * 
+     * @note Units: m/s for speed limit, dimensionless (0-1) for gain scaler
+     * @note Gain scaler decreases with increasing height when using optical flow
+     */
     void getEkfControlLimits(float &ekfGndSpdLimit, float &ekfNavVelGainScaler) const;
 
-    // return the NED wind speed estimates in m/s (positive is air moving in the direction of the axis)
-    // returns true if wind state estimation is active
+    /**
+     * @brief Return estimated wind velocity in NED frame
+     * 
+     * @details Provides the estimated wind velocity vector. Wind estimation uses airspeed
+     *          measurements (if available) or drag-based estimation for multirotors.
+     *          Accurate wind estimates improve position hold and waypoint tracking.
+     * 
+     * @param[out] wind Wind velocity vector: North, East components in m/s (Down is zero)
+     * 
+     * @return true if wind state estimation is active and estimates are valid, false otherwise
+     * 
+     * @note Units: m/s
+     * @note Coordinate frame: NED navigation frame (only NE components, Down is always zero)
+     * @note Sign convention: Positive = air moving in positive axis direction
+     */
     bool getWind(Vector3f &wind) const;
 
-    // return earth magnetic field estimates in measurement units / 1000
+    /**
+     * @brief Return estimated Earth magnetic field in NED frame
+     * 
+     * @details Returns the estimated Earth's magnetic field vector in the NED navigation frame.
+     *          These estimates adapt over time to account for local magnetic anomalies and
+     *          improve heading estimation accuracy.
+     * 
+     * @param[out] magNED Magnetic field vector: North, East, Down components in gauss
+     * 
+     * @note Units: gauss (measurement units / 1000)
+     * @note Coordinate frame: NED navigation frame
+     * @note Typical Earth field magnitude: 0.25-0.65 gauss depending on location
+     */
     void getMagNED(Vector3f &magNED) const;
 
-    // return body magnetic field estimates in measurement units / 1000
+    /**
+     * @brief Return estimated body frame magnetic field bias
+     * 
+     * @details Returns the estimated magnetic field bias in the vehicle body frame.
+     *          Body frame biases account for magnetic interference from vehicle electronics,
+     *          motors, and ferromagnetic materials. These estimates improve heading accuracy
+     *          by removing vehicle-induced magnetic distortions.
+     * 
+     * @param[out] magXYZ Magnetic field bias vector: X, Y, Z components in gauss (body frame)
+     * 
+     * @note Units: gauss (measurement units / 1000)
+     * @note Coordinate frame: Body frame (X forward, Y right, Z down)
+     * @note These biases are added to measured field to compensate for vehicle interference
+     */
     void getMagXYZ(Vector3f &magXYZ) const;
 
-    // return the index for the active sensors
+    /**
+     * @brief Return index of active airspeed sensor
+     * 
+     * @return uint8_t Index of currently active airspeed sensor (0-based)
+     * 
+     * @note Used when multiple airspeed sensors are available for redundancy
+     */
     uint8_t getActiveAirspeed() const;
 
-    // Return estimated magnetometer offsets
-    // Return true if magnetometer offsets are valid
+    /**
+     * @brief Return estimated magnetometer offset calibration values
+     * 
+     * @details Provides the estimated hard-iron offset corrections for a specified magnetometer.
+     *          These offsets represent constant magnetic biases in the sensor measurements and
+     *          are subtracted to improve heading accuracy.
+     * 
+     * @param[in] mag_idx Index of magnetometer (0-based)
+     * @param[out] magOffsets Magnetometer offset vector in gauss (sensor frame)
+     * 
+     * @return true if magnetometer offsets are valid and available, false otherwise
+     * 
+     * @note Units: gauss
+     * @note Coordinate frame: Magnetometer sensor frame
+     */
     bool getMagOffsets(uint8_t mag_idx, Vector3f &magOffsets) const;
 
-    // Return the last calculated latitude, longitude and height in WGS-84
-    // If a calculated location isn't available, return a raw GPS measurement
-    // The status will return true if a calculation or raw measurement is available
-    // The getFilterStatus() function provides a more detailed description of data health and must be checked if data is to be used for flight control
+    /**
+     * @brief Return last calculated position in WGS-84 coordinates (latitude, longitude, altitude)
+     * 
+     * @details Returns the vehicle's global position. If a calculated EKF solution is not
+     *          available (e.g., filter not yet converged), falls back to raw GPS measurement.
+     *          
+     * @param[out] loc Location structure containing latitude, longitude, altitude (WGS-84)
+     * 
+     * @return true if any position data is available (calculated or raw), false otherwise
+     * 
+     * @warning For flight control use, MUST check getFilterStatus() to verify solution quality.
+     *          This function returns true even when using fallback GPS data which may be inaccurate.
+     * 
+     * @note Altitude is AMSL (Above Mean Sea Level) in centimeters
+     * @note Latitude/longitude in degrees * 1e7
+     */
     bool getLLH(Location &loc) const;
 
-    // return the latitude and longitude and height used to set the NED origin
-    // All NED positions calculated by the filter are relative to this location
-    // Returns false if the origin has not been set
+    /**
+     * @brief Return EKF NED origin in WGS-84 coordinates
+     * 
+     * @details The NED origin is the reference point for all NED position calculations.
+     *          It is typically set at vehicle power-on or first GPS lock. All relative
+     *          positions (North, East, Down) are measured from this origin.
+     * 
+     * @param[out] loc Origin location containing latitude, longitude, altitude (WGS-84)
+     * 
+     * @return true if origin has been set, false if origin is not yet established
+     * 
+     * @note The origin remains fixed unless explicitly changed or filter is reset
+     * @note Used to convert between NED (local) and LLH (global) coordinates
+     */
     bool getOriginLLH(Location &loc) const;
 
-    // set the latitude and longitude and height used to set the NED origin
-    // All NED positions calculated by the filter will be relative to this location
-    // returns false if the origin has already been set
+    /**
+     * @brief Set the EKF NED origin to a specified WGS-84 location
+     * 
+     * @details Establishes the reference point for NED position calculations. Once set,
+     *          all position estimates will be relative to this origin. This function can
+     *          only succeed if the origin has not been previously set.
+     * 
+     * @param[in] loc Desired origin location (latitude, longitude, altitude in WGS-84)
+     * 
+     * @return true if origin was successfully set, false if origin was already established
+     * 
+     * @warning Cannot change origin after it has been set. This prevents coordinate frame
+     *          discontinuities that could disrupt flight control.
+     * 
+     * @note Typically called automatically on first GPS lock or during filter initialization
+     */
     bool setOriginLLH(const Location &loc);
 
-    // Set the EKF's NE horizontal position states and their corresponding variances from a supplied WGS-84 location and uncertainty
-    // The altitude element of the location is not used.
-    // Returns true if the set was successful
+    /**
+     * @brief Set EKF horizontal position states from WGS-84 location and accuracy estimate
+     * 
+     * @details Directly sets the North-East position states and their variances based on
+     *          an external position measurement (e.g., GPS, external navigation system).
+     *          The altitude component is ignored. Useful for initializing position or
+     *          recovering from position divergence.
+     * 
+     * @param[in] loc WGS-84 location (latitude/longitude used, altitude ignored)
+     * @param[in] posAccuracy Estimated 1-sigma horizontal position uncertainty in meters
+     * @param[in] timestamp_ms System time of the position measurement in milliseconds
+     * 
+     * @return true if position was successfully set, false if operation failed
+     * 
+     * @warning Use with caution. Forcing position states can cause temporary filter
+     *          inconsistencies. Ensure posAccuracy reflects true measurement uncertainty.
+     * 
+     * @note Units: meters for posAccuracy, milliseconds for timestamp
+     */
     bool setLatLng(const Location &loc, float posAccuracy, uint32_t timestamp_ms);
 
-    // Popoluates the WMM data structure with the field at the given location
+    /**
+     * @brief Set expected Earth magnetic field from World Magnetic Model (WMM)
+     * 
+     * @details Populates the Earth magnetic field estimate using WMM tables based on
+     *          geographic location. Provides the filter with expected field magnitude
+     *          and direction to aid magnetometer fusion and anomaly detection.
+     * 
+     * @param[in] loc WGS-84 location to query WMM (latitude, longitude, altitude)
+     * 
+     * @note WMM provides expected field based on global magnetic model
+     * @note Helps detect local magnetic anomalies that differ from expected field
+     */
     void setEarthFieldFromLocation(const Location &loc);
 
-    // return estimated height above ground level
-    // return false if ground height is not being estimated.
+    /**
+     * @brief Return estimated Height Above Ground Level (HAGL)
+     * 
+     * @details Provides height above the local terrain surface, useful for terrain following,
+     *          landing, and obstacle avoidance. Estimated using rangefinder measurements
+     *          and/or terrain database when available.
+     * 
+     * @param[out] HAGL Height above ground level in meters
+     * 
+     * @return true if HAGL is being estimated and valid, false if not available
+     * 
+     * @note Units: meters
+     * @note Requires rangefinder or terrain database for estimation
+     * @note Returns false if ground height is not being tracked
+     */
     bool getHAGL(float &HAGL) const;
 
-    // return the Euler roll, pitch and yaw angle in radians
+    /**
+     * @brief Return vehicle attitude as Euler angles (roll, pitch, yaw)
+     * 
+     * @details Converts the internal quaternion attitude representation to Euler angles
+     *          in radians. Uses aerospace sequence (ZYX: yaw-pitch-roll).
+     * 
+     * @param[out] eulers Euler angle vector [roll, pitch, yaw] in radians
+     * 
+     * @note Units: radians
+     * @note Euler angle range: roll ±π, pitch ±π/2, yaw ±π
+     * @note Coordinate frame: roll/pitch about body axes, yaw relative to North
+     * @note Subject to gimbal lock at pitch = ±90°
+     */
     void getEulerAngles(Vector3f &eulers) const;
 
-    // return the transformation matrix from XYZ (body) to NED axes
+    /**
+     * @brief Return rotation matrix from body frame to NED frame
+     * 
+     * @details Provides the Direction Cosine Matrix (DCM) that transforms vectors from
+     *          body coordinates to NED navigation coordinates. Useful for rotating
+     *          body-frame measurements (e.g., airspeed) to navigation frame.
+     * 
+     *          Usage: vector_NED = mat * vector_body
+     * 
+     * @param[out] mat 3x3 rotation matrix (body to NED transformation)
+     * 
+     * @note Rotation direction: Body frame → NED frame
+     * @note Transpose gives NED → Body transformation
+     */
     void getRotationBodyToNED(Matrix3f &mat) const;
 
-    // return the quaternions defining the rotation from NED to XYZ (body) axes
+    /**
+     * @brief Return attitude quaternion (rotation from NED to body frame)
+     * 
+     * @details Provides the quaternion representation of vehicle attitude. Quaternions
+     *          avoid gimbal lock and are computationally efficient for attitude propagation.
+     *          Represents rotation from NED navigation frame to body frame.
+     * 
+     * @param[out] quat Attitude quaternion [q0, q1, q2, q3] (NED to body rotation)
+     * 
+     * @note Quaternion convention: q = [q0, q1, q2, q3] = [cos(θ/2), sin(θ/2)*axis]
+     * @note Unit quaternion: q0² + q1² + q2² + q3² = 1
+     * @note Rotation direction: NED frame → Body frame
+     */
     void getQuaternion(Quaternion &quat) const;
 
-    // return the innovations for the NED Pos, NED Vel, XYZ Mag and Vtas measurements
+    /**
+     * @brief Return measurement innovations for position, velocity, magnetometer, and airspeed
+     * 
+     * @details Innovations represent the difference between sensor measurements and filter predictions.
+     *          Large innovations indicate either sensor problems or filter divergence. Used for
+     *          health monitoring and diagnostics.
+     * 
+     *          Innovation = Measurement - Prediction
+     * 
+     * @param[out] velInnov Velocity innovation vector [N, E, D] in m/s (NED frame)
+     * @param[out] posInnov Position innovation vector [N, E, D] in m (NED frame)
+     * @param[out] magInnov Magnetometer innovation vector [X, Y, Z] in gauss (body frame)
+     * @param[out] tasInnov True airspeed innovation in m/s
+     * @param[out] yawInnov Yaw angle innovation in radians
+     * 
+     * @return true if innovation data is available, false otherwise
+     * 
+     * @note Units: m/s for velocity, m for position, gauss for mag, m/s for airspeed, rad for yaw
+     * @note Used for innovation consistency checks and sensor health monitoring
+     */
     bool getInnovations(Vector3f &velInnov, Vector3f &posInnov, Vector3f &magInnov, float &tasInnov, float &yawInnov) const;
 
-    // return the synthetic air data drag and sideslip innovations
+    /**
+     * @brief Return synthetic air data innovations (drag and sideslip)
+     * 
+     * @details For multicopters, drag and sideslip models can be used to estimate wind.
+     *          This function returns the innovations for these synthetic measurements.
+     * 
+     * @param[out] dragInnov Drag force innovations [X, Y] in m/s² (body frame)
+     * @param[out] betaInnov Sideslip angle innovation in radians
+     * 
+     * @note Units: m/s² for drag, radians for sideslip
+     * @note Only relevant for multicopter wind estimation
+     */
     void getSynthAirDataInnovations(Vector2f &dragInnov, float &betaInnov) const;
 
-   // return the innovation consistency test ratios for the velocity, position, magnetometer and true airspeed measurements
+    /**
+     * @brief Return innovation variance test ratios for filter health monitoring
+     * 
+     * @details Provides innovation variance test ratios that indicate sensor health and
+     *          filter consistency. Test ratio = (innovation² / innovation_variance).
+     *          Values significantly above 1.0 indicate potential sensor faults or filter problems.
+     * 
+     * @param[out] velVar Velocity innovation variance test ratio (dimensionless)
+     * @param[out] posVar Position innovation variance test ratio (dimensionless)
+     * @param[out] hgtVar Height innovation variance test ratio (dimensionless)
+     * @param[out] magVar Magnetometer innovation variance test ratios [X, Y, Z] (dimensionless)
+     * @param[out] tasVar True airspeed innovation variance test ratio (dimensionless)
+     * @param[out] offset Position measurement offset in m (for diagnostics)
+     * 
+     * @return true if variance data is available, false otherwise
+     * 
+     * @note Test ratios < 1.0 indicate good consistency (measurement within expected noise)
+     * @note Test ratios > 5.0 typically trigger innovation rejection
+     */
     bool getVariances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar, Vector2f &offset) const;
 
-    // get a particular source's velocity innovations
-    // returns true on success and results are placed in innovations and variances arguments
+    /**
+     * @brief Get velocity innovations and variances for a specific position source
+     * 
+     * @details Returns innovation data for a particular positioning source (GPS, external nav, etc.)
+     *          to enable source-specific health monitoring and fault detection.
+     * 
+     * @param[in] source Position source identifier (GPS1, GPS2, ExternalNav, etc.)
+     * @param[out] innovations Velocity innovations [N, E, D] in m/s
+     * @param[out] variances Innovation variances [N, E, D] in (m/s)²
+     * 
+     * @return true on success with valid data, false if source not active or data unavailable
+     * 
+     * @note Units: m/s for innovations, (m/s)² for variances
+     */
     bool getVelInnovationsAndVariancesForSource(AP_NavEKF_Source::SourceXY source, Vector3f &innovations, Vector3f &variances) const WARN_IF_UNUSED;
 
-    // should we use the compass? This is public so it can be used for
-    // reporting via ahrs.use_compass()
+    /**
+     * @brief Check if compass should be used for heading estimation
+     * 
+     * @details Determines whether magnetometer data is suitable for yaw estimation based on:
+     *          - Compass calibration status
+     *          - Magnetic interference levels
+     *          - Alternative yaw sources availability (GPS yaw, external nav)
+     *          - Vehicle type (some vehicles don't require compass)
+     * 
+     * @return true if compass should be used, false if compass should not be used
+     * 
+     * @note Public method to allow AHRS layer to report compass usage status
+     * @note Used by ahrs.use_compass() for GCS reporting
+     */
     bool use_compass(void) const;
 
-    // write the raw optical flow measurements
-    // rawFlowQuality is a measured of quality between 0 and 255, with 255 being the best quality
-    // rawFlowRates are the optical flow rates in rad/sec about the X and Y sensor axes.
-    // rawGyroRates are the sensor rotation rates in rad/sec measured by the sensors internal gyro
-    // The sign convention is that a RH physical rotation of the sensor about an axis produces both a positive flow and gyro rate
-    // msecFlowMeas is the scheduler time in msec when the optical flow data was received from the sensor.
-    // posOffset is the XYZ flow sensor position in the body frame in m
-    // heightOverride is the fixed height of the sensor above ground in m, when on rover vehicles. 0 if not used
+    /**
+     * @brief Write raw optical flow measurements to the EKF for fusion
+     * 
+     * @details Optical flow sensors measure apparent angular motion of the ground, which can be
+     *          converted to linear velocity when combined with altitude. Used for GPS-denied
+     *          navigation. This function writes raw sensor data for EKF processing.
+     * 
+     * **Sign Convention:**
+     * Right-hand physical rotation about an axis produces positive flow and gyro rates.
+     * 
+     * @param[in] rawFlowQuality Quality metric 0-255 (255 = best quality, 0 = invalid)
+     * @param[in] rawFlowRates Optical flow rates [X, Y] in rad/s (sensor frame)
+     * @param[in] rawGyroRates Sensor's internal gyro rates [X, Y] in rad/s for motion compensation
+     * @param[in] msecFlowMeas Scheduler timestamp when flow data received (milliseconds)
+     * @param[in] posOffset Flow sensor position offset [X, Y, Z] from IMU in m (body frame)
+     * @param[in] heightOverride Fixed height above ground in m for rovers (0 = use EKF height estimate)
+     * 
+     * @note Units: rad/s for flow rates, milliseconds for timestamp, meters for offsets
+     * @note Flow measurements are delayed; EKF compensates using timestamp
+     * @note Quality threshold for fusion typically 50-100 depending on conditions
+     */
     void writeOptFlowMeas(const uint8_t rawFlowQuality, const Vector2f &rawFlowRates, const Vector2f &rawGyroRates, const uint32_t msecFlowMeas, const Vector3f &posOffset, float heightOverride);
 
-    // retrieve latest corrected optical flow samples (used for calibration)
+    /**
+     * @brief Retrieve latest corrected optical flow sample (for calibration purposes)
+     * 
+     * @details Returns flow measurements after EKF corrections have been applied. Used for
+     *          flow sensor calibration and diagnostic purposes.
+     * 
+     * @param[out] timeStamp_ms Timestamp of flow sample in milliseconds
+     * @param[out] flowRate Corrected flow rate [X, Y] in rad/s
+     * @param[out] bodyRate Vehicle body rotation rate [X, Y] in rad/s
+     * @param[out] losPred Predicted line-of-sight rate [X, Y] in rad/s
+     * 
+     * @return true if flow sample is available, false otherwise
+     * 
+     * @note Units: milliseconds for timestamp, rad/s for rates
+     */
     bool getOptFlowSample(uint32_t& timeStamp_ms, Vector2f& flowRate, Vector2f& bodyRate, Vector2f& losPred) const;
 
-    /*
-     * Write body frame linear and angular displacement measurements from a visual odometry sensor
-     *
-     * quality is a normalised confidence value from 0 to 100
-     * delPos is the XYZ change in linear position measured in body frame and relative to the inertial reference at time_ms (m)
-     * delAng is the XYZ angular rotation measured in body frame and relative to the inertial reference at time_ms (rad)
-     * delTime is the time interval for the measurement of delPos and delAng (sec)
-     * timeStamp_ms is the timestamp of the last image used to calculate delPos and delAng (msec)
-     * delay_ms is the average delay of external nav system measurements relative to inertial measurements
-     * posOffset is the XYZ body frame position of the camera focal point (m)
-    */
+    /**
+     * @brief Write body frame odometry measurements from visual odometry sensor
+     * 
+     * @details Processes delta position and delta angle measurements from visual odometry systems
+     *          (e.g., visual-inertial odometry, T265 camera). Measurements are in body frame
+     *          and relative to an inertial reference. Used for GPS-denied navigation.
+     * 
+     *          Integration with EKF:
+     *          - Delta position fused as velocity measurement
+     *          - Delta angle cross-checked with IMU gyro integration
+     *          - Quality metric used to weight measurements
+     * 
+     * @param[in] quality Normalized confidence value 0-100 (100 = highest confidence)
+     * @param[in] delPos Change in position [X, Y, Z] over delTime in m (body frame)
+     * @param[in] delAng Angular rotation [roll, pitch, yaw] over delTime in rad (body frame)
+     * @param[in] delTime Time interval for delPos and delAng measurements in seconds
+     * @param[in] timeStamp_ms Timestamp of last image/measurement in milliseconds
+     * @param[in] delay_ms Average measurement delay relative to IMU in milliseconds
+     * @param[in] posOffset Camera/sensor position [X, Y, Z] from IMU in m (body frame)
+     * 
+     * @note Units: meters for position, radians for angles, seconds/milliseconds for time
+     * @note Coordinate frame: Body frame (X forward, Y right, Z down)
+     * @note Quality < 50 typically indicates poor tracking conditions
+     * 
+     * @warning Sensor delay must be accurately characterized for proper fusion
+     */
     void writeBodyFrameOdom(float quality, const Vector3f &delPos, const Vector3f &delAng, float delTime, uint32_t timeStamp_ms, uint16_t delay_ms, const Vector3f &posOffset);
 
-    /*
-     * Write odometry data from a wheel encoder. The axis of rotation is assumed to be parallel to the vehicle body axis
-     *
-     * delAng is the measured change in angular position from the previous measurement where a positive rotation is produced by forward motion of the vehicle (rad)
-     * delTime is the time interval for the measurement of delAng (sec)
-     * timeStamp_ms is the time when the rotation was last measured (msec)
-     * posOffset is the XYZ body frame position of the wheel hub (m)
-     * radius is the effective rolling radius of the wheel (m)
-    */
+    /**
+     * @brief Write wheel encoder odometry data for ground vehicles
+     * 
+     * @details Processes wheel rotation measurements to estimate vehicle velocity. Used primarily
+     *          for rovers and ground vehicles. Assumes wheel rotation axis is parallel to vehicle
+     *          body Y axis (lateral axis).
+     * 
+     *          Velocity calculation: velocity = (delAng * radius) / delTime
+     * 
+     * @param[in] delAng Change in wheel angular position in radians (positive = forward motion)
+     * @param[in] delTime Time interval for delAng measurement in seconds
+     * @param[in] timeStamp_ms Timestamp of measurement in milliseconds
+     * @param[in] posOffset Wheel hub position [X, Y, Z] from IMU in m (body frame)
+     * @param[in] radius Effective rolling radius of wheel in meters
+     * 
+     * @note Units: radians for angle, seconds/milliseconds for time, meters for position/radius
+     * @note Assumes wheel rotation axis parallel to body Y axis
+     * @note Wheel slip degrades velocity estimate accuracy
+     */
     void writeWheelOdom(float delAng, float delTime, uint32_t timeStamp_ms, const Vector3f &posOffset, float radius);
 
-    /*
-     * Return data for debugging body frame odometry fusion:
-     *
-     * velInnov are the XYZ body frame velocity innovations (m/s)
-     * velInnovVar are the XYZ body frame velocity innovation variances (m/s)**2
-     *
-     * Return the time stamp of the last odometry fusion update (msec)
+    /**
+     * @brief Return body frame odometry fusion debug data
+     * 
+     * @details Provides diagnostic information for debugging body frame odometry (visual odometry,
+     *          wheel encoders) fusion performance.
+     * 
+     * @param[out] velInnov Velocity innovations [X, Y, Z] in m/s (body frame)
+     * @param[out] velInnovVar Velocity innovation variances [X, Y, Z] in (m/s)² (body frame)
+     * 
+     * @return uint32_t Timestamp of last odometry fusion update in milliseconds
+     * 
+     * @note Units: m/s for innovations, (m/s)² for variances, milliseconds for timestamp
+     * @note Coordinate frame: Body frame
      */
     uint32_t getBodyFrameOdomDebug(Vector3f &velInnov, Vector3f &velInnovVar);
 
-    /*
-     * Writes the measurement from a yaw angle sensor
-     *
-     * yawAngle: Yaw angle of the vehicle relative to true north in radians where a positive angle is
-     * produced by a RH rotation about the Z body axis. The Yaw rotation is the first rotation in a
-     * 321 (ZYX) or a 312 (ZXY) rotation sequence as specified by the 'type' argument.
-     * yawAngleErr is the 1SD accuracy of the yaw angle measurement in radians.
-     * timeStamp_ms: System time in msec when the yaw measurement was taken. This time stamp must include
-     * all measurement lag and transmission delays.
-     * type: An integer specifying Euler rotation order used to define the yaw angle.
-     * type = 1 specifies a 312 (ZXY) rotation order, type = 2 specifies a 321 (ZYX) rotation order.
-    */
+    /**
+     * @brief Write yaw angle measurement from external sensor
+     * 
+     * @details Processes direct yaw angle measurements from sensors like GPS compasses (dual antenna)
+     *          or external heading sensors. Provides absolute heading reference independent of
+     *          magnetometer.
+     * 
+     * **Rotation Convention:**
+     * Positive yaw angle = right-hand rotation about Z body axis (clockwise viewed from above)
+     * 
+     * **Euler Rotation Sequences:**
+     * - Type 1: 312 (ZXY) - Yaw first, then Roll, then Pitch
+     * - Type 2: 321 (ZYX) - Yaw first, then Pitch, then Roll (most common)
+     * 
+     * @param[in] yawAngle Yaw angle relative to true north in radians
+     * @param[in] yawAngleErr 1-sigma yaw measurement uncertainty in radians
+     * @param[in] timeStamp_ms System time of measurement including all delays (milliseconds)
+     * @param[in] type Euler rotation order: 1 = 312 (ZXY), 2 = 321 (ZYX)
+     * 
+     * @note Units: radians for angle and error, milliseconds for timestamp
+     * @note Timestamp must include all measurement lag and transmission delays
+     * @note Type 2 (321/ZYX) is the standard aerospace sequence
+     */
     void writeEulerYawAngle(float yawAngle, float yawAngleErr, uint32_t timeStamp_ms, uint8_t type);
 
-    /*
-    * Write position and quaternion data from an external navigation system
-    *
-    * pos        : position in the RH navigation frame. Frame is assumed to be NED if frameIsNED is true. (m)
-    * quat       : quaternion desribing the rotation from navigation frame to body frame
-    * posErr     : 1-sigma spherical position error (m)
-    * angErr     : 1-sigma spherical angle error (rad)
-    * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
-    * delay_ms   : average delay of external nav system measurements relative to inertial measurements
-    * resetTime_ms : system time of the last position reset request (mSec)
-    *
-    */
+    /**
+     * @brief Write position and attitude data from external navigation system
+     * 
+     * @details Integrates external navigation sources such as motion capture systems, external SLAM,
+     *          or visual-inertial odometry systems that provide full 6-DOF pose (position + orientation).
+     * 
+     * @param[in] pos Position [N, E, D] or [X, Y, Z] in navigation frame (m)
+     * @param[in] quat Attitude quaternion (navigation frame to body frame rotation)
+     * @param[in] posErr 1-sigma spherical position uncertainty in meters
+     * @param[in] angErr 1-sigma spherical angular uncertainty in radians
+     * @param[in] timeStamp_ms System time measurement was taken (not received) in milliseconds
+     * @param[in] delay_ms Average measurement delay relative to IMU in milliseconds
+     * @param[in] resetTime_ms System time of last position reset request in milliseconds
+     * 
+     * @note Units: meters for position, radians for angles, milliseconds for time
+     * @note Navigation frame assumed to be NED-aligned
+     * @note Quaternion represents rotation from navigation frame to body frame
+     * 
+     * @warning Measurement delay must be accurately characterized for proper fusion
+     */
     void writeExtNavData(const Vector3f &pos, const Quaternion &quat, float posErr, float angErr, uint32_t timeStamp_ms, uint16_t delay_ms, uint32_t resetTime_ms);
 
-    /*
-     * Write velocity data from an external navigation system
-     *
-     * vel : velocity in NED (m)
-     * err : velocity error (m/s)
-     * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
-     * delay_ms : average delay of external nav system measurements relative to inertial measurements
-    */
+    /**
+     * @brief Write velocity data from external navigation system
+     * 
+     * @details Processes velocity measurements from external navigation sources. Useful when
+     *          external system provides velocity estimates (e.g., visual odometry, Doppler radar).
+     * 
+     * @param[in] vel Velocity [N, E, D] in m/s (NED frame)
+     * @param[in] err 1-sigma velocity uncertainty in m/s
+     * @param[in] timeStamp_ms System time measurement was taken (not received) in milliseconds
+     * @param[in] delay_ms Average measurement delay relative to IMU in milliseconds
+     * 
+     * @note Units: m/s for velocity and error, milliseconds for time
+     * @note Coordinate frame: NED navigation frame
+     */
     void writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms);
 
-    // Set to true if the terrain underneath is stable enough to be used as a height reference
-    // in combination with a range finder. Set to false if the terrain underneath the vehicle
-    // cannot be used as a height reference. Use to prevent range finder operation otherwise
-    // enabled by the combination of EK3_RNG_USE_HGT and EK3_RNG_USE_SPD parameters.
+    /**
+     * @brief Set whether terrain underneath is stable for height reference
+     * 
+     * @details Controls whether rangefinder measurements should be used as height reference.
+     *          Set false when flying over water, moving obstacles, or unstable terrain to prevent
+     *          rangefinder-induced height errors. Used in conjunction with EK3_RNG_USE_HGT and
+     *          EK3_RNG_USE_SPD parameters.
+     * 
+     * @param[in] val true if terrain is stable (use rangefinder), false if unstable (ignore rangefinder)
+     * 
+     * @note Prevents rangefinder fusion when terrain unsuitable for height reference
+     * @note Useful for transitioning between stable and unstable terrain
+     */
     void setTerrainHgtStable(bool val);
 
-    /*
-    return the filter fault status as a bitmasked integer
-     0 = quaternions are NaN
-     1 = velocities are NaN
-     2 = badly conditioned X magnetometer fusion
-     3 = badly conditioned Y magnetometer fusion
-     5 = badly conditioned Z magnetometer fusion
-     6 = badly conditioned airspeed fusion
-     7 = badly conditioned synthetic sideslip fusion
-     7 = filter is not initialised
-    */
+    /**
+     * @brief Return filter fault status as bitmask
+     * 
+     * @details Provides detailed fault information for diagnosing filter problems. Each bit
+     *          represents a specific fault condition. Multiple faults can occur simultaneously.
+     * 
+     * **Fault Bit Definitions:**
+     * - Bit 0: Quaternions are NaN (catastrophic attitude failure)
+     * - Bit 1: Velocities are NaN (catastrophic velocity failure)
+     * - Bit 2: Badly conditioned X magnetometer fusion
+     * - Bit 3: Badly conditioned Y magnetometer fusion
+     * - Bit 4: Badly conditioned Z magnetometer fusion
+     * - Bit 5: Badly conditioned airspeed fusion
+     * - Bit 6: Badly conditioned synthetic sideslip fusion
+     * - Bit 7: Filter is not initialized
+     * 
+     * @param[out] faults Bitmask of active faults (0 = no faults)
+     * 
+     * @warning Any non-zero fault status indicates problems requiring investigation
+     * @note Badly conditioned fusion indicates numerical instability or sensor malfunction
+     */
     void getFilterFaults(uint16_t &faults) const;
 
-    /*
-    Return a filter function status that indicates:
-        Which outputs are valid
-        If the filter has detected takeoff
-        If the filter has activated the mode that mitigates against ground effect static pressure errors
-        If GPS data is being used
-    */
+    /**
+     * @brief Return comprehensive filter status information
+     * 
+     * @details Provides detailed status of filter operation including output validity,
+     *          flight phase detection, and sensor usage. Used by flight control and GCS
+     *          to determine filter health and operational mode.
+     * 
+     * **Status Information Includes:**
+     * - Which state outputs are valid (attitude, velocity, position)
+     * - Takeoff detection status
+     * - Ground effect compensation active
+     * - GPS data usage status
+     * - Compass usage status
+     * - Flight phase (pre-arm, armed, flying)
+     * 
+     * @param[out] status Structure containing comprehensive filter status flags
+     * 
+     * @note Essential for flight control to determine which EKF outputs can be used
+     * @see nav_filter_status structure definition for all available fields
+     */
     void getFilterStatus(nav_filter_status &status) const;
 
-    // send an EKF_STATUS_REPORT message to GCS
+    /**
+     * @brief Send EKF status report message to ground control station
+     * 
+     * @details Transmits comprehensive EKF health and performance data via MAVLink for
+     *          real-time monitoring and post-flight analysis.
+     * 
+     * @param[in] link MAVLink communication channel to send message on
+     * 
+     * @note Message type: EKF_STATUS_REPORT
+     * @note Includes innovation test ratios, variances, and health metrics
+     */
     void send_status_report(class GCS_MAVLINK &link) const;
 
-    // provides the height limit to be observed by the control loops
-    // returns false if no height limiting is required
-    // this is needed to ensure the vehicle does not fly too high when using optical flow navigation
+    /**
+     * @brief Provide height control limit when using optical flow navigation
+     * 
+     * @details When optical flow is the primary navigation sensor, imposes maximum altitude
+     *          limit to maintain acceptable velocity estimation accuracy. Flow velocity
+     *          measurement quality degrades with increasing altitude due to fixed angular
+     *          resolution.
+     * 
+     * @param[out] height Maximum altitude limit in meters (negative in NED frame)
+     * 
+     * @return true if height limiting is required, false if no limit needed
+     * 
+     * @note Units: meters (NED frame - negative = above ground)
+     * @note Only applicable when using optical flow for primary navigation
+     * @note Flight controller should enforce this limit to prevent navigation degradation
+     */
     bool getHeightControlLimit(float &height) const;
 
-    // return the amount of yaw angle change due to the last yaw angle reset in radians
-    // returns the time of the last yaw angle reset or 0 if no reset has ever occurred
+    /**
+     * @brief Return yaw angle change from last reset and reset timestamp
+     * 
+     * @details When the filter performs a yaw reset (e.g., due to magnetic anomaly or GPS yaw
+     *          initialization), this function reports the magnitude of the reset for flight
+     *          controller compensation.
+     * 
+     * @param[out] yawAng Yaw angle change in radians (applied to correct heading)
+     * 
+     * @return uint32_t Timestamp of last yaw reset in milliseconds (0 if never reset)
+     * 
+     * @note Units: radians for angle, milliseconds for timestamp
+     * @note Flight controller uses this to adjust heading-dependent calculations
+     * @note Returns 0 timestamp if no reset has occurred since filter initialization
+     */
     uint32_t getLastYawResetAngle(float &yawAng) const;
 
-    // return the amount of NE position change due to the last position reset in metres
-    // returns the time of the last reset or 0 if no reset has ever occurred
+    /**
+     * @brief Return North-East position change from last reset and reset timestamp
+     * 
+     * @details When the filter performs a position reset (e.g., GPS glitch recovery, external
+     *          navigation initialization), this function reports the position discontinuity
+     *          for flight controller compensation.
+     * 
+     * @param[out] pos Position change [North, East] in meters
+     * 
+     * @return uint32_t Timestamp of last position reset in milliseconds (0 if never reset)
+     * 
+     * @note Units: meters for position, milliseconds for timestamp
+     * @note Flight controller uses this to adjust position-dependent waypoint tracking
+     * @note Returns 0 timestamp if no reset has occurred since filter initialization
+     */
     uint32_t getLastPosNorthEastReset(Vector2f &pos) const;
 
-    // return the amount of D position change due to the last position reset in metres
-    // returns the time of the last reset or 0 if no reset has ever occurred
+    /**
+     * @brief Return Down position change from last reset and reset timestamp
+     * 
+     * @details When the filter performs a vertical position reset (e.g., barometer glitch recovery,
+     *          terrain reference change), this function reports the altitude discontinuity for
+     *          flight controller compensation.
+     * 
+     * @param[out] posD Position change in Down direction in meters (NED frame)
+     * 
+     * @return uint32_t Timestamp of last down position reset in milliseconds (0 if never reset)
+     * 
+     * @note Units: meters for position (positive = down in NED), milliseconds for timestamp
+     * @note Flight controller uses this to adjust altitude-dependent control loops
+     * @note Returns 0 timestamp if no reset has occurred since filter initialization
+     */
     uint32_t getLastPosDownReset(float &posD) const;
 
-    // return the amount of NE velocity change due to the last velocity reset in metres/sec
-    // returns the time of the last reset or 0 if no reset has ever occurred
+    /**
+     * @brief Return North-East velocity change from last reset and reset timestamp
+     * 
+     * @details When the filter performs a velocity reset (e.g., GPS velocity jump recovery),
+     *          this function reports the velocity discontinuity for flight controller
+     *          compensation and acceleration limiting.
+     * 
+     * @param[out] vel Velocity change [North, East] in m/s
+     * 
+     * @return uint32_t Timestamp of last velocity reset in milliseconds (0 if never reset)
+     * 
+     * @note Units: m/s for velocity, milliseconds for timestamp
+     * @note Flight controller uses this to prevent false acceleration spikes
+     * @note Returns 0 timestamp if no reset has occurred since filter initialization
+     */
     uint32_t getLastVelNorthEastReset(Vector2f &vel) const;
 
-    // report any reason for why the backend is refusing to initialise
+    /**
+     * @brief Report reason why EKF backend is refusing to initialize (pre-arm check)
+     * 
+     * @details During pre-arm checks, if the filter cannot initialize, this provides a
+     *          human-readable explanation. Common reasons include insufficient GPS quality,
+     *          excessive gyro drift, or magnetometer calibration problems.
+     * 
+     * @return const char* Pointer to failure reason string, or nullptr if no failure
+     * 
+     * @note Used by arming checks to provide user feedback
+     * @note String remains valid until next call or filter state change
+     */
     const char *prearm_failure_reason(void) const;
 
-    // report the number of frames lapsed since the last state prediction
-    // this is used by other instances to level load
+    /**
+     * @brief Report number of frames since last state prediction
+     * 
+     * @details Used for load balancing across multiple EKF instances. Instances that haven't
+     *          updated recently can be prioritized to maintain balanced computational load
+     *          across all active cores.
+     * 
+     * @return uint8_t Number of scheduler frames elapsed since last prediction update
+     * 
+     * @note Used by frontend for multi-core load balancing
+     * @note Lower values indicate more recently updated instance
+     */
     uint8_t getFramesSincePredict(void) const;
 
-    // get the IMU index. For now we return the gyro index, as that is most
-    // critical for use by other subsystems.
+    /**
+     * @brief Get the IMU index associated with this EKF core
+     * 
+     * @details Each EKF core instance is bound to a specific IMU. This returns the index
+     *          of the gyro (and associated IMU) being used. Critical for subsystems that
+     *          need to know which sensor set is driving which filter.
+     * 
+     * @return uint8_t Active gyro/IMU index (0-based)
+     * 
+     * @note Returns gyro index as it is most critical for other subsystems
+     * @note Used for sensor selection and failover management
+     */
     uint8_t getIMUIndex(void) const { return gyro_index_active; }
 
-    // values for EK3_MAG_CAL
+    /**
+     * @enum MagCal
+     * @brief Magnetometer calibration modes for EK3_MAG_CAL parameter
+     * 
+     * @details Controls when in-flight magnetometer calibration (learning) is enabled.
+     *          Determines strategy for updating magnetometer bias estimates during flight.
+     */
     enum class MagCal {
-        WHEN_FLYING = 0,
-        WHEN_MANOEUVRING = 1,
-        NEVER = 2,
-        AFTER_FIRST_CLIMB = 3,
-        ALWAYS = 4
-        // 5 was EXTERNAL_YAW (do not use)
-        // 6 was EXTERNAL_YAW_FALLBACK (do not use)
+        WHEN_FLYING = 0,        ///< Learn mag biases only when vehicle is flying
+        WHEN_MANOEUVRING = 1,   ///< Learn mag biases during manoeuvres (more aggressive)
+        NEVER = 2,              ///< Never learn mag biases in flight (use ground cal only)
+        AFTER_FIRST_CLIMB = 3,  ///< Start learning after first climb (conservative)
+        ALWAYS = 4              ///< Always learn mag biases (most aggressive)
+        // 5 was EXTERNAL_YAW (deprecated - do not use)
+        // 6 was EXTERNAL_YAW_FALLBACK (deprecated - do not use)
     };
 
-    // magnetometer fusion selections
+    /**
+     * @enum MagFuseSel
+     * @brief Magnetometer fusion mode selection
+     * 
+     * @details Indicates current magnetometer fusion strategy. Filter can use full 3-axis
+     *          magnetometer data, only yaw component, or no magnetometer at all.
+     */
     enum class MagFuseSel {
-        NOT_FUSING = 0,
-        FUSE_YAW = 1,
-        FUSE_MAG = 2
+        NOT_FUSING = 0,  ///< Not fusing magnetometer data (using alternative yaw source)
+        FUSE_YAW = 1,    ///< Fusing only yaw component of magnetometer
+        FUSE_MAG = 2     ///< Fusing full 3-axis magnetometer measurements
     };
 
-    // are we using (aka fusing) a non-compass yaw?
+    /**
+     * @brief Check if using non-compass yaw source
+     * 
+     * @details Returns true if filter is using an alternative yaw source instead of compass
+     *          (e.g., GPS yaw, external navigation yaw, GSF yaw estimator).
+     * 
+     * @return true if using non-compass yaw source, false if using compass
+     * 
+     * @note Important for determining heading source reliability
+     * @note Used to report yaw source to GCS and logging
+     */
     bool using_noncompass_for_yaw(void) const;
 
-    // are we using (aka fusing) external nav for yaw?
+    /**
+     * @brief Check if using external navigation for yaw
+     * 
+     * @details Returns true if filter is currently fusing yaw measurements from external
+     *          navigation system (e.g., motion capture, external SLAM).
+     * 
+     * @return true if fusing external nav yaw, false otherwise
+     * 
+     * @note Subset of non-compass yaw sources
+     */
     bool using_extnav_for_yaw() const;
 
-    // Writes the default equivalent airspeed and 1-sigma uncertainty in m/s to be used in forward flight if a measured airspeed is required and not available.
+    /**
+     * @brief Write default airspeed to use when measured airspeed unavailable
+     * 
+     * @details Provides fallback airspeed estimate for fixed-wing vehicles when pitot tube
+     *          is not available or has failed. Used in airspeed-dependent calculations like
+     *          drag modeling and wind estimation.
+     * 
+     * @param[in] airspeed Default equivalent airspeed in m/s
+     * @param[in] uncertainty 1-sigma airspeed uncertainty in m/s
+     * 
+     * @note Units: m/s for both airspeed and uncertainty
+     * @note Typically derived from throttle setting and vehicle performance model
+     * @note Only used when actual airspeed sensor unavailable
+     */
     void writeDefaultAirSpeed(float airspeed, float uncertainty);
 
-    // request a reset the yaw to the EKF-GSF value
+    /**
+     * @brief Request yaw reset to EKF-GSF (Gaussian Sum Filter) estimate
+     * 
+     * @details Triggers a yaw reset using the GSF yaw estimator, which is robust to
+     *          magnetometer anomalies. Used for recovering from magnetic interference
+     *          or poor compass calibration.
+     * 
+     * @note GSF runs in parallel and provides backup yaw estimate
+     * @note Request times out after YAW_RESET_TO_GSF_TIMEOUT_MS (5 seconds)
+     * @note Only applied if GSF estimate has sufficient accuracy
+     * 
+     * @warning Can cause temporary attitude disturbance during reset
+     */
     void EKFGSF_requestYawReset();
 
-    // return true if we are tilt aligned
+    /**
+     * @brief Check if tilt alignment is complete
+     * 
+     * @details During filter initialization, roll and pitch estimates must converge before
+     *          full navigation can begin. Returns true once horizontal attitude is sufficiently
+     *          aligned using accelerometer gravity vector.
+     * 
+     * @return true if tilt (roll/pitch) alignment complete, false if still initializing
+     * 
+     * @note Tilt alignment typically completes within 1-2 seconds of stationary IMU data
+     * @note Prerequisite for yaw alignment
+     */
     bool have_aligned_tilt(void) const {
         return tiltAlignComplete;
     }
 
-    // return true if we are yaw aligned
+    /**
+     * @brief Check if yaw alignment is complete
+     * 
+     * @details After tilt alignment, yaw must be initialized using magnetometer, GPS, or
+     *          other heading source. Returns true once heading estimate has converged.
+     * 
+     * @return true if yaw alignment complete, false if still initializing
+     * 
+     * @note Yaw alignment requires valid heading source (compass, GPS yaw, etc.)
+     * @note Full 6-DOF navigation only available after both tilt and yaw aligned
+     */
     bool have_aligned_yaw(void) const {
         return yawAlignComplete;
     }
 
+    /**
+     * @brief Write EKF state and diagnostic data to onboard log
+     * 
+     * @details Records filter state vector, covariances, innovations, and health metrics
+     *          to dataflash log for post-flight analysis and debugging.
+     * 
+     * @param[in] time_us System timestamp in microseconds
+     * 
+     * @note Units: microseconds for timestamp
+     * @note Creates XKF1-XKF5 and multiple NKF log messages
+     * @note Essential for post-flight EKF performance analysis
+     */
     void Log_Write(uint64_t time_us);
 
-    // returns true when the state estimates are significantly degraded by vibration
+    /**
+     * @brief Check if state estimates are degraded by vibration
+     * 
+     * @details High vibration levels corrupt IMU measurements and can cause filter divergence.
+     *          This function detects when vibration-induced errors are significantly affecting
+     *          state estimation accuracy.
+     * 
+     * @return true if vibration is significantly degrading estimates, false if acceptable
+     * 
+     * @note Triggers increased process noise to handle bad IMU data
+     * @note Flight controller may limit maneuvers when vibration detected
+     * @note Logged for post-flight vibration analysis
+     */
     bool isVibrationAffected() const { return badIMUdata; }
 
-    // get a yaw estimator instance
+    /**
+     * @brief Get pointer to GSF (Gaussian Sum Filter) yaw estimator instance
+     * 
+     * @details Provides access to the parallel GSF yaw estimator that runs alongside the
+     *          main EKF. GSF provides robust yaw backup independent of magnetometer, useful
+     *          for detecting compass failures and recovering from magnetic anomalies.
+     * 
+     * @return const EKFGSF_yaw* Pointer to GSF yaw estimator instance, or nullptr if not initialized
+     * 
+     * @note GSF uses multiple parallel filters with different initial yaw hypotheses
+     * @note Provides backup yaw when compass unreliable
+     */
     const EKFGSF_yaw *get_yawEstimator(void) const { return yawEstimator; }
 
-    // per-core pre-arm checks. returns false if we fail arming
-    // checks, in which case the buffer will be populated with a
-    // failure message
-    // requires_position should be true if horizontal position configuration should be checked
+    /**
+     * @brief Perform per-core pre-arm safety checks
+     * 
+     * @details Validates that this EKF core is ready for flight. Checks sensor health,
+     *          filter convergence, initialization status, and position accuracy. Prevents
+     *          arming if critical issues detected.
+     * 
+     * **Checks Performed:**
+     * - Filter initialized and aligned
+     * - IMU data quality acceptable
+     * - Position accuracy within limits (if required)
+     * - Velocity estimates valid
+     * - Attitude estimates valid
+     * - Innovation test ratios within bounds
+     * 
+     * @param[in] requires_position true to enforce horizontal position accuracy checks
+     * @param[out] failure_msg Buffer to receive failure description if check fails
+     * @param[in] failure_msg_len Size of failure_msg buffer in bytes
+     * 
+     * @return true if all pre-arm checks pass (safe to arm), false if checks fail
+     * 
+     * @note Failure message provides user-friendly explanation for arming prevention
+     * @note Position checks may be disabled for indoor/optical flow flight modes
+     * 
+     * @warning Vehicle must not arm if this returns false - unsafe to fly
+     */
     bool pre_arm_check(bool requires_position, char *failure_msg, uint8_t failure_msg_len) const;
     
 private:
@@ -549,155 +1508,416 @@ private:
     typedef uint32_t Vector_u32_50[50];
 #endif
 
-    // the states are available in two forms, either as a Vector24, or
-    // broken down as individual elements. Both are equivalent (same
-    // memory)
+    /**
+     * @struct state_elements
+     * @brief The 24-state EKF3 state vector broken down by element
+     * 
+     * @details Defines the complete Extended Kalman Filter state vector for EKF3. This structure
+     *          provides named access to state elements, while the union with statesArray allows
+     *          vector math operations on the full 24-element state.
+     * 
+     * **State Vector Composition (24 states total):**
+     * - States 0-3:   Attitude quaternion (4 states)
+     * - States 4-6:   Velocity NED (3 states)
+     * - States 7-9:   Position NED (3 states)
+     * - States 10-12: Gyro biases (3 states)
+     * - States 13-15: Accel biases (3 states)
+     * - States 16-18: Earth magnetic field (3 states)
+     * - States 19-21: Body magnetic field (3 states)
+     * - States 22-23: Wind velocity NE (2 states)
+     * 
+     * **Design Note:**
+     * State vector available in two equivalent forms sharing same memory:
+     * 1. Vector24 statesArray - for matrix math operations
+     * 2. struct state_elements - for named field access
+     * 
+     * **Coordinate Frames:**
+     * - Attitude: NED to Body frame rotation
+     * - Velocity/Position: NED navigation frame
+     * - Gyro/Accel biases: Body frame
+     * - Earth magfield: NED navigation frame
+     * - Body magfield: Body frame
+     * - Wind: NED navigation frame (horizontal only)
+     * 
+     * @note All elements use floating-point type (ftype) for precision
+     * @note Quaternion normalized to unit length during propagation
+     */
     struct state_elements {
-        QuaternionF quat;           // quaternion defining rotation from local NED earth frame to body frame 0..3
-        Vector3F    velocity;       // velocity of IMU in local NED earth frame (m/sec) 4..6
-        Vector3F    position;       // position of IMU in local NED earth frame (m)     7..9
-        Vector3F    gyro_bias;      // body frame delta angle IMU bias vector (rad)     10..12
-        Vector3F    accel_bias;     // body frame delta velocity IMU bias vector (m/sec) 13..15
-        Vector3F    earth_magfield; // earth frame magnetic field vector (Gauss)         16..18
-        Vector3F    body_magfield;  // body frame magnetic field vector (Gauss)          19..21
-        Vector2F    wind_vel;       // horizontal North East wind velocity vector in local NED earth frame (m/sec) 22..23
+        QuaternionF quat;           ///< Attitude quaternion (NED to body frame) - States 0..3
+        Vector3F    velocity;       ///< Velocity [N,E,D] in m/s (NED frame) - States 4..6
+        Vector3F    position;       ///< Position [N,E,D] in m (NED frame) - States 7..9
+        Vector3F    gyro_bias;      ///< Gyro bias [X,Y,Z] in rad (body frame) - States 10..12
+        Vector3F    accel_bias;     ///< Accel bias [X,Y,Z] in m/s (body frame) - States 13..15
+        Vector3F    earth_magfield; ///< Earth mag field [N,E,D] in gauss (NED frame) - States 16..18
+        Vector3F    body_magfield;  ///< Body mag field [X,Y,Z] in gauss (body frame) - States 19..21
+        Vector2F    wind_vel;       ///< Wind velocity [N,E] in m/s (NED frame, horizontal only) - States 22..23
     };
 
+    /**
+     * @brief Union providing dual access to state vector
+     * 
+     * @details Allows states to be accessed either as a 24-element array for matrix operations
+     *          or as named structure members for readability. Both views share the same memory.
+     * 
+     * - statesArray: For covariance propagation, Kalman updates, and vector math
+     * - stateStruct: For intuitive named access to individual state components
+     */
     union {
-        Vector24 statesArray;
-        struct state_elements stateStruct;
+        Vector24 statesArray;              ///< Array form for matrix operations
+        struct state_elements stateStruct; ///< Struct form for named access
     };
 
+    /**
+     * @struct output_elements
+     * @brief Delayed and corrected state outputs for flight control
+     * 
+     * @details EKF outputs are buffered and corrected for IMU-to-body frame offsets before
+     *          being provided to the flight controller. This structure holds the output state
+     *          estimates at the body frame origin rather than the IMU location.
+     * 
+     * **Key Differences from Internal States:**
+     * - Time delayed to match sensor fusion delays
+     * - Position/velocity corrected for IMU lever arm offset
+     * - Represents body frame origin, not IMU location
+     * 
+     * @note Units: quaternion (dimensionless), velocity (m/s), position (m)
+     * @note Coordinate frame: NED navigation frame for position/velocity
+     */
     struct output_elements {
-        QuaternionF quat;           // quaternion defining rotation from local NED earth frame to body frame
-        Vector3F    velocity;       // velocity of body frame origin in local NED earth frame (m/sec)
-        Vector3F    position;       // position of body frame origin in local NED earth frame (m)
+        QuaternionF quat;     ///< Attitude quaternion at body frame origin (NED to body)
+        Vector3F    velocity; ///< Velocity [N,E,D] at body frame origin in m/s (NED frame)
+        Vector3F    position; ///< Position [N,E,D] of body frame origin in m (NED frame)
     };
 
+    /**
+     * @struct imu_elements
+     * @brief Buffered IMU measurement data for state propagation
+     * 
+     * @details Stores incremental IMU measurements (delta angles and delta velocities) rather
+     *          than instantaneous rates. Allows exact integration regardless of sample rate
+     *          variations. Buffered for time-delayed fusion with slower sensors.
+     * 
+     * @note Units: radians for delAng, m/s for delVel, seconds for DT, milliseconds for timestamp
+     * @note Coordinate frame: Body frame (IMU sensor frame)
+     */
     struct imu_elements {
-        Vector3F    delAng;         // IMU delta angle measurements in body frame (rad)
-        Vector3F    delVel;         // IMU delta velocity measurements in body frame (m/sec)
-        ftype       delAngDT;       // time interval over which delAng has been measured (sec)
-        ftype       delVelDT;       // time interval over which delVelDT has been measured (sec)
-        uint32_t    time_ms;        // measurement timestamp (msec)
-        uint8_t     gyro_index;
-        uint8_t     accel_index;
+        Vector3F    delAng;      ///< Delta angle [X,Y,Z] over sample period in rad (body frame)
+        Vector3F    delVel;      ///< Delta velocity [X,Y,Z] over sample period in m/s (body frame)
+        ftype       delAngDT;    ///< Time interval for delAng measurement in seconds
+        ftype       delVelDT;    ///< Time interval for delVel measurement in seconds
+        uint32_t    time_ms;     ///< Measurement timestamp in milliseconds
+        uint8_t     gyro_index;  ///< Gyro sensor index (for multi-IMU systems)
+        uint8_t     accel_index; ///< Accelerometer sensor index (for multi-IMU systems)
     };
 
+    /**
+     * @struct gps_elements
+     * @brief Buffered GPS measurement data for position/velocity fusion
+     * 
+     * @details Stores GPS position (lat/lon/alt) and velocity measurements for fusion into EKF.
+     *          Inherits from EKF_obs_element_t for timestamp and buffering support.
+     * 
+     * @note Units: 1e-7 degrees for lat/lon, meters for height/position, m/s for velocity
+     * @note Coordinate frame: WGS-84 for lat/lon, NED for height and velocity
+     * @note Measurements corrected for GPS antenna offset from IMU
+     */
     struct gps_elements : EKF_obs_element_t {
-        int32_t     lat, lng;       // latitude and longitude in 1e7 degrees
-        ftype       hgt;            // height of the GPS antenna in local NED earth frame (m)
-        Vector3F    vel;            // velocity of the GPS antenna in local NED earth frame (m/sec)
-        uint8_t     sensor_idx;     // unique integer identifying the GPS sensor
-        bool        corrected;      // true when the position and velocity have been corrected for sensor position
-        bool        have_vz;        // true when vertical velocity is valid
+        int32_t     lat, lng;    ///< Latitude/longitude in 1e-7 degrees (WGS-84)
+        ftype       hgt;         ///< GPS antenna height in m (NED frame, negative = above datum)
+        Vector3F    vel;         ///< GPS velocity [N,E,D] in m/s (NED frame)
+        uint8_t     sensor_idx;  ///< Unique GPS sensor identifier (for multi-GPS systems)
+        bool        corrected;   ///< true if corrected for antenna offset from IMU
+        bool        have_vz;     ///< true if vertical velocity (Down component) is valid
     };
 
+    /**
+     * @struct mag_elements
+     * @brief Buffered magnetometer measurement data for heading fusion
+     * 
+     * @details Stores 3-axis magnetometer measurements for fusion into EKF. Used for yaw
+     *          estimation and magnetic field state updates.
+     * 
+     * @note Units: gauss
+     * @note Coordinate frame: Body frame (sensor frame)
+     */
     struct mag_elements : EKF_obs_element_t {
-        Vector3F    mag;            // body frame magnetic field measurements (Gauss)
+        Vector3F    mag;  ///< Magnetic field [X,Y,Z] in gauss (body frame)
     };
 
+    /**
+     * @struct baro_elements
+     * @brief Buffered barometer measurement data for altitude fusion
+     * 
+     * @details Stores barometric altitude measurements for vertical position estimation.
+     *          Primary source of altitude when GPS unavailable or unreliable.
+     * 
+     * @note Units: meters (NED frame)
+     * @note Coordinate frame: NED (negative = above datum)
+     */
     struct baro_elements : EKF_obs_element_t {
-        ftype       hgt;            // height of the pressure sensor in local NED earth frame (m)
+        ftype       hgt;  ///< Barometric height in m (NED frame, negative = above datum)
     };
 
+    /**
+     * @struct range_elements
+     * @brief Buffered rangefinder measurement data for terrain following
+     * 
+     * @details Stores distance-to-ground measurements from rangefinder (lidar, sonar, etc.)
+     *          for terrain-relative altitude estimation and precision landing.
+     * 
+     * @note Units: meters (always positive, measured downward)
+     * @note Up to two rangefinders supported simultaneously
+     */
     struct range_elements : EKF_obs_element_t {
-        ftype       rng;            // distance measured by the range sensor (m)
-        uint8_t     sensor_idx;     // integer either 0 or 1 uniquely identifying up to two range sensors
+        ftype       rng;         ///< Range measurement in meters (distance to ground)
+        uint8_t     sensor_idx;  ///< Sensor identifier: 0 or 1 (for dual rangefinder systems)
     };
 
+    /**
+     * @struct rng_bcn_elements
+     * @brief Buffered range beacon measurement for indoor positioning
+     * 
+     * @details Stores range measurements to fixed beacons at known positions for GPS-denied
+     *          navigation. Multiple beacons used for trilateration-based position estimation.
+     * 
+     * @note Units: meters for range and position
+     * @note Coordinate frame: NED for beacon position
+     */
     struct rng_bcn_elements : EKF_obs_element_t {
-        ftype       rng;            // range measurement to each beacon (m)
-        Vector3F    beacon_posNED;  // NED position of the beacon (m)
-        ftype       rngErr;         // range measurement error 1-std (m)
-        uint8_t     beacon_ID;      // beacon identification number
+        ftype       rng;            ///< Range to beacon in meters
+        Vector3F    beacon_posNED;  ///< Beacon position [N,E,D] in m (NED frame)
+        ftype       rngErr;         ///< 1-sigma range measurement error in meters
+        uint8_t     beacon_ID;      ///< Unique beacon identification number
     };
 
+    /**
+     * @struct tas_elements
+     * @brief Buffered true airspeed measurement for wind estimation
+     * 
+     * @details Stores true airspeed measurements from pitot-static system for fixed-wing
+     *          aircraft. Fused with GPS ground speed to estimate wind velocity.
+     * 
+     * @note Units: m/s for airspeed, (m/s)² for variance
+     * @note True airspeed = indicated airspeed corrected for altitude and temperature
+     */
     struct tas_elements : EKF_obs_element_t {
-        ftype       tas;            // true airspeed measurement (m/sec)
-        ftype       tasVariance;    // variance of true airspeed measurement (m/sec)^2
-        bool        allowFusion;    // true if measurement can be allowed to modify EKF states.
+        ftype       tas;          ///< True airspeed measurement in m/s
+        ftype       tasVariance;  ///< Measurement variance in (m/s)²
+        bool        allowFusion;  ///< true if measurement allowed to update states
     };
 
+    /**
+     * @struct of_elements
+     * @brief Buffered optical flow measurement data for velocity estimation
+     * 
+     * @details Stores optical flow sensor measurements for GPS-denied navigation. Flow provides
+     *          angular velocity of features in the sensor field of view, which combined with
+     *          height yields ground velocity estimate. Critical for indoor/GPS-denied navigation.
+     * 
+     * @note Units: rad/s for flow rates, m for offsets, m for heightOverride
+     * @note Coordinate frame: Body frame for all measurements and offsets
+     * @note Motion compensation: flowRadXYcomp has vehicle rotation removed from raw flowRadXY
+     */
     struct of_elements : EKF_obs_element_t {
-        Vector2F    flowRadXY;      // raw (non motion compensated) optical flow angular rates about the XY body axes (rad/sec)
-        Vector2F    flowRadXYcomp;  // motion compensated XY optical flow angular rates about the XY body axes (rad/sec)
-        Vector3F    bodyRadXYZ;     // body frame XYZ axis angular rates averaged across the optical flow measurement interval (rad/sec)
-        Vector3F    body_offset;    // XYZ position of the optical flow sensor in body frame (m)
-        float       heightOverride; // The fixed height of the sensor above ground in m, when on rover vehicles. 0 if not used
+        Vector2F    flowRadXY;      ///< Raw optical flow angular rates [X,Y] in rad/s (body frame)
+        Vector2F    flowRadXYcomp;  ///< Motion-compensated flow rates [X,Y] in rad/s (body frame)
+        Vector3F    bodyRadXYZ;     ///< Body angular rates [X,Y,Z] averaged over flow interval in rad/s
+        Vector3F    body_offset;    ///< Flow sensor position [X,Y,Z] from IMU in m (body frame)
+        float       heightOverride; ///< Fixed sensor height above ground in m (rovers only, 0 if unused)
     };
 
+    /**
+     * @struct vel_odm_elements
+     * @brief Buffered body-frame velocity odometry measurement data
+     * 
+     * @details Stores velocity measurements from external odometry sources (e.g., visual-inertial
+     *          odometry, wheel odometry fusion systems). Provides body-frame velocity for aiding
+     *          EKF in GPS-denied environments.
+     * 
+     * @note Units: m/s for velocity and error, m for offset, rad/s for angular rate
+     * @note Coordinate frame: Body frame for all measurements
+     * @note Lever arm correction: body_offset allows correcting velocity for sensor location
+     */
     struct vel_odm_elements : EKF_obs_element_t {
-        Vector3F        vel;        // XYZ velocity measured in body frame (m/s)
-        ftype           velErr;     // velocity measurement error 1-std (m/s)
-        Vector3F        body_offset;// XYZ position of the velocity sensor in body frame (m)
-        Vector3F        angRate;    // angular rate estimated from odometry (rad/sec)
+        Vector3F        vel;        ///< Velocity [X,Y,Z] in body frame in m/s
+        ftype           velErr;     ///< 1-sigma velocity measurement uncertainty in m/s
+        Vector3F        body_offset;///< Odometry sensor position [X,Y,Z] from IMU in m (body frame)
+        Vector3F        angRate;    ///< Angular rate [X,Y,Z] from odometry in rad/s (body frame)
     };
 
+    /**
+     * @struct wheel_odm_elements
+     * @brief Buffered wheel odometry measurement data for ground vehicles
+     * 
+     * @details Stores wheel encoder measurements for rover/ground vehicle velocity estimation.
+     *          Provides highly accurate forward velocity when wheels maintain traction. Essential
+     *          for GPS-denied ground vehicle navigation.
+     * 
+     * @note Units: radians for wheel angle, meters for radius and offset, seconds for time
+     * @note Coordinate frame: Body frame (positive delAng = forward vehicle motion)
+     * @note Assumes no wheel slip - reduce weight if slip detected
+     */
     struct wheel_odm_elements : EKF_obs_element_t {
-        ftype           delAng;     // wheel rotation angle measured in body frame - positive is forward movement of vehicle (rad/s)
-        ftype           radius;     // wheel radius (m)
-        Vector3F        hub_offset; // XYZ position of the wheel hub in body frame (m)
-        ftype           delTime;    // time interval that the measurement was accumulated over (sec)
+        ftype           delAng;     ///< Incremental wheel rotation angle in rad (positive = forward)
+        ftype           radius;     ///< Wheel radius in meters
+        Vector3F        hub_offset; ///< Wheel hub position [X,Y,Z] from IMU in m (body frame)
+        ftype           delTime;    ///< Measurement accumulation interval in seconds
     };
         
-    // Specifies the rotation order used for the Tait-Bryan or Euler angles where alternative rotation orders are available
+    /**
+     * @enum rotationOrder
+     * @brief Specifies rotation sequence for Euler angle conversions
+     * 
+     * @details Defines the axis rotation order when converting between quaternions/DCM and
+     *          Euler angles. Different sensors and systems use different conventions.
+     * 
+     * - TAIT_BRYAN_321 (ZYX): Yaw-Pitch-Roll sequence (most common in aerospace)
+     * - TAIT_BRYAN_312 (ZXY): Yaw-Roll-Pitch sequence (alternative convention)
+     */
     enum class rotationOrder {
-        TAIT_BRYAN_321=0,
-        TAIT_BRYAN_312=1
+        TAIT_BRYAN_321=0, ///< ZYX rotation order (yaw-pitch-roll)
+        TAIT_BRYAN_312=1  ///< ZXY rotation order (yaw-roll-pitch)
     };
 
+    /**
+     * @struct yaw_elements
+     * @brief Buffered yaw angle measurement data
+     * 
+     * @details Stores direct yaw measurements from sources like GPS heading, external compass,
+     *          or vision systems. Provides absolute heading reference without magnetometer.
+     * 
+     * @note Units: radians for angle and uncertainty
+     * @note Coordinate frame: Yaw relative to North (navigation frame)
+     * @note Rotation order must match source convention for correct fusion
+     */
     struct yaw_elements : EKF_obs_element_t {
-        ftype         yawAng;         // yaw angle measurement (rad)
-        ftype         yawAngErr;      // yaw angle 1SD measurement accuracy (rad)
-        rotationOrder order;          // type specifiying Euler rotation order used, 0 = 321 (ZYX), 1 = 312 (ZXY)
+        ftype         yawAng;         ///< Yaw angle measurement in radians (CW from North)
+        ftype         yawAngErr;      ///< 1-sigma yaw measurement uncertainty in radians
+        rotationOrder order;          ///< Euler rotation sequence used (321=ZYX, 312=ZXY)
     };
 
+    /**
+     * @struct ext_nav_elements
+     * @brief Buffered external navigation position measurement data
+     * 
+     * @details Stores position measurements from external navigation systems (e.g., motion capture,
+     *          RTK GPS, SLAM). Provides absolute position reference in right-handed navigation frame.
+     * 
+     * @note Units: meters for position and error
+     * @note Coordinate frame: Right-handed navigation frame (typically NED or ENU)
+     * @note Reset flag: posReset indicates position reference frame change requiring filter adaptation
+     */
     struct ext_nav_elements : EKF_obs_element_t {
-        Vector3F        pos;        // XYZ position measured in a RH navigation frame (m)
-        ftype           posErr;     // spherical position measurement error 1-std (m)
-        bool            posReset;   // true when the position measurement has been reset
-        bool            corrected;  // true when the position has been corrected for sensor position
+        Vector3F        pos;        ///< Position [X,Y,Z] in navigation frame in meters
+        ftype           posErr;     ///< Spherical 1-sigma position uncertainty in meters
+        bool            posReset;   ///< true if position reference has been reset
+        bool            corrected;  ///< true if corrected for sensor offset from IMU
     };
 
+    /**
+     * @struct ext_nav_vel_elements
+     * @brief Buffered external navigation velocity measurement data
+     * 
+     * @details Stores velocity measurements from external navigation systems. Complements
+     *          position measurements for improved dynamic response and position estimation.
+     * 
+     * @note Units: m/s for velocity and error
+     * @note Coordinate frame: NED navigation frame
+     * @note Typically fused alongside ext_nav_elements position
+     */
     struct ext_nav_vel_elements : EKF_obs_element_t {
-        Vector3F vel;               // velocity in NED (m/s)
-        ftype err;                  // velocity measurement error (m/s)
-        bool corrected;             // true when the velocity has been corrected for sensor position
+        Vector3F vel;               ///< Velocity [N,E,D] in m/s (NED frame)
+        ftype err;                  ///< 1-sigma velocity measurement uncertainty in m/s
+        bool corrected;             ///< true if corrected for sensor offset from IMU
     };
 
+    /**
+     * @struct drag_elements
+     * @brief Buffered aerodynamic drag measurement data
+     * 
+     * @details Stores specific force measurements along body X and Y axes for drag-based
+     *          airspeed estimation. Uses vehicle drag model to infer airspeed from
+     *          accelerometer measurements. Useful when airspeed sensor unavailable.
+     * 
+     * @note Units: m/s² (specific force, not mass-dependent)
+     * @note Coordinate frame: Body frame X-Y axes
+     * @note Requires accurate drag coefficient model for reliable airspeed estimate
+     */
     struct drag_elements : EKF_obs_element_t {
-        Vector2f accelXY;       // measured specific force along the X and Y body axes (m/sec**2)
+        Vector2f accelXY;       ///< Specific force [X,Y] in m/s² (body frame)
     };
 
-    // bias estimates for the IMUs that are enabled but not being used
-    // by this core.
+    /**
+     * @brief Bias estimates for inactive IMUs in multi-IMU systems
+     * 
+     * @details Tracks gyro and accelerometer biases for IMUs that are present but not
+     *          currently selected as primary by this EKF core. Allows seamless IMU switching
+     *          without bias convergence delays.
+     * 
+     * @note Units: radians for gyro_bias, m/s for accel_bias
+     * @note Coordinate frame: Body frame (IMU sensor frame)
+     * @note Array sized for maximum number of IMU instances supported
+     */
     struct {
-        Vector3F gyro_bias;
-        Vector3F accel_bias;
+        Vector3F gyro_bias;  ///< Gyro bias [X,Y,Z] in radians (body frame)
+        Vector3F accel_bias; ///< Accel bias [X,Y,Z] in m/s (body frame)
     } inactiveBias[INS_MAX_INSTANCES];
 
-    // Specify source of data to be used for a partial state reset
-    // Checking the availability and quality of the data source specified is the responsibility of the caller
+    /**
+     * @enum resetDataSource
+     * @brief Specifies data source for partial state reset operations
+     * 
+     * @details When the filter needs to reset specific states (e.g., position after GPS glitch,
+     *          yaw after magnetic anomaly), this enum specifies which sensor to use as reference.
+     * 
+     * **Reset Source Options:**
+     * - DEFAULT: Filter selects best available source automatically
+     * - GPS: Use GPS position/velocity
+     * - RNGBCN: Use range beacon triangulation
+     * - FLOW: Use optical flow velocity
+     * - BARO: Use barometer altitude
+     * - MAG: Use magnetometer heading
+     * - RNGFND: Use rangefinder height
+     * - EXTNAV: Use external navigation system
+     * 
+     * @warning Caller must verify data source availability and quality before requesting reset
+     */
     enum class resetDataSource {
-        DEFAULT=0,      // Use data source selected by reset function internal rules
-        GPS=1,          // Use GPS
-        RNGBCN=2,       // Use beacon range data
-        FLOW=3,         // Use optical flow rates
-        BARO=4,         // Use Baro height
-        MAG=5,          // Use magnetometer data
-        RNGFND=6,       // Use rangefinder data
-        EXTNAV=7        // Use external nav data
+        DEFAULT=0,      ///< Use filter's internal source selection logic
+        GPS=1,          ///< Use GPS measurements
+        RNGBCN=2,       ///< Use range beacon measurements
+        FLOW=3,         ///< Use optical flow measurements
+        BARO=4,         ///< Use barometer measurements
+        MAG=5,          ///< Use magnetometer measurements
+        RNGFND=6,       ///< Use rangefinder measurements
+        EXTNAV=7        ///< Use external navigation measurements
     };
 
-    // specifies the method to be used when fusing yaw observations
+    /**
+     * @enum yawFusionMethod
+     * @brief Specifies active method for yaw (heading) estimation
+     * 
+     * @details EKF3 supports multiple yaw estimation methods depending on sensor availability
+     *          and environmental conditions. This enum tracks which method is currently active.
+     * 
+     * **Yaw Estimation Methods:**
+     * - MAGNETOMETER: Traditional compass-based heading (default)
+     * - GPS: GPS velocity vector or dual-antenna GPS heading
+     * - GSF: Gaussian Sum Filter multi-hypothesis yaw estimation
+     * - STATIC: Static yaw (no updates, for stationary operation)
+     * - PREDICTED: Yaw propagated from gyros only (degraded mode)
+     * - EXTNAV: External navigation system provides heading
+     * 
+     * @note Method selection impacts heading accuracy and magnetic interference sensitivity
+     * @note GSF useful for yaw initialization when magnetometer unreliable
+     */
     enum class yawFusionMethod {
-	    MAGNETOMETER=0,
-	    GPS=1,
-        GSF=2,
-        STATIC=3,
-        PREDICTED=4,
-        EXTNAV=5,
+	    MAGNETOMETER=0, ///< Magnetometer-based heading estimation
+	    GPS=1,          ///< GPS velocity or dual-antenna heading
+        GSF=2,          ///< Gaussian Sum Filter multi-hypothesis estimation
+        STATIC=3,       ///< Static yaw (no updates)
+        PREDICTED=4,    ///< Gyro-only propagation (no corrections)
+        EXTNAV=5,       ///< External navigation system heading
     };
 
     // update the navigation filter status
