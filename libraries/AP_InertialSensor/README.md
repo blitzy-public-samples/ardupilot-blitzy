@@ -435,10 +435,30 @@ All filters applied by frontend automatically after backend publishes data.
 ### 1. Harmonic Notch Filter (Vibration Rejection)
 
 **Purpose**: Reject propeller/motor vibration at fundamental frequency and harmonics
-**Enabled**: INS_HNTCH_ENABLE=1
+**Enabled**: INS_HNTCH_ENABLE=1 (primary), INS_HNTC2_ENABLE=1 (secondary)
 **Type**: Multiple cascaded notch filters (biquad IIR)
 
-**Configuration Parameters**:
+**Multiple Independent Notch Configurations**:
+
+ArduPilot supports up to 4 independent harmonic notch filter configurations (typically 2 enabled):
+- **Primary (INS_HNTCH_*)**: First notch filter set - typically tracks motor/propeller noise
+- **Secondary (INS_HNTC2_*)**: Second notch filter set - can track different frequency source
+- **Tertiary (INS_HNTC3_*)**: Third notch filter set (platform-dependent availability)
+- **Quaternary (INS_HNTC4_*)**: Fourth notch filter set (platform-dependent availability)
+
+Each notch configuration has its own complete parameter set and can:
+- Track different frequency sources independently
+- Use different tracking modes (throttle, RPM, FFT)
+- Target different harmonics
+- Operate simultaneously
+
+**Common Multi-Notch Use Cases**:
+1. Primary notch tracks dynamic motor RPM, secondary notch targets fixed airframe resonance
+2. Primary notch for main rotors, secondary for tail rotor (helicopters)
+3. One notch per motor group in complex multi-rotor configurations
+
+**Configuration Parameters** (shown for primary INS_HNTCH_*, same structure for INS_HNTC2_*/3_*/4_*):
+- **INS_HNTCH_ENABLE**: Enable this notch filter (0=disabled, 1=enabled)
 - **INS_HNTCH_FREQ**: Center frequency (Hz) - tracks throttle or ESC RPM
 - **INS_HNTCH_BW**: Bandwidth (Hz) - notch width (default 20Hz)
 - **INS_HNTCH_ATT**: Attenuation (dB) - depth of notch (default 40dB)
@@ -482,12 +502,17 @@ Example for 6000 RPM motor with 2-blade prop:
 **Multi-Motor Notches** (INS_HNTCH_OPTS bit 0):
 Creates independent notch per motor for differential RPM tracking (e.g., X-configuration quad with 4 motors each at slightly different RPM).
 
-**Filter Count**:
+**Filter Count** (per notch configuration):
 ```
-num_filters = num_motors * num_harmonics * (double_notch ? 2 : 1)
+num_filters_per_notch = num_motors * num_harmonics * (double_notch ? 2 : 1)
+total_filters = num_filters_per_notch * num_enabled_notch_configs
 ```
 
-Typical quad with 4 harmonics (1,2,3,4) and double-notch: 4×4×2 = 32 filters per axis = 96 total filters.
+Example calculations:
+- Single notch, quad with 4 harmonics (1,2,3,4) and double-notch: 4×4×2 = 32 filters per axis = 96 total
+- Dual notch (primary + secondary), each with 4 harmonics: 2 × 32 = 64 filters per axis = 192 total
+
+**Note**: High filter counts require significant CPU - monitor IMU timing with INS_LOG_BAT_OPT.
 
 ### 2. Low-Pass Filter
 
