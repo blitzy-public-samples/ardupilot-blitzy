@@ -14,6 +14,36 @@
  *
  * Author: Eugene Shamaev, Siddharth Bharat Purohit
  */
+
+/**
+ * @file AP_DroneCAN.h
+ * @brief Main DroneCAN/UAVCAN driver implementation for ArduPilot
+ * 
+ * @details This file implements the primary interface to the DroneCAN (formerly UAVCAN v0)
+ *          protocol stack, providing CAN bus communication for ArduPilot autopilots.
+ *          DroneCAN enables communication with CAN-connected peripherals including:
+ *          - Electronic Speed Controllers (ESCs) with bidirectional telemetry
+ *          - Servo actuators with position feedback
+ *          - GPS receivers with RTK support
+ *          - Magnetometers, barometers, and other sensors
+ *          - GNSS receivers, rangefinders, optical flow sensors
+ *          - Safety switches, buttons, and indicators (LEDs, buzzers)
+ *          - Camera gimbals and other payloads
+ * 
+ *          The driver runs in a dedicated thread (loop()) and handles:
+ *          - Message transmission/reception via libcanard library
+ *          - Servo/ESC output command streaming
+ *          - Peripheral sensor data ingestion
+ *          - Parameter get/set operations on remote nodes
+ *          - Dynamic Node Allocation (DNA) for node ID assignment
+ *          - Node health monitoring and statistics
+ * 
+ *          Protocol: UAVCAN v0 via DroneCAN specification
+ *          Transport: CAN 2.0B (11-bit/29-bit identifiers) and CAN FD (optional)
+ * 
+ * @note This implementation uses the libcanard library for protocol handling
+ * @see libraries/AP_DroneCAN/README.md for comprehensive architecture documentation
+ */
 #pragma once
 
 #include <AP_HAL/AP_HAL.h>
@@ -78,110 +108,744 @@
 class AP_DroneCAN_DNA_Server;
 class CANSensor;
 
+/**
+ * @class AP_DroneCAN
+ * @brief Main DroneCAN/UAVCAN protocol driver for CAN bus peripherals
+ * 
+ * @details AP_DroneCAN manages communication with DroneCAN-compatible devices over CAN bus.
+ *          This class serves as the central hub for:
+ *          - Publishing actuator commands (ESC/servo outputs)
+ *          - Subscribing to sensor data and peripheral status messages
+ *          - Managing parameter synchronization with remote nodes
+ *          - Coordinating Dynamic Node Allocation (DNA) for plug-and-play devices
+ *          - Broadcasting vehicle state and telemetry
+ * 
+ * **Thread Architecture:**
+ * The driver runs in a dedicated thread created during init(), executing the loop() method
+ * continuously. Message handling uses the Canard Publisher/Subscriber/Client pattern:
+ * - Publishers: Send periodic or event-driven messages (actuator commands, telemetry)
+ * - Subscribers: Receive messages from CAN devices (sensor data, status updates)
+ * - Clients: Request/response transactions (parameter get/set, node info queries)
+ * 
+ * **Lifecycle:**
+ * 1. Construction: AP_DroneCAN(driver_index) - Create instance for CAN interface
+ * 2. Initialization: init(driver_index, enable_filters) - Set up memory pool, start thread
+ * 3. Interface binding: add_interface(can_iface) - Attach HAL CAN interface
+ * 4. Runtime: loop() runs continuously in dedicated thread
+ * 5. Destruction: ~AP_DroneCAN() - Clean up resources and stop thread
+ * 
+ * **ESC and Servo Output:**
+ * Supports multiple output protocols selectable via Options parameter:
+ * - Standard ESC RawCommand (PWM-like values 0-8191)
+ * - Actuator ArrayCommand (normalized -1.0 to +1.0 with metadata)
+ * - Vendor-specific protocols (Hobbywing ESC, Himark servo)
+ * Output rates configurable via _servo_rate_hz parameter (typically 50-400 Hz)
+ * 
+ * **Peripheral Support:**
+ * Automatically discovers and integrates:
+ * - GPS: Fix data, RTK corrections, heading/yaw information
+ * - Compass: Magnetic field vectors with calibration offsets
+ * - Barometer: Pressure altitude with temperature compensation
+ * - Rangefinder: Distance measurements for terrain following
+ * - ESC Telemetry: Voltage, current, RPM, temperature per ESC
+ * - Servo Feedback: Position, velocity, effort from smart servos
+ * - Safety Devices: Arming buttons, parachute triggers, hardpoints
+ * 
+ * **Message Priorities:**
+ * DroneCAN uses 5-bit priority field (0=highest, 31=lowest):
+ * - Critical (0-7): Safety, arming status, emergency commands
+ * - High (8-15): Control outputs (ESC/servo commands)
+ * - Normal (16-23): Telemetry, sensor data, periodic status
+ * - Low (24-31): Diagnostics, parameter operations, logging
+ * 
+ * **Memory Management:**
+ * Uses memory pool allocated at init() for CAN message buffers. Pool size configurable
+ * via _pool_size parameter (default depends on features enabled). Insufficient pool size
+ * will cause message transmission failures logged as _fail_send_count.
+ * 
+ * **CAN FD Support:**
+ * When Options::CANFD_ENABLED is set and hardware supports it, enables CAN FD mode:
+ * - Larger payloads (up to 64 bytes vs 8 bytes for CAN 2.0)
+ * - Higher bit rates for improved bandwidth
+ * - Backward compatible with CAN 2.0B devices on same bus
+ * 
+ * @note This driver implements UAVCAN v0 protocol via DroneCAN specification
+ * @warning CAN bus timing is critical - misconfigured bit rates cause communication failure.
+ *          Ensure all devices on bus use same bit rate (typically 1 Mbps).
+ * @warning Message priorities must be carefully managed to prevent control output starvation
+ *          by high-rate sensor data. Critical safety messages always use highest priority.
+ * @warning Thread-safety: Most methods are called from the dedicated DroneCAN thread.
+ *          External calls (e.g., SRV_push_servos) use semaphores for synchronization.
+ * 
+ * @see AP_CANDriver Base class providing HAL CAN interface abstraction
+ * @see AP_ESC_Telem_Backend Base class for ESC telemetry data ingestion
+ * @see AP_DroneCAN_DNA_Server Handles Dynamic Node Allocation protocol
+ * @see CanardInterface Libcanard interface wrapper for protocol stack
+ */
 class AP_DroneCAN : public AP_CANDriver, public AP_ESC_Telem_Backend {
     friend class AP_DroneCAN_DNA_Server;
 public:
+    /**
+     * @brief Construct a new AP_DroneCAN driver instance
+     * 
+     * @details Creates a DroneCAN driver for the specified CAN interface index.
+     *          Initializes internal state but does not allocate memory pool or start
+     *          the communication thread - that occurs in init().
+     * 
+     * @param[in] driver_index CAN driver index (0 for CAN1, 1 for CAN2, etc.)
+     * 
+     * @note Constructor is lightweight - heavy initialization deferred to init()
+     */
     AP_DroneCAN(const int driver_index);
+    
+    /**
+     * @brief Destructor - cleanup resources and stop thread
+     * 
+     * @details Stops the DroneCAN thread, frees memory pool, and releases CAN interface.
+     * 
+     * @warning Ensure no active CAN transactions when destroying instance
+     */
     ~AP_DroneCAN();
 
+    /**
+     * @brief Parameter table definition for AP_Param system
+     * 
+     * @details Defines configuration parameters:
+     *          - NODE: Local node ID (1-127, 0=disabled)
+     *          - SRV_BM: Servo output bitmask
+     *          - ESC_BM: ESC output bitmask  
+     *          - SRV_RATE: Servo update rate in Hz
+     *          - OPTIONS: Feature bitmask (see Options enum)
+     *          - POOL_SIZE: Memory pool size for message buffers
+     */
     static const struct AP_Param::GroupInfo var_info[];
 
-    // Return uavcan from @driver_index or nullptr if it's not ready or doesn't exist
+    /**
+     * @brief Get DroneCAN driver instance by index
+     * 
+     * @details Returns pointer to initialized DroneCAN driver for specified interface.
+     *          Used by peripheral drivers to access DroneCAN communication services.
+     * 
+     * @param[in] driver_index CAN driver index (0-based)
+     * 
+     * @return AP_DroneCAN* Pointer to driver instance, or nullptr if not initialized
+     * 
+     * @note Returns nullptr if driver not ready or index invalid
+     */
     static AP_DroneCAN *get_dronecan(uint8_t driver_index);
+    
+    /**
+     * @brief Pre-arm safety check for DroneCAN subsystem
+     * 
+     * @details Validates DroneCAN health before allowing vehicle arming:
+     *          - Checks DNA server status (no duplicate node IDs)
+     *          - Verifies critical peripherals are online (GPS, compass if configured)
+     *          - Confirms ESC outputs are responding if configured
+     *          - Validates CAN bus health (no excessive errors)
+     * 
+     * @param[out] fail_msg Buffer to receive failure description if check fails
+     * @param[in]  fail_msg_len Size of fail_msg buffer in bytes
+     * 
+     * @return true if all checks pass and vehicle safe to arm
+     * @return false if any check fails (fail_msg contains reason)
+     * 
+     * @note Called by AP_Arming during pre-arm check sequence
+     */
     bool prearm_check(char* fail_msg, uint8_t fail_msg_len) const;
 
+    /**
+     * @brief Initialize DroneCAN driver and start communication thread
+     * 
+     * @details Performs heavy initialization:
+     *          - Allocates memory pool for message buffers (size from _pool_size parameter)
+     *          - Initializes libcanard interface with local node ID
+     *          - Sets up publishers, subscribers, and service clients
+     *          - Starts dedicated thread running loop() method
+     *          - Initializes DNA server for node ID allocation
+     * 
+     * @param[in] driver_index CAN driver index (must match constructor value)
+     * @param[in] enable_filters If true, configure CAN hardware filters for efficiency
+     * 
+     * @warning Must be called before any CAN communication
+     * @warning Only call once per driver instance
+     * 
+     * @note Thread name format: "dronecan_N" where N is driver_index
+     */
     __INITFUNC__ void init(uint8_t driver_index, bool enable_filters) override;
+    
+    /**
+     * @brief Attach HAL CAN interface to this driver
+     * 
+     * @details Binds hardware CAN interface from HAL to this DroneCAN driver instance.
+     *          Must be called after init() but before communication begins.
+     * 
+     * @param[in] can_iface Pointer to HAL CAN interface (AP_HAL::CANIface)
+     * 
+     * @return true if interface successfully attached
+     * @return false if interface already attached or invalid
+     * 
+     * @note Typically called by AP_CANManager during system initialization
+     */
     bool add_interface(AP_HAL::CANIface* can_iface) override;
 
-    // add an 11 bit auxillary driver
+    /**
+     * @brief Register an 11-bit auxiliary CAN driver
+     * 
+     * @details Allows non-DroneCAN devices using 11-bit CAN identifiers to share the bus.
+     *          Auxiliary drivers receive frames not matching DroneCAN protocol format.
+     * 
+     * @param[in] sensor Pointer to CANSensor auxiliary driver instance
+     * 
+     * @return true if driver successfully registered
+     * @return false if registration failed (table full or invalid)
+     * 
+     * @note Used for proprietary CAN devices that don't follow DroneCAN protocol
+     */
     bool add_11bit_driver(CANSensor *sensor) override;
 
-    // handler for outgoing frames for auxillary drivers
+    /**
+     * @brief Send raw CAN frame from auxiliary driver
+     * 
+     * @details Transmits a frame on behalf of an auxiliary driver, bypassing DroneCAN
+     *          protocol stack. Used for proprietary CAN devices.
+     * 
+     * @param[in,out] out_frame CAN frame to transmit (may be modified with timestamp)
+     * @param[in]     timeout_us Maximum time to wait for TX buffer space (microseconds)
+     * 
+     * @return true if frame successfully queued for transmission
+     * @return false if timeout or bus error
+     * 
+     * @warning Auxiliary frames compete with DroneCAN traffic for bus bandwidth
+     * @note Called by auxiliary drivers, not directly by vehicle code
+     */
     bool write_aux_frame(AP_HAL::CANFrame &out_frame, const uint32_t timeout_us) override;
     
+    /**
+     * @brief Get the driver index for this DroneCAN instance
+     * 
+     * @return uint8_t Driver index (0 for CAN1, 1 for CAN2, etc.)
+     * 
+     * @note Used to associate peripherals with specific CAN interface
+     */
     uint8_t get_driver_index() const { return _driver_index; }
 
-    // define string with length structure
-    struct string { uint8_t len; uint8_t data[128]; };
+    /**
+     * @brief String structure for DroneCAN string parameters
+     * 
+     * @details Length-prefixed string format matching UAVCAN protocol string representation.
+     *          Used for parameter get/set operations with string values.
+     */
+    struct string { 
+        uint8_t len;          ///< String length in bytes (0-128)
+        uint8_t data[128];    ///< String data buffer
+    };
 
+    /**
+     * @brief Callback function type for integer parameter get/set operations
+     * 
+     * @details Signature: bool callback(AP_DroneCAN* dronecan, uint8_t node_id, const char* name, int32_t& value)
+     * 
+     * @param dronecan Pointer to DroneCAN driver instance
+     * @param node_id Remote node ID that responded
+     * @param name Parameter name
+     * @param value Parameter value (input for set, output for get)
+     * @return true if operation succeeded, false on error
+     */
     FUNCTOR_TYPEDEF(ParamGetSetIntCb, bool, AP_DroneCAN*, const uint8_t, const char*, int32_t &);
+    
+    /**
+     * @brief Callback function type for floating-point parameter get/set operations
+     * 
+     * @details Signature: bool callback(AP_DroneCAN* dronecan, uint8_t node_id, const char* name, float& value)
+     * 
+     * @param dronecan Pointer to DroneCAN driver instance
+     * @param node_id Remote node ID that responded
+     * @param name Parameter name
+     * @param value Parameter value (input for set, output for get)
+     * @return true if operation succeeded, false on error
+     */
     FUNCTOR_TYPEDEF(ParamGetSetFloatCb, bool, AP_DroneCAN*, const uint8_t, const char*, float &);
+    
+    /**
+     * @brief Callback function type for string parameter get/set operations
+     * 
+     * @details Signature: bool callback(AP_DroneCAN* dronecan, uint8_t node_id, const char* name, string& value)
+     * 
+     * @param dronecan Pointer to DroneCAN driver instance
+     * @param node_id Remote node ID that responded
+     * @param name Parameter name
+     * @param value Parameter string value
+     * @return true if operation succeeded, false on error
+     */
     FUNCTOR_TYPEDEF(ParamGetSetStringCb, bool, AP_DroneCAN*, const uint8_t, const char*, string &);
+    
+    /**
+     * @brief Callback function type for parameter save operations
+     * 
+     * @details Signature: void callback(AP_DroneCAN* dronecan, uint8_t node_id, bool success)
+     * 
+     * @param dronecan Pointer to DroneCAN driver instance
+     * @param node_id Remote node ID that responded
+     * @param success true if parameters saved successfully, false on error
+     */
     FUNCTOR_TYPEDEF(ParamSaveCb, void, AP_DroneCAN*,  const uint8_t, bool);
 
+    /**
+     * @brief Send node status message
+     * 
+     * @details Broadcasts uavcan.protocol.NodeStatus message containing:
+     *          - Node health (OK, WARNING, ERROR, CRITICAL)
+     *          - Operating mode (OPERATIONAL, INITIALIZATION, MAINTENANCE, etc.)
+     *          - Uptime in seconds
+     *          - Vendor-specific status code
+     * 
+     * @note Called periodically from loop() at 1 Hz by default
+     * @note Other nodes use this for health monitoring and diagnostics
+     */
     void send_node_status();
 
-    ///// SRV output /////
+    /**
+     * @brief Push servo outputs to DroneCAN actuators
+     * 
+     * @details Called by vehicle code (typically from SRV_Channels) to send updated
+     *          servo/ESC commands over CAN bus. Converts RC_Channel PWM values to
+     *          appropriate DroneCAN message format based on configuration:
+     *          - Standard ESC RawCommand (default): PWM-like 0-8191 values
+     *          - Actuator ArrayCommand (USE_ACTUATOR_PWM option): Normalized -1.0 to +1.0
+     *          - Vendor-specific (Hobbywing, Himark): Protocol-specific formatting
+     * 
+     * @note Thread-safe: Uses SRV_sem semaphore for synchronization
+     * @note Actual transmission occurs in loop() at configured rate (_servo_rate_hz)
+     * @note Only outputs with bits set in _servo_bm or _esc_bm are transmitted
+     */
     void SRV_push_servos(void);
 
-    ///// LED /////
+    /**
+     * @brief Control RGB LED on a DroneCAN device
+     * 
+     * @details Sends uavcan.equipment.indication.LightsCommand to control addressable
+     *          RGB LED on remote node. Commonly used for status indication on
+     *          DroneCAN-connected peripherals (GPS, flight controllers, etc.)
+     * 
+     * @param[in] led_index LED index on remote device (device-specific, typically 0)
+     * @param[in] red Red channel intensity (0-255)
+     * @param[in] green Green channel intensity (0-255)
+     * @param[in] blue Blue channel intensity (0-255)
+     * 
+     * @return true if message successfully queued for transmission
+     * @return false if transmission failed (bus error or queue full)
+     * 
+     * @note LED updates typically occur at low rate (1-10 Hz)
+     * @note Not all DroneCAN devices support LED control
+     */
     bool led_write(uint8_t led_index, uint8_t red, uint8_t green, uint8_t blue);
 
-    // buzzer
+    /**
+     * @brief Play tone on DroneCAN buzzer
+     * 
+     * @details Sends uavcan.equipment.indication.BeepCommand to activate buzzer
+     *          on remote node. Used for audible feedback and warnings.
+     * 
+     * @param[in] frequency Tone frequency in Hz (0 = silence, typical range 200-4000 Hz)
+     * @param[in] duration_s Duration in seconds (0 for continuous until next command)
+     * 
+     * @note Multiple DroneCAN nodes may have buzzers; all will respond to command
+     * @note Frequency interpretation is device-specific; some buzzers have limited range
+     */
     void set_buzzer_tone(float frequency, float duration_s);
 
-    // Send Reboot command
-    // Note: Do not call this from outside UAVCAN thread context,
-    // you can call this from dronecan callbacks and handlers.
-    // THIS IS NOT A THREAD SAFE API!
+    /**
+     * @brief Send reboot request to remote DroneCAN node
+     * 
+     * @details Transmits uavcan.protocol.RestartNode command to reboot specified device.
+     *          Used for applying configuration changes or recovering from errors.
+     * 
+     * @param[in] node_id Target node ID to reboot (1-127)
+     * 
+     * @warning NOT THREAD SAFE - must only be called from DroneCAN thread context
+     * @warning Safe to call from DroneCAN callbacks/handlers, NOT from vehicle code
+     * @warning Node will disconnect briefly during reboot; ensure system can tolerate loss
+     * 
+     * @note Some nodes may not support remote reboot
+     * @note Reboot typically takes 1-5 seconds depending on node bootloader
+     */
     void send_reboot_request(uint8_t node_id);
 
-    // get or set param value
-    // returns true on success, false on failure
-    // failures occur when waiting on node to respond to previous get or set request
+    /**
+     * @brief Set floating-point parameter on remote DroneCAN node
+     * 
+     * @details Sends uavcan.protocol.param.GetSet request to modify parameter value
+     *          on specified node. Operation is asynchronous; callback invoked when
+     *          response received or timeout occurs.
+     * 
+     * @param[in] node_id Target node ID (1-127)
+     * @param[in] name Parameter name (null-terminated string, max 92 chars)
+     * @param[in] value New parameter value (float)
+     * @param[in] cb Callback function invoked with result (may be nullptr)
+     * 
+     * @return true if request successfully queued
+     * @return false if previous request still pending (only one request at a time)
+     * 
+     * @note Parameter not persisted until save_parameters_on_node() called
+     * @note Timeout after 1000ms if no response received
+     * @warning Only one parameter operation at a time; check return value
+     */
     bool set_parameter_on_node(uint8_t node_id, const char *name, float value, ParamGetSetFloatCb *cb);
+    
+    /**
+     * @brief Set integer parameter on remote DroneCAN node
+     * 
+     * @details Sends uavcan.protocol.param.GetSet request to modify parameter value
+     *          on specified node. Operation is asynchronous; callback invoked when
+     *          response received or timeout occurs.
+     * 
+     * @param[in] node_id Target node ID (1-127)
+     * @param[in] name Parameter name (null-terminated string, max 92 chars)
+     * @param[in] value New parameter value (int32_t)
+     * @param[in] cb Callback function invoked with result (may be nullptr)
+     * 
+     * @return true if request successfully queued
+     * @return false if previous request still pending (only one request at a time)
+     * 
+     * @note Parameter not persisted until save_parameters_on_node() called
+     * @note Timeout after 1000ms if no response received
+     * @warning Only one parameter operation at a time; check return value
+     */
     bool set_parameter_on_node(uint8_t node_id, const char *name, int32_t value, ParamGetSetIntCb *cb);
+    
+    /**
+     * @brief Set string parameter on remote DroneCAN node
+     * 
+     * @details Sends uavcan.protocol.param.GetSet request to modify parameter value
+     *          on specified node. Operation is asynchronous; callback invoked when
+     *          response received or timeout occurs.
+     * 
+     * @param[in] node_id Target node ID (1-127)
+     * @param[in] name Parameter name (null-terminated string, max 92 chars)
+     * @param[in] value New parameter value (string structure with length prefix)
+     * @param[in] cb Callback function invoked with result (may be nullptr)
+     * 
+     * @return true if request successfully queued
+     * @return false if previous request still pending (only one request at a time)
+     * 
+     * @note Parameter not persisted until save_parameters_on_node() called
+     * @note Timeout after 1000ms if no response received
+     * @warning Only one parameter operation at a time; check return value
+     */
     bool set_parameter_on_node(uint8_t node_id, const char *name, const string &value, ParamGetSetStringCb *cb);
+    
+    /**
+     * @brief Get floating-point parameter from remote DroneCAN node
+     * 
+     * @details Sends uavcan.protocol.param.GetSet request to read parameter value
+     *          from specified node. Operation is asynchronous; callback invoked with
+     *          value when response received or timeout occurs.
+     * 
+     * @param[in] node_id Target node ID (1-127)
+     * @param[in] name Parameter name (null-terminated string, max 92 chars)
+     * @param[in] cb Callback function invoked with result (required, not nullptr)
+     * 
+     * @return true if request successfully queued
+     * @return false if previous request still pending (only one request at a time)
+     * 
+     * @note Timeout after 1000ms if no response received
+     * @warning Only one parameter operation at a time; check return value
+     */
     bool get_parameter_on_node(uint8_t node_id, const char *name, ParamGetSetFloatCb *cb);
+    
+    /**
+     * @brief Get integer parameter from remote DroneCAN node
+     * 
+     * @details Sends uavcan.protocol.param.GetSet request to read parameter value
+     *          from specified node. Operation is asynchronous; callback invoked with
+     *          value when response received or timeout occurs.
+     * 
+     * @param[in] node_id Target node ID (1-127)
+     * @param[in] name Parameter name (null-terminated string, max 92 chars)
+     * @param[in] cb Callback function invoked with result (required, not nullptr)
+     * 
+     * @return true if request successfully queued
+     * @return false if previous request still pending (only one request at a time)
+     * 
+     * @note Timeout after 1000ms if no response received
+     * @warning Only one parameter operation at a time; check return value
+     */
     bool get_parameter_on_node(uint8_t node_id, const char *name, ParamGetSetIntCb *cb);
+    
+    /**
+     * @brief Get string parameter from remote DroneCAN node
+     * 
+     * @details Sends uavcan.protocol.param.GetSet request to read parameter value
+     *          from specified node. Operation is asynchronous; callback invoked with
+     *          value when response received or timeout occurs.
+     * 
+     * @param[in] node_id Target node ID (1-127)
+     * @param[in] name Parameter name (null-terminated string, max 92 chars)
+     * @param[in] cb Callback function invoked with result (required, not nullptr)
+     * 
+     * @return true if request successfully queued
+     * @return false if previous request still pending (only one request at a time)
+     * 
+     * @note Timeout after 1000ms if no response received
+     * @warning Only one parameter operation at a time; check return value
+     */
     bool get_parameter_on_node(uint8_t node_id, const char *name, ParamGetSetStringCb *cb);
 
-    // Save parameters
+    /**
+     * @brief Save parameters to persistent storage on remote node
+     * 
+     * @details Sends uavcan.protocol.param.ExecuteOpcode request with OPCODE_SAVE
+     *          to persist current parameter values to non-volatile memory (EEPROM/flash).
+     *          Parameters modified by set_parameter_on_node() are not permanent until saved.
+     * 
+     * @param[in] node_id Target node ID (1-127)
+     * @param[in] cb Callback function invoked when save completes (may be nullptr)
+     * 
+     * @return true if request successfully queued
+     * @return false if previous save request still pending
+     * 
+     * @note Save operation may take several seconds depending on flash write speed
+     * @note Some nodes may have limited write cycles; avoid excessive saves
+     * @warning Only one save operation at a time per driver instance
+     */
     bool save_parameters_on_node(uint8_t node_id, ParamSaveCb *cb);
 
-    // options bitmask
+    /**
+     * @brief DroneCAN driver options bitmask
+     * 
+     * @details Configuration flags controlling driver behavior and feature enablement.
+     *          Set via CAN_Dx_OPTIONS parameter where x is driver index (1-based).
+     *          Multiple options can be combined with bitwise OR.
+     */
     enum class Options : uint16_t {
+        /**
+         * @brief Clear DNA (Dynamic Node Allocation) database on boot
+         * 
+         * Forces all nodes to re-request node IDs, clearing saved allocations.
+         * Useful for testing or recovering from corrupted DNA database.
+         */
         DNA_CLEAR_DATABASE        = (1U<<0),
+        
+        /**
+         * @brief Ignore duplicate node ID conflicts
+         * 
+         * Allows multiple nodes with same ID (non-standard, debugging only).
+         * Normally duplicate IDs cause DNA server to reject node.
+         * @warning May cause unpredictable behavior; use only for debugging
+         */
         DNA_IGNORE_DUPLICATE_NODE = (1U<<1),
+        
+        /**
+         * @brief Enable CAN FD (Flexible Data-rate) mode
+         * 
+         * Enables CAN FD for higher bandwidth (64-byte payloads, faster bit rates).
+         * Requires CAN FD-capable hardware on all bus devices.
+         * Falls back to CAN 2.0B if not supported by hardware.
+         */
         CANFD_ENABLED             = (1U<<2),
+        
+        /**
+         * @brief Ignore unhealthy nodes during DNA
+         * 
+         * Allows node ID allocation to proceed even if some nodes report errors.
+         * Prevents healthy nodes from being blocked by failing devices.
+         */
         DNA_IGNORE_UNHEALTHY_NODE = (1U<<3),
+        
+        /**
+         * @brief Use Actuator PWM command format
+         * 
+         * Sends actuator commands as normalized values (-1.0 to +1.0) with metadata
+         * instead of raw ESC commands (0-8191). Preferred for smart actuators that
+         * support closed-loop control and can interpret normalized commands.
+         */
         USE_ACTUATOR_PWM          = (1U<<4),
+        
+        /**
+         * @brief Send GNSS data over DroneCAN
+         * 
+         * Broadcasts GPS position/velocity/status from flight controller to CAN bus.
+         * Used when flight controller is GNSS source and peripherals need position
+         * (e.g., redundant flight controllers, external payloads).
+         * Sends Fix2, Auxiliary, Heading, and Status messages.
+         */
         SEND_GNSS                 = (1U<<5),
+        
+        /**
+         * @brief Enable Himark servo protocol support
+         * 
+         * Uses vendor-specific Himark ServoCmd messages instead of standard commands.
+         * Required for Himark smart servos; do not use with other servo types.
+         */
         USE_HIMARK_SERVO          = (1U<<6),
+        
+        /**
+         * @brief Enable Hobbywing ESC protocol support
+         * 
+         * Uses vendor-specific Hobbywing ESC messages with enhanced telemetry.
+         * Required for Hobbywing Platinum/Flyfun ESCs; includes ESC ID discovery.
+         */
         USE_HOBBYWING_ESC         = (1U<<7),
+        
+        /**
+         * @brief Enable CAN statistics broadcasting
+         * 
+         * Periodically broadcasts dronecan.protocol.Stats and CanStats messages
+         * containing error counters, TX/RX counts, and buffer usage.
+         * Useful for bus health monitoring and debugging.
+         */
         ENABLE_STATS              = (1U<<8),
+        
+        /**
+         * @brief Enable FlexDebug message reception
+         * 
+         * Subscribe to dronecan.protocol.FlexDebug messages for custom debugging.
+         * Messages accessible to Lua scripts via get_FlexDebug() method.
+         * Increases memory usage; enable only when debugging with scripts.
+         */
         ENABLE_FLEX_DEBUG         = (1U<<9),
     };
 
-    // check if a option is set
+    /**
+     * @brief Check if specific option flag is set
+     * 
+     * @param[in] option Option flag to test (from Options enum)
+     * 
+     * @return true if option bit is set in _options parameter
+     * @return false if option bit is clear
+     * 
+     * @note Thread-safe: reads parameter atomically
+     */
     bool option_is_set(Options option) const {
         return (uint16_t(_options.get()) & uint16_t(option)) != 0;
     }
 
-    // check if a option is set and if it is then reset it to
-    // 0. return true if it was set
+    /**
+     * @brief Check and clear option flag atomically
+     * 
+     * @details Tests if option is set, and if so, clears the bit and returns true.
+     *          Used for one-shot options like DNA_CLEAR_DATABASE that should only
+     *          trigger once after being set.
+     * 
+     * @param[in] option Option flag to test and clear
+     * 
+     * @return true if option was set (now cleared)
+     * @return false if option was already clear
+     * 
+     * @warning Modifies _options parameter; ensure proper synchronization
+     */
     bool check_and_reset_option(Options option);
 
+    /**
+     * @brief Get reference to libcanard interface
+     * 
+     * @details Provides access to underlying Canard interface for direct protocol
+     *          operations. Used by peripheral drivers and advanced integrations.
+     * 
+     * @return CanardInterface& Reference to libcanard interface wrapper
+     * 
+     * @warning Direct use of Canard interface bypasses driver abstractions
+     * @note Most users should use higher-level driver methods instead
+     */
     CanardInterface& get_canard_iface() { return canard_iface; }
 
+    /**
+     * @brief Publisher for RGB LED control commands
+     * 
+     * @details Sends uavcan.equipment.indication.LightsCommand messages to control
+     *          addressable RGB LEDs on DroneCAN peripherals. Used by led_write().
+     * 
+     * @note Public to allow advanced users to send custom LED patterns
+     */
     Canard::Publisher<uavcan_equipment_indication_LightsCommand> rgb_led{canard_iface};
+    
+    /**
+     * @brief Publisher for buzzer/beeper commands
+     * 
+     * @details Sends uavcan.equipment.indication.BeepCommand messages to control
+     *          audible buzzers on DroneCAN peripherals. Used by set_buzzer_tone().
+     * 
+     * @note Public to allow advanced users to send custom beep patterns
+     */
     Canard::Publisher<uavcan_equipment_indication_BeepCommand> buzzer{canard_iface};
+    
+    /**
+     * @brief Publisher for RTCM correction data stream
+     * 
+     * @details Broadcasts uavcan.equipment.gnss.RTCMStream messages containing
+     *          RTK correction data from base station. DroneCAN GPS receivers
+     *          subscribe to this for centimeter-level positioning accuracy.
+     * 
+     * @note Corrections typically from NTRIP caster or local base station
+     * @note RTCM3 messages fragmented across multiple CAN frames if needed
+     */
     Canard::Publisher<uavcan_equipment_gnss_RTCMStream> rtcm_stream{canard_iface};
 
 #if HAL_MOUNT_XACTI_ENABLED
-    // xacti specific publishers
+    /**
+     * @brief Publisher for Xacti gimbal copter attitude status
+     * 
+     * @details Sends com.xacti.CopterAttStatus messages to Xacti camera gimbal
+     *          with vehicle attitude for stabilization and target tracking.
+     * 
+     * @note Xacti-specific protocol, only used with Xacti camera systems
+     */
     Canard::Publisher<com_xacti_CopterAttStatus> xacti_copter_att_status{canard_iface};
+    
+    /**
+     * @brief Publisher for Xacti gimbal control commands
+     * 
+     * @details Sends com.xacti.GimbalControlData messages to control Xacti gimbal
+     *          angles, modes, and camera settings.
+     * 
+     * @note Xacti-specific protocol, only used with Xacti camera systems
+     */
     Canard::Publisher<com_xacti_GimbalControlData> xacti_gimbal_control_data{canard_iface};
+    
+    /**
+     * @brief Publisher for Xacti GNSS status
+     * 
+     * @details Sends com.xacti.GnssStatus messages to Xacti camera with GPS
+     *          position/status for geotagging and navigation features.
+     * 
+     * @note Xacti-specific protocol, only used with Xacti camera systems
+     */
     Canard::Publisher<com_xacti_GnssStatus> xacti_gnss_status{canard_iface};
 #endif  // HAL_MOUNT_XACTI_ENABLED
 
 #if AP_RELAY_DRONECAN_ENABLED
-    // Hardpoint for relay
-    // Needs to be public so relay can edge trigger as well as streaming
+    /**
+     * @brief Publisher for relay/hardpoint commands
+     * 
+     * @details Sends uavcan.equipment.hardpoint.Command messages to control
+     *          relays (switches) on DroneCAN devices. Supports both edge-triggered
+     *          and level-based relay control.
+     * 
+     * @note Public to allow relay drivers to send both streaming and edge-trigger commands
+     * @note Command includes relay ID (0-255) and state (0=off, 1=on)
+     */
     Canard::Publisher<uavcan_equipment_hardpoint_Command> relay_hardpoint{canard_iface};
 #endif
 
 #if AP_SCRIPTING_ENABLED
+    /**
+     * @brief Get FlexDebug message from specific node
+     * 
+     * @details Retrieves stored FlexDebug message from specified node for Lua script access.
+     *          FlexDebug provides custom debugging data from DroneCAN devices that can be
+     *          processed by scripts for advanced monitoring and diagnostics.
+     * 
+     * @param[in]  node_id Node ID to query (1-127)
+     * @param[in]  msg_id Message ID filter (0=any message)
+     * @param[out] timestamp_us Timestamp when message received (microseconds)
+     * @param[out] msg FlexDebug message structure
+     * 
+     * @return true if matching message found and returned
+     * @return false if no message from node_id or no match for msg_id
+     * 
+     * @note Only available when Options::ENABLE_FLEX_DEBUG is set
+     * @note Message history limited by memory pool size
+     */
     bool get_FlexDebug(uint8_t node_id, uint16_t msg_id, uint32_t &timestamp_us, dronecan_protocol_FlexDebug &msg) const;
 #endif
 
