@@ -11,6 +11,26 @@
   Only 4 channels of ranges are defined as those match the input
   channels for R/C sticks
  */
+
+/**
+ * @file SRV_Channel.h
+ * @brief Servo channel management and output function mapping
+ * 
+ * @details Provides servo/auxiliary output abstraction separating input RC channels
+ *          from output PWM channels via configurable function mapping. Handles:
+ *          - Output function assignment (motor, servo, camera, parachute, etc.)
+ *          - PWM range configuration (min/max/trim/reverse per channel)
+ *          - Scaled value conversion (angle/range → PWM microseconds)
+ *          - Channel auto-assignment based on vehicle type
+ *          - Protocol backends (Volz, SBUS, Robotis, BLHeli, FETtec OneWire)
+ *          - Safety mechanisms (emergency stop, failsafe values, disabled channels)
+ *          
+ *          Architecture: SRV_Channel (per-channel configuration) + SRV_Channels (global manager)
+ * 
+ * @note This is the central servo output abstraction used by all vehicle types
+ * @warning Misconfiguration can cause motor/servo reversal leading to crashes
+ */
+
 #pragma once
 
 #include <AP_HAL/AP_HAL.h>
@@ -34,6 +54,37 @@ class SRV_Channels;
   SRV_Channel objects. This is done to fit within the AP_Param limit
   of 64 parameters per object.
 */
+
+/**
+ * @class SRV_Channel
+ * @brief Individual servo/PWM output channel with function assignment and scaling
+ * 
+ * @details Represents one output channel with:
+ *          - Assigned function (motor, aileron, camera trigger, etc.)
+ *          - PWM limits (SERVOn_MIN, SERVOn_MAX, SERVOn_TRIM in microseconds)
+ *          - Reversal flag (SERVOn_REVERSED)
+ *          - Type configuration (angle vs range scaling)
+ *          - Current output value
+ *          
+ *          Typical configuration via parameters:
+ *          ```
+ *          SERVO1_FUNCTION = 33  # Motor 1
+ *          SERVO1_MIN = 1000     # Full reverse/stop (μs)
+ *          SERVO1_MAX = 2000     # Full forward (μs)
+ *          SERVO1_TRIM = 1500    # Neutral (μs)
+ *          SERVO1_REVERSED = 0   # Normal direction
+ *          ```
+ *          
+ *          Output workflow:
+ *          1. Vehicle code calls SRV_Channels::set_output_scaled(function, value)
+ *          2. SRV_Channels::calc_pwm() converts scaled values to PWM per channel
+ *          3. calc_pwm() applies min/max/trim/reverse transformation
+ *          4. output_ch() writes final PWM to hal.rcout hardware
+ * 
+ * @note Parameters stored via AP_Param system (RCn_ namespace for compatibility)
+ * @note Thread-safe via semaphores in SRV_Channels manager
+ * @warning Incorrect function assignment can mix up control surfaces causing crashes
+ */
 class SRV_Channel {
 public:
     friend class SRV_Channels;
@@ -43,6 +94,55 @@ public:
 
     static const struct AP_Param::GroupInfo var_info[];
 
+    /**
+     * @enum Function
+     * @brief Output function types for channel assignment
+     * 
+     * @details Defines ~190 possible output functions organized by category:
+     *          
+     *          **Motors** (k_motor1-k_motor32): Multicopter/VTOL motor outputs
+     *          - Used with AP_Motors mixer for thrust allocation
+     *          - Auto-assigned based on frame type (quad/hex/octo/etc.)
+     *          - Support throttle curves, slew rate limiting, emergency stop
+     *          
+     *          **Control Surfaces** (k_aileron, k_elevator, k_rudder, k_flap, etc.):
+     *          - Fixed-wing and VTOL control surfaces
+     *          - Angle-based scaling around trim point
+     *          - Support differential mixing (elevons, flaperons, v-tail)
+     *          
+     *          **Mounts/Gimbals** (k_mount_pan/tilt/roll, k_mount2_*):
+     *          - Camera gimbal stabilization (2-axis and 3-axis)
+     *          - Dual mount support for two independent gimbals
+     *          - Integration with AP_Mount for MAVLink gimbal control
+     *          
+     *          **Actuators** (k_gripper, k_parachute_release, k_landing_gear, etc.):
+     *          - Binary or range-based peripheral control
+     *          - Typically used with mission commands (DO_GRIPPER, DO_PARACHUTE)
+     *          
+     *          **RC Pass-through** (k_rcin1-k_rcin16, k_rcin1_mapped-k_rcin16_mapped):
+     *          - Direct RC input → output mapping
+     *          - k_manual: Traditional manual control (deprecated)
+     *          - k_rcin*: Pass-through for auxiliary switches/knobs
+     *          - k_rcin*_mapped: Pass-through with min/max/trim applied
+     *          
+     *          **Scripting Outputs** (k_scripting1-k_scripting16):
+     *          - Lua script-controlled outputs
+     *          - Allow custom control logic in user scripts
+     *          
+     *          **LEDs** (k_LED_neopixel1-4, k_ProfiLED_1-3, k_ProfiLED_Clock):
+     *          - Addressable LED control (WS2812, ProfiLED)
+     *          - PWM-based protocols for LED strips
+     *          
+     *          **Special** (k_GPIO, k_alarm, k_min, k_max, k_trim):
+     *          - k_GPIO=-1: Use pin as digital I/O (not PWM)
+     *          - k_none=0: Disabled or generic PWM (DO_SET_SERVO target)
+     *          - k_min/max/trim: Always output respective limit (testing)
+     *          - k_alarm/alarm_inverted: Audible alert output
+     * 
+     * @note k_nr_aux_servo_functions is sentinel value (must be last enum)
+     * @note New functions added before k_nr_aux_servo_functions to maintain ABI
+     * @warning Changing enum values breaks parameter compatibility - never reorder
+     */
     typedef enum
     {
         k_GPIO                  = -1,           ///< used as GPIO pin (input or output)
@@ -230,7 +330,24 @@ public:
         return valid_function(function);
     }
     
-    // used to get min/max/trim limit value based on reverse
+    /**
+     * @enum Limit
+     * @brief PWM limit values for constrained output modes
+     * 
+     * @details Used by set_output_limit() and get_limit_pwm() to output fixed values:
+     *          - TRIM: Output servo_trim (neutral position)
+     *          - MIN: Output servo_min (minimum PWM, honors reverse)
+     *          - MAX: Output servo_max (maximum PWM, honors reverse)
+     *          - ZERO_PWM: Output 0μs (hardware disables output, motor off)
+     *          
+     *          Common uses:
+     *          - Failsafe: Set motors to ZERO_PWM or MIN (disarm)
+     *          - Centering: Set control surfaces to TRIM before arming
+     *          - Testing: Verify full range by commanding MIN then MAX
+     * 
+     * @note MIN/MAX honor reversal (reversed channel swaps min/max output)
+     * @note ZERO_PWM is absolute hardware off (used for ESC disarm)
+     */
     enum class Limit {
         TRIM,
         MIN,
@@ -238,19 +355,84 @@ public:
         ZERO_PWM
     };
 
-    // set the output value as a pwm value
+    /**
+     * @brief Set channel output directly in PWM microseconds
+     * 
+     * @param[in] pwm Pulse width in microseconds (typically 1000-2000)
+     * @param[in] force If true, bypass disabled_mask and emergency_stop checks
+     * 
+     * @details Directly sets output PWM value, bypassing min/max/trim scaling.
+     *          Used for:
+     *          - DO_SET_SERVO mission commands (direct PWM control)
+     *          - ESC calibration sequences
+     *          - Servo output testing
+     *          - Pass-through modes (k_manual, k_rcin*)
+     *          
+     *          Sets have_pwm_mask bit for this channel, indicating output is absolute PWM
+     *          rather than scaled value requiring conversion via calc_pwm().
+     * 
+     * @note Marks channel as having direct PWM (cleared by set_output_scaled/norm/angle/range)
+     * @note Output constrained to [min, max] unless force=true
+     * @warning Bypassing force safety (force=true) can spin motors when disarmed - dangerous
+     */
     void set_output_pwm(uint16_t pwm, bool force = false);
 
     // get the output value as a pwm value
     uint16_t get_output_pwm(void) const { return output_pwm; }
 
-    // set normalised output from -1 to 1, assuming 0 at mid point of servo_min/servo_max
+    /**
+     * @brief Set output as normalized value from -1 to +1
+     * 
+     * @param[in] value Normalized output (-1.0 = min, 0.0 = trim, +1.0 = max)
+     * 
+     * @details Converts normalized value to PWM using configured min/max/trim:
+     *          - value < 0: Interpolates between min and trim
+     *          - value == 0: Outputs trim
+     *          - value > 0: Interpolates between trim and max
+     *          - Honors reverse flag (swaps min/max)
+     *          
+     *          Used for control surfaces requiring symmetric range around neutral.
+     * 
+     * @note Clears have_pwm_mask (output requires calc_pwm() conversion)
+     * @note Units: Normalized (-1.0 to +1.0, unitless)
+     */
     void set_output_norm(float value);
 
-    // set angular range of scaled output
+    /**
+     * @brief Configure channel for angle-based output scaling
+     * 
+     * @param[in] angle Maximum deflection angle in centidegrees (e.g., 4500 = ±45°)
+     * 
+     * @details Configures channel to interpret scaled values as angles in centidegrees.
+     *          When set, pwm_from_scaled_value() maps:
+     *          - -angle → servo_min
+     *          - 0 → servo_trim
+     *          - +angle → servo_max
+     *          
+     *          Typical for control surfaces where commanded value is angle (elevator: -30° to +30°).
+     * 
+     * @note Units: centidegrees (100 centidegrees = 1 degree)
+     * @note Sets type_angle=true flag for scaling mode selection
+     * @note Typical values: 4500 (±45°), 3000 (±30°), 6000 (±60°)
+     */
     void set_angle(int16_t angle);
 
-    // set range of scaled output. Low is always zero
+    /**
+     * @brief Configure channel for range-based output scaling
+     * 
+     * @param[in] high Maximum output value (low is always 0)
+     * 
+     * @details Configures channel to interpret scaled values as 0-to-high range.
+     *          When set, pwm_from_scaled_value() maps:
+     *          - 0 → servo_min
+     *          - high → servo_max
+     *          
+     *          Typical for throttle/motor outputs where value is magnitude (0 = off, 1000 = full).
+     * 
+     * @note Units: Application-specific (typically 0-1000 for throttle, 0-100 for percentage)
+     * @note Sets type_angle=false flag for scaling mode selection
+     * @note Common values: 1000 (throttle), 100 (percentage), 10000 (fine control)
+     */
     void set_range(uint16_t high);
 
     // return true if the channel is reversed
@@ -277,10 +459,41 @@ public:
         return servo_trim;
     }
 
-    // return true if function is for a multicopter motor
+    /**
+     * @brief Check if function is a motor output
+     * 
+     * @param[in] function Output function to test
+     * 
+     * @return true if function is k_motor1 through k_motor32
+     * 
+     * @note Used to identify motor outputs for emergency stop and failsafe
+     * @note Motors stopped immediately when emergency_stop flag set
+     */
     static bool is_motor(Function function);
 
-    // return true if function is for anything that should be stopped in a e-stop situation, ie is dangerous
+    /**
+     * @brief Check if function should stop during emergency stop
+     * 
+     * @param[in] function Output function to test
+     * 
+     * @return true if function is dangerous and should stop (motors, some actuators)
+     * 
+     * @details Emergency stop (e-stop) triggered by:
+     *          - Crash detection
+     *          - Manual emergency stop (RC switch or GCS command)
+     *          - Critical failsafe conditions
+     *          
+     *          Affected outputs:
+     *          - All motors (k_motor1-k_motor32)
+     *          - Dangerous actuators requiring immediate stop
+     *          
+     *          Not affected:
+     *          - Control surfaces (needed for glide/recovery)
+     *          - Camera/gimbal (not dangerous)
+     *          - Parachute (needed for emergency deployment)
+     * 
+     * @warning E-stop cuts power immediately - no graceful spin-down
+     */
     static bool should_e_stop(Function function);
 
     // return true if function is for a control surface
@@ -380,6 +593,40 @@ private:
 /*
   class	SRV_Channels
 */
+
+/**
+ * @class SRV_Channels
+ * @brief Global servo channel manager and function-to-channel mapper
+ * 
+ * @details Singleton manager coordinating all output channels:
+ *          - Function-to-channel mapping (builds channel_mask for each function)
+ *          - Multi-channel operations (set all motors, all flaps, etc.)
+ *          - Protocol backend management (Volz, SBUS, BLHeli, DShot, etc.)
+ *          - Slew rate limiting for smooth servo motion
+ *          - Emergency stop coordination across all outputs
+ *          - PWM batching (cork/push for atomic updates)
+ *          
+ *          Typical usage from vehicle code:
+ *          ```cpp
+ *          // Set motor outputs
+ *          SRV_Channels::set_output_scaled(SRV_Channel::k_motor1, 0.75);
+ *          SRV_Channels::set_output_scaled(SRV_Channel::k_motor2, 0.75);
+ *          
+ *          // Convert scaled values to PWM and write to hardware
+ *          SRV_Channels::calc_pwm();
+ *          SRV_Channels::output_ch_all();
+ *          
+ *          // For atomic multi-channel updates:
+ *          SRV_Channels::cork();
+ *          SRV_Channels::set_output_pwm(SRV_Channel::k_motor1, 1500);
+ *          SRV_Channels::set_output_pwm(SRV_Channel::k_motor2, 1500);
+ *          SRV_Channels::push();  // Outputs all at once
+ *          ```
+ * 
+ * @note Accessed via singleton AP::srv() accessor or SRV_Channels::get_singleton()
+ * @note Thread-safe: Uses semaphores for override_counter access
+ * @warning Never call output methods before init() - hardware not configured
+ */
 class SRV_Channels {
 public:
     friend class SRV_Channel;
@@ -392,10 +639,38 @@ public:
     // set the default function for a channel
     static void set_default_function(uint8_t chan, SRV_Channel::Function function);
 
-    // set output value for a function channel as a pwm value
+    /**
+     * @brief Set output value for all channels with given function
+     * 
+     * @param[in] function Output function type (e.g., k_motor1)
+     * @param[in] value PWM value in microseconds
+     * 
+     * @details Sets all channels assigned to the specified function to the given PWM value.
+     *          If multiple channels have the same function, all are updated.
+     *          Bypasses scaling - sets absolute PWM output.
+     * 
+     * @note Units: microseconds (typically 1000-2000)
+     * @note Called at main loop rate for motor and servo outputs
+     * @see set_output_scaled() for scaled value output
+     */
     static void set_output_pwm(SRV_Channel::Function function, uint16_t value);
 
-    // set output value for a specific function channel as a pwm value
+    /**
+     * @brief Set output value for specific channel by channel number
+     * 
+     * @param[in] chan Physical output channel number (0-31)
+     * @param[in] value PWM value in microseconds
+     * 
+     * @details Directly sets a physical channel's PWM output regardless of function assignment.
+     *          Used for:
+     *          - Testing specific hardware outputs
+     *          - Calibration sequences
+     *          - Direct channel control bypassing function mapping
+     * 
+     * @note Units: microseconds (typically 1000-2000)
+     * @warning Bypasses function mapping - ensure channel number is correct
+     * @warning Can control unintended outputs if channel number wrong
+     */
     static void set_output_pwm_chan(uint8_t chan, uint16_t value);
 
     // get output value for a specific channel as a pwm value
@@ -404,8 +679,28 @@ public:
     // set output value for a specific function channel as a pwm value for specified override time in ms
     static void set_output_pwm_chan_timeout(uint8_t chan, uint16_t value, uint16_t timeout_ms);
 
-    // set output value for a function channel as a scaled value. This
-    // this should be followed by a call to calc_pwm() to output the pwm values
+    /**
+     * @brief Set output value for function as scaled value
+     * 
+     * @param[in] function Output function type (e.g., k_motor1, k_aileron)
+     * @param[in] value Scaled output value (interpretation depends on channel configuration)
+     * 
+     * @details Sets scaled value for all channels with this function. Value interpretation:
+     *          - Angle mode (control surfaces): value in centidegrees (e.g., -4500 to +4500)
+     *          - Range mode (motors/throttle): value from 0 to high_out (e.g., 0-1000)
+     *          
+     *          Must be followed by calc_pwm() to convert scaled values to PWM microseconds.
+     *          
+     *          Typical workflow:
+     *          1. set_output_scaled() for all functions
+     *          2. calc_pwm() to convert all scaled values
+     *          3. output_ch_all() to write PWM to hardware
+     * 
+     * @note Does NOT immediately output to hardware - requires calc_pwm() call
+     * @note Units depend on channel type (centidegrees for angle, 0-range for range)
+     * @see calc_pwm() to convert scaled values to PWM
+     * @see set_angle() and set_range() for configuring scaling mode
+     */
     static void set_output_scaled(SRV_Channel::Function function, float value);
 
     // get scaled output for the given function type.
@@ -424,16 +719,68 @@ public:
     // set normalised output (-1 to 1 with 0 at mid point of servo_min/servo_max) for the given function
     static void set_output_norm(SRV_Channel::Function function, float value);
 
-    // get output channel mask for a function
+    /**
+     * @brief Get bitmask of physical channels assigned to a function
+     * 
+     * @param[in] function Output function type (e.g., k_motor1, k_flap)
+     * 
+     * @return Bitmask with bits set for each channel having this function (bit 0 = channel 0)
+     * 
+     * @details Used to:
+     *          - Identify which physical channels output a given function
+     *          - Set hardware features (frequency, mode) for function's channels
+     *          - Disable/enable groups of channels
+     *          
+     *          Example: If channels 0 and 2 assigned to k_aileron, returns 0x00000005 (bits 0,2 set)
+     * 
+     * @note Multiple channels can share same function (redundancy or mixing)
+     * @note Returns 0 if function not assigned to any channel
+     */
     static uint32_t get_output_channel_mask(SRV_Channel::Function function);
 
-    // limit slew rate to given limit in percent per second
+    /**
+     * @brief Limit output slew rate for smooth servo motion
+     * 
+     * @param[in] function Output function type to limit
+     * @param[in] slew_rate Maximum change rate in percent per second
+     * @param[in] range Full scale range for percentage calculation
+     * @param[in] dt Time delta since last update in seconds
+     * 
+     * @details Gradually transitions output to avoid:
+     *          - Abrupt servo motion causing mechanical stress
+     *          - Sudden motor power changes causing instability
+     *          - High current draw from rapid ESC changes
+     *          
+     *          Algorithm: Limits scaled_output change to (slew_rate * range * dt / 100) per call
+     *          
+     *          Example: slew_rate=50, range=1000, dt=0.02 → max change = 10 per update
+     * 
+     * @note Applied before calc_pwm() conversion
+     * @note Only affects scaled outputs (not direct PWM)
+     * @note slew_rate=0 disables slew limiting
+     * @note Units: slew_rate in %/s, range in native units, dt in seconds
+     */
     static void set_slew_rate(SRV_Channel::Function function, float slew_rate, uint16_t range, float dt);
 
     // update channels last_scaled_output to match value
     static void set_slew_last_scaled_output(SRV_Channel::Function function, float value);
 
-    // call output_ch() on all channels
+    /**
+     * @brief Output PWM values to hardware for all channels
+     * 
+     * @details Writes pending PWM values to hal.rcout hardware for all configured channels.
+     *          Respects:
+     *          - disabled_mask (channels disabled by protocol backends like BLHeli)
+     *          - emergency_stop flag (stops motors immediately)
+     *          - invalid_mask (GPIO and other non-PWM functions)
+     *          
+     *          Called at main loop rate after calc_pwm() to send outputs to ESCs/servos.
+     * 
+     * @note Must call calc_pwm() first to convert scaled values to PWM
+     * @note Typically called at 50-400Hz depending on vehicle type
+     * @warning Outputs immediately - ensure calc_pwm() called with correct values
+     * @see calc_pwm() to convert scaled values before output
+     */
     static void output_ch_all(void);
 
     // setup output ESC scaling based on a channels MIN/MAX
@@ -490,13 +837,71 @@ public:
     // setup failsafe for an auxiliary channel function, by pwm
     static void set_failsafe_pwm(SRV_Channel::Function function, uint16_t pwm);
 
-    // setup failsafe for an auxiliary channel function
+    /**
+     * @brief Configure failsafe output limit for a function
+     * 
+     * @param[in] function Output function type
+     * @param[in] limit Failsafe limit value (TRIM, MIN, MAX, or ZERO_PWM)
+     * 
+     * @details Sets the output value that will be used during RC failsafe conditions:
+     *          - TRIM: Neutral position (typical for control surfaces)
+     *          - MIN: Minimum PWM (typical for motors = off/disarmed)
+     *          - MAX: Maximum PWM (rarely used)
+     *          - ZERO_PWM: Hardware disable (motor off, no signal)
+     *          
+     *          Applied when:
+     *          - RC signal lost
+     *          - GCS link lost (in some modes)
+     *          - Configured failsafe action triggered
+     * 
+     * @note Configured during vehicle init() based on function type
+     * @note Motor functions typically use MIN or ZERO_PWM
+     * @note Control surfaces typically use TRIM to maintain stability
+     * @warning SAFETY-CRITICAL: Incorrect failsafe can cause crash
+     */
     static void set_failsafe_limit(SRV_Channel::Function function, SRV_Channel::Limit limit);
 
-    // set servo to a Limit
+    /**
+     * @brief Immediately set output to a fixed limit value
+     * 
+     * @param[in] function Output function type
+     * @param[in] limit Limit value to output (TRIM, MIN, MAX, or ZERO_PWM)
+     * 
+     * @details Forces output to configured limit immediately:
+     *          - TRIM: Output servo_trim (neutral/center)
+     *          - MIN: Output servo_min (minimum limit, honors reverse)
+     *          - MAX: Output servo_max (maximum limit, honors reverse)
+     *          - ZERO_PWM: Output 0μs (hardware disables output)
+     *          
+     *          Used for:
+     *          - Pre-arm centering of control surfaces
+     *          - Motor disarm sequences
+     *          - Testing full range of motion
+     *          - Manual servo positioning
+     * 
+     * @note Takes effect immediately on next output_ch_all() call
+     * @note MIN/MAX honor reversed flag (swapped if reversed)
+     * @see set_failsafe_limit() to configure failsafe behavior
+     */
     static void set_output_limit(SRV_Channel::Function function, SRV_Channel::Limit limit);
 
-    // return true if a function is assigned to a channel
+    /**
+     * @brief Check if a function is assigned to any output channel
+     * 
+     * @param[in] function Output function type to check
+     * 
+     * @return true if function assigned to at least one channel, false otherwise
+     * 
+     * @details Used by vehicle code to:
+     *          - Detect available features (e.g., has gimbal if k_mount_pan assigned)
+     *          - Skip processing for unassigned functions
+     *          - Validate configuration before operations
+     *          
+     *          Checks internal function_mask bitmask built during init().
+     * 
+     * @note Returns false for k_none and invalid functions
+     * @note Updated when parameters change via update_aux_servo_function()
+     */
     static bool function_assigned(SRV_Channel::Function function);
 
     // set a servo_out value, and angle range, then calc_pwm
@@ -512,25 +917,152 @@ public:
     // return the current function for a channel
     static SRV_Channel::Function channel_function(uint8_t channel);
 
-    // refresh aux servo to function mapping
+    /**
+     * @brief Rebuild function-to-channel mapping after parameter changes
+     * 
+     * @details Scans all channels and rebuilds internal mapping structures:
+     *          - function_mask: Bitmask of which functions are assigned
+     *          - channel_mask per function: Which channels output each function
+     *          - invalid_mask: Channels configured as GPIO or other non-PWM
+     *          
+     *          Called:
+     *          - During init() to build initial mapping
+     *          - When SERVOn_FUNCTION parameters change
+     *          - After parameter reload from storage
+     *          
+     *          Enables function_assigned() and get_channel_for() lookups.
+     * 
+     * @note Automatically called when parameters change via AP_Param system
+     * @note Manual call needed if programmatically modifying function assignments
+     */
     static void update_aux_servo_function(void);
 
-    // set default channel for an auxiliary function
+    /**
+     * @brief Set default channel assignment for a function if not configured
+     * 
+     * @param[in] function Output function to assign
+     * @param[in] channel Hardware channel number (0-31)
+     * 
+     * @return true if default was set, false if channel already configured
+     * 
+     * @details Sets SERVOn_FUNCTION parameter default value only if parameter
+     *          is not already configured in storage or defaults file. Used for:
+     *          - Vehicle-specific defaults (Copter assigns k_motor1-8 by frame type)
+     *          - Board-specific defaults (hwdef files pre-assign common peripherals)
+     *          - Feature-specific defaults (camera trigger on specific channel)
+     *          
+     *          Does NOT override user configuration.
+     * 
+     * @note Only affects unconfigured parameters (function_configured() == false)
+     * @note Call before enable_aux_servos() to ensure defaults take effect
+     */
     static bool set_aux_channel_default(SRV_Channel::Function function, uint8_t channel);
 
-    // find first channel that a function is assigned to
+    /**
+     * @brief Find hardware channel number for a function
+     * 
+     * @param[in]  function Output function type to find
+     * @param[out] chan     Hardware channel number (0-31) if found
+     * 
+     * @return true if function assigned to at least one channel, false otherwise
+     * 
+     * @details Searches for first channel assigned to function and returns channel number.
+     *          Used when:
+     *          - Need channel number for hardware configuration (frequency, mode)
+     *          - Interfacing with HAL layer (hal.rcout)
+     *          - Channel-indexed operations
+     *          
+     *          If function assigned to multiple channels, returns lowest number.
+     * 
+     * @note Returns false if function not assigned to any channel
+     * @note Use get_channel_for() to get SRV_Channel object instead of number
+     */
     static bool find_channel(SRV_Channel::Function function, uint8_t &chan);
 
-    // find first channel that a function is assigned to, returning SRV_Channel object
+    /**
+     * @brief Get first channel object assigned to a function
+     * 
+     * @param[in] function Output function type to find
+     * 
+     * @return Pointer to first SRV_Channel with this function, or nullptr if not assigned
+     * 
+     * @details Searches channel array for first match with given function.
+     *          Used to:
+     *          - Access channel-specific parameters (min/max/trim/reverse)
+     *          - Modify individual channel configuration
+     *          - Read current output state
+     *          
+     *          If multiple channels have same function, returns first match only.
+     * 
+     * @note Returns nullptr if function not assigned or invalid
+     * @note Use get_output_channel_mask() to find all channels with function
+     * @see find_channel() for channel number instead of object
+     */
     static SRV_Channel *get_channel_for(SRV_Channel::Function function);
 
-    // call set_angle() on matching channels
+    /**
+     * @brief Configure angle-based scaling for all channels with function
+     * 
+     * @param[in] function Output function type (typically control surface)
+     * @param[in] angle Maximum deflection angle in centidegrees
+     * 
+     * @details Calls set_angle() on each channel assigned to function.
+     *          Configures channels to interpret scaled values as angles:
+     *          - -angle → servo_min PWM
+     *          - 0 → servo_trim PWM
+     *          - +angle → servo_max PWM
+     *          
+     *          Typical for control surfaces where commanded value is angle.
+     * 
+     * @note Units: centidegrees (4500 = ±45°, 3000 = ±30°)
+     * @note Applied to all channels with this function
+     * @see SRV_Channel::set_angle() for per-channel version
+     */
     static void set_angle(SRV_Channel::Function function, uint16_t angle);
 
-    // call set_range() on matching channels
+    /**
+     * @brief Configure range-based scaling for all channels with function
+     * 
+     * @param[in] function Output function type (typically motor/throttle)
+     * @param[in] range Maximum output value (low is always 0)
+     * 
+     * @details Calls set_range() on each channel assigned to function.
+     *          Configures channels to interpret scaled values as 0-to-range:
+     *          - 0 → servo_min PWM
+     *          - range → servo_max PWM
+     *          
+     *          Typical for throttle/motor outputs where value is magnitude.
+     * 
+     * @note Units: Application-specific (1000 for throttle, 100 for percentage)
+     * @note Applied to all channels with this function
+     * @see SRV_Channel::set_range() for per-channel version
+     */
     static void set_range(SRV_Channel::Function function, uint16_t range);
 
-    // set output refresh frequency on a servo function
+    /**
+     * @brief Set PWM output frequency for all channels with given function
+     * 
+     * @param[in] function Output function type
+     * @param[in] frequency Output update rate in Hz
+     * 
+     * @details Configures hardware output refresh rate for all channels assigned to function:
+     *          - 50Hz: Standard analog servos
+     *          - 400Hz: Digital servos, OneShot ESCs
+     *          - 490Hz: High-speed ESCs
+     *          - 1000Hz+: DShot protocols (actual rate depends on protocol)
+     *          
+     *          Applied to hal.rcout hardware timer configuration.
+     *          
+     *          Constraints:
+     *          - Channels on same hardware timer must use same frequency
+     *          - Frequency limited by hardware capabilities
+     *          - Some protocols (DShot) ignore frequency setting
+     * 
+     * @note Call during init() or vehicle setup
+     * @note Hardware may group channels - setting one affects others
+     * @note Units: Hz (cycles per second)
+     * @warning Excessive frequency (>500Hz) may not work with standard servos
+     */
     static void set_rc_frequency(SRV_Channel::Function function, uint16_t frequency);
 
     // control pass-thru of channels
@@ -541,7 +1073,31 @@ public:
     // constrain to output min/max for function
     static void constrain_pwm(SRV_Channel::Function function);
 
-    // calculate PWM for all channels
+    /**
+     * @brief Convert all scaled output values to PWM microseconds
+     * 
+     * @details For each channel with scaled output (not direct PWM):
+     *          1. Applies angle or range scaling based on type_angle flag
+     *          2. Maps scaled value to [servo_min, servo_max] range via servo_trim
+     *          3. Honors reversed flag (swaps min/max if reversed)
+     *          4. Constrains to configured limits
+     *          5. Stores result in output_pwm for output_ch_all()
+     *          
+     *          Skips channels with direct PWM set (have_pwm_mask bit set).
+     *          
+     *          Typical calling sequence:
+     *          ```cpp
+     *          SRV_Channels::set_output_scaled(k_motor1, 750);  // 0-1000 range
+     *          SRV_Channels::set_output_scaled(k_aileron, -2000); // ±4500 centidegrees
+     *          SRV_Channels::calc_pwm();  // Convert both to PWM
+     *          SRV_Channels::output_ch_all();  // Write to hardware
+     *          ```
+     * 
+     * @note Must be called after set_output_scaled() and before output_ch_all()
+     * @note Typically called at main loop rate (50-400Hz)
+     * @see set_output_scaled() to set scaled values
+     * @see output_ch_all() to write PWM to hardware
+     */
     static void calc_pwm(void);
 
     // return the ESC type for dshot commands
@@ -573,14 +1129,66 @@ public:
         return SRV_Channel::Function((SRV_Channel::k_motor13+(channel-12)));
     }
 
+    /**
+     * @brief Begin atomic multi-channel update batch
+     * 
+     * @details Buffers PWM outputs without writing to hardware until push() called.
+     *          Used for:
+     *          - Synchronizing multiple motor outputs (prevents timing glitches)
+     *          - Atomic updates of related control surfaces
+     *          - Reducing USB/serial latency in protocol backends
+     *          
+     *          Must be paired with push() to complete batch update.
+     * 
+     * @note Cork/push can be nested - inner cork/push ignored
+     * @note Outputs buffered until matching push() call
+     * @see push() to complete batch and write to hardware
+     */
     void cork();
+
+    /**
+     * @brief Complete atomic multi-channel update batch
+     * 
+     * @details Writes all buffered PWM outputs to hardware atomically after cork().
+     *          Ensures all channels update simultaneously to prevent:
+     *          - Motor timing asymmetry causing instability
+     *          - Control surface desynchronization
+     *          - Protocol backend timing issues
+     * 
+     * @note Must be preceded by cork() call
+     * @note Updates all channels in single hardware transaction where supported
+     * @see cork() to begin batch update
+     */
     void push();
 
     // disable PWM output to a set of channels given by a mask. This is used by the AP_BLHeli code
     static void set_disabled_channel_mask(uint32_t mask) { disabled_mask = mask; }
     static uint32_t get_disabled_channel_mask() { return disabled_mask; }
 
-    // add to mask of outputs which use digital (non-PWM) output and optionally can reverse thrust, such as DShot
+    /**
+     * @brief Configure channels using digital protocols (DShot, etc.)
+     * 
+     * @param[in] dig_mask Bitmask of channels using digital output protocols
+     * @param[in] rev_mask Bitmask of digital channels supporting bidirectional operation
+     * 
+     * @details Digital protocols use special timing/encoding vs PWM:
+     *          - DShot: Digital ESC protocol with telemetry and commands
+     *          - OneShot125/42: High-speed ESC protocols
+     *          - ProfiLED: Addressable LED protocol
+     *          
+     *          dig_mask: Channels using any digital protocol (not analog PWM)
+     *          rev_mask: Subset supporting thrust reversal (DShot-3D)
+     *          
+     *          Used by vehicle code to:
+     *          - Enable digital-only features (ESC telemetry, commands)
+     *          - Skip PWM-specific configuration
+     *          - Configure bidirectional ESCs (reversible props)
+     * 
+     * @note Called during init() after protocol detection
+     * @note rev_mask must be subset of dig_mask
+     * @note Digital channels may ignore frequency and PWM limit settings
+     * @see have_digital_outputs() to check if any digital outputs configured
+     */
     static void set_digital_outputs(uint32_t dig_mask, uint32_t rev_mask);
 
     // return true if all of the outputs in mask are digital
@@ -589,10 +1197,40 @@ public:
     // return true if any of the outputs are digital
     static bool have_digital_outputs() { return digital_mask != 0; }
 
-    // Set E - stop
+    /**
+     * @brief Enable or disable emergency stop for all dangerous outputs
+     * 
+     * @param[in] state true to engage emergency stop, false to release
+     * 
+     * @details Emergency stop immediately stops all outputs identified by should_e_stop():
+     *          - All motors (k_motor1-k_motor32)
+     *          - Dangerous actuators
+     *          
+     *          Does NOT stop:
+     *          - Control surfaces (needed for glide/recovery)
+     *          - Parachute (needed for emergency deployment)
+     *          - Camera/gimbal
+     *          
+     *          Triggered by:
+     *          - Crash detection
+     *          - Manual e-stop command (RC switch or GCS)
+     *          - Critical failsafe conditions
+     *          - Geofence breach with e-stop action
+     * 
+     * @note E-stop state persists until explicitly cleared
+     * @note Outputs stopped immediately with no spin-down
+     * @warning SAFETY-CRITICAL: Cuts motor power instantly - vehicle will fall/crash
+     * @see should_e_stop() for list of affected outputs
+     */
     static void set_emergency_stop(bool state);
 
-    // get E - stop
+    /**
+     * @brief Check if emergency stop is currently engaged
+     * 
+     * @return true if emergency stop active, false otherwise
+     * 
+     * @note Used by vehicle code to determine if e-stop recovery needed
+     */
     static bool get_emergency_stop() { return emergency_stop;}
 
     // singleton for Lua
@@ -602,7 +1240,28 @@ public:
 
     static void zero_rc_outputs();
 
-    // initialize before any call to push
+    /**
+     * @brief Initialize servo channel system and configure hardware outputs
+     * 
+     * @param[in] motor_mask Bitmask of channels used for motors (for special handling)
+     * @param[in] mode Output mode (PWM, OneShot, DShot, etc.)
+     * 
+     * @details Initializes the servo output system:
+     *          1. Configures hal.rcout hardware backend
+     *          2. Sets up protocol backends (Volz, SBUS, BLHeli, FETtec OneWire)
+     *          3. Loads parameters for all channels
+     *          4. Builds function-to-channel mapping
+     *          5. Configures output frequencies and modes
+     *          6. Applies GPIO mask for digital I/O pins
+     *          
+     *          Must be called during vehicle initialization before any output operations.
+     * 
+     * @note Call exactly once during startup
+     * @note motor_mask used for special motor handling (e-stop, failsafe)
+     * @note mode determines ESC protocol (PWM=standard, OneShot/DShot=high-speed)
+     * @warning Output methods will fail/crash if init() not called first
+     * @see set_rc_frequency() to configure per-function output rates
+     */
     void init(uint32_t motor_mask = 0, AP_HAL::RCOutput::output_mode mode = AP_HAL::RCOutput::MODE_PWM_NONE);
 
     // return true if a channel is set to type GPIO
