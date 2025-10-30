@@ -127,9 +127,9 @@ graph TB
 - Balancebot: Pitch-based throttle control for two-wheeled balance
 - Sailboat: Heel angle controller for sail trimming
 
-## Key Components
+### Key Components
 
-### AP_FW_Controller (Base Class)
+#### AP_FW_Controller (Base Class)
 
 **Purpose**: Abstract base class providing common rate control implementation for fixed-wing roll and pitch controllers.
 
@@ -161,7 +161,7 @@ graph TB
 
 **Integration**: Used by AP_RollController, AP_PitchController. Not used by AP_YawController (predates refactor).
 
-### AP_RollController (Roll Axis)
+#### AP_RollController (Roll Axis)
 
 **Purpose**: Fixed-wing roll axis controller converting bank angle error to aileron commands.
 
@@ -194,7 +194,7 @@ float aileron_out = rollController.get_servo_out(roll_error_cd, scaler,
 SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, aileron_out);
 ```
 
-### AP_PitchController (Pitch Axis)
+#### AP_PitchController (Pitch Axis)
 
 **Purpose**: Fixed-wing pitch axis controller converting pitch angle error to elevator commands, with coordinated turn compensation.
 
@@ -227,7 +227,7 @@ float elevator_out = pitchController.get_servo_out(pitch_error_cd, scaler,
 SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elevator_out);
 ```
 
-### AP_YawController (Yaw Axis)
+#### AP_YawController (Yaw Axis)
 
 **Purpose**: Fixed-wing yaw/rudder controller with dual modes: modern rate control or legacy sideslip damping.
 
@@ -253,7 +253,7 @@ SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elevator_out);
 
 **Recommendation**: Use rate control mode (RLL_EN=1) for new aircraft.
 
-### AP_SteerController (Ground Vehicle Steering)
+#### AP_SteerController (Ground Vehicle Steering)
 
 **Purpose**: Standalone steering PID controller for ground and marine vehicles with speed-adaptive gains.
 
@@ -278,7 +278,7 @@ SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elevator_out);
 
 **Usage**: Legacy Rover manual modes (STEERING, HOLD). Modern Rover uses AR_AttitudeControl.
 
-### AR_AttitudeControl (Ground/Marine Attitude)
+#### AR_AttitudeControl (Ground/Marine Attitude)
 
 **Purpose**: High-level singleton providing steering and throttle outputs for ground/marine vehicles.
 
@@ -305,7 +305,7 @@ SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elevator_out);
 
 **Output Range**: Normalized [-1.0, 1.0] (can exceed for large errors), scaled to motor commands by vehicle code.
 
-### AR_PosControl (Ground/Marine Position)
+#### AR_PosControl (Ground/Marine Position)
 
 **Purpose**: Singleton for 2D position control with velocity/acceleration input shaping.
 
@@ -329,7 +329,7 @@ SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elevator_out);
 
 **Coordinate Frame**: NE (North-East) 2D frame relative to EKF origin.
 
-### AP_AutoTune (In-Flight Tuner)
+#### AP_AutoTune (In-Flight Tuner)
 
 **Purpose**: Automated in-flight PID tuning for fixed-wing roll, pitch, and yaw axes.
 
