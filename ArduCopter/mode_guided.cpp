@@ -1,44 +1,149 @@
+/**
+ * @file mode_guided.cpp
+ * @brief Guided flight mode implementation for ArduCopter
+ * 
+ * @details Guided mode enables external control of the vehicle through a Ground Control
+ * Station (GCS), companion computer, or scripting API. This mode is fundamental for
+ * autonomous operations, waypoint navigation commanded from GCS, and integration with
+ * high-level control systems like DroneKit, MAVSDK, and ROS.
+ * 
+ * Guided mode supports multiple control paradigms:
+ * - Position control: Fly to specific lat/lon/alt coordinates
+ * - Velocity control: Maintain specified NED velocity vector
+ * - Acceleration control: Follow acceleration commands
+ * - Combined pos/vel/accel: Trajectory following with feedforward
+ * - Attitude/angle control: Direct attitude commands with climb rate or thrust
+ * 
+ * MAVLink Integration:
+ * Guided mode is primarily controlled via MAVLink SET_POSITION_TARGET_* messages:
+ * - SET_POSITION_TARGET_LOCAL_NED: Local frame (North-East-Down relative to EKF origin)
+ * - SET_POSITION_TARGET_GLOBAL_INT: Global frame (lat/lon/alt)
+ * - SET_ATTITUDE_TARGET: Direct attitude control with quaternion or rates
+ * 
+ * Coordinate Frame Handling:
+ * - Global coordinates: Latitude/longitude in degrees * 1E7, altitude in mm
+ * - Local NED: North-East-Down in cm relative to EKF origin
+ * - Body frame: For angular rates and some velocity commands
+ * - Terrain following: Alt-above-terrain using rangefinder when available
+ * 
+ * Yaw Control Options:
+ * - Fixed yaw angle (absolute or relative to current heading)
+ * - Yaw rate (rotation in rad/s)
+ * - Combined angle + rate for smooth transitions
+ * - Auto yaw (face direction of travel)
+ * - Pilot control (optional, controlled by GUID_OPTIONS)
+ * 
+ * External Control APIs:
+ * This mode is used by:
+ * - MAVProxy and Mission Planner for interactive control
+ * - DroneKit Python/Android for application development
+ * - MAVSDK C++/Python for cross-platform autonomy
+ * - ROS/ROS2 via mavros and AP_DDS integration
+ * - Lua scripting via AP_Scripting
+ * 
+ * Guided Sub-Modes:
+ * - TakeOff: Automated takeoff to specified altitude
+ * - WP: Waypoint navigation with path planning (optional)
+ * - Pos: Position hold at target location
+ * - VelAccel: Velocity control with acceleration feedforward
+ * - Accel: Pure acceleration control
+ * - PosVelAccel: Full trajectory control with pos/vel/accel
+ * - Angle: Attitude control with climb rate or direct thrust
+ * 
+ * Key Distinctions:
+ * - Waypoint (WP) mode uses path planning and obstacle avoidance
+ * - Position (Pos) mode directly controls position without path planning
+ * - Velocity mode enables direct velocity control for reactive behaviors
+ * - Angle mode provides low-level attitude control for acrobatic maneuvers
+ * 
+ * Safety Features:
+ * - Geofence checking on destination commands
+ * - Timeout protection (reverts to position hold if no updates received)
+ * - Altitude and horizontal distance limits (when invoked from AUTO mode)
+ * - Arming restrictions configurable via GUID_OPTIONS parameter
+ * 
+ * @note This mode is called at the main loop rate (typically 400Hz)
+ * @warning Guided mode bypasses many autonomous safety checks - external controller
+ *          is responsible for collision avoidance and safe operation
+ * 
+ * @see GCS_MAVLINK_Copter.cpp for MAVLink message handlers
+ * @see mode.h for Mode base class and common mode functionality
+ * 
+ * Source: ArduCopter/mode_guided.cpp
+ */
+
 #include "Copter.h"
 
 #if MODE_GUIDED_ENABLED
 
-/*
- * Init and run calls for guided flight mode
- */
+// Guided mode target state variables (NED frame relative to EKF origin)
+// These variables store the current commanded targets from GCS/companion computer
+static Vector3p guided_pos_target_cm;       // position target in cm (used by Pos and PosVelAccel sub-modes)
+static bool guided_pos_terrain_alt;         // true if guided_pos_target_cm.z is altitude above terrain (only for Pos/WP modes)
+static Vector3f guided_vel_target_cms;      // velocity target in cm/s (used by VelAccel and PosVelAccel sub-modes)
+static Vector3f guided_accel_target_cmss;   // acceleration feedforward in cm/s² (used by Accel, VelAccel, and PosVelAccel sub-modes)
+static uint32_t update_time_ms;             // system time (ms) of last target update - used for timeout detection
 
-static Vector3p guided_pos_target_cm;       // position target (used by posvel controller only)
-static bool guided_pos_terrain_alt;         // true if guided_pos_target_cm.z is an alt above terrain
-static Vector3f guided_vel_target_cms;      // velocity target (used by pos_vel_accel controller and vel_accel controller)
-static Vector3f guided_accel_target_cmss;   // acceleration target (used by pos_vel_accel controller vel_accel controller and accel controller)
-static uint32_t update_time_ms;             // system time of last target update to pos_vel_accel, vel_accel or accel controller
-
+// Guided angle control state (Angle sub-mode only)
+// Stores commanded attitude and vertical control for direct attitude control mode
 struct {
-    uint32_t update_time_ms;
-    Quaternion attitude_quat;
-    Vector3f ang_vel_body;
-    float climb_rate_cms;   // climb rate in cms.  Used if use_thrust is false
-    float thrust;           // thrust from -1 to 1.  Used if use_thrust is true
-    bool use_thrust;
+    uint32_t update_time_ms;        // time of last angle command (ms) - for timeout detection
+    Quaternion attitude_quat;       // desired attitude quaternion (earth to body frame), zero = rate control mode
+    Vector3f ang_vel_body;          // desired angular velocity in body frame (rad/s) - used as feedforward
+    float climb_rate_cms;           // desired climb rate in cm/s (NED frame, positive=down). Used if use_thrust is false
+    float thrust;                   // desired normalized thrust [0.0 to 1.0]. Used if use_thrust is true
+    bool use_thrust;                // true = direct thrust control, false = climb rate control (altitude hold)
 } static guided_angle_state;
 
+// Guided limit structure - used when guided is invoked from AUTO mode (NAV_GUIDED_ENABLE)
+// Provides safety boundaries for external control within autonomous missions
 struct Guided_Limit {
-    uint32_t timeout_ms;  // timeout (in seconds) from the time that guided is invoked
-    float alt_min_cm;   // lower altitude limit in cm above home (0 = no limit)
-    float alt_max_cm;   // upper altitude limit in cm above home (0 = no limit)
-    float horiz_max_cm; // horizontal position limit in cm from where guided mode was initiated (0 = no limit)
-    uint32_t start_time;// system time in milliseconds that control was handed to the external computer
-    Vector3f start_pos; // start position as a distance from home in cm.  used for checking horiz_max limit
+    uint32_t timeout_ms;    // timeout in milliseconds from guided start (0 = no timeout)
+    float alt_min_cm;       // lower altitude limit in cm above home (0 = no limit)
+    float alt_max_cm;       // upper altitude limit in cm above home (0 = no limit)
+    float horiz_max_cm;     // horizontal position limit in cm from start position (0 = no limit)
+    uint32_t start_time;    // system time (ms) when guided control was initiated
+    Vector3f start_pos;     // start position in NED frame relative to home (cm) - reference for horiz_max check
 } static guided_limit;
 
-// controls which controller is run (pos or vel):
-ModeGuided::SubMode ModeGuided::guided_mode = SubMode::TakeOff;
-bool ModeGuided::send_notification;     // used to send one time notification to ground station
-bool ModeGuided::takeoff_complete;      // true once takeoff has completed (used to trigger retracting of landing gear)
+// Guided sub-mode state - controls which controller runs in the main run() loop
+ModeGuided::SubMode ModeGuided::guided_mode = SubMode::TakeOff;  // current guided sub-mode (TakeOff, WP, Pos, Accel, VelAccel, PosVelAccel, Angle)
+bool ModeGuided::send_notification;     // flag to send one-time MISSION_ITEM_REACHED message to GCS when WP sub-mode reaches destination
+bool ModeGuided::takeoff_complete;      // true once takeoff has completed - triggers landing gear retraction and fence enable
 
-// guided mode is paused or not
-bool ModeGuided::_paused;
+// Guided mode pause state - allows external pause/resume of guided flight
+bool ModeGuided::_paused;               // true when guided mode is paused (holds position, ignores new commands)
 
-// init - initialise guided controller
+/**
+ * @brief Initialize guided flight mode
+ * 
+ * @details Called when the vehicle transitions into guided mode. Initializes the mode
+ * to velocity/acceleration control (SubMode::VelAccel) with zero velocity and acceleration
+ * targets. This provides a safe starting state where the vehicle will hold position until
+ * receiving external commands.
+ * 
+ * The velocity/acceleration control mode is chosen as default because:
+ * - Allows immediate response to velocity commands from GCS/companion computer
+ * - Provides smooth transitions from position hold
+ * - Compatible with most MAVLink control libraries (DroneKit, MAVSDK)
+ * 
+ * Initialization sequence:
+ * 1. Start velocity/acceleration control sub-mode
+ * 2. Zero velocity and acceleration targets (vehicle will hold current position)
+ * 3. Clear notification flag (prevents spurious waypoint-reached messages)
+ * 4. Unpause the mode (if previously paused)
+ * 
+ * @param[in] ignore_checks If true, skip pre-arm and other safety checks (typically
+ *                          false for normal mode entry, true for emergency situations)
+ * 
+ * @return Always returns true (guided mode initialization cannot fail)
+ * 
+ * @note After init(), the mode waits for external commands via MAVLink. Without commands,
+ *       the vehicle will maintain position using the position controller.
+ * @note This is called by the mode selection logic in Copter::set_mode()
+ * 
+ * Source: ArduCopter/mode_guided.cpp:42-54
+ */
 bool ModeGuided::init(bool ignore_checks)
 {
     // start in velaccel control mode
@@ -53,8 +158,40 @@ bool ModeGuided::init(bool ignore_checks)
     return true;
 }
 
-// run - runs the guided controller
-// should be called at 100hz or more
+/**
+ * @brief Main guided mode update function - called every loop iteration
+ * 
+ * @details This is the primary execution function for guided mode, called at the main
+ * loop rate (typically 400Hz). It dispatches to the appropriate sub-mode controller
+ * based on the current guided_mode state, which is set by external commands via MAVLink.
+ * 
+ * Guided Sub-Mode Dispatch:
+ * - TakeOff: Automated vertical climb to commanded altitude
+ * - WP: Waypoint navigation with path planning and obstacle avoidance
+ * - Pos: Direct position control to hold at target location
+ * - Accel: Pure acceleration control (for dynamic maneuvers)
+ * - VelAccel: Velocity control with acceleration feedforward
+ * - PosVelAccel: Full trajectory following (position + velocity + acceleration)
+ * - Angle: Direct attitude control with climb rate or thrust
+ * 
+ * Pause Functionality:
+ * If the mode is paused (via pause() method), runs pause_control_run() which
+ * commands zero horizontal velocity and stops yaw rotation while maintaining altitude.
+ * This is used for temporary interruption of guided commands.
+ * 
+ * Waypoint Notification:
+ * When in WP sub-mode and the waypoint is reached, sends a MISSION_ITEM_REACHED
+ * MAVLink message to the GCS. This provides feedback for sequential waypoint navigation.
+ * 
+ * @note Called at main loop rate (typically 400Hz) from Copter::update_flight_mode()
+ * @note The sub-mode is changed by MAVLink command handlers calling functions like
+ *       set_destination(), set_velocity(), set_angle(), etc.
+ * 
+ * @warning This function must complete quickly to maintain real-time loop timing.
+ *          Heavy computation should be avoided here.
+ * 
+ * Source: ArduCopter/mode_guided.cpp:58-104
+ */
 void ModeGuided::run()
 {
     // run pause control if the vehicle is paused
@@ -197,7 +334,61 @@ void ModeGuided::wp_control_start()
     auto_yaw.set_mode_to_default(false);
 }
 
-// run guided mode's waypoint navigation controller
+/**
+ * @brief Run guided waypoint navigation controller
+ * 
+ * @details Executes waypoint navigation with full path planning, speed profiling,
+ * and optional obstacle avoidance. This sub-mode is selected when GUID_OPTIONS
+ * includes WPNavUsedForPosControl flag, providing smoother, more predictable
+ * trajectories suitable for mission-style waypoint following.
+ * 
+ * Waypoint Navigation Features:
+ * - S-curve trajectory generation for smooth acceleration/deceleration
+ * - Corner cutting with configurable WP_RADIUS
+ * - Speed limiting based on WPNAV_SPEED, WPNAV_SPEED_UP, WPNAV_SPEED_DN
+ * - Terrain following if enabled (maintains constant height above terrain)
+ * - Object avoidance integration (if AP_AVOIDANCE enabled)
+ * 
+ * Control Architecture:
+ * 1. wp_nav->update_wpnav(): Updates desired position/velocity along path
+ * 2. pos_control->update_U_controller(): Vertical position/velocity controller
+ * 3. attitude_control->input_thrust_vector_heading(): Converts to motor commands
+ * 
+ * Path Planning vs Direct Position:
+ * Unlike Pos sub-mode which commands position directly, WP sub-mode:
+ * - Plans smooth paths between waypoints
+ * - Limits acceleration and jerk for passenger comfort
+ * - Enables corner cutting for efficient multi-waypoint navigation
+ * - Integrates object avoidance (bendy ruler, simple avoidance)
+ * - Provides predictable ETAs for mission planning
+ * 
+ * Terrain Following:
+ * If terrain following enabled (via TERRAIN_ENABLE and TERRAIN_FOLLOW):
+ * - Maintains constant altitude above ground using terrain database or rangefinder
+ * - Failsafe triggers if terrain data becomes unavailable
+ * - Critical for low-altitude operations over varied terrain
+ * 
+ * Auto Yaw Behavior:
+ * Yaw control managed by auto_yaw object, typically set to:
+ * - Face direction of travel (default, smooth yaw as path curves)
+ * - Fixed heading (if commanded via set_yaw_state_rad)
+ * - ROI/look-at point (if DO_SET_ROI command active)
+ * 
+ * Disarmed/Landed Handling:
+ * If vehicle is disarmed or on ground:
+ * - Zeros throttle for safety
+ * - Traditional helicopters maintain rotor speed if interlock enabled
+ * - Prevents ground resonance and rotor droop
+ * 
+ * @note Called at 400Hz when guided_mode == SubMode::WP
+ * @note Slower command update rates (<10Hz) acceptable due to path planning
+ * @note Waypoint reached when within WP_RADIUS horizontally and WP_RADIUS_Z vertically
+ * 
+ * @warning Terrain following requires valid terrain data - mission fails if unavailable
+ * @warning Object avoidance may alter path - actual trajectory differs from commanded waypoint
+ * 
+ * Source: ArduCopter/mode_guided.cpp:201-221
+ */
 void ModeGuided::wp_control_run()
 {
     // if not armed set throttle to zero and exit immediately
@@ -333,9 +524,58 @@ void ModeGuided::angle_control_start()
     guided_angle_state.climb_rate_cms = 0.0f;
 }
 
-// set_destination - sets guided mode's target destination
-// Returns true if the fence is enabled and guided waypoint is within the fence
-// else return false if the waypoint is outside the fence
+/**
+ * @brief Set guided mode target destination in local NED coordinates
+ * 
+ * @details Commands the vehicle to fly to a specific position specified in local
+ * North-East-Down coordinates relative to the EKF origin. This is the primary position
+ * command interface for guided mode, used by MAVLink SET_POSITION_TARGET_LOCAL_NED
+ * messages and companion computer control APIs.
+ * 
+ * Coordinate Frame:
+ * - North-East-Down (NED) frame centered at EKF origin (typically home position)
+ * - Units: centimeters
+ * - Z-axis: Positive DOWN (increasing Z = lower altitude)
+ * 
+ * Sub-Mode Selection:
+ * Automatically selects between two position control strategies based on GUID_OPTIONS:
+ * - WP sub-mode: Uses AC_WPNav for path planning and obstacle avoidance (slower updates)
+ * - Pos sub-mode: Direct position control without path planning (faster, reactive)
+ * 
+ * Terrain Following:
+ * If terrain_alt=true and rangefinder available, interprets destination.z as altitude
+ * above terrain rather than above EKF origin. Enables low-altitude terrain following.
+ * 
+ * Yaw Control Options:
+ * - use_yaw=false: Face direction of travel (auto yaw)
+ * - use_yaw=true, relative_yaw=false: Face absolute yaw angle
+ * - use_yaw=true, relative_yaw=true: Rotate by yaw_rad from current heading
+ * - use_yaw_rate=true: Rotate continuously at yaw_rate_rads
+ * 
+ * Fence Checking:
+ * Validates destination against geofence boundaries. If fence is enabled and destination
+ * is outside fence, command is rejected and false is returned. This prevents commanded
+ * positions from violating safety boundaries.
+ * 
+ * @param[in] destination     Target position in NED frame (cm) relative to EKF origin
+ * @param[in] use_yaw         If true, use yaw_rad parameter for yaw control
+ * @param[in] yaw_rad         Target yaw angle in radians (0 = North, PI/2 = East)
+ * @param[in] use_yaw_rate    If true, use yaw_rate_rads for continuous rotation
+ * @param[in] yaw_rate_rads   Yaw rotation rate in radians/second
+ * @param[in] relative_yaw    If true, yaw_rad is relative to current heading
+ * @param[in] terrain_alt     If true, interpret destination.z as altitude above terrain
+ * 
+ * @return true if destination accepted and within fence boundaries, false if rejected
+ * 
+ * @note Typically called at 10-50Hz by external controller. High-rate updates (>50Hz)
+ *       should use velocity control instead for better performance.
+ * @note Switches mode to SubMode::WP or SubMode::Pos depending on GUID_OPTIONS
+ * 
+ * @warning If fence is enabled, ensure destination is within fence or command will fail
+ * @warning Terrain following requires functioning rangefinder with terrain data available
+ * 
+ * Source: ArduCopter/mode_guided.cpp:339-414
+ */
 bool ModeGuided::set_destination(const Vector3f& destination, bool use_yaw, float yaw_rad, bool use_yaw_rate, float yaw_rate_rads, bool relative_yaw, bool terrain_alt)
 {
 #if AP_FENCE_ENABLED
@@ -432,9 +672,57 @@ bool ModeGuided::get_wp(Location& destination) const
     return false;
 }
 
-// sets guided mode's target from a Location object
-// returns false if destination could not be set (probably caused by missing terrain data)
-// or if the fence is enabled and guided waypoint is outside the fence
+/**
+ * @brief Set guided mode target destination using global GPS coordinates
+ * 
+ * @details Commands the vehicle to fly to a specific global position specified as
+ * latitude/longitude/altitude. This is used by MAVLink SET_POSITION_TARGET_GLOBAL_INT
+ * messages and enables waypoint navigation using GPS coordinates.
+ * 
+ * Coordinate Frame:
+ * - Latitude/longitude: WGS84 datum, degrees * 1E7 (as per MAVLink specification)
+ * - Altitude frame: Determined by Location::AltFrame in dest_loc
+ *   * ABOVE_HOME: Altitude in cm above home position
+ *   * ABOVE_ORIGIN: Altitude in cm above EKF origin
+ *   * ABOVE_TERRAIN: Altitude in cm above terrain (requires terrain database)
+ * 
+ * Location Conversion:
+ * Internally converts global coordinates to local NED frame using wp_nav->get_vector_NEU_cm().
+ * This conversion requires valid EKF solution and may fail if:
+ * - EKF origin not initialized
+ * - Terrain data unavailable (for ABOVE_TERRAIN frame)
+ * - GPS lock lost or degraded
+ * 
+ * Sub-Mode Selection:
+ * Like the Vector3f version, selects between WP and Pos sub-modes based on GUID_OPTIONS:
+ * - WP mode: Full waypoint navigation with S-curves, speed profiles, obstacle avoidance
+ * - Pos mode: Direct position control for responsive, high-update-rate applications
+ * 
+ * Terrain Altitude Handling:
+ * If dest_loc uses ABOVE_TERRAIN frame, requires terrain data from:
+ * - Rangefinder (real-time terrain following)
+ * - Terrain database (pre-loaded elevation data)
+ * Command fails if terrain data unavailable.
+ * 
+ * @param[in] dest_loc        Target location with lat/lon/alt in global frame
+ * @param[in] use_yaw         If true, use yaw_rad parameter for yaw control
+ * @param[in] yaw_rad         Target yaw angle in radians (0 = North)
+ * @param[in] use_yaw_rate    If true, use yaw_rate_rads for continuous rotation
+ * @param[in] yaw_rate_rads   Yaw rotation rate in radians/second
+ * @param[in] relative_yaw    If true, yaw_rad is offset from current heading
+ * 
+ * @return true if destination accepted and converted successfully
+ *         false if outside fence, terrain data missing, or coordinate conversion failed
+ * 
+ * @note This is the function used by Mission Planner "Fly To" and similar GCS commands
+ * @note For high-rate control (>10Hz), use local NED coordinates to avoid conversion overhead
+ * 
+ * @warning Returns false if fence enabled and destination outside fence boundaries
+ * @warning May fail if terrain data required but unavailable
+ * @warning Coordinate conversion can fail if EKF not fully initialized
+ * 
+ * Source: ArduCopter/mode_guided.cpp:438-523
+ */
 bool ModeGuided::set_destination(const Location& dest_loc, bool use_yaw, float yaw_rad, bool use_yaw_rate, float yaw_rate_rads, bool relative_yaw)
 {
 #if AP_FENCE_ENABLED
@@ -548,7 +836,57 @@ void ModeGuided::set_accel(const Vector3f& acceleration, bool use_yaw, float yaw
 #endif
 }
 
-// set_velocity - sets guided mode's target velocity
+/**
+ * @brief Set guided mode target velocity in NED frame
+ * 
+ * @details Commands the vehicle to maintain a specified velocity vector in the
+ * North-East-Down frame. This is the primary interface for velocity control mode,
+ * enabling reactive behaviors and direct velocity command from companion computers.
+ * 
+ * Used by MAVLink SET_POSITION_TARGET_LOCAL_NED messages with velocity fields and
+ * type_mask indicating velocity control. Common in:
+ * - DroneKit velocity control commands
+ * - MAVSDK offboard velocity mode
+ * - ROS mavros velocity setpoints
+ * - Reactive obstacle avoidance systems
+ * 
+ * Control Behavior:
+ * - Vehicle attempts to maintain commanded velocity vector
+ * - Position controller still active (unless disabled via GUID_OPTIONS)
+ * - Zero velocity = position hold at current location
+ * - Smooth transitions between velocity commands
+ * 
+ * Coordinate Frame:
+ * - North-East-Down (NED) frame relative to EKF origin
+ * - Units: cm/s
+ * - Z velocity: Positive DOWN (positive Z velocity = descend)
+ * 
+ * Update Rate:
+ * Designed for high-rate updates (10-100Hz). Timeout after GUID_TIMEOUT seconds
+ * (default 3s) causes velocity to be zeroed and vehicle holds position.
+ * 
+ * Position Stabilization:
+ * By default, position controller runs underneath velocity control to prevent drift.
+ * Can be disabled via GUID_OPTIONS for pure velocity control without position correction.
+ * 
+ * @param[in] velocity        Desired velocity vector in NED frame (cm/s)
+ * @param[in] use_yaw         If true, use yaw_rad parameter for yaw control
+ * @param[in] yaw_rad         Target yaw angle in radians
+ * @param[in] use_yaw_rate    If true, use yaw_rate_rads for continuous rotation
+ * @param[in] yaw_rate_rads   Yaw rotation rate in radians/second
+ * @param[in] relative_yaw    If true, yaw_rad is relative to current heading
+ * @param[in] log_request     If true, log this command to dataflash
+ * 
+ * @note This is a convenience wrapper that calls set_velaccel() with zero acceleration
+ * @note Velocity commands should be sent continuously at 10-50Hz for smooth control
+ * @note Vehicle will hold position if no velocity commands received for >GUID_TIMEOUT seconds
+ * 
+ * @warning Ensure velocity limits are reasonable for vehicle capabilities
+ * @warning High velocities near obstacles require external collision avoidance
+ * @warning Pure velocity control (without position stabilization) can lead to drift
+ * 
+ * Source: ArduCopter/mode_guided.cpp:552-555
+ */
 void ModeGuided::set_velocity(const Vector3f& velocity, bool use_yaw, float yaw_rad, bool use_yaw_rate, float yaw_rate_rads, bool relative_yaw, bool log_request)
 {
     set_velaccel(velocity, Vector3f(), use_yaw, yaw_rad, use_yaw_rate, yaw_rate_rads, relative_yaw, log_request);
@@ -644,13 +982,78 @@ bool ModeGuided::use_wpnav_for_position_control() const
     return option_is_enabled(Option::WPNavUsedForPosControl);
 }
 
-// Sets guided's angular target submode: Using a rotation quaternion, angular velocity, and climbrate or thrust (depends on user option)
-// attitude_quat: IF zero: ang_vel_body (body frame angular velocity) must be provided even if all zeroes
-//                IF non-zero: attitude_control is performed using both the attitude quaternion and body frame angular velocity
-// ang_vel_body: body frame angular velocity (rad/s)
-// climb_rate_cms_or_thrust: represents either the climb_rate (cm/s) or thrust scaled from [0, 1], unitless
-// use_thrust: IF true: climb_rate_cms_or_thrust represents thrust
-//             IF false: climb_rate_cms_or_thrust represents climb_rate (cm/s)
+/**
+ * @brief Set guided mode attitude target with angular rates and climb rate or thrust
+ * 
+ * @details Provides low-level attitude control for guided mode, enabling direct
+ * commanding of vehicle orientation using quaternions and body-frame angular velocities.
+ * This is used by MAVLink SET_ATTITUDE_TARGET messages and enables acrobatic maneuvers,
+ * attitude stabilization from external controllers, and precise orientation control.
+ * 
+ * Control Modes:
+ * Two distinct attitude control behaviors based on attitude_quat parameter:
+ * 
+ * 1. Rate-Only Control (attitude_quat is zero/identity):
+ *    - Commands body-frame angular velocities directly (rad/s)
+ *    - No attitude stabilization, pure rate command
+ *    - Used for acrobatic flight, rate-based controllers
+ *    - Similar to ACRO mode but with vertical position hold or thrust control
+ * 
+ * 2. Attitude + Rate Control (attitude_quat non-zero):
+ *    - Commands target attitude quaternion with feedforward angular velocity
+ *    - Attitude controller stabilizes to target orientation
+ *    - Angular velocity provides rate feedforward for smooth tracking
+ *    - Used for precise orientation control, camera pointing, coordinated turns
+ * 
+ * Vertical Control Options:
+ * Configured by use_thrust flag and GUID_OPTIONS parameter:
+ * - use_thrust=false: climb_rate_cms_or_thrust interpreted as vertical velocity (cm/s)
+ *   * Vertical position controller maintains altitude rate
+ *   * Safer, automatically levels off at altitude limits
+ * - use_thrust=true: climb_rate_cms_or_thrust interpreted as normalized thrust [0,1]
+ *   * Direct motor thrust control, no altitude stabilization
+ *   * Enables more aggressive vertical maneuvers
+ *   * Requires careful management to avoid altitude excursions
+ * 
+ * Quaternion Representation:
+ * - Attitude represented as rotation from NED frame to body frame
+ * - w,x,y,z components in standard Hamilton convention
+ * - Zero/identity quaternion (w=1, x=y=z=0) triggers rate-only mode
+ * 
+ * Body Frame Angular Velocity:
+ * - X: Roll rate (right wing down = positive)
+ * - Y: Pitch rate (nose up = positive)
+ * - Z: Yaw rate (nose right = positive)
+ * - Units: radians/second
+ * - Body frame: Right-handed coordinate system fixed to vehicle
+ * 
+ * Common Use Cases:
+ * - Camera gimbal compensation: Point camera at ground target while moving
+ * - Coordinated turns: Bank angle with appropriate yaw rate
+ * - External attitude controller: Model Predictive Control, Neural Network control
+ * - Acrobatic maneuvers: Flips, rolls with altitude hold
+ * - Formation flight: Maintain relative orientation to leader
+ * 
+ * @param[in] attitude_quat           Target attitude quaternion (NED to body frame)
+ *                                    Zero quaternion triggers rate-only control
+ * @param[in] ang_vel_body            Body-frame angular velocity vector (rad/s)
+ *                                    X=roll rate, Y=pitch rate, Z=yaw rate
+ * @param[in] climb_rate_cms_or_thrust Vertical control: climb rate (cm/s) or thrust [0,1]
+ *                                     Interpretation determined by use_thrust parameter
+ * @param[in] use_thrust              true: climb_rate_cms_or_thrust is thrust [0,1]
+ *                                    false: climb_rate_cms_or_thrust is climb rate (cm/s)
+ * 
+ * @note Requires continuous updates at >10Hz to maintain control authority
+ * @note Timeout after GUID_TIMEOUT seconds returns to level attitude with zero climb rate
+ * @note Switching between thrust and climb rate control reinitializes position controller
+ * 
+ * @warning Direct thrust control (use_thrust=true) bypasses altitude safety limits
+ * @warning High angular rates can exceed vehicle stability limits - test carefully
+ * @warning Rate-only control provides no attitude stabilization - vehicle may drift
+ * @warning Pilot should be ready to take over in case of external controller failure
+ * 
+ * Source: ArduCopter/mode_guided.cpp:654-686
+ */
 void ModeGuided::set_angle(const Quaternion &attitude_quat, const Vector3f &ang_vel_body, float climb_rate_cms_or_thrust, bool use_thrust)
 {
     // check we are in velocity control mode
@@ -685,8 +1088,53 @@ void ModeGuided::set_angle(const Quaternion &attitude_quat, const Vector3f &ang_
 #endif
 }
 
-// takeoff_run - takeoff in guided mode
-//      called by guided_run at 100hz or more
+/**
+ * @brief Execute guided mode takeoff maneuver
+ * 
+ * @details Runs the automated takeoff sequence in guided mode, climbing vertically
+ * to the commanded altitude. This is invoked by MAVLink TAKEOFF command or
+ * do_user_takeoff_start() and provides a safe, controlled vertical ascent.
+ * 
+ * Takeoff Sequence:
+ * 1. Vertical climb at configured takeoff speed (PILOT_SPEED_UP or WPNAV_SPEED_UP)
+ * 2. Maintain horizontal position using position controller
+ * 3. Hold current heading (yaw locked at takeoff orientation)
+ * 4. Continue until target altitude reached
+ * 
+ * Altitude Target Interpretation:
+ * - Can be alt-above-home or alt-above-terrain (if rangefinder available)
+ * - Terrain following mode used if:
+ *   * Rangefinder healthy and in use
+ *   * Target altitude within rangefinder range
+ *   * Enables takeoff from sloped terrain
+ * 
+ * Completion Actions:
+ * When takeoff completes (target altitude reached):
+ * - Sets takeoff_complete flag (triggers landing gear retraction if equipped)
+ * - Auto-enables geofence (if configured with FENCE_AUTOENABLE)
+ * - Vehicle remains in guided mode awaiting next command
+ * 
+ * Safety Features:
+ * - WP_NAVALT_MIN altitude threshold prevents ground effect issues
+ * - Position controller prevents horizontal drift during climb
+ * - Smooth altitude controller prevents aggressive climb that could cause instability
+ * 
+ * Integration with Auto-Takeoff:
+ * Uses copter.auto_takeoff helper which handles:
+ * - Altitude ramping and speed profiling
+ * - WP_NAVALT_MIN waypoint altitude logic
+ * - Completion detection
+ * - Terrain following when enabled
+ * 
+ * @note Called at main loop rate (400Hz) when guided_mode == SubMode::TakeOff
+ * @note After takeoff completes, mode remains in TakeOff until external command changes it
+ * @note Horizontal position is actively controlled - vehicle will not drift
+ * 
+ * @warning Do not use on slopes without rangefinder (may climb relative to home instead of ground)
+ * @warning Ensure adequate clearance above takeoff point (no overhead obstacles)
+ * 
+ * Source: ArduCopter/mode_guided.cpp:690-703
+ */
 void ModeGuided::takeoff_run()
 {
     auto_takeoff.run();
@@ -713,10 +1161,10 @@ void ModeGuided::pos_control_run()
         return;
     }
 
-    // calculate terrain adjustments
+    // calculate terrain adjustments if target altitude is terrain-relative
     float terr_offset = 0.0f;
     if (guided_pos_terrain_alt && !wp_nav->get_terrain_offset_cm(terr_offset)) {
-        // failure to set destination can only be because of missing terrain data
+        // failure to get terrain data - trigger terrain failsafe
         copter.failsafe_terrain_on_event();
         return;
     }
@@ -724,28 +1172,31 @@ void ModeGuided::pos_control_run()
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
-    // send position and velocity targets to position controller
+    // Pos sub-mode is position-only control (velocity and acceleration are zero)
+    // This creates a spring-like position hold behavior
     guided_accel_target_cmss.zero();
     guided_vel_target_cms.zero();
 
-    // stop rotating if no updates received within timeout_ms
+    // stop yaw rotation if no updates received within timeout (default 3 seconds)
     if (millis() - update_time_ms > get_timeout_ms()) {
         if ((auto_yaw.mode() == AutoYaw::Mode::RATE) || (auto_yaw.mode() == AutoYaw::Mode::ANGLE_RATE)) {
-            auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+            auto_yaw.set_mode(AutoYaw::Mode::HOLD);  // freeze current yaw angle
         }
     }
 
-    float pos_offset_z_buffer = 0.0; // Vertical buffer size in m
+    // Calculate vertical buffer for terrain following to prevent clipping obstacles
+    float pos_offset_z_buffer = 0.0; // Vertical buffer size in cm
     if (guided_pos_terrain_alt) {
+        // Use smaller of: configured terrain margin, or 50% of target altitude
         pos_offset_z_buffer = MIN(copter.wp_nav->get_terrain_margin_m() * 100.0, 0.5 * fabsF(guided_pos_target_cm.z));
     }
     pos_control->input_pos_NEU_cm(guided_pos_target_cm, terr_offset, pos_offset_z_buffer);
 
-    // run position controllers
-    pos_control->update_NE_controller();
-    pos_control->update_U_controller();
+    // run position controllers (convert position error to acceleration commands)
+    pos_control->update_NE_controller();  // horizontal (North-East)
+    pos_control->update_U_controller();   // vertical (Up/altitude)
 
-    // call attitude controller with auto yaw
+    // call attitude controller to convert acceleration commands to motor outputs
     attitude_control->input_thrust_vector_heading(pos_control->get_thrust_vector(), auto_yaw.get_heading());
 }
 
@@ -763,39 +1214,121 @@ void ModeGuided::accel_control_run()
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
-    // set velocity to zero and stop rotating if no updates received for 3 seconds
+    // timeout handling - zero targets if no updates received for configured timeout (default 3 seconds)
     uint32_t tnow = millis();
     if (tnow - update_time_ms > get_timeout_ms()) {
+        // command timeout - go to safe state (zero velocity/acceleration)
         guided_vel_target_cms.zero();
         guided_accel_target_cmss.zero();
         if ((auto_yaw.mode() == AutoYaw::Mode::RATE) || (auto_yaw.mode() == AutoYaw::Mode::ANGLE_RATE)) {
-            auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+            auto_yaw.set_mode(AutoYaw::Mode::HOLD);  // freeze current yaw
         }
+        // feed zero velocity/acceleration to controller to hold position
         pos_control->input_vel_accel_NE_cm(guided_vel_target_cms.xy(), guided_accel_target_cmss.xy(), false);
         pos_control->input_vel_accel_U_cm(guided_vel_target_cms.z, guided_accel_target_cmss.z, false);
     } else {
-        // update position controller with new target
+        // Accel sub-mode: direct acceleration commands (open-loop acceleration control)
+        // Position controller uses acceleration as feedforward only
         pos_control->input_accel_NE_cm(guided_accel_target_cmss);
+        
+        // Stabilization options allow disabling position/velocity feedback loops
+        // (controlled by GUID_OPTIONS parameter bits)
         if (!stabilizing_vel_xy()) {
-            // set position and velocity errors to zero
+            // Disable both position and velocity stabilization (pure acceleration feedforward)
             pos_control->stop_vel_NE_stabilisation();
         } else if (!stabilizing_pos_xy()) {
-            // set position errors to zero
+            // Disable position stabilization only (velocity feedback still active)
             pos_control->stop_pos_NE_stabilisation();
         }
         pos_control->input_accel_U_cm(guided_accel_target_cmss.z);
     }
 
-    // call velocity controller which includes z axis controller
-    pos_control->update_NE_controller();
-    pos_control->update_U_controller();
+    // run position controllers (converts acceleration to attitude/thrust)
+    pos_control->update_NE_controller();  // horizontal
+    pos_control->update_U_controller();   // vertical
 
-    // call attitude controller with auto yaw
+    // call attitude controller to generate motor outputs
     attitude_control->input_thrust_vector_heading(pos_control->get_thrust_vector(), auto_yaw.get_heading());
 }
 
-// velaccel_control_run - runs the guided velocity and acceleration controller
-// called from guided_run
+/**
+ * @brief Run guided velocity and acceleration controller
+ * 
+ * @details Executes velocity control with acceleration feedforward, providing responsive
+ * control for reactive behaviors and high-rate trajectory tracking. This is the default
+ * guided sub-mode (set by init()) and most commonly used for companion computer control.
+ * 
+ * Control Law:
+ * Implements cascaded position-velocity-acceleration control:
+ * - Outer loop: Position stabilization (optional, controlled by GUID_OPTIONS)
+ * - Middle loop: Velocity tracking with feedforward acceleration
+ * - Inner loop: Attitude control to achieve desired thrust vector
+ * 
+ * Position Stabilization Options (via GUID_OPTIONS):
+ * Three stabilization modes controlled by GUID_OPTIONS parameter:
+ * 
+ * 1. Full stabilization (default):
+ *    - Position controller corrects for drift
+ *    - Velocity controller tracks commanded velocity
+ *    - Best for most applications, prevents runaway
+ * 
+ * 2. Velocity stabilization only (DoNotStabilizePositionXY):
+ *    - No position correction, velocity tracking only
+ *    - Prevents integration windup in pure velocity control
+ *    - Used for applications where position reference is external
+ * 
+ * 3. No stabilization (DoNotStabilizePositionXY + DoNotStabilizeVelocityXY):
+ *    - Pure acceleration feedforward only
+ *    - Truly open-loop control
+ *    - Expert mode for specialized control algorithms
+ * 
+ * Acceleration Feedforward:
+ * Commanded acceleration (guided_accel_target_cmss) provides feedforward term:
+ * - Improves tracking performance during aggressive maneuvers
+ * - Reduces lag in velocity response
+ * - Particularly effective for trajectory following
+ * 
+ * Timeout Protection:
+ * If no velocity commands received for GUID_TIMEOUT seconds (default 3s):
+ * - Zeros velocity and acceleration targets (vehicle holds position)
+ * - Stops yaw rotation if in rate or angle-rate mode
+ * - Provides safety net for communication loss or external controller failure
+ * 
+ * Obstacle Avoidance Integration:
+ * If AP_AVOIDANCE enabled and obstacles detected:
+ * - adjust_velocity() modifies commanded velocity to avoid obstacles
+ * - Temporarily disables position/velocity stabilization during avoidance
+ * - Uses simple avoidance (backup) or bendy-ruler path planning
+ * - Ensures commanded velocities respect fence and proximity sensor limits
+ * 
+ * Coordinate Frame:
+ * - Velocity: North-East-Down (NED) in cm/s relative to EKF origin
+ * - Acceleration: NED in cm/s² (feedforward term)
+ * - Down is positive Z (positive Z velocity = descend)
+ * 
+ * Update Rate Requirements:
+ * - Designed for 10-50Hz update rate from external controller
+ * - Higher rates (>50Hz) acceptable and improve performance
+ * - Lower rates (<5Hz) may cause jerky motion, use waypoint mode instead
+ * 
+ * Common Applications:
+ * - DroneKit vehicle.send_ned_velocity() commands
+ * - MAVSDK Offboard velocity control
+ * - ROS mavros /setpoint_velocity/cmd_vel topics
+ * - Optical flow position hold
+ * - GPS-denied navigation with external positioning
+ * - Visual servoing and target tracking
+ * 
+ * @note Called at 400Hz when guided_mode == SubMode::VelAccel
+ * @note Default sub-mode after init() - most common guided control mode
+ * @note Zero velocity command causes position hold at current location
+ * 
+ * @warning Communication loss causes immediate position hold after GUID_TIMEOUT
+ * @warning Disabling position stabilization can lead to position drift
+ * @warning Ensure external controller sends continuous updates to prevent timeout
+ * 
+ * Source: ArduCopter/mode_guided.cpp:799-850
+ */
 void ModeGuided::velaccel_control_run()
 {
     // if not armed set throttle to zero and exit immediately
@@ -808,44 +1341,51 @@ void ModeGuided::velaccel_control_run()
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
-    // set velocity to zero and stop rotating if no updates received for 3 seconds
+    // timeout handling - zero targets if no updates received (default 3 seconds)
     uint32_t tnow = millis();
     if (tnow - update_time_ms > get_timeout_ms()) {
+        // command timeout - zero velocity and acceleration to hold position
         guided_vel_target_cms.zero();
         guided_accel_target_cmss.zero();
         if ((auto_yaw.mode() == AutoYaw::Mode::RATE) || (auto_yaw.mode() == AutoYaw::Mode::ANGLE_RATE)) {
-            auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+            auto_yaw.set_mode(AutoYaw::Mode::HOLD);  // freeze current yaw
         }
     }
 
+    // integrate obstacle avoidance system if enabled
     bool do_avoid = false;
 #if AP_AVOIDANCE_ENABLED
-    // limit the velocity for obstacle/fence avoidance
+    // adjust velocity command to avoid obstacles and fence boundaries
+    // avoidance system modifies guided_vel_target_cms directly
     copter.avoid.adjust_velocity(guided_vel_target_cms, pos_control->get_pos_NE_p().kP(), pos_control->get_max_accel_NE_cmss(), pos_control->get_pos_U_p().kP(), pos_control->get_max_accel_U_cmss(), G_Dt);
-    do_avoid = copter.avoid.limits_active();
+    do_avoid = copter.avoid.limits_active();  // check if avoidance is modifying commands
 #endif
 
-    // update position controller with new target
+    // VelAccel sub-mode: velocity command with acceleration feedforward
+    // Provides smooth acceleration transitions and better tracking
 
+    // Handle stabilization options (position/velocity feedback loops)
     if (!stabilizing_vel_xy() && !do_avoid) {
-        // set the current commanded xy vel to the desired vel
+        // No velocity stabilization: use current controller velocity as target (open-loop velocity)
         guided_vel_target_cms.xy() = pos_control->get_vel_desired_NEU_cms().xy();
     }
     pos_control->input_vel_accel_NE_cm(guided_vel_target_cms.xy(), guided_accel_target_cmss.xy(), false);
+    
+    // Apply stabilization options (unless avoidance is active - avoidance needs full feedback)
     if (!stabilizing_vel_xy() && !do_avoid) {
-        // set position and velocity errors to zero
+        // disable both position and velocity feedback (pure velocity feedforward)
         pos_control->stop_vel_NE_stabilisation();
     } else if (!stabilizing_pos_xy() && !do_avoid) {
-        // set position errors to zero
+        // disable position feedback only (velocity feedback remains active)
         pos_control->stop_pos_NE_stabilisation();
     }
     pos_control->input_vel_accel_U_cm(guided_vel_target_cms.z, guided_accel_target_cmss.z, false);
 
-    // call velocity controller which includes z axis controller
-    pos_control->update_NE_controller();
-    pos_control->update_U_controller();
+    // run position controllers (converts velocity to attitude/thrust)
+    pos_control->update_NE_controller();  // horizontal
+    pos_control->update_U_controller();   // vertical
 
-    // call attitude controller with auto yaw
+    // call attitude controller to generate motor outputs
     attitude_control->input_thrust_vector_heading(pos_control->get_thrust_vector(), auto_yaw.get_heading());
 }
 
@@ -853,6 +1393,9 @@ void ModeGuided::velaccel_control_run()
 // called from guided_run
 void ModeGuided::pause_control_run()
 {
+    // Pause mode: hold current position and ignore new guided commands
+    // Activated via pause() method - used for temporary suspension of guided flight
+    
     // if not armed set throttle to zero and exit immediately
     if (is_disarmed_or_landed()) {
         // do not spool down tradheli when on the ground with motor interlock enabled
@@ -863,24 +1406,128 @@ void ModeGuided::pause_control_run()
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
-    // set the horizontal velocity and acceleration targets to zero
-    Vector2f vel_xy, accel_xy;
+    // command zero horizontal velocity and acceleration (holds current XY position)
+    Vector2f vel_xy, accel_xy;  // default constructed to zero
     pos_control->input_vel_accel_NE_cm(vel_xy, accel_xy, false);
 
-    // set the vertical velocity and acceleration targets to zero
+    // command zero vertical velocity and acceleration (holds current altitude)
     float vel_z = 0.0;
     pos_control->input_vel_accel_U_cm(vel_z, 0.0, false);
 
-    // call velocity controller which includes z axis controller
-    pos_control->update_NE_controller();
-    pos_control->update_U_controller();
+    // run position controllers to maintain position hold
+    pos_control->update_NE_controller();  // horizontal
+    pos_control->update_U_controller();   // vertical
 
-    // call attitude controller
+    // call attitude controller with zero yaw rate (holds current heading)
     attitude_control->input_thrust_vector_rate_heading_rads(pos_control->get_thrust_vector(), 0.0);
 }
 
-// posvelaccel_control_run - runs the guided position, velocity and acceleration controller
-// called from guided_run
+/**
+ * @brief Run guided position, velocity, and acceleration controller (full trajectory control)
+ * 
+ * @details Executes complete trajectory tracking with simultaneous position, velocity, and
+ * acceleration commands. This enables the highest-fidelity trajectory following by providing
+ * the complete desired state (position + velocity + acceleration) to the position controller.
+ * 
+ * Full Trajectory Control:
+ * Provides all three trajectory components simultaneously:
+ * - Position: Desired location in NED frame (cm)
+ * - Velocity: Desired velocity at that position (cm/s)
+ * - Acceleration: Desired acceleration (feedforward term, cm/s²)
+ * 
+ * This is the most sophisticated control mode, enabling:
+ * - Minimum-snap trajectory following
+ * - Time-optimal path execution
+ * - Aggressive maneuvering with smooth dynamics
+ * - Precise trajectory tracking for cinematography
+ * - Formation flight with coordinated acceleration
+ * 
+ * Control Architecture:
+ * Three-level cascaded controller with full state feedforward:
+ * 1. Position error → desired velocity correction
+ * 2. Velocity error + velocity setpoint → desired acceleration
+ * 3. Acceleration setpoint + feedforward → thrust vector
+ * 
+ * Trajectory Generation:
+ * Typically used with external trajectory planners that generate smooth paths:
+ * - Polynomial trajectories (quintic, septic)
+ * - Minimum-snap optimization
+ * - Bezier curves with derivatives
+ * - Time-parametrized splines
+ * 
+ * Stabilization Control (GUID_OPTIONS):
+ * Three modes based on stabilization flags:
+ * 
+ * 1. Full stabilization (default):
+ *    - Corrects for position and velocity tracking errors
+ *    - Integral action prevents steady-state errors
+ *    - Most robust, recommended for normal operation
+ * 
+ * 2. Velocity stabilization only (DoNotStabilizePositionXY):
+ *    - Position reference tracks actual position
+ *    - Only velocity error is controlled
+ *    - Reduces overshoot in velocity tracking
+ *    - Useful for velocity-centric applications
+ * 
+ * 3. No stabilization (both flags set):
+ *    - Pure feedforward control
+ *    - No error correction, open-loop tracking
+ *    - Requires highly accurate trajectory generation
+ *    - Expert mode only
+ * 
+ * Position Target Update:
+ * Position target is continuously updated based on stabilization mode:
+ * - Full stab: Position target maintained, errors integrated
+ * - Vel stab: Position target follows actual position
+ * - No stab: Position/velocity targets follow controller outputs
+ * This prevents windup and ensures smooth control.
+ * 
+ * Timeout Behavior:
+ * If no trajectory updates for GUID_TIMEOUT seconds (default 3s):
+ * - Zeros velocity and acceleration (holds last commanded position)
+ * - Stops yaw rotation
+ * - Provides graceful degradation on communication loss
+ * 
+ * Coordinate Frames:
+ * - Position: NED frame relative to EKF origin (cm)
+ * - Velocity: NED frame (cm/s)
+ * - Acceleration: NED frame (cm/s²)
+ * - All in earth-fixed frame, not body frame
+ * 
+ * Terrain Altitude Restriction:
+ * This mode does NOT support terrain-relative altitudes (guided_pos_terrain_alt must be false).
+ * If terrain altitude is detected, triggers INTERNAL_ERROR.
+ * Terrain following requires WP sub-mode instead.
+ * 
+ * Update Rate Requirements:
+ * - Recommended: 50-100Hz for smooth trajectory tracking
+ * - Minimum: 10Hz to prevent timeout
+ * - Maximum: 400Hz (main loop rate)
+ * High-rate updates critical for aggressive trajectories.
+ * 
+ * Common Applications:
+ * - Motion capture / Vicon controlled flight
+ * - Minimum-snap trajectory following
+ * - Aggressive maneuver execution
+ * - High-speed obstacle avoidance with planned trajectories
+ * - Cinematic camera paths (smooth velocity profiles)
+ * - Research platforms for advanced control algorithms
+ * 
+ * MAVLink Interface:
+ * Commanded via SET_POSITION_TARGET_LOCAL_NED with type_mask indicating
+ * position + velocity + acceleration fields are valid.
+ * 
+ * @note Called at 400Hz when guided_mode == SubMode::PosVelAccel
+ * @note Most demanding control mode - requires accurate trajectory generation
+ * @note Provides best tracking performance when properly tuned
+ * 
+ * @warning Terrain-relative altitude NOT supported in this mode
+ * @warning Requires continuous high-rate updates (>10Hz) to prevent timeout
+ * @warning Disabling stabilization requires expert-level trajectory planning
+ * @warning Aggressive trajectories may exceed vehicle acceleration limits
+ * 
+ * Source: ArduCopter/mode_guided.cpp:884-939
+ */
 void ModeGuided::posvelaccel_control_run()
 {
     // if not armed set throttle to zero and exit immediately
@@ -893,84 +1540,210 @@ void ModeGuided::posvelaccel_control_run()
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
-    // set velocity to zero and stop rotating if no updates received for 3 seconds
+    // timeout handling - zero velocity/acceleration if no updates received (default 3 seconds)
     uint32_t tnow = millis();
     if (tnow - update_time_ms > get_timeout_ms()) {
+        // command timeout - zero velocity and acceleration (position target remains)
         guided_vel_target_cms.zero();
         guided_accel_target_cmss.zero();
         if ((auto_yaw.mode() == AutoYaw::Mode::RATE) || (auto_yaw.mode() == AutoYaw::Mode::ANGLE_RATE)) {
-            auto_yaw.set_mode(AutoYaw::Mode::HOLD);
+            auto_yaw.set_mode(AutoYaw::Mode::HOLD);  // freeze current yaw
         }
     }
 
-    // send position and velocity targets to position controller
+    // PosVelAccel sub-mode: full trajectory control with position, velocity, and acceleration
+    // This is the most comprehensive control mode, used for smooth trajectory following
+    
+    // Handle stabilization options for horizontal position/velocity
     if (!stabilizing_vel_xy()) {
-        // set the current commanded xy pos to the target pos and xy vel to the desired vel
+        // No velocity stabilization: track current controller state (open-loop trajectory following)
         guided_pos_target_cm.xy() = pos_control->get_pos_desired_NEU_cm().xy();
         guided_vel_target_cms.xy() = pos_control->get_vel_desired_NEU_cms().xy();
     } else if (!stabilizing_pos_xy()) {
-        // set the current commanded xy pos to the target pos
+        // No position stabilization: track current position but use velocity feedback
         guided_pos_target_cm.xy() = pos_control->get_pos_desired_NEU_cm().xy();
     }
     pos_control->input_pos_vel_accel_NE_cm(guided_pos_target_cm.xy(), guided_vel_target_cms.xy(), guided_accel_target_cmss.xy(), false);
+    
+    // Apply stabilization option flags
     if (!stabilizing_vel_xy()) {
-        // set position and velocity errors to zero
+        // disable both position and velocity feedback
         pos_control->stop_vel_NE_stabilisation();
     } else if (!stabilizing_pos_xy()) {
-        // set position errors to zero
+        // disable position feedback only
         pos_control->stop_pos_NE_stabilisation();
     }
 
-    // guided_pos_target z-axis should never be a terrain altitude
+    // PosVelAccel mode does not support terrain-relative altitudes (only absolute altitudes)
+    // Terrain following would require continuous altitude adjustments incompatible with trajectory control
     if (guided_pos_terrain_alt) {
         INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
     }
 
+    // vertical control: position, velocity, and acceleration
     float pz = guided_pos_target_cm.z;
     pos_control->input_pos_vel_accel_U_cm(pz, guided_vel_target_cms.z, guided_accel_target_cmss.z, false);
-    guided_pos_target_cm.z = pz;
+    guided_pos_target_cm.z = pz;  // update may have been modified by controller
 
-    // run position controllers
-    pos_control->update_NE_controller();
-    pos_control->update_U_controller();
+    // run position controllers (converts trajectory to attitude/thrust)
+    pos_control->update_NE_controller();  // horizontal
+    pos_control->update_U_controller();   // vertical
 
-    // call attitude controller with auto yaw
+    // call attitude controller to generate motor outputs
     attitude_control->input_thrust_vector_heading(pos_control->get_thrust_vector(), auto_yaw.get_heading());
 }
 
-// angle_control_run - runs the guided angle controller
-// called from guided_run
+/**
+ * @brief Run guided angle controller (direct attitude + climb rate/thrust control)
+ * 
+ * @details Executes direct attitude control with independent vertical control, bypassing
+ * position and velocity controllers. Provides the most direct control authority over vehicle
+ * orientation, used for acrobatic maneuvers, manual-like control, and specialized applications
+ * requiring direct attitude commands.
+ * 
+ * Control Modes:
+ * This controller supports two distinct control interfaces:
+ * 
+ * 1. Attitude + Angular Velocity Mode (attitude_quat non-zero):
+ *    - Quaternion specifies desired orientation
+ *    - Angular velocity (body frame) provides rate feedforward
+ *    - Enables smooth attitude transitions
+ *    - Used for coordinated maneuvers
+ * 
+ * 2. Pure Angular Velocity Mode (attitude_quat zero):
+ *    - Direct body-frame angular velocity commands (rad/s)
+ *    - Open-loop attitude control
+ *    - Used for rate-based stick inputs or acrobatics
+ *    - Vehicle attitude follows integration of rate commands
+ * 
+ * Vertical Control Options:
+ * Configured via GUIDED_OPTIONS parameter bit SetAttitudeTarget_ThrustAsThrust:
+ * 
+ * A. Climb Rate Mode (use_thrust = false, default):
+ *    - Vertical velocity controller maintains desired climb rate (cm/s)
+ *    - Altitude controlled independently of attitude
+ *    - Constrained to WPNAV speed limits for safety
+ *    - Obstacle avoidance applied to climb rate
+ *    - Most common configuration
+ * 
+ * B. Direct Thrust Mode (use_thrust = true):
+ *    - Direct throttle control [0.0 to 1.0] bypasses altitude controller
+ *    - Pilot/controller has complete throttle authority
+ *    - Enables acrobatic maneuvers (loops, rolls, flips)
+ *    - No altitude stabilization - pure attitude flight
+ *    - Requires expert piloting or sophisticated controller
+ * 
+ * Timeout Protection:
+ * If no attitude commands for GUID_TIMEOUT seconds (default 3s):
+ * - Attitude: Levels roll/pitch, maintains current yaw
+ * - Angular velocity: Zeroed (stops rotation)
+ * - Climb rate: Zeroed (holds altitude)
+ * - Thrust mode: Switches to climb rate mode for safety
+ * Prevents flyaway on communication loss.
+ * 
+ * Takeoff Handling:
+ * When landed with positive climb rate or thrust:
+ * - Triggers auto-arm sequence
+ * - Spools motors to full throttle
+ * - Clears land_complete flag
+ * - Initializes vertical controller
+ * Enables smooth takeoff directly into angle control.
+ * 
+ * Coordinate Frames:
+ * - Attitude quaternion: Earth-frame to body-frame rotation
+ * - Angular velocity: Body frame (rad/s) - roll, pitch, yaw rates
+ * - Climb rate: Earth frame NED (cm/s, positive = down)
+ * - Thrust: Normalized [0.0, 1.0] unitless
+ * 
+ * Attitude Representation:
+ * Uses quaternions (not Euler angles) to avoid gimbal lock:
+ * - Quaternion: 4-element unit quaternion [w, x, y, z]
+ * - Singularity-free at all orientations
+ * - Smooth interpolation for continuous control
+ * - Efficient computation for attitude controller
+ * 
+ * Angular Velocity Feedforward:
+ * Provides rate feedforward to attitude controller:
+ * - Improves tracking during attitude transients
+ * - Reduces attitude lag during aggressive maneuvers
+ * - Zero feedforward for static attitude holds
+ * - Non-zero for coordinated turns and flips
+ * 
+ * Safety Considerations:
+ * - Disarmed/landed state immediately cuts throttle
+ * - Traditional helicopter: maintains motor interlock when on ground
+ * - Positive thrust/climb triggers auto-arm for takeoff
+ * - No position control - vehicle can drift horizontally
+ * - Timeout returns to level attitude (not position hold)
+ * 
+ * Common Applications:
+ * - Manual-like control via companion computer
+ * - FPV acrobatic flight control
+ * - External attitude stabilization algorithms
+ * - Research platforms testing custom attitude controllers
+ * - Tele-operation with direct attitude commands
+ * - Gimbal-like orientation control (inspection, filming)
+ * 
+ * MAVLink Interface:
+ * Commanded via SET_ATTITUDE_TARGET with:
+ * - attitude_quat: Desired attitude quaternion (or zero for rate mode)
+ * - body_roll_rate, body_pitch_rate, body_yaw_rate: Angular velocities
+ * - thrust: Climb rate (m/s) or normalized thrust [0,1]
+ * - type_mask: Indicates thrust interpretation
+ * 
+ * Comparison to Other Modes:
+ * - Position/Velocity modes: Control position/velocity, attitude indirect
+ * - Angle mode: Control attitude directly, position uncontrolled
+ * - Manual modes: Pilot stick to attitude, similar control feel
+ * This mode bridges autonomous and manual flight paradigms.
+ * 
+ * @note Called at 400Hz when guided_mode == SubMode::Angle
+ * @note Only guided sub-mode without position stabilization
+ * @note Horizontal drift expected - use position modes for station-keeping
+ * 
+ * @warning No horizontal position control - vehicle will drift with wind
+ * @warning Direct thrust mode disables altitude controller - expert use only
+ * @warning Timeout levels attitude but does NOT return to home position
+ * @warning Aggressive attitudes may exceed motor/ESC limits
+ * @warning Not suitable for autonomous waypoint navigation
+ * 
+ * Source: ArduCopter/mode_guided.cpp:943-1009
+ */
 void ModeGuided::angle_control_run()
 {
+    // Angle sub-mode: direct attitude control with climb rate or thrust
+    // Used by SET_ATTITUDE_TARGET MAVLink message for low-level vehicle control
+    
     float climb_rate_cms = 0.0f;
     if (!guided_angle_state.use_thrust) {
-        // constrain climb rate
+        // climb rate mode: constrain to configured speed limits
         climb_rate_cms = constrain_float(guided_angle_state.climb_rate_cms, -wp_nav->get_default_speed_down_cms(), wp_nav->get_default_speed_up_cms());
 
-        // get avoidance adjusted climb rate
+        // integrate obstacle avoidance for vertical velocity
         climb_rate_cms = get_avoidance_adjusted_climbrate_cms(climb_rate_cms);
     }
 
-    // check for timeout - set lean angles and climb rate to zero if no updates received for 3 seconds
+    // timeout handling - level out and stop climbing if no updates received (default 3 seconds)
     uint32_t tnow = millis();
     if (tnow - guided_angle_state.update_time_ms > get_timeout_ms()) {
-        guided_angle_state.attitude_quat.from_euler(Vector3f(0.0, 0.0, attitude_control->get_att_target_euler_rad().z));
-        guided_angle_state.ang_vel_body.zero();
-        climb_rate_cms = 0.0f;
+        // command timeout - level vehicle and hold altitude
+        guided_angle_state.attitude_quat.from_euler(Vector3f(0.0, 0.0, attitude_control->get_att_target_euler_rad().z));  // level roll/pitch, maintain yaw
+        guided_angle_state.ang_vel_body.zero();  // zero rotation rates
+        climb_rate_cms = 0.0f;  // hold altitude
         if (guided_angle_state.use_thrust) {
-            // initialise vertical velocity controller
+            // switch from thrust to climb rate control (requires controller initialization)
             pos_control->init_U_controller();
             guided_angle_state.use_thrust = false;
         }
     }
 
-    // interpret positive climb rate or thrust as triggering take-off
+    // positive climb rate or thrust triggers takeoff arming
     const bool positive_thrust_or_climbrate = is_positive(guided_angle_state.use_thrust ? guided_angle_state.thrust : climb_rate_cms);
     if (motors->armed() && positive_thrust_or_climbrate) {
-        copter.set_auto_armed(true);
+        copter.set_auto_armed(true);  // enable auto-armed state for takeoff
     }
 
-    // if not armed set throttle to zero and exit immediately
+    // safety check: disarm immediately if not armed or auto-armed
     if (!motors->armed() || !copter.ap.auto_armed || (copter.ap.land_complete && !positive_thrust_or_climbrate)) {
         // do not spool down tradheli when on the ground with motor interlock enabled
         make_safe_ground_handling(copter.is_tradheli() && motors->get_interlock());
@@ -978,13 +1751,13 @@ void ModeGuided::angle_control_run()
     }
 
     // TODO: use get_alt_hold_state
-    // landed with positive desired climb rate or thrust, takeoff
+    // takeoff sequence: if landed with positive thrust/climb command, spool up motors
     if (copter.ap.land_complete && positive_thrust_or_climbrate) {
         zero_throttle_and_relax_ac();
         motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
         if (motors->get_spool_state() == AP_Motors::SpoolState::THROTTLE_UNLIMITED) {
-            set_land_complete(false);
-            pos_control->init_U_controller();
+            set_land_complete(false);  // clear landed flag
+            pos_control->init_U_controller();  // initialize altitude controller
         }
         return;
     }
@@ -992,17 +1765,21 @@ void ModeGuided::angle_control_run()
     // set motors to full range
     motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
-    // call attitude controller
+    // attitude control: quaternion or rate mode
     if (guided_angle_state.attitude_quat.is_zero()) {
+        // zero quaternion = pure rate control mode (body frame angular velocities)
         attitude_control->input_rate_bf_roll_pitch_yaw_rads(guided_angle_state.ang_vel_body.x, guided_angle_state.ang_vel_body.y, guided_angle_state.ang_vel_body.z);
     } else {
+        // quaternion attitude control with angular velocity feedforward
         attitude_control->input_quaternion(guided_angle_state.attitude_quat, guided_angle_state.ang_vel_body);
     }
 
-    // call position controller
+    // vertical control: thrust or climb rate mode
     if (guided_angle_state.use_thrust) {
+        // direct thrust control (normalized 0.0-1.0)
         attitude_control->set_throttle_out(guided_angle_state.thrust, true, copter.g.throttle_filt);
     } else {
+        // climb rate control (altitude hold with velocity command)
         pos_control->set_pos_target_U_from_climb_rate_cm(climb_rate_cms);
         pos_control->update_U_controller();
     }
