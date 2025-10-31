@@ -1,12 +1,38 @@
+/**
+ * @file mode_flowhold.cpp
+ * @brief Implementation of FlowHold flight mode for ArduCopter
+ * 
+ * @details FlowHold is a GPS-free position hold mode that uses optical flow sensors
+ *          for maintaining position relative to the ground. This mode enables indoor
+ *          flight and operation in GPS-denied environments by utilizing visual odometry
+ *          from a downward-facing camera or optical flow sensor.
+ * 
+ *          Key characteristics:
+ *          - Provides position hold without GPS or external positioning
+ *          - Maintains position relative to ground using visual flow measurements
+ *          - Requires downward-facing optical flow sensor (e.g., PX4Flow, Cheerson CX-OF)
+ *          - Benefits from rangefinder for improved height estimation
+ *          - Useful for indoor flight, under bridges, or other GPS-denied areas
+ *          - Limited to low altitudes (typically under 10m) where optical flow is reliable
+ *          - Susceptible to failure over low-texture surfaces (uniform carpet, water, etc.)
+ *          - Flow quality must exceed FHLD_QUAL_MIN parameter for position hold to activate
+ * 
+ *          Implementation uses PI controller to convert flow measurements to attitude
+ *          targets, with braking behavior when pilot releases sticks. Height estimation
+ *          integrates accelerometer data with optical flow for improved altitude hold.
+ * 
+ * @note This mode requires AP_OPTICALFLOW to be enabled and a functioning flow sensor
+ * @warning Vehicle will behave like AltHold if flow quality drops below threshold
+ * @warning Not suitable for outdoor flight where GPS is available - use Loiter instead
+ * 
+ * @see libraries/AP_OpticalFlow/
+ * @see mode.h for Mode base class
+ */
+
 #include "Copter.h"
 #include <utility>
 
 #if MODE_FLOWHOLD_ENABLED
-
-/*
-  implement FLOWHOLD mode, for position hold using optical flow
-  without rangefinder
- */
 
 const AP_Param::GroupInfo ModeFlowHold::var_info[] = {
     // @Param: _XY_P
@@ -74,6 +100,13 @@ const AP_Param::GroupInfo ModeFlowHold::var_info[] = {
     AP_GROUPEND
 };
 
+/**
+ * @brief Constructor for FlowHold mode
+ * 
+ * @details Initializes FlowHold mode object and sets up parameter defaults.
+ *          Parameters include PI controller gains, flow rate limits, filter
+ *          frequencies, quality thresholds, and braking rates.
+ */
 ModeFlowHold::ModeFlowHold(void) : Mode()
 {
     AP_Param::setup_object_defaults(this, var_info);
@@ -81,9 +114,40 @@ ModeFlowHold::ModeFlowHold(void) : Mode()
 
 #define CONTROL_FLOWHOLD_EARTH_FRAME 0
 
-// flowhold_init - initialise flowhold controller
+/**
+ * @brief Initialize FlowHold mode
+ * 
+ * @details Performs initialization of the FlowHold flight mode controller, including:
+ *          - Validates optical flow sensor is enabled and healthy
+ *          - Configures vertical speed and acceleration limits for altitude control
+ *          - Initializes vertical position controller if not already active
+ *          - Sets up flow rate low-pass filter with configured cutoff frequency
+ *          - Resets PI controller integrator terms for clean mode entry
+ *          - Initializes height estimation using INS (Inertial Navigation System)
+ * 
+ *          The optical flow sensor must be both enabled and healthy for mode entry.
+ *          If the sensor is unavailable, initialization fails and the mode change
+ *          will be rejected, preventing the vehicle from entering an unsafe state.
+ * 
+ * @param[in] ignore_checks If true, skip pre-flight checks (currently unused for FlowHold)
+ * 
+ * @return true if initialization successful and mode can be entered
+ * @return false if optical flow sensor is disabled or unhealthy
+ * 
+ * @note Called automatically by mode switching logic when pilot selects FlowHold
+ * @note Position hold will not activate until flow quality exceeds FHLD_QUAL_MIN parameter
+ * @note First 3 seconds after arming, mode behaves like AltHold regardless of flow quality
+ * 
+ * @warning Initialization failure indicates optical flow sensor is not available
+ * @warning Do not force mode entry if init() returns false - vehicle cannot hold position
+ * 
+ * @see run() for main mode execution
+ * @see copter.optflow for optical flow sensor interface
+ */
 bool ModeFlowHold::init(bool ignore_checks)
 {
+    // FlowHold requires functioning optical flow sensor - cannot hold position without it
+    // Reject mode entry if sensor disabled or currently unhealthy (no recent valid measurements)
     if (!copter.optflow.enabled() || !copter.optflow.healthy()) {
         return false;
     }
@@ -112,8 +176,48 @@ bool ModeFlowHold::init(bool ignore_checks)
     return true;
 }
 
-/*
-  calculate desired attitude from flow sensor. Called when flow sensor is healthy
+/**
+ * @brief Calculate desired attitude angles from optical flow measurements
+ * 
+ * @details Converts optical flow sensor measurements into target attitude angles for
+ *          position hold. This is the core algorithm of FlowHold mode that maintains
+ *          the vehicle's position relative to the ground using visual odometry.
+ * 
+ *          Algorithm steps:
+ *          1. Obtain raw flow rate and compensate for vehicle rotation (body rate)
+ *          2. Limit sensor flow to prevent oscillation at low altitudes
+ *          3. Apply low-pass filter to smooth flow measurements
+ *          4. Scale by height estimate to convert flow (rad/s) to velocity (m/s)
+ *          5. Rotate measurements to earth frame for consistent control
+ *          6. Run PI controller to generate attitude correction
+ *          7. Implement braking behavior when pilot releases sticks
+ *          8. Convert earth frame output back to body frame attitude targets
+ * 
+ *          The function operates in three distinct states:
+ *          - Active stick input: Pilot has direct attitude control, PI controller paused
+ *          - Braking: 3-second deceleration phase after stick release
+ *          - Position hold: PI controller actively maintains position
+ * 
+ *          Braking algorithm calculates lean angles based on current velocity to
+ *          smoothly decelerate the vehicle. PI integrator is only updated during
+ *          position hold state to prevent wind-up during pilot control.
+ * 
+ * @param[in,out] bf_angles_cd Body frame attitude angles in centidegrees. Input contains
+ *                             pilot stick angles, output adds flow correction angles
+ * @param[in] stick_input True if pilot is actively commanding attitude (non-zero roll/pitch)
+ * 
+ * @note Called at main loop rate (typically 400Hz) when flow sensor is healthy
+ * @note Flow measurements are scaled by height estimate - accuracy depends on altitude
+ * @note Anti-windup protection limits integrator when attitude angles saturate
+ * @note Braking phase lasts 3 seconds or until velocity drops below 0.3 m/s
+ * 
+ * @warning Low-texture surfaces (uniform carpet, calm water) may cause flow sensor failure
+ * @warning Flow rate limited to ±FHLD_FLOW_MAX to prevent instability at low altitudes
+ * @warning Height estimate accuracy critical - poor altitude estimation causes position drift
+ * 
+ * @see run() for mode state machine and calling context
+ * @see update_height_estimate() for height estimation using flow and accelerometers
+ * @see flow_pi_xy PI controller configuration (FHLD_XY_P, FHLD_XY_I parameters)
  */
 void ModeFlowHold::flowhold_flow_to_angle(Vector2f &bf_angles_cd, bool stick_input)
 {
@@ -129,11 +233,14 @@ void ModeFlowHold::flowhold_flow_to_angle(Vector2f &bf_angles_cd, bool stick_inp
     // filter the flow rate
     Vector2f sensor_flow = flow_filter.apply(raw_flow);
 
-    // scale by height estimate, limiting it to height_min_m to height_max
+    // Scale flow rate by height estimate to convert angular rate (rad/s) to linear velocity (m/s)
+    // This is critical: flow_rate × height = velocity
+    // Height limited between height_min_m and height_max to prevent extreme scaling
+    // INS height from position controller plus adaptive offset from update_height_estimate()
     float ins_height_m = pos_control->get_pos_estimate_NEU_cm().z * 0.01;
     float height_estimate_m = ins_height_m + height_offset_m;
 
-    // compensate for height, this converts to (approx) m/s
+    // Compensate for height, this converts flow (rad/s) to approximate velocity (m/s)
     sensor_flow *= constrain_float(height_estimate_m, height_min_m, height_max);
 
     // rotate controller input to earth frame
@@ -226,8 +333,55 @@ void ModeFlowHold::flowhold_flow_to_angle(Vector2f &bf_angles_cd, bool stick_inp
 #endif  // HAL_LOGGING_ENABLED
 }
 
-// flowhold_run - runs the flowhold controller
-// should be called at 100hz or more
+/**
+ * @brief Main execution loop for FlowHold mode
+ * 
+ * @details Implements the complete FlowHold mode control loop, called at main loop rate
+ *          (typically 400Hz but must be at least 100Hz). Manages altitude control,
+ *          horizontal position hold using optical flow, and coordinates all subsystems.
+ * 
+ *          Execution sequence each loop:
+ *          1. Update height estimate using optical flow and accelerometer integration
+ *          2. Configure vertical speed and acceleration limits
+ *          3. Apply SIMPLE mode transformation to pilot inputs (if enabled)
+ *          4. Update flow filter cutoff frequency if parameter changed
+ *          5. Process pilot climb rate and yaw rate commands
+ *          6. Determine altitude hold state (landed, takeoff, flying, etc.)
+ *          7. Filter optical flow quality measurement
+ *          8. Execute state machine for motor control and altitude hold
+ *          9. Calculate attitude targets from pilot input
+ *          10. Add flow-based position hold correction (if quality sufficient)
+ *          11. Apply avoidance adjustments (if enabled)
+ *          12. Command attitude controller and update throttle
+ * 
+ *          State machine behavior:
+ *          - MotorStopped: Disarmed or emergency stop - shutdown motors, reset controllers
+ *          - Takeoff: Execute automated takeoff to PILOT_TKOFF_ALT
+ *          - Landed_Ground_Idle/Landed_Pre_Takeoff: On ground, prepare for flight
+ *          - Flying: Normal flight - full altitude and position control active
+ * 
+ *          Position hold activation requirements:
+ *          - Flow quality ≥ FHLD_QUAL_MIN parameter
+ *          - At least 3 seconds elapsed since arming (avoid takeoff transients)
+ *          - Optical flow sensor healthy
+ * 
+ *          If position hold requirements not met, mode behaves like AltHold (altitude
+ *          hold only, pilot controls horizontal position directly).
+ * 
+ * @note Must be called at ≥100Hz for stable control, typically runs at 400Hz
+ * @note Flow correction limited to ±50% of maximum angle to preserve pilot authority
+ * @note Surface tracking updates vertical offset if rangefinder available
+ * @note Logged as FHLD message for position hold performance analysis
+ * 
+ * @warning Insufficient loop rate (<100Hz) may cause instability
+ * @warning Low flow quality causes fallback to manual horizontal control (AltHold behavior)
+ * @warning First 3 seconds after arming, no position hold regardless of flow quality
+ * 
+ * @see init() for mode initialization
+ * @see flowhold_flow_to_angle() for position hold algorithm
+ * @see update_height_estimate() for altitude estimation
+ * @see get_alt_hold_state() for state machine determination
+ */
 void ModeFlowHold::run()
 {
     update_height_estimate();
@@ -253,6 +407,9 @@ void ModeFlowHold::run()
     // Flow Hold State Machine Determination
     AltHoldModeState flowhold_state = get_alt_hold_state(target_climb_rate_cms);
 
+    // Apply heavy filtering to flow quality to prevent mode oscillation on quality threshold
+    // Filter constant 0.95 provides slow response, preventing rapid enable/disable of position hold
+    // Quality drops to 0 immediately if sensor becomes unhealthy
     if (copter.optflow.healthy()) {
         const float filter_constant = 0.95;
         quality_filtered = filter_constant * quality_filtered + (1-filter_constant) * copter.optflow.quality();
@@ -325,9 +482,12 @@ void ModeFlowHold::run()
     bf_angles_cd.x = rad_to_cd(target_roll_rad);
     bf_angles_cd.y = rad_to_cd(target_pitch_rad);
 
+    // Enable optical flow position hold only when quality sufficient and vehicle stabilized
+    // - quality_filtered must exceed FHLD_QUAL_MIN parameter (default 10)
+    // - 3 second delay after arming prevents flow from interfering with takeoff transients
+    // If conditions not met, mode behaves like AltHold (altitude hold only, pilot controls horizontal)
     if (quality_filtered >= flow_min_quality &&
         AP_HAL::millis() - copter.arm_time_ms > 3000) {
-        // don't use for first 3s when we are just taking off
         Vector2f flow_angles;
 
         flowhold_flow_to_angle(flow_angles, (roll_in != 0) || (pitch_in != 0));
@@ -352,8 +512,60 @@ void ModeFlowHold::run()
     pos_control->update_U_controller();
 }
 
-/*
-  update height estimate using integrated accelerometer ratio with optical flow
+/**
+ * @brief Update height estimate using optical flow and accelerometer fusion
+ * 
+ * @details Implements a complementary height estimation algorithm that fuses inertial
+ *          measurements with optical flow data to improve altitude accuracy. This is
+ *          critical because optical flow measurements must be scaled by height to
+ *          convert from angular rates (rad/s) to linear velocities (m/s).
+ * 
+ *          Algorithm principle:
+ *          The relationship between optical flow rate and vehicle velocity is:
+ *          velocity = flow_rate × height
+ *          
+ *          By integrating accelerometer measurements to get velocity change (delta_velocity)
+ *          and comparing with flow rate changes (delta_flow), we can estimate height:
+ *          height = delta_velocity / delta_flow
+ * 
+ *          Implementation steps:
+ *          1. Get inertial height estimate from position controller (INS)
+ *          2. Handle ground case: Reset height offset when disarmed or spooling up
+ *          3. Integrate delta velocity from IMU in earth frame
+ *          4. Convert integrated velocity to body frame to match flow sensor frame
+ *          5. Get optical flow rate measurements (compensated for body rotation)
+ *          6. Calculate instantaneous height from velocity/flow ratio for each axis
+ *          7. Weight height estimates by flow magnitude (stronger flow = more reliable)
+ *          8. Apply filtering and rate limiting to prevent noise-induced jumps
+ *          9. Constrain height estimate to be above minimum altitude (height_min_m)
+ *          10. Update height_offset_m which is added to INS height estimate
+ * 
+ *          The algorithm uses both X and Y flow axes independently, weighting each
+ *          estimate by the flow magnitude. This provides redundancy and improved
+ *          accuracy when the vehicle is moving in different directions.
+ * 
+ *          Noise rejection strategies:
+ *          - Require minimum delta_velocity (0.04 m/s) and minimum delta_flow (0.04 rad/s)
+ *          - Discard negative height estimates (physically impossible)
+ *          - Limit height change per update to ±0.25m (height_delta_max_m)
+ *          - Apply low-pass filter (0.8 * old + 0.2 * new)
+ *          - Bias toward lower heights to prevent oscillation (2× gain for decreases)
+ *          - Ignore flow updates more than 500ms apart (flow sensor timeout)
+ * 
+ * @note Called at main loop rate from run()
+ * @note Height estimate critical for scaling flow measurements to velocities
+ * @note Inaccurate height causes proportional error in velocity estimation
+ * @note Logged as FHXY message for detailed analysis and tuning
+ * 
+ * @warning Requires healthy optical flow sensor - no update without flow data
+ * @warning Poor flow quality or low-texture surfaces degrade height estimate accuracy
+ * @warning Height estimation most accurate when vehicle is moving (provides flow variation)
+ * @warning Accelerometer bias causes height estimation drift over time
+ * 
+ * @see run() for calling context
+ * @see flowhold_flow_to_angle() for flow measurement usage
+ * @see copter.ins.get_delta_velocity() for IMU integration
+ * @see copter.optflow for optical flow sensor interface
  */
 void ModeFlowHold::update_height_estimate(void)
 {
