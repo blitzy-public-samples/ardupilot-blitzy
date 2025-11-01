@@ -12,10 +12,43 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-/*
-  control code for tailsitters. Enabled by setting Q_FRAME_CLASS=10 
-  or by setting Q_TAILSIT_MOTMX nonzero and Q_FRAME_CLASS and Q_FRAME_TYPE
-  to a configuration supported by AP_MotorsMatrix
+
+/**
+ * @file tailsitter.cpp
+ * @brief Tailsitter aircraft configuration and control implementation for ArduPlane QuadPlane
+ * 
+ * @details This file implements control logic for tailsitter VTOL aircraft - vehicles that take off
+ *          and land vertically on their tail, then transition to horizontal flight. Tailsitters are
+ *          a unique QuadPlane configuration that sit vertically when landed and must manage complex
+ *          transitions between vertical (VTOL) and horizontal (fixed-wing) flight orientations.
+ *          
+ *          Tailsitter aircraft types supported:
+ *          - Dual motor tailsitters: Two motors with control surfaces (traditional tailsitter)
+ *          - Copter-style tailsitters: Multi-motor configurations using AP_MotorsMatrix
+ *          - Vectored tailsitters: Motors that can tilt for thrust vectoring
+ *          - Control surface only: No thrust vectoring, pure aerodynamic control
+ *          
+ *          Configuration is enabled by:
+ *          - Setting Q_FRAME_CLASS=10 for dedicated tailsitter frames, OR
+ *          - Setting Q_TAILSIT_MOTMX nonzero with Q_FRAME_CLASS and Q_FRAME_TYPE 
+ *            configured for a copter-style layout supported by AP_MotorsMatrix
+ *          
+ *          Key functionality:
+ *          - Transition management: Smooth pitch transitions between vertical and horizontal flight
+ *          - Orientation handling: Coordinate frame transformations between VTOL and FW attitudes
+ *          - Input remapping: Different stick input conventions for VTOL vs FW control
+ *          - Gain scheduling: Dynamic control gain scaling based on airspeed and attitude
+ *          - Motor mixing: Selective motor control during forward flight transitions
+ *          - Thrust vectoring: Optional tilt motor control for enhanced maneuverability
+ *          
+ * @note This code is conditionally compiled with HAL_QUADPLANE_ENABLED
+ * @warning Tailsitter transitions are flight-critical operations requiring careful tuning
+ * 
+ * @see QuadPlane for the parent quadplane control architecture
+ * @see Tiltrotor for alternative VTOL transition mechanisms
+ * @see AP_MotorsMatrix for copter-style motor mixing on tailsitters
+ * 
+ * Source: ArduPlane/tailsitter.cpp
  */
 #include "tailsitter.h"
 #include "Plane.h"
@@ -168,8 +201,22 @@ const AP_Param::GroupInfo Tailsitter::var_info[] = {
     AP_GROUPEND
 };
 
-/*
-  defaults for tailsitters
+/**
+ * @brief Default parameter values optimized for tailsitter aircraft
+ * 
+ * @details This table provides tuned default parameters specifically for tailsitter configurations
+ *          when Q_FRAME_CLASS is set to MOTOR_FRAME_TAILSITTER. These defaults are automatically
+ *          applied during setup() to provide a better starting point for tailsitter flight than
+ *          generic quadplane defaults.
+ *          
+ *          Key parameter categories:
+ *          - Attitude rate control: Higher feedforward for responsive VTOL control
+ *          - Pitch limits: Reduced to account for vertical takeoff/landing orientation
+ *          - Position control: Tuned for tailsitter hover characteristics
+ *          - Transition timing: Configured for typical tailsitter transition rates
+ *          
+ * @note These defaults are only applied if the individual parameters have not been manually configured
+ * @see AP_Param::set_defaults_from_table()
  */
 static const struct AP_Param::defaults_table_struct defaults_table_tailsitter[] = {
     { "KFF_RDDRMIX",       0.02 },
@@ -192,11 +239,52 @@ static const struct AP_Param::defaults_table_struct defaults_table_tailsitter[] 
     
 };
 
+/**
+ * @brief Construct a new Tailsitter object
+ * 
+ * @details Initializes the tailsitter subsystem with references to the parent quadplane
+ *          and motors objects. This constructor is called during QuadPlane initialization
+ *          when tailsitter support is enabled.
+ * 
+ * @param[in] _quadplane Reference to parent QuadPlane object for accessing shared VTOL state
+ * @param[in] _motors Reference to multicopter motors object for motor control
+ * 
+ * @note Parameter defaults are established using AP_Param::setup_object_defaults()
+ * @see QuadPlane::QuadPlane() for parent initialization sequence
+ */
 Tailsitter::Tailsitter(QuadPlane& _quadplane, AP_MotorsMulticopter*& _motors):quadplane(_quadplane),motors(_motors)
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
 
+/**
+ * @brief Initialize tailsitter configuration and detect vehicle type
+ * 
+ * @details Performs one-time setup for tailsitter operation including:
+ *          - Auto-detection of tailsitter configuration from frame class and motor mask
+ *          - Configuration of transition rates based on transition angles and timing
+ *          - Detection of control surface availability (elevator, aileron, rudder, elevons, v-tail)
+ *          - Detection of thrust vectoring capability (tilt motors)
+ *          - Application of tailsitter-specific parameter defaults
+ *          - Setup of special modes for control-surface-less operation (Q_TAILSIT_ENABLE=2)
+ *          - Creation and initialization of Tailsitter_Transition object
+ *          
+ *          Tailsitter enable logic (Q_TAILSIT_ENABLE):
+ *          - 0: Disabled
+ *          - 1: Enabled (standard tailsitter operation)
+ *          - 2: Enable Always - Forces Q_Assist active, enables airmode in forward flight,
+ *               prevents arming in forward flight modes (for control-surface-less tailsitters)
+ *          
+ *          Auto-enable heuristic: If Q_TAILSIT_ENABLE is not configured and either
+ *          Q_FRAME_CLASS is MOTOR_FRAME_TAILSITTER or Q_TAILSIT_MOTMX is nonzero
+ *          (excluding bicopter tiltrotors), then tailsitter support is automatically enabled.
+ * 
+ * @note This must be called during QuadPlane::setup() before first flight operation
+ * @warning Modifying configuration after setup may result in inconsistent behavior
+ * 
+ * @see QuadPlane::setup() for parent initialization
+ * @see Tailsitter_Transition for transition state machine initialization
+ */
 void Tailsitter::setup()
 {
     // Set tailsitter enable flag based on old heuristics
@@ -252,8 +340,24 @@ void Tailsitter::setup()
     setup_complete = true;
 }
 
-/*
-  return true when flying a control surface only tailsitter
+/**
+ * @brief Check if this is a control-surface-only tailsitter (no thrust vectoring)
+ * 
+ * @details A control surface only tailsitter uses fixed motors and relies entirely on
+ *          aerodynamic control surfaces (elevator, aileron, rudder) for attitude control
+ *          in VTOL modes. This is true when:
+ *          - Frame class is MOTOR_FRAME_TAILSITTER (dual motor configuration), AND
+ *          - Either vectored_hover_gain is zero OR no tilt motors are assigned
+ *          
+ *          This distinction is important because control surface tailsitters have different
+ *          control authority and response characteristics compared to vectored tailsitters,
+ *          particularly at low airspeeds and during hover.
+ * 
+ * @return true if this is a control surface only tailsitter (no thrust vectoring)
+ * @return false if thrust vectoring is available or not a dedicated tailsitter frame
+ * 
+ * @note Copter-style tailsitters (motor_mask != 0) always return false
+ * @see vectored_hover_gain parameter for thrust vectoring control gain
  */
 bool Tailsitter::is_control_surface_tailsitter(void) const
 {
@@ -261,8 +365,23 @@ bool Tailsitter::is_control_surface_tailsitter(void) const
            && ( is_zero(vectored_hover_gain) || !SRV_Channels::function_assigned(SRV_Channel::k_tiltMotorLeft));
 }
 
-/*
-  check if we are flying as a tailsitter
+/**
+ * @brief Check if tailsitter control is currently active
+ * 
+ * @details Returns true when the vehicle is operating in tailsitter mode, meaning VTOL-style
+ *          control is active with the vehicle in vertical orientation. This includes:
+ *          - Any VTOL flight mode (QHOVER, QLOITER, QLAND, QRTL, etc.)
+ *          - TRANSITION_ANGLE_WAIT_FW state (transitioning to FW but still in VTOL control)
+ *          
+ *          When active, the tailsitter uses multicopter-style attitude control with
+ *          control surface mixing appropriate for vertical flight orientation.
+ * 
+ * @return true if tailsitter VTOL control is active
+ * @return false if tailsitter is disabled or in fixed-wing flight mode
+ * 
+ * @note Returns false immediately if tailsitter is not enabled
+ * @see enabled() for checking if tailsitter support is configured
+ * @see in_vtol_transition() for checking transition state
  */
 bool Tailsitter::active(void)
 {
@@ -279,8 +398,46 @@ bool Tailsitter::active(void)
     return false;
 }
 
-/*
-  run output for tailsitters
+/**
+ * @brief Main tailsitter motor and control surface output mixing function
+ * 
+ * @details This is the primary output function for tailsitter aircraft, called at the main loop rate
+ *          (typically 400Hz) to convert attitude controller outputs into motor and servo commands.
+ *          
+ *          The function handles three distinct flight regimes:
+ *          
+ *          1. **Forward Flight (not active())**: 
+ *             - Uses fixed-wing throttle and motor_mask to control specific motors
+ *             - Applies thrust vectoring based on vectored_forward_gain if configured
+ *             - Control surfaces follow standard fixed-wing mixing
+ *          
+ *          2. **VTOL to FW Transition (in_vtol_transition())**:
+ *             - Overrides throttle to hover thrust or Q_TAILSIT_THR_VT setting
+ *             - Centers rudder to prevent adverse yaw during attitude change
+ *             - Gradually pitches nose down at Q_TAILSIT_RAT_FW rate
+ *          
+ *          3. **VTOL Flight (active() and not transitioning)**:
+ *             - Maps copter attitude controller outputs to control surfaces:
+ *               * Copter yaw → FW aileron (body frame roll in vertical orientation)
+ *               * Copter pitch → FW elevator (body frame pitch)
+ *               * Copter roll → FW rudder (body frame yaw in vertical orientation)
+ *             - Applies gain scaling via speed_scaling() based on airspeed and throttle
+ *             - Mixes elevons and v-tail with priority given to pitch control
+ *             - Applies thrust vectoring with extra pitch authority at high pitch errors
+ *          
+ *          Special handling for Q_TAILSIT_Q_ASSIST_MOTORS_ONLY:
+ *          - Motors provide VTOL stability assist in forward flight
+ *          - Control surfaces remain under fixed-wing controller
+ *          - Integrators coordinated between copter and plane controllers
+ *          
+ * @note This function is called every loop iteration when armed
+ * @warning Incorrect mixing can result in loss of control - parameters must be carefully tuned
+ * 
+ * @see speed_scaling() for dynamic gain adjustment algorithm
+ * @see QuadPlane::motors_output() for motor output execution
+ * @see in_vtol_transition() for transition state determination
+ * 
+ * Source: ArduPlane/tailsitter.cpp:285-521
  */
 void Tailsitter::output(void)
 {
@@ -521,8 +678,33 @@ void Tailsitter::output(void)
 }
 
 
-/*
-  return true when we have completed enough of a transition to switch to fixed wing control
+/**
+ * @brief Check if transition from VTOL to fixed-wing flight is complete
+ * 
+ * @details Determines when the tailsitter has pitched down sufficiently to switch from
+ *          multicopter-style attitude control to fixed-wing control. Transition is considered
+ *          complete when ANY of the following conditions are met:
+ *          
+ *          1. **Pitch angle criterion**: Absolute pitch exceeds Q_TAILSIT_ANGLE (transition_angle_fw)
+ *          2. **Roll error criterion**: Absolute roll exceeds roll limit + 5° (indicates loss of control)
+ *          3. **Timeout criterion**: Time since transition start exceeds calculated duration based on
+ *             transition angle and rate with 1.5x safety factor
+ *          4. **Disarmed criterion**: Vehicle is disarmed (instant transition)
+ *          
+ *          The pitch-down transition is commanded at Q_TAILSIT_RAT_FW (degrees/second) by the
+ *          Tailsitter_Transition state machine in TRANSITION_ANGLE_WAIT_FW state.
+ * 
+ * @return true when transition to fixed-wing control should be completed
+ * @return false while still transitioning (continue VTOL control during pitch-down)
+ * 
+ * @note Sends GCS telemetry message when transition completes
+ * @warning Excessive roll during transition triggers early completion with warning message
+ * 
+ * @see Tailsitter_Transition::update() for transition pitch rate control
+ * @see transition_angle_fw parameter defining target pitch angle
+ * @see transition_rate_fw parameter defining pitch rate in deg/s
+ * 
+ * Source: ArduPlane/tailsitter.cpp:527-547
  */
 bool Tailsitter::transition_fw_complete(void)
 {
@@ -547,8 +729,37 @@ bool Tailsitter::transition_fw_complete(void)
 }
 
 
-/*
-  return true when we have completed enough of a transition to switch to VTOL control
+/**
+ * @brief Check if transition from fixed-wing to VTOL flight is complete
+ * 
+ * @details Determines when the tailsitter has pitched up sufficiently to switch from fixed-wing
+ *          control to multicopter-style attitude control. This transition occurs when entering
+ *          VTOL modes from forward flight.
+ *          
+ *          Special case for vectored tailsitters at zero throttle:
+ *          - If pilot throttle < 5% and groundspeed < 1 m/s (likely on ground)
+ *          - Transition immediately to prevent propeller strikes during landing
+ *          
+ *          Standard transition completion criteria (ANY of):
+ *          1. **Pitch angle criterion**: Absolute pitch exceeds get_transition_angle_vtol()
+ *          2. **Roll error criterion**: Absolute roll exceeds roll limit + 5° (inverted flight accounted for)
+ *          3. **Timeout criterion**: Time since transition start exceeds calculated duration
+ *          4. **Disarmed criterion**: Vehicle is disarmed (instant transition)
+ *          
+ *          The pitch-up transition is commanded by the fixed-wing attitude controller at
+ *          Q_TAILSIT_RAT_VT (degrees/second) rate in TRANSITION_ANGLE_WAIT_VTOL state.
+ * 
+ * @return true when transition to VTOL control should be completed
+ * @return false while still transitioning (continue FW control during pitch-up)
+ * 
+ * @note Sends GCS telemetry message when transition completes
+ * @warning For vectored tailsitters, zero throttle forces immediate transition to prevent prop strikes
+ * 
+ * @see get_transition_angle_vtol() for transition angle determination
+ * @see transition_rate_vtol parameter defining pitch rate in deg/s
+ * @see Tailsitter_Transition::set_FW_roll_pitch() for transition pitch control
+ * 
+ * Source: ArduPlane/tailsitter.cpp:553-586
  */
 bool Tailsitter::transition_vtol_complete(void) const
 {
@@ -585,7 +796,32 @@ bool Tailsitter::transition_vtol_complete(void) const
     return false;
 }
 
-// handle different tailsitter input types
+/**
+ * @brief Remap pilot stick inputs based on tailsitter input type configuration
+ * 
+ * @details Tailsitters can use different pilot input conventions depending on Q_TAILSIT_INPUT
+ *          configuration. When in VTOL modes with TAILSITTER_INPUT_PLANE bit set, this function
+ *          swaps roll and yaw stick inputs to provide more intuitive control.
+ *          
+ *          Input remapping when TAILSITTER_INPUT_PLANE is set:
+ *          - Roll stick → Controls yaw (earth-frame rotation)
+ *          - Yaw stick (rudder) → Controls roll (inverted to match plane convention)
+ *          
+ *          This allows pilots familiar with flying planes to hover a tailsitter using similar
+ *          stick inputs to how they would fly an airplane in knife-edge hover.
+ *          
+ *          Default behavior (TAILSITTER_INPUT_PLANE not set):
+ *          - Roll stick → Controls roll in earth frame
+ *          - Yaw stick → Controls yaw in earth frame (like a multicopter)
+ *          
+ * @note This function modifies RC channel control_in values, affecting all downstream control
+ * @note Only active when tailsitter mode is active() and TAILSITTER_INPUT_PLANE bit is set
+ * 
+ * @see input_type parameter (Q_TAILSIT_INPUT) bitmask configuration
+ * @see RC_Channel::get_control_in() and set_control_in() for input value access
+ * 
+ * Source: ArduPlane/tailsitter.cpp:589-601
+ */
 void Tailsitter::check_input(void)
 {
     if (active() && (input_type & TAILSITTER_INPUT_PLANE)) {
@@ -600,8 +836,33 @@ void Tailsitter::check_input(void)
     }
 }
 
-/*
-  return true if we are a tailsitter transitioning to VTOL flight
+/**
+ * @brief Check if tailsitter is currently transitioning from FW to VTOL flight
+ * 
+ * @details Returns true during the pitch-up transition when entering VTOL modes from forward
+ *          flight. This state indicates the vehicle is still pitched forward but needs special
+ *          handling as it transitions to vertical orientation.
+ *          
+ *          Transition is detected when:
+ *          - Tailsitter is enabled and in a VTOL mode, AND
+ *          - Either transition_state is TRANSITION_ANGLE_WAIT_VTOL, OR
+ *          - Less than 1 second has elapsed since entering VTOL mode (recent mode change)
+ *          
+ *          During this transition period, special logic applies:
+ *          - Fixed-wing attitude controller commands pitch-up at Q_TAILSIT_RAT_VT
+ *          - Throttle may be overridden to Q_TAILSIT_THR_VT value
+ *          - Stick mixing may be disabled for smoother autonomous transition
+ * 
+ * @param[in] now Current time in milliseconds (0 uses current time from AP_HAL::millis())
+ * 
+ * @return true if actively transitioning from forward to VTOL flight
+ * @return false if in steady-state VTOL or FW flight, or tailsitter disabled
+ * 
+ * @note The 1-second grace period prevents control discontinuities during mode transitions
+ * @see transition_vtol_complete() for transition completion detection
+ * @see Tailsitter_Transition::VTOL_update() for transition state management
+ * 
+ * Source: ArduPlane/tailsitter.cpp:606-619
  */
 bool Tailsitter::in_vtol_transition(uint32_t now) const
 {
@@ -618,16 +879,51 @@ bool Tailsitter::in_vtol_transition(uint32_t now) const
     return false;
 }
 
-/*
-  return true if we are a tailsitter in FW flight
+/**
+ * @brief Check if tailsitter is in steady-state fixed-wing flight
+ * 
+ * @details Returns true only when the tailsitter is flying in fixed-wing mode with transitions
+ *          fully completed. This indicates the vehicle is in horizontal orientation using
+ *          fixed-wing control logic.
+ *          
+ *          Requires ALL of:
+ *          - Tailsitter is enabled
+ *          - NOT in a VTOL mode (flying in fixed-wing mode)
+ *          - Transition state is TRANSITION_DONE (all transitions completed)
+ * 
+ * @return true if in steady-state fixed-wing flight
+ * @return false if in VTOL mode, transitioning, or tailsitter disabled
+ * 
+ * @see active() for checking VTOL mode activity
+ * @see Tailsitter_Transition::transition_state for current transition status
+ * 
+ * Source: ArduPlane/tailsitter.cpp:624-627
  */
 bool Tailsitter::is_in_fw_flight(void) const
 {
     return enabled() && !quadplane.in_vtol_mode() && transition->transition_state == Tailsitter_Transition::TRANSITION_DONE;
 }
 
-/*
- return the tailsitter.transition_angle_vtol value if non zero, otherwise returns the tailsitter.transition_angle_fw value.
+/**
+ * @brief Get the pitch angle for completing VTOL transition
+ * 
+ * @details Returns the pitch angle threshold (in degrees) at which transition from fixed-wing
+ *          to VTOL flight is considered complete. Provides fallback logic for configuration:
+ *          
+ *          - If Q_TAILSIT_ANG_VT is configured (non-zero): Use that value
+ *          - If Q_TAILSIT_ANG_VT is zero (default): Use Q_TAILSIT_ANGLE as fallback
+ *          
+ *          This allows asymmetric transitions where VTOL-to-FW and FW-to-VTOL transitions
+ *          can occur at different pitch angles if desired, or use the same angle if
+ *          Q_TAILSIT_ANG_VT is left at default zero.
+ * 
+ * @return Transition angle in degrees for FW→VTOL transition
+ * 
+ * @note Typical values are 45-80 degrees depending on vehicle configuration
+ * @see transition_angle_vtol parameter (Q_TAILSIT_ANG_VT)
+ * @see transition_angle_fw parameter (Q_TAILSIT_ANGLE)
+ * 
+ * Source: ArduPlane/tailsitter.cpp:632-638
  */
 int8_t Tailsitter::get_transition_angle_vtol() const
 {
@@ -638,9 +934,56 @@ int8_t Tailsitter::get_transition_angle_vtol() const
 }
 
 
-/*
-  account for speed scaling of control surfaces in VTOL modes
-*/
+/**
+ * @brief Apply dynamic gain scaling to control surfaces based on airspeed and flight conditions
+ * 
+ * @details This critical function adjusts control surface effectiveness in VTOL modes to account
+ *          for varying airflow over the surfaces. At hover with low airspeed, surfaces are less
+ *          effective than in forward flight, requiring gain scaling to maintain consistent control
+ *          response. Multiple scaling methods are supported via Q_TAILSIT_GSCMSK bitmask.
+ *          
+ *          Gain Scaling Methods (bitmask options):
+ *          
+ *          1. **THROTTLE (bit 0)**: Scale gains proportionally with throttle
+ *             - Assumes higher throttle creates more propwash over surfaces
+ *             - Simple method, works well for direct motor-to-surface airflow
+ *          
+ *          2. **ATT_THR (bit 1)**: Reduce gains at high throttle/tilt angles
+ *             - Prevents oscillations during high-speed VTOL flight
+ *             - Attenuates gains when pitched away from vertical or throttle > 1.25× hover
+ *             - Includes slew rate limiting for smooth scaling changes
+ *          
+ *          3. **DISK_THEORY (bit 2)**: Physics-based scaling using momentum theory
+ *             - Estimates airflow velocity over surfaces using actuator disk theory
+ *             - Requires Q_TAILSIT_DSKLD (disk loading in kg/m²) to be configured
+ *             - Most accurate method, accounts for induced velocity from propellers
+ *             - Can boost throttle to maintain minimum outflow speed (Q_TAILSIT_MIN_VO)
+ *             - Formula: Ue² = (T / (0.5 × ρ × A)) + U0² where T=thrust, ρ=air density, A=disk area
+ *          
+ *          4. **ALTITUDE (bit 3)**: Correct for air density with altitude
+ *             - Scales gains by air density ratio to maintain consistent control authority
+ *             - Important for high-altitude operations
+ *          
+ *          The calculated scaling factor is applied to:
+ *          - Aileron (VTOL yaw control)
+ *          - Elevator (VTOL pitch control)
+ *          - Rudder (VTOL roll control)
+ *          - Tilt motors (always use throttle scaling)
+ *          
+ *          Scaling factors are constrained between Q_TAILSIT_GSCMIN and Q_TAILSIT_GSCMAX
+ *          to prevent excessive attenuation or amplification.
+ * 
+ * @note Called from output() at main loop rate when armed in VTOL modes
+ * @warning Incorrect gain scaling can cause oscillations or loss of control
+ * @warning DISK_THEORY requires accurate Q_TAILSIT_DSKLD - measure vehicle mass and prop disk area
+ * 
+ * @see gain_scaling_mask parameter (Q_TAILSIT_GSCMSK) for method selection
+ * @see disk_loading parameter (Q_TAILSIT_DSKLD) in kg/m² for disk theory calculations
+ * @see throttle_scale_max parameter (Q_TAILSIT_GSCMAX) for maximum gain scaling
+ * @see gain_scaling_min parameter (Q_TAILSIT_GSCMIN) for minimum gain scaling
+ * 
+ * Source: ArduPlane/tailsitter.cpp:644-798
+ */
 void Tailsitter::speed_scaling(void)
 {
     const float hover_throttle = motors->get_throttle_hover();
@@ -798,7 +1141,29 @@ void Tailsitter::speed_scaling(void)
 }
 
 #if HAL_LOGGING_ENABLED
-// Write tailsitter specific log
+/**
+ * @brief Write tailsitter-specific telemetry data to dataflash log
+ * 
+ * @details Logs tailsitter-specific parameters to the TSIT log message for post-flight analysis.
+ *          This data is critical for tuning gain scaling and diagnosing control issues.
+ *          
+ *          Logged data includes:
+ *          - throttle_scaler: Gain scaling factor based on throttle (hover/actual ratio)
+ *          - speed_scaler: Final gain scaling factor applied to control surfaces
+ *          - min_throttle: Minimum throttle override from disk loading calculations
+ *          
+ *          Log message format: LOG_TSIT_MSG
+ *          
+ *          This function is only compiled when HAL_LOGGING_ENABLED is defined.
+ * 
+ * @note Called once per loop iteration when tailsitter is enabled and armed
+ * @note Does nothing if tailsitter is not enabled
+ * 
+ * @see speed_scaling() for gain scaling calculations that populate log_data
+ * @see log_data struct for values being logged
+ * 
+ * Source: ArduPlane/tailsitter.cpp:802-817
+ */
 void Tailsitter::write_log()
 {
     if (!enabled()) {
@@ -816,16 +1181,77 @@ void Tailsitter::write_log()
 }
 #endif  // HAL_LOGGING_ENABLED
 
-// return true if pitch control should be relaxed
-// on vectored belly sitters the pitch control is not relaxed in order to keep motors pointing and avoid risk of props hitting the ground
-// always relax after a transition
+/**
+ * @brief Determine if pitch axis attitude control should be relaxed
+ * 
+ * @details Controls whether the pitch axis should be relaxed (integrators zeroed, control
+ *          authority reduced) during certain flight phases. The decision accounts for
+ *          propeller strike risk on vectored tailsitters.
+ *          
+ *          Pitch control is relaxed (returns true) when:
+ *          - Tailsitter is not enabled, OR
+ *          - This is not a vectored tailsitter (_is_vectored == false), OR
+ *          - A recent VTOL transition has completed (vtol_limit_start_ms != 0)
+ *          
+ *          Pitch control is NOT relaxed (returns false) for vectored belly sitters to:
+ *          - Keep thrust vector pointed upward during landing
+ *          - Prevent propeller strikes on the ground
+ *          - Maintain motor pointing angle for ground operations
+ *          
+ *          After any transition to VTOL, pitch is always relaxed temporarily to allow
+ *          the attitude controller to settle to the new flight regime.
+ * 
+ * @return true if pitch control should be relaxed (safe to reduce control authority)
+ * @return false if pitch control must remain active (vectored tailsitter, prop strike risk)
+ * 
+ * @note Called by attitude controller to determine control relaxation strategy
+ * @warning Relaxing pitch on vectored tailsitters can cause propeller strikes during landing
+ * 
+ * @see _is_vectored flag indicating thrust vectoring capability
+ * @see Tailsitter_Transition::vtol_limit_start_ms for post-transition timing
+ * 
+ * Source: ArduPlane/tailsitter.cpp:822-825
+ */
 bool Tailsitter::relax_pitch()
 {
     return !enabled() || !_is_vectored || (transition->vtol_limit_start_ms != 0);
 }
 
-/*
-  update for transition from quadplane to fixed wing mode
+/**
+ * @brief Main transition state machine update for VTOL to fixed-wing transition
+ * 
+ * @details This function implements the state machine for transitioning from VTOL to fixed-wing
+ *          flight on tailsitter aircraft. Called at the main loop rate during forward flight modes.
+ *          
+ *          Transition States:
+ *          
+ *          **TRANSITION_ANGLE_WAIT_FW**: Actively pitching down from vertical to horizontal
+ *          - Commands pitch-down at Q_TAILSIT_RAT_FW (degrees/second)
+ *          - Maintains zero roll, disables yaw rate time constant
+ *          - Holds throttle at hover or higher during transition
+ *          - Uses synthetic airspeed in TECS to prevent throttle oscillations
+ *          - Checks transition_fw_complete() to detect completion
+ *          - On completion: Transitions to TRANSITION_DONE, begins pitch rate limiting
+ *          
+ *          **TRANSITION_ANGLE_WAIT_VTOL**: Handled by FW attitude controller
+ *          - This state is managed in VTOL_update() and set_FW_roll_pitch()
+ *          - Fixed-wing controller commands pitch-up to vertical
+ *          
+ *          **TRANSITION_DONE**: Steady-state forward flight
+ *          - Normal fixed-wing control active
+ *          - No special transition logic required
+ *          
+ *          Throughout all transition states, assisted flight is evaluated to determine if
+ *          VTOL motors should provide stability assistance during forward flight.
+ * 
+ * @note This is called from QuadPlane::update() in fixed-wing flight modes
+ * @note Synthetic airspeed prevents TECS from using unreliable airspeed during pitch transitions
+ * 
+ * @see Tailsitter::transition_fw_complete() for completion detection
+ * @see VTOL_update() for handling FW→VTOL transitions
+ * @see QuadPlane::assisted_flight for VTOL assist in forward flight
+ * 
+ * Source: ArduPlane/tailsitter.cpp:830-881
  */
 void Tailsitter_Transition::update()
 {
@@ -880,6 +1306,44 @@ void Tailsitter_Transition::update()
     }
 }
 
+/**
+ * @brief Handle transition state when entering VTOL modes from forward flight
+ * 
+ * @details Called when the aircraft is in a VTOL flight mode. Manages the transition from
+ *          fixed-wing to VTOL control by detecting mode entry and initiating the pitch-up
+ *          maneuver to vertical orientation.
+ *          
+ *          State Management:
+ *          
+ *          **Mode Entry Detection**:
+ *          - Checks if more than 1 second has passed since last VTOL mode update
+ *          - If true, aircraft is entering VTOL mode from forward flight
+ *          - Sets transition_state to TRANSITION_ANGLE_WAIT_VTOL
+ *          
+ *          **During TRANSITION_ANGLE_WAIT_VTOL**:
+ *          - Provides assisted flight during the pitch-up phase for stability
+ *          - Continuously checks transition_vtol_complete() for completion
+ *          - On completion:
+ *            * Records vtol_limit_start_ms and vtol_limit_initial_pitch (if armed)
+ *            * Clears inverted_flight flag for consistency with other quadplane types
+ *            * Calls restart() to prepare for next FW transition
+ *          
+ *          **Mode Tracking**:
+ *          - Updates last_vtol_mode_ms timestamp on every call
+ *          - Used to detect transitions between FW and VTOL modes
+ *          
+ *          The vtol_limit_* variables are used to rate-limit pitch changes after transition
+ *          completes, preventing abrupt attitude changes that could destabilize the aircraft.
+ * 
+ * @note Called from QuadPlane::update() when in VTOL flight modes
+ * @note Resets assisted_flight logic when not actively checking transition completion
+ * 
+ * @see Tailsitter::transition_vtol_complete() for completion criteria
+ * @see set_FW_roll_pitch() for pitch-up command generation during transition
+ * @see restart() to prepare for the next VTOL→FW transition
+ * 
+ * Source: ArduPlane/tailsitter.cpp:883-920
+ */
 void Tailsitter_Transition::VTOL_update()
 {
     const uint32_t now = AP_HAL::millis();
@@ -919,7 +1383,41 @@ void Tailsitter_Transition::VTOL_update()
     restart();
 }
 
-// return true if we should show VTOL view
+/**
+ * @brief Determine if OSD/telemetry should display VTOL or fixed-wing orientation
+ * 
+ * @details Controls the visual reference frame for the On-Screen Display (OSD) and ground
+ *          control station attitude indicators during transitions. This ensures the display
+ *          matches the actual aircraft orientation mode, accounting for transition phases.
+ *          
+ *          Decision Logic:
+ *          
+ *          **Base Decision**: Use VTOL view if in a VTOL flight mode
+ *          
+ *          **Transition Override 1**: During TRANSITION_ANGLE_WAIT_VTOL
+ *          - Aircraft is in VTOL mode but still pitched forward
+ *          - Return false (FW view) until transition completes
+ *          - Prevents confusing display during pitch-up from horizontal
+ *          
+ *          **Transition Override 2**: During TRANSITION_ANGLE_WAIT_FW
+ *          - Aircraft is in FW mode but still pitched vertical
+ *          - Return true (VTOL view) until transition completes
+ *          - Maintains vertical reference frame during pitch-down
+ *          
+ *          This provides intuitive horizon reference during transitions, preventing
+ *          rapid OSD flips between vertical and horizontal orientations.
+ * 
+ * @return true if OSD should display VTOL (vertical) orientation reference
+ * @return false if OSD should display fixed-wing (horizontal) orientation reference
+ * 
+ * @note Used by OSD code to select appropriate attitude display mode
+ * @note Also affects GCS attitude indicator display orientation
+ * 
+ * @see quadplane.in_vtol_mode() for base mode detection
+ * @see transition_state for current transition phase
+ * 
+ * Source: ArduPlane/tailsitter.cpp:922-936
+ */
 bool Tailsitter_Transition::show_vtol_view() const
 {
     bool show_vtol = quadplane.in_vtol_mode();
@@ -935,6 +1433,44 @@ bool Tailsitter_Transition::show_vtol_view() const
     return show_vtol;
 }
 
+/**
+ * @brief Override fixed-wing pitch/roll commands during tailsitter transitions
+ * 
+ * @details This function is called by the fixed-wing attitude controller to modify pitch and
+ *          roll commands during tailsitter transition phases. It implements rate-limited pitch
+ *          changes to smoothly transition between vertical and horizontal flight attitudes.
+ *          
+ *          **During FW→VTOL Transition** (TRANSITION_ANGLE_WAIT_VTOL):
+ *          - Calculates time since vtol_transition_start_ms
+ *          - Commands pitch increase at Q_TAILSIT_RAT_VT (degrees/second) from initial pitch
+ *          - Formula: pitch = initial_pitch + (rate × time_ms × 0.1)
+ *          - Constrains pitch between -85° and +85° to prevent over-rotation
+ *          - Forces roll to 0° to keep wings level during pitch-up
+ *          - Updates vtol_transition_start_ms and initial_pitch when TRANSITION_DONE
+ *          
+ *          **Rate-Limited Pitch Down** (first seconds after VTOL→FW transition):
+ *          - When fw_limit_start_ms is non-zero, limits initial pitch-down rate
+ *          - Prevents sudden nose-drop when exiting vertical flight
+ *          - Commands: pitch_limit = initial_pitch - (time × Q_TAILSIT_RAT_FW × 0.1)
+ *          - Stops limiting when pitch reaches 0° or when limit would increase pitch
+ *          - Forces roll to 0° during rate limiting for stability
+ *          
+ *          This provides smooth, controlled transitions between flight regimes while
+ *          maintaining safe pitch rates and preventing loss of control during mode changes.
+ * 
+ * @param[in,out] nav_pitch_cd Desired pitch attitude in centidegrees (modified during transitions)
+ * @param[in,out] nav_roll_cd Desired roll attitude in centidegrees (modified during transitions)
+ * 
+ * @note Called from fixed-wing attitude controller (plane.stabilize())
+ * @note Modifies pitch/roll commands by reference - changes are directly applied
+ * @warning Do not disable rate limiting - sudden pitch changes can cause loss of control
+ * 
+ * @see tailsitter.in_vtol_transition() to check if currently transitioning to VTOL
+ * @see transition_rate_fw parameter (Q_TAILSIT_RAT_FW) for FW transition rate
+ * @see transition_rate_vtol parameter (Q_TAILSIT_RAT_VT) for VTOL transition rate
+ * 
+ * Source: ArduPlane/tailsitter.cpp:938-968
+ */
 void Tailsitter_Transition::set_FW_roll_pitch(int32_t& nav_pitch_cd, int32_t& nav_roll_cd)
 {
     uint32_t now = AP_HAL::millis();
@@ -967,6 +1503,46 @@ void Tailsitter_Transition::set_FW_roll_pitch(int32_t& nav_pitch_cd, int32_t& na
     }
 }
 
+/**
+ * @brief Determine if pilot stick input should be mixed with transition commands
+ * 
+ * @details Controls whether pilot control stick inputs should be allowed to modify the
+ *          commanded pitch and roll angles during automatic transition maneuvers. Stick
+ *          mixing is disabled during critical transition phases to ensure the aircraft
+ *          completes the orientation change safely without pilot interference.
+ *          
+ *          Stick Mixing Disabled (returns false) During:
+ *          
+ *          1. **FW→VTOL Transition Initial Pitch-Up**:
+ *             - While tailsitter.in_vtol_transition() returns true
+ *             - Prevents pilot from interfering with automatic pitch-up to vertical
+ *             - Critical phase where precise pitch control is needed
+ *          
+ *          2. **Post-VTOL→FW Transition Rate Limiting**:
+ *             - When transition_state == TRANSITION_DONE AND fw_limit_start_ms != 0
+ *             - During initial pitch-down rate limiting after leaving vertical
+ *             - Prevents pilot from commanding excessive nose-down pitch
+ *          
+ *          Stick Mixing Enabled (returns true):
+ *          - All other flight phases
+ *          - Normal VTOL flight
+ *          - Steady-state forward flight
+ *          - After transition rate limits have cleared
+ *          
+ *          This safety feature ensures transitions complete smoothly while allowing normal
+ *          pilot control authority once the aircraft is in stable orientation.
+ * 
+ * @return true if pilot stick inputs should be mixed with commanded attitude
+ * @return false if stick inputs should be ignored during critical transition phase
+ * 
+ * @note Called by attitude controller to determine input mixing strategy
+ * @warning Disabling stick mixing during transitions is critical for safe operation
+ * 
+ * @see tailsitter.in_vtol_transition() for FW→VTOL transition detection
+ * @see fw_limit_start_ms for post-transition rate limiting state
+ * 
+ * Source: ArduPlane/tailsitter.cpp:970-981
+ */
 bool Tailsitter_Transition::allow_stick_mixing() const
 {
     // Transitioning into VTOL flight, initial pitch up
@@ -980,6 +1556,52 @@ bool Tailsitter_Transition::allow_stick_mixing() const
     return true;
 }
 
+/**
+ * @brief Apply rate limiting to VTOL pitch commands immediately after FW→VTOL transition
+ * 
+ * @details Prevents abrupt pitch changes when transitioning from forward flight to VTOL modes.
+ *          After the aircraft pitches up to vertical orientation, this function rate-limits
+ *          the pitch command toward level hover, preventing sudden attitude changes that could
+ *          destabilize the aircraft or confuse the pilot.
+ *          
+ *          Rate Limiting Logic:
+ *          
+ *          **Activation**: When vtol_limit_start_ms is non-zero (set on transition completion)
+ *          
+ *          **Calculation**:
+ *          - pitch_change_cd = (time_since_transition_ms × Q_TAILSIT_RAT_VT × 0.1)
+ *          - Allows pitch to change at Q_TAILSIT_RAT_VT degrees/second toward 0°
+ *          
+ *          **Deactivation Conditions**:
+ *          1. pitch_change_cd exceeds initial pitch angle (limit has crossed 0°)
+ *          2. Desired pitch is already more extreme than the limit
+ *          
+ *          **Positive Initial Pitch** (pitched up):
+ *          - Limit decreases from initial_pitch toward 0° at transition_rate_vtol
+ *          - If desired pitch < limit, apply limit and force roll = 0
+ *          
+ *          **Negative Initial Pitch** (pitched down):
+ *          - Limit increases from initial_pitch toward 0° at transition_rate_vtol
+ *          - If desired pitch > limit, apply limit and force roll = 0
+ *          
+ *          When limiting is active, roll is forced to 0° for stability.
+ * 
+ * @param[in,out] nav_roll_cd Desired roll in centidegrees (set to 0 if limiting active)
+ * @param[in,out] nav_pitch_cd Desired pitch in centidegrees (limited if rate too high)
+ * 
+ * @return true if rate limiting was applied (outputs were modified)
+ * @return false if no limiting needed (outputs unchanged)
+ * 
+ * @note Called from VTOL attitude controller during multicopter flight modes
+ * @note Clears vtol_limit_start_ms when limiting completes
+ * @warning Disabling this rate limiting can cause sudden pitch changes and loss of control
+ * 
+ * @see vtol_limit_start_ms timestamp for rate limit activation
+ * @see vtol_limit_initial_pitch for starting pitch angle
+ * @see transition_rate_vtol parameter (Q_TAILSIT_RAT_VT) for rate limit value
+ * 
+ * Source: ArduPlane/tailsitter.cpp:983-1013
+ */
 bool Tailsitter_Transition::set_VTOL_roll_pitch_limit(int32_t& nav_roll_cd, int32_t& nav_pitch_cd)
 {
     if (vtol_limit_start_ms == 0) {
@@ -1012,7 +1634,42 @@ bool Tailsitter_Transition::set_VTOL_roll_pitch_limit(int32_t& nav_roll_cd, int3
     return false;
 }
 
-// setup for the transition back to fixed wing
+/**
+ * @brief Initialize state for VTOL→FW transition (pitch down to horizontal)
+ * 
+ * @details Called when the aircraft needs to transition from VTOL to fixed-wing flight.
+ *          Sets up initial conditions for the pitch-down maneuver from vertical to
+ *          horizontal orientation.
+ *          
+ *          Initialization Actions:
+ *          
+ *          1. **Set Transition State**: TRANSITION_ANGLE_WAIT_FW
+ *             - Activates the FW transition state machine in update()
+ *             - Begins commanding pitch-down at Q_TAILSIT_RAT_FW
+ *          
+ *          2. **Record Transition Start Time**: fw_transition_start_ms = current time
+ *             - Used to calculate elapsed time for pitch rate integration
+ *             - Used to detect transition timeout conditions
+ *          
+ *          3. **Capture Initial Pitch**: fw_transition_initial_pitch
+ *             - Gets current attitude target pitch from VTOL controller (in degrees)
+ *             - Converts quaternion to Euler angles
+ *             - Converts radians to centidegrees (× 100)
+ *             - Constrains to ±85° to prevent invalid starting conditions
+ *             - This is the pitch angle from which the transition begins
+ *          
+ *          The captured initial pitch becomes the reference point for rate-controlled
+ *          pitch-down commands during the transition to forward flight.
+ * 
+ * @note Called from VTOL_update() after completing FW→VTOL transition
+ * @note Also called when entering forward flight modes from VTOL modes
+ * @note Initial pitch is taken from attitude controller target, not actual attitude
+ * 
+ * @see update() for the transition state machine that uses these initialized values
+ * @see transition_rate_fw parameter (Q_TAILSIT_RAT_FW) for pitch-down rate
+ * 
+ * Source: ArduPlane/tailsitter.cpp:1016-1021
+ */
 void Tailsitter_Transition::restart()
 {
     transition_state = TRANSITION_ANGLE_WAIT_FW;
@@ -1020,7 +1677,46 @@ void Tailsitter_Transition::restart()
     fw_transition_initial_pitch = constrain_float(quadplane.attitude_control->get_attitude_target_quat().get_euler_pitch() * degrees(100.0),-8500,8500);
 }
 
-// force state to FW and setup for the transition back to VTOL
+/**
+ * @brief Force immediate completion of VTOL→FW transition and prepare for FW→VTOL
+ * 
+ * @details Forcibly completes any in-progress VTOL→FW transition and sets up state for
+ *          the next FW→VTOL transition. Used when the aircraft needs to immediately
+ *          enter fixed-wing flight without waiting for the normal transition to complete,
+ *          such as when switching to manual mode or during emergency situations.
+ *          
+ *          State Changes:
+ *          
+ *          1. **Set State to TRANSITION_DONE**:
+ *             - Immediately exits any in-progress VTOL→FW transition
+ *             - Indicates aircraft is in steady-state forward flight
+ *          
+ *          2. **Initialize FW→VTOL Transition Parameters**:
+ *             - vtol_transition_start_ms = current time (reference for next transition)
+ *             - vtol_transition_initial_pitch = current nav_pitch_cd (starting point)
+ *             - Constrains initial pitch to ±85° for safety
+ *          
+ *          3. **Clear Post-Transition Rate Limiting**:
+ *             - fw_limit_start_ms = 0 (disables pitch-down rate limiting)
+ *             - Allows immediate full control authority in FW mode
+ *          
+ *          4. **Reset Assisted Flight**:
+ *             - Clears VTOL assist state
+ *             - Prevents unwanted motor assistance in FW flight
+ *          
+ *          This function is typically called when entering manual or stabilize mode
+ *          from a VTOL mode, where the pilot takes immediate control without waiting
+ *          for automatic transition completion.
+ * 
+ * @note Called when pilot overrides automatic transition (mode changes, etc.)
+ * @note Does not command any attitude changes, just updates state variables
+ * @warning Only use when it's safe to assume forward flight orientation
+ * 
+ * @see transition_state for current transition phase
+ * @see VTOL_update() for normal transition state management
+ * 
+ * Source: ArduPlane/tailsitter.cpp:1024-1033
+ */
 void Tailsitter_Transition::force_transition_complete()
 {
     transition_state = TRANSITION_DONE;
@@ -1031,6 +1727,53 @@ void Tailsitter_Transition::force_transition_complete()
     quadplane.assist.reset();
 }
 
+/**
+ * @brief Get MAVLink VTOL state for telemetry reporting
+ * 
+ * @details Translates the internal tailsitter transition state into a MAVLink standard
+ *          VTOL state enumeration for reporting to ground control stations. This allows
+ *          GCS software to display the correct transition phase and orientation mode.
+ *          
+ *          State Mapping:
+ *          
+ *          **TRANSITION_ANGLE_WAIT_VTOL** → MAV_VTOL_STATE_TRANSITION_TO_MC
+ *          - Aircraft is transitioning from forward flight to multicopter mode
+ *          - Pitching up from horizontal to vertical orientation
+ *          - Fixed-wing controller commanding pitch increase
+ *          
+ *          **TRANSITION_DONE** → MAV_VTOL_STATE_FW
+ *          - Aircraft is in steady-state forward flight
+ *          - Horizontal orientation, fixed-wing control active
+ *          - No active transition in progress
+ *          
+ *          **TRANSITION_ANGLE_WAIT_FW**:
+ *          - If in VTOL flight mode → MAV_VTOL_STATE_MC
+ *            * Still in vertical orientation, VTOL control active
+ *            * About to begin or preparing for transition
+ *          - If in forward flight mode → MAV_VTOL_STATE_TRANSITION_TO_FW
+ *            * Actively pitching down from vertical to horizontal
+ *            * VTOL controller commanding pitch decrease
+ *          
+ *          **Default** → MAV_VTOL_STATE_UNDEFINED
+ *          - Should never occur in normal operation
+ *          - Indicates invalid or uninitialized state
+ *          
+ *          The MAVLink VTOL state is used by:
+ *          - Ground control station displays
+ *          - Telemetry logging
+ *          - Mission planning software
+ *          - Automated flight monitoring systems
+ * 
+ * @return MAV_VTOL_STATE enum value indicating current VTOL/transition state
+ * 
+ * @note Called by MAVLink telemetry code for EXTENDED_SYS_STATE message
+ * @note State mapping follows MAVLink VTOL state specification
+ * 
+ * @see transition_state for internal transition state
+ * @see MAV_VTOL_STATE enum definition in MAVLink common.xml
+ * 
+ * Source: ArduPlane/tailsitter.cpp:1034-1052
+ */
 MAV_VTOL_STATE Tailsitter_Transition::get_mav_vtol_state() const
 {
     switch (transition_state) {
@@ -1051,7 +1794,49 @@ MAV_VTOL_STATE Tailsitter_Transition::get_mav_vtol_state() const
     return MAV_VTOL_STATE_UNDEFINED;
 }
 
-// only allow to weathervane once transition is complete and desired pitch has been reached
+/**
+ * @brief Determine if weathervaning (yaw into wind) should be allowed in VTOL modes
+ * 
+ * @details Controls whether the weathervane feature can actively yaw the aircraft to align
+ *          with the wind direction during VTOL hover and low-speed flight. Weathervaning
+ *          is disabled during critical transition phases to prevent interference with
+ *          automatic attitude control and ensure safe completion of orientation changes.
+ *          
+ *          Weathervaning Disabled (returns false) When:
+ *          
+ *          1. **During FW→VTOL Transition**:
+ *             - While tailsitter.in_vtol_transition() returns true
+ *             - Aircraft is actively pitching up from horizontal to vertical
+ *             - Automatic yaw control would interfere with pitch-up maneuver
+ *          
+ *          2. **During Post-Transition Pitch Rate Limiting**:
+ *             - When vtol_limit_start_ms != 0
+ *             - Aircraft is rate-limiting pitch changes after reaching vertical
+ *             - Attitude still settling to hover configuration
+ *          
+ *          Weathervaning Enabled (returns true) When:
+ *          - Transition is complete (both conditions above are false)
+ *          - Aircraft is in stable VTOL hover
+ *          - Safe to allow yaw adjustments into wind
+ *          
+ *          The weathervane feature improves control in wind by aligning the aircraft's
+ *          longitudinal axis with the wind direction, reducing the control effort needed
+ *          to maintain position. However, it must not interfere with transition maneuvers
+ *          where precise pitch control is critical.
+ * 
+ * @return true if weathervane should be active (safe to yaw into wind)
+ * @return false if weathervane should be disabled (during transitions)
+ * 
+ * @note Called by weathervane controller to determine if yaw corrections are allowed
+ * @note Weathervane feature is configured via Q_WVANE_* parameters
+ * @warning Allowing weathervane during transitions can cause loss of attitude control
+ * 
+ * @see tailsitter.in_vtol_transition() for active transition detection
+ * @see vtol_limit_start_ms for post-transition rate limiting state
+ * @see QuadPlane weathervane controller for wind alignment logic
+ * 
+ * Source: ArduPlane/tailsitter.cpp:1055-1058
+ */
 bool Tailsitter_Transition::allow_weathervane()
 {
     return !tailsitter.in_vtol_transition() && (vtol_limit_start_ms == 0);
