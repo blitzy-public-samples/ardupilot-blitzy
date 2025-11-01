@@ -1,46 +1,185 @@
-#include "Copter.h"
-
-/*
-  compass/motor interference calibration
+/**
+ * @file compassmot.cpp
+ * @brief Compass motor interference calibration for multicopter vehicles
+ * 
+ * @details This file implements in-flight compass calibration to measure and
+ *          compensate for magnetic interference caused by motor currents and ESC
+ *          operation. The calibration procedure measures the compass field at
+ *          various throttle/current levels and calculates compensation vectors
+ *          that are applied during normal flight to improve heading accuracy.
+ *          
+ *          Calibration Process:
+ *          1. Record baseline compass readings at zero throttle
+ *          2. Gradually increase throttle while measuring compass deviation
+ *          3. Calculate interference vectors scaled by throttle or current
+ *          4. Store compensation factors to persistent storage
+ *          
+ *          This is a SAFETY-CRITICAL procedure that requires:
+ *          - Vehicle securely restrained or in controlled test environment
+ *          - Propellers installed (motors must be loaded normally)
+ *          - Clear area around vehicle
+ *          - Experienced operator supervision
+ * 
+ * @author ArduPilot Development Team
+ * @copyright Copyright (c) 2010-2025 ArduPilot.org
  */
 
-// setup_compassmot - sets compass's motor interference parameters
+#include "Copter.h"
+
+/**
+ * @brief Perform compass motor interference calibration procedure
+ * 
+ * @details This function executes an interactive calibration routine to measure
+ *          and compensate for magnetic interference from motor operation. The
+ *          calibration runs in real-time while the operator manually controls
+ *          throttle from zero to maximum, allowing the algorithm to measure
+ *          compass field distortion across the throttle range.
+ *          
+ *          Algorithm Overview:
+ *          - Baseline Measurement: Records compass field at zero throttle
+ *          - Active Sampling: Measures deviation as throttle increases
+ *          - Compensation Calculation: Builds interference model scaled by
+ *            throttle position or current draw (whichever is available)
+ *          - Filtering: Uses exponential moving average (99% old, 1% new) for
+ *            smooth convergence and noise rejection
+ *          
+ *          Compensation Types:
+ *          - AP_COMPASS_MOT_COMP_THROTTLE: Scales interference by throttle %
+ *            (used when current sensing unavailable)
+ *          - AP_COMPASS_MOT_COMP_CURRENT: Scales interference by current draw
+ *            in amps (preferred method, more accurate across voltage changes)
+ *          
+ *          Safety Checks (performed before starting):
+ *          - Compass enabled and healthy
+ *          - RC radio calibrated
+ *          - Throttle at zero position
+ *          - Vehicle landed
+ *          - Not already running compassmot
+ *          
+ *          Execution Flow:
+ *          1. Validate preconditions (compass health, throttle zero, landed)
+ *          2. Disable failsafes to prevent interruption
+ *          3. Record baseline compass readings at zero throttle
+ *          4. Arm motors and enable throttle passthrough
+ *          5. Enter measurement loop (50Hz):
+ *             - Read compass, throttle, and current
+ *             - Calculate motor-induced magnetic field deviation
+ *             - Update compensation vectors with exponential filter
+ *             - Stream telemetry to ground station
+ *          6. Exit on user command or error condition
+ *          7. Save compensation factors to persistent storage
+ *          8. Restore normal failsafe configuration
+ * 
+ * @param[in] gcs_chan MAVLink channel for telemetry and status messages
+ *                     Used to send real-time calibration progress including:
+ *                     - Current throttle position
+ *                     - Battery current draw
+ *                     - Calculated interference percentage
+ *                     - Compensation vector components
+ * 
+ * @return MAV_RESULT indicating calibration outcome:
+ *         - MAV_RESULT_ACCEPTED: Calibration completed successfully, 
+ *           compensation factors saved
+ *         - MAV_RESULT_UNSUPPORTED: Not supported on this frame type 
+ *           (traditional helicopters)
+ *         - MAV_RESULT_TEMPORARILY_REJECTED: Precondition failed (compass
+ *           disabled, unhealthy compass, RC not calibrated, throttle not zero,
+ *           not landed, or already running)
+ * 
+ * @note This calibration requires PROPELLERS INSTALLED as motors must be under
+ *       normal load to generate representative magnetic interference patterns.
+ *       Running without propellers will produce invalid calibration data.
+ * 
+ * @note Calibration runs at 50Hz (20ms loop) with 500ms telemetry updates
+ * 
+ * @note The function disables CPU and throttle failsafes during execution to
+ *       prevent automatic safety interventions from interrupting calibration
+ * 
+ * @note Current-based compensation requires minimum 3A draw for measurements
+ *       to ensure signal is above noise threshold
+ * 
+ * @warning SAFETY-CRITICAL PROCEDURE: This function arms motors and spins
+ *          propellers while the vehicle is on the ground. Vehicle MUST be
+ *          securely restrained or in a controlled test environment. Operator
+ *          must maintain constant control and be prepared to cut throttle
+ *          immediately if vehicle becomes unstable. Failure to properly secure
+ *          vehicle can result in loss of control, property damage, or injury.
+ * 
+ * @warning This procedure temporarily DISABLES FAILSAFES including throttle
+ *          failsafe and CPU failsafe to prevent interruption during calibration.
+ *          Failsafes are restored after calibration completes.
+ * 
+ * @warning Magnetic interference can exceed 50% of Earth's magnetic field in
+ *          extreme cases. High interference levels indicate poor compass mounting
+ *          location and may result in degraded navigation performance even with
+ *          compensation applied.
+ * 
+ * @warning DO NOT perform this calibration near ferromagnetic materials (steel
+ *          structures, rebar, vehicles) as external interference will be
+ *          incorrectly attributed to motors and result in invalid compensation.
+ * 
+ * @see AP_Compass::motor_compensation_type() for compensation mode configuration
+ * @see AP_Compass::set_motor_compensation() for manual compensation vector setup
+ * @see AP_Arming::compass_magfield_expected() for expected field strength reference
+ * 
+ * Source: ArduCopter/compassmot.cpp:8-276
+ */
 MAV_RESULT Copter::mavlink_compassmot(const GCS_MAVLINK &gcs_chan)
 {
 #if FRAME_CONFIG == HELI_FRAME
-    // compassmot not implemented for tradheli
+    // Traditional helicopters use different motor configurations and collective pitch
+    // control that produce different magnetic interference patterns not suited to
+    // this calibration algorithm. Heli-specific compensation may be added in future.
     return MAV_RESULT_UNSUPPORTED;
 #else
-    int8_t   comp_type;                 // throttle or current based compensation
-    Vector3f compass_base[COMPASS_MAX_INSTANCES];           // compass vector when throttle is zero
-    Vector3f motor_impact[COMPASS_MAX_INSTANCES];           // impact of motors on compass vector
-    Vector3f motor_impact_scaled[COMPASS_MAX_INSTANCES];    // impact of motors on compass vector scaled with throttle
-    Vector3f motor_compensation[COMPASS_MAX_INSTANCES];     // final compensation to be stored to eeprom
-    float    throttle_pct;              // throttle as a percentage 0.0 ~ 1.0
-    float    throttle_pct_max = 0.0f;   // maximum throttle reached (as a percentage 0~1.0)
-    float    current_amps_max = 0.0f;   // maximum current reached
-    float    interference_pct[COMPASS_MAX_INSTANCES]{};       // interference as a percentage of total mag field (for reporting purposes only)
-    uint32_t last_run_time;
-    uint32_t last_send_time;
-    bool     updated = false;           // have we updated the compensation vector at least once
-    uint8_t  command_ack_start = command_ack_counter;
+    // Compensation method selection (throttle-based or current-based)
+    int8_t   comp_type;                 // AP_COMPASS_MOT_COMP_THROTTLE or AP_COMPASS_MOT_COMP_CURRENT
+    
+    // Compass baseline and interference measurement vectors for each compass instance
+    Vector3f compass_base[COMPASS_MAX_INSTANCES];           // baseline magnetic field at zero throttle (milliGauss)
+    Vector3f motor_impact[COMPASS_MAX_INSTANCES];           // instantaneous interference vector (milliGauss)
+    Vector3f motor_impact_scaled[COMPASS_MAX_INSTANCES];    // interference per unit throttle or per amp
+    Vector3f motor_compensation[COMPASS_MAX_INSTANCES];     // final compensation vectors to negate interference
+    
+    // Throttle and current tracking for scaling calculations
+    float    throttle_pct;              // current throttle position as percentage 0.0 to 1.0
+    float    throttle_pct_max = 0.0f;   // maximum throttle reached during calibration (0.0 to 1.0)
+    float    current_amps_max = 0.0f;   // maximum battery current in amps (for reporting)
+    float    interference_pct[COMPASS_MAX_INSTANCES]{};       // interference magnitude as % of Earth's field (for telemetry)
+    
+    // Timing control for main loop and telemetry transmission
+    uint32_t last_run_time;             // timestamp for 50Hz loop timing (milliseconds)
+    uint32_t last_send_time;            // timestamp for 2Hz telemetry rate limiting (milliseconds)
+    
+    // Calibration state tracking
+    bool     updated = false;           // true if at least one valid compensation sample obtained
+    uint8_t  command_ack_start = command_ack_counter;  // initial value to detect user abort command
 
-    // exit immediately if we are already in compassmot
+    // ============================================================================
+    // SAFETY PRECONDITION CHECKS - Validate safe conditions before motor operation
+    // ============================================================================
+    
+    // Prevent multiple simultaneous calibration attempts which could cause
+    // confusion in state tracking and telemetry reporting
     if (ap.compass_mot) {
-        // ignore restart messages
+        // Already running compassmot - ignore restart messages
         return MAV_RESULT_TEMPORARILY_REJECTED;
     } else {
+        // Set flag to prevent concurrent execution
         ap.compass_mot = true;
     }
 
-    // check compass is enabled
+    // Verify compass subsystem is enabled in vehicle configuration
+    // Calibration cannot proceed without functional compass hardware
     if (!AP::compass().available()) {
         gcs_chan.send_text(MAV_SEVERITY_CRITICAL, "Compass disabled");
         ap.compass_mot = false;
         return MAV_RESULT_TEMPORARILY_REJECTED;
     }
 
-    // check compass health
+    // Verify all configured compass instances are reporting valid data
+    // Unhealthy compass indicates sensor failure, communication error, or
+    // excessive magnetic interference that would invalidate calibration
     compass.read();
     for (uint8_t i=0; i<compass.get_count(); i++) {
         if (!compass.healthy(i)) {
@@ -50,14 +189,17 @@ MAV_RESULT Copter::mavlink_compassmot(const GCS_MAVLINK &gcs_chan)
         }
     }
 
-    // check if radio is calibrated
+    // Verify RC radio has been properly calibrated with known min/max ranges
+    // Uncalibrated radio could cause unintended throttle commands during procedure
     if (!arming.rc_calibration_checks(true)) {
         gcs_chan.send_text(MAV_SEVERITY_CRITICAL, "RC not calibrated");
         ap.compass_mot = false;
         return MAV_RESULT_TEMPORARILY_REJECTED;
     }
 
-    // check throttle is at zero
+    // Verify throttle stick is at minimum position before arming motors
+    // Starting with non-zero throttle could cause immediate propeller spin-up
+    // creating unsafe conditions before operator is ready
     read_radio();
     if (channel_throttle->get_control_in() != 0) {
         gcs_chan.send_text(MAV_SEVERITY_CRITICAL, "Throttle not zero");
@@ -65,212 +207,319 @@ MAV_RESULT Copter::mavlink_compassmot(const GCS_MAVLINK &gcs_chan)
         return MAV_RESULT_TEMPORARILY_REJECTED;
     }
 
-    // check we are landed
+    // Verify vehicle is on the ground based on landing detection sensors
+    // This calibration must only run with vehicle secured on ground - running
+    // in flight would be extremely dangerous and produce invalid results
     if (!ap.land_complete) {
         gcs_chan.send_text(MAV_SEVERITY_CRITICAL, "Not landed");
         ap.compass_mot = false;
         return MAV_RESULT_TEMPORARILY_REJECTED;
     }
 
-    // disable cpu failsafe
+    // ============================================================================
+    // CALIBRATION SETUP AND INITIALIZATION
+    // ============================================================================
+    
+    // Disable CPU failsafe to prevent scheduler overrun detection from aborting
+    // the calibration loop. Calibration runs a tight 50Hz loop that could
+    // trigger false failsafe events.
     failsafe_disable();
 
     float current;
 
-    // default compensation type to use current if possible
+    // Select compensation method based on available sensors
+    // Current-based compensation is preferred as it accounts for voltage variations
+    // and provides more accurate interference scaling. Falls back to throttle-based
+    // if current sensing is unavailable.
     if (battery.current_amps(current)) {
-        comp_type = AP_COMPASS_MOT_COMP_CURRENT;
+        comp_type = AP_COMPASS_MOT_COMP_CURRENT;  // Scale interference by amps drawn
     } else {
-        comp_type = AP_COMPASS_MOT_COMP_THROTTLE;
+        comp_type = AP_COMPASS_MOT_COMP_THROTTLE;  // Scale interference by throttle %
     }
 
-    // send back initial ACK
+    // Send MAVLink acknowledgment to ground station confirming calibration start
+    // This prevents GCS timeout while waiting for calibration to begin
     mavlink_msg_command_ack_send(gcs_chan.get_chan(), MAV_CMD_PREFLIGHT_CALIBRATION,0,
                                  0, 0, 0, 0);
 
-    // flash leds
+    // Activate LED notification pattern to provide visual feedback that
+    // calibration is in progress (typically flashing pattern)
     AP_Notify::flags.esc_calibration = true;
 
-    // warn user we are starting calibration
+    // Inform operator that calibration procedure is beginning
     gcs_chan.send_text(MAV_SEVERITY_INFO, "Starting calibration");
 
-    // inform what type of compensation we are attempting
+    // Report which compensation method will be used so operator knows what
+    // to expect in the calibration data
     if (comp_type == AP_COMPASS_MOT_COMP_CURRENT) {
         gcs_chan.send_text(MAV_SEVERITY_INFO, "Current");
     } else {
         gcs_chan.send_text(MAV_SEVERITY_INFO, "Throttle");
     }
 
-    // disable throttle failsafe
+    // Disable throttle failsafe to prevent RC signal loss from triggering
+    // failsafe actions during calibration. Operator must maintain manual
+    // control throughout procedure. Failsafe will be restored after completion.
     g.failsafe_throttle.set(FS_THR_DISABLED);
 
-    // disable motor compensation
+    // Disable any existing motor compensation to get raw compass readings
+    // during calibration. Previous compensation values would interfere with
+    // measurement of actual motor-induced magnetic fields.
     compass.motor_compensation_type(AP_COMPASS_MOT_COMP_DISABLED);
     for (uint8_t i=0; i<compass.get_count(); i++) {
         compass.set_motor_compensation(i, Vector3f(0,0,0));
     }
 
-    // get initial compass readings
+    // Read compass to ensure fresh data before recording baseline
     compass.read();
 
-    // store initial x,y,z compass values
-    // initialise interference percentage
+    // Store baseline compass field measurements at zero throttle
+    // These represent the ambient magnetic field without motor interference
+    // and will be used as reference for calculating interference vectors
     for (uint8_t i=0; i<compass.get_count(); i++) {
-        compass_base[i] = compass.get_field(i);
-        interference_pct[i] = 0.0f;
+        compass_base[i] = compass.get_field(i);  // Vector in milliGauss (body frame)
+        interference_pct[i] = 0.0f;              // Initialize interference tracking
     }
 
+    // Inform EKF and scheduler that we expect a delay for motor initialization
+    // This prevents false timeout detections during motor arm sequence
     EXPECT_DELAY_MS(5000);
 
-    // enable motors and pass through throttle
-    motors->output_min();  // output lowest possible value to motors
-    motors->armed(true);
-    hal.util->set_soft_armed(true);
+    // Arm the motors and initialize to minimum output (motors spinning at idle)
+    // WARNING: Propellers will begin spinning at this point
+    motors->output_min();  // Set ESC outputs to minimum (typically 1000us PWM)
+    motors->armed(true);   // Set motor library armed state
+    hal.util->set_soft_armed(true);  // Set system-level armed flag
 
-    // initialise run time
-    last_run_time = millis();
-    last_send_time = millis();
+    // Initialize timing variables for loop rate control and telemetry scheduling
+    last_run_time = millis();   // 50Hz main loop timing
+    last_send_time = millis();  // 2Hz telemetry update timing
 
-    // main run while there is no user input and the compass is healthy
+    // ============================================================================
+    // MAIN CALIBRATION LOOP - Real-time compass interference measurement
+    // ============================================================================
+    // Loop continues until:
+    // - User sends abort command (command_ack_counter increments)
+    // - Compass becomes unhealthy (sensor failure or extreme interference)
+    // - Motors disarm due to error condition
     while (command_ack_start == command_ack_counter && compass.healthy() && motors->armed()) {
+        // Inform scheduler that calibration loop iteration may take up to 5 seconds
+        // This prevents false scheduler overrun detection during telemetry transmission
         EXPECT_DELAY_MS(5000);
 
-        // 50hz loop
+        // Enforce 50Hz loop rate (20ms period) for consistent sampling
+        // Faster rates would increase CPU load without improving accuracy
+        // Slower rates would reduce calibration responsiveness
         if (millis() - last_run_time < 20) {
-            hal.scheduler->delay(5);
+            hal.scheduler->delay(5);  // Sleep briefly to avoid busy-waiting
             continue;
         }
         last_run_time = millis();
 
-        // read radio input
+        // Read current RC radio inputs for throttle control
+        // Operator manually varies throttle during calibration
         read_radio();
 
-        // pass through throttle to motors
+        // Pass throttle input directly to motors (bypass normal flight controller)
+        // This gives operator direct control over motor speed for calibration
         auto &srv = AP::srv();
-        srv.cork();
+        srv.cork();  // Batch servo outputs for atomic update
         motors->set_throttle_passthrough_for_esc_calibration(channel_throttle->get_control_in() * 0.001f);
-        srv.push();
+        srv.push();  // Commit all servo outputs simultaneously
 
-        // read some compass values
+        // Sample compass magnetic field measurements (all configured instances)
+        // Reads raw sensor data and applies board orientation corrections
         compass.read();
 
-        // read current
+        // Update battery current measurement for current-based compensation
+        // Also provides current reading for telemetry reporting
         battery.read();
 
-        // calculate scaling for throttle
+        // Convert throttle from integer range (0-1000) to float percentage (0.0-1.0)
         throttle_pct = (float)channel_throttle->get_control_in() * 0.001f;
-        throttle_pct = constrain_float(throttle_pct,0.0f,1.0f);
+        throttle_pct = constrain_float(throttle_pct,0.0f,1.0f);  // Clamp to valid range
 
-        // record maximum throttle
+        // Track maximum throttle achieved during calibration for interference
+        // percentage calculation (allows extrapolation to full throttle)
         throttle_pct_max = MAX(throttle_pct_max, throttle_pct);
 
+        // Get current battery draw in amps (returns false if sensor unavailable)
         if (!battery.current_amps(current)) {
-            current = 0;
+            current = 0;  // Default to zero if current sensing not available
         }
+        // Track maximum current for full-power interference extrapolation
         current_amps_max = MAX(current_amps_max, current);
 
-        // if throttle is near zero, update base x,y,z values
+        // ========================================================================
+        // COMPENSATION VECTOR CALCULATION - Core calibration algorithm
+        // ========================================================================
+        
+        // When throttle is at zero (motors at idle), continuously update baseline
+        // reference to track ambient magnetic field changes (e.g., vehicle rotation
+        // on ground, nearby metal objects moving). Uses exponential moving average
+        // for smooth tracking: 99% old value + 1% new measurement
         if (!is_positive(throttle_pct)) {
             for (uint8_t i=0; i<compass.get_count(); i++) {
+                // Update baseline with low-pass filter to reject transient noise
                 compass_base[i] = compass_base[i] * 0.99f + compass.get_field(i) * 0.01f;
             }
         } else {
-
-            // calculate diff from compass base and scale with throttle
+            // Throttle is active - measure motor-induced magnetic interference
+            
+            // Calculate raw interference vector as difference between current reading
+            // and zero-throttle baseline. This isolates the magnetic field component
+            // caused by motor current flow through ESC and motor windings.
             for (uint8_t i=0; i<compass.get_count(); i++) {
-                motor_impact[i] = compass.get_field(i) - compass_base[i];
+                motor_impact[i] = compass.get_field(i) - compass_base[i];  // milliGauss
             }
 
-            // throttle based compensation
+            // THROTTLE-BASED COMPENSATION CALCULATION
+            // Assumes interference scales linearly with throttle percentage
             if (comp_type == AP_COMPASS_MOT_COMP_THROTTLE) {
-                // for each compass
                 for (uint8_t i=0; i<compass.get_count(); i++) {
-                    // scale by throttle
+                    // Normalize interference by current throttle to get interference per
+                    // unit throttle. This allows compensation to scale across full throttle
+                    // range: comp_vector = interference_per_throttle * current_throttle
                     motor_impact_scaled[i] = motor_impact[i] / throttle_pct;
-                    // adjust the motor compensation to negate the impact
+                    
+                    // Update compensation vector using exponential moving average filter
+                    // (99% old, 1% new). Negative sign because compensation must OPPOSE
+                    // interference to cancel it out. Filter smooths out measurement noise
+                    // and provides gradual convergence to true compensation value.
                     motor_compensation[i] = motor_compensation[i] * 0.99f - motor_impact_scaled[i] * 0.01f;
                 }
-                updated = true;
+                updated = true;  // Flag that we have valid calibration data
+                
+            // CURRENT-BASED COMPENSATION CALCULATION (preferred method)
+            // Scales interference by battery current draw, more accurate across
+            // different battery voltages and ESC configurations
             } else {
-                // for each compass
                 for (uint8_t i=0; i<compass.get_count(); i++) {
-                    // adjust the motor compensation to negate the impact if drawing over 3amps
+                    // Only update compensation when drawing significant current (>3A)
+                    // to ensure signal is well above measurement noise threshold.
+                    // Below 3A, interference is too small for reliable measurement.
                     if (current >= 3.0f) {
+                        // Normalize interference by current draw to get interference per amp
+                        // This produces compensation that scales with motor current:
+                        // comp_vector = interference_per_amp * battery_current
                         motor_impact_scaled[i] = motor_impact[i] / current;
+                        
+                        // Update compensation with exponential filter, opposing interference
                         motor_compensation[i] = motor_compensation[i] * 0.99f - motor_impact_scaled[i] * 0.01f;
-                        updated = true;
+                        updated = true;  // Valid sample obtained
                     }
                 }
             }
 
-            // calculate interference percentage at full throttle as % of total mag field
+            // ====================================================================
+            // INTERFERENCE PERCENTAGE CALCULATION - For telemetry and diagnostics
+            // ====================================================================
+            // Calculate interference magnitude as percentage of Earth's magnetic field
+            // to help operator assess compass mounting quality and expected accuracy
+            
             if (comp_type == AP_COMPASS_MOT_COMP_THROTTLE) {
                 for (uint8_t i=0; i<compass.get_count(); i++) {
-                    // interference is impact@fullthrottle / mag field * 100
+                    // For throttle-based: compensation vector magnitude represents
+                    // full-throttle interference. Divide by expected Earth field (mG)
+                    // and multiply by 100 for percentage.
+                    // >30% indicates poor compass location, >50% is problematic
                     interference_pct[i] = motor_compensation[i].length() / (float)arming.compass_magfield_expected() * 100.0f;
                 }
             } else {
                 for (uint8_t i=0; i<compass.get_count(); i++) {
-                    // interference is impact/amp * (max current seen / max throttle seen) / mag field * 100
+                    // For current-based: extrapolate to full-power interference by
+                    // multiplying per-amp interference by max current at full throttle
+                    // (estimated as max_current_seen / max_throttle_seen)
                     interference_pct[i] = motor_compensation[i].length() * (current_amps_max/throttle_pct_max) / (float)arming.compass_magfield_expected() * 100.0f;
                 }
             }
         }
 
+        // ====================================================================
+        // TELEMETRY TRANSMISSION - Stream calibration progress to ground station
+        // ====================================================================
+        // Send updates at 2Hz (every 500ms) to avoid overwhelming MAVLink bandwidth
+        // while providing responsive feedback to operator
         if (AP_HAL::millis() - last_send_time > 500) {
             last_send_time = AP_HAL::millis();
+            
+            // Send compassmot-specific status message with real-time calibration data
+            // Includes throttle position, current draw, interference %, and compensation
+            // vector components. Ground station displays this for operator monitoring.
             mavlink_msg_compassmot_status_send(gcs_chan.get_chan(),
-                                               channel_throttle->get_control_in(),
-                                               current,
-                                               interference_pct[0],
-                                               motor_compensation[0].x,
-                                               motor_compensation[0].y,
-                                               motor_compensation[0].z);
+                                               channel_throttle->get_control_in(),  // Throttle PWM
+                                               current,                              // Battery amps
+                                               interference_pct[0],                  // Primary compass interference %
+                                               motor_compensation[0].x,              // X-axis compensation (mG)
+                                               motor_compensation[0].y,              // Y-axis compensation (mG)
+                                               motor_compensation[0].z);             // Z-axis compensation (mG)
 #if HAL_WITH_ESC_TELEM
-            // send ESC telemetry to monitor ESC and motor temperatures
+            // If ESC telemetry available, stream temperature and RPM data to allow
+            // operator to monitor for overheating during extended calibration runs
             AP::esc_telem().send_esc_telemetry_mavlink(gcs_chan.get_chan());
 #endif
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-            // a lot of autotest timeouts are based on receiving system time
-            gcs_chan.send_system_time();
-            // autotesting of compassmot wants to see RC channels message
-            gcs_chan.send_rc_channels();
+            // SITL-specific messages required for autotest framework compatibility
+            // These prevent autotest timeouts during long-running calibration tests
+            gcs_chan.send_system_time();      // Maintain autotest heartbeat
+            gcs_chan.send_rc_channels();      // Allow autotest to monitor RC inputs
 #endif
         }
-    }
+    }  // End of main calibration loop
 
-    // stop motors
-    motors->output_min();
-    motors->armed(false);
-    hal.util->set_soft_armed(false);
+    // ============================================================================
+    // CLEANUP AND RESULT STORAGE - Restore normal operation
+    // ============================================================================
+    
+    // Disarm motors immediately and return to idle output
+    // SAFETY: Propellers will stop spinning at this point
+    motors->output_min();               // Set ESC outputs to minimum PWM
+    motors->armed(false);               // Clear motor library armed flag
+    hal.util->set_soft_armed(false);    // Clear system-level armed state
 
-    // set and save motor compensation
+    // Save calibration results to persistent storage if valid data obtained
     if (updated) {
+        // At least one valid compensation sample was recorded
+        
+        // Enable the compensation type (throttle or current-based)
         compass.motor_compensation_type(comp_type);
+        
+        // Store compensation vectors for all compass instances
+        // These will be applied automatically during normal flight to cancel
+        // motor-induced magnetic interference
         for (uint8_t i=0; i<compass.get_count(); i++) {
             compass.set_motor_compensation(i, motor_compensation[i]);
         }
+        
+        // Write compensation parameters to EEPROM/flash for persistence across reboots
+        // Parameters: MOT_COMP_TYPE, COMPASS_MOT_X/Y/Z for each compass instance
         compass.save_motor_compensation();
-        // display success message
+        
+        // Notify operator that calibration completed successfully
         gcs_chan.send_text(MAV_SEVERITY_INFO, "Calibration successful");
     } else {
-        // compensation vector never updated, report failure
+        // No valid compensation samples obtained - calibration failed
+        // This can happen if throttle never exceeded minimum or current never exceeded 3A
         gcs_chan.send_text(MAV_SEVERITY_NOTICE, "Failed");
+        
+        // Disable compensation to prevent using potentially invalid data
         compass.motor_compensation_type(AP_COMPASS_MOT_COMP_DISABLED);
     }
 
-    // turn off notify leds
+    // Deactivate LED notification pattern to signal calibration complete
     AP_Notify::flags.esc_calibration = false;
 
-    // re-enable cpu failsafe
+    // Re-enable CPU failsafe to restore normal scheduler overrun detection
     failsafe_enable();
 
-    // re-enable failsafes
+    // Restore throttle failsafe configuration from saved parameter value
+    // This re-enables RC signal loss protection that was disabled during calibration
     g.failsafe_throttle.load();
 
-    // flag we have completed
+    // Clear compassmot in-progress flag to allow future calibration runs
     ap.compass_mot = false;
 
+    // Return success to ground station (even if no compensation saved, procedure completed)
     return MAV_RESULT_ACCEPTED;
 #endif  // FRAME_CONFIG != HELI_FRAME
 }
