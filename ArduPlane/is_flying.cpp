@@ -1,33 +1,155 @@
+/**
+ * @file is_flying.cpp
+ * @brief Fixed-wing aircraft flight detection and crash detection logic
+ * 
+ * @details This file implements flight state detection for ArduPlane, determining whether
+ *          the aircraft is airborne or on the ground. This information is critical for:
+ *          - Mode transitions and flight stage management
+ *          - Crash detection and safety mechanisms
+ *          - Automatic arming/disarming decisions
+ *          - Logging and telemetry status
+ *          - Failsafe behavior activation
+ * 
+ *          The detection uses a probabilistic approach with multiple sensor inputs:
+ *          - Airspeed: Threshold based on stall speed (typically 75% of minimum airspeed)
+ *          - GPS ground speed: Movement confirmation when GPS lock available
+ *          - IMU acceleration: Detects impacts and confirms movement
+ *          - Altitude changes: Monitors climb/sink rates during landing
+ *          - Flight stage context: Adjusts detection logic for takeoff, landing, cruise
+ * 
+ *          The probabilistic method low-pass filters a boolean flying state to create
+ *          a confidence value (isFlyingProbability), allowing graceful transitions and
+ *          reducing false positives during brief sensor dropouts.
+ * 
+ * @note Flight detection accuracy is essential for safety-critical decisions.
+ *       False negatives (thinking we're grounded when airborne) can trigger
+ *       inappropriate disarm or mode changes. False positives are generally safer
+ *       but can delay landing detection.
+ * 
+ * @warning Modifications to flight detection logic must be thoroughly tested in
+ *          SITL and on actual hardware across all flight stages (takeoff, cruise,
+ *          landing) to prevent unsafe behavior.
+ * 
+ * @see Plane::is_flying() for the main query interface
+ * @see Plane::crash_detection_update() for crash detection logic
+ * 
+ * @copyright Copyright (c) 2010-2025 ArduPilot.org
+ */
+
 #include "Plane.h"
 
 #include <AP_Stats/AP_Stats.h>     // statistics library
 
-/*
-  is_flying and crash detection logic
+/**
+ * @brief Debounce time for crash detection to avoid false positives
+ * @details Time in milliseconds to wait before confirming a crash has occurred.
+ *          This prevents transient events (e.g., hard gusts, turbulence) from
+ *          triggering crash detection.
  */
-
 #define CRASH_DETECTION_DELAY_MS            500
+
+/**
+ * @brief Duration to remember a detected impact event
+ * @details After detecting a significant deceleration (potential ground impact),
+ *          this timer controls how long we clip the flying probability to allow
+ *          faster descent toward "not flying" state. Units: milliseconds.
+ */
 #define IS_FLYING_IMPACT_TIMER_MS           3000
+
+/**
+ * @brief Default minimum GPS ground speed to indicate flight
+ * @details GPS ground speed threshold in cm/s (150 cm/s = 1.5 m/s = ~3 knots).
+ *          Used when ARSPD_MIN parameter is not set. This speed indicates
+ *          the aircraft is moving fast enough to likely be airborne rather
+ *          than taxiing or being blown by wind while on the ground.
+ */
 #define GPS_IS_FLYING_SPEED_CMS             150
 
-/*
-  Do we think we are flying?
-  Probabilistic method where a bool is low-passed and considered a probability.
-*/
+/**
+ * @brief Update flight state detection at 5Hz using probabilistic sensor fusion
+ * 
+ * @details This function is the core of ArduPlane's flight detection system, called
+ *          at 5Hz by the scheduler. It uses a probabilistic approach where multiple
+ *          sensor inputs are combined to determine if the aircraft is airborne.
+ * 
+ *          Detection Criteria (varies by arming state and flight stage):
+ *          
+ *          When ARMED (assume flying unless proven otherwise):
+ *          - Airspeed >= 75% of stall speed (ARSPD_MIN * 0.75)
+ *          - GPS ground speed >= 90% of min_groundspeed parameter (or 150 cm/s default)
+ *          - IMU confirms vehicle is not stationary (AP::ins().is_still())
+ *          - Handles GPS dropouts by continuing with last airspeed estimate
+ *          
+ *          When DISARMED (assume not flying unless proven otherwise):
+ *          - Requires BOTH airspeed movement AND GPS confirmed movement
+ *          - Higher threshold to declare flying state
+ * 
+ *          Special Handling:
+ *          - Quadplane mode: Delegates to quadplane.is_flying() if enabled
+ *          - Auto mode with takeoff: Disables false airspeed readings on ground
+ *          - Landing approach: Uses sink rate to maintain flying state
+ *          - Abort landing: Uses climb rate to confirm flying
+ *          - Impact detection: X-axis deceleration triggers rapid probability decay
+ * 
+ *          Probability Filter:
+ *          The boolean flying determination is low-pass filtered with coefficient 0.15
+ *          at 5Hz, giving a time constant of ~3 seconds for 90% probability change.
+ *          This prevents rapid state changes during brief sensor dropouts.
+ * 
+ * @note Called at 5Hz by the scheduler task system. Do not call more frequently
+ *       as the filter coefficients are tuned for 5Hz update rate.
+ * 
+ * @note Updates the following state variables:
+ *       - isFlyingProbability: Filtered flying confidence (0.0 to 1.0)
+ *       - auto_state.last_flying_ms: Timestamp of last confirmed flying
+ *       - auto_state.started_flying_in_auto_ms: When auto mode flight began
+ *       - crash_state.impact_detected: Whether ground impact detected
+ *       - crash_state.is_crashed: Whether crash confirmed
+ *       - previous_is_flying: Previous flying state for edge detection
+ * 
+ * @note Notifies multiple subsystems of flying state changes:
+ *       - ADSB: For transponder status
+ *       - Parachute: For deployment logic
+ *       - Statistics: For flight time tracking
+ *       - AP_Notify: For LED/buzzer indicators
+ *       - AHRS: For likely_flying state used in EKF
+ *       - Logger: Writes STATUS messages
+ * 
+ * @warning This is safety-critical code. Changes affect crash detection, auto-disarm,
+ *          mode transitions, and failsafe behavior. Test thoroughly in SITL with:
+ *          - Normal takeoffs and landings
+ *          - GPS dropouts during flight
+ *          - Strong wind conditions on ground
+ *          - Bungee/catapult launches
+ *          - Belly landings and hard landings
+ * 
+ * @see Plane::is_flying() for querying current flying state
+ * @see Plane::crash_detection_update() for crash detection logic
+ * @see quadplane.is_flying() for VTOL-specific detection
+ * 
+ * Source: ArduPlane/is_flying.cpp:17-184
+ */
 void Plane::update_is_flying_5Hz(void)
 {
     float aspeed=0;
     bool is_flying_bool = false;
     uint32_t now_ms = AP_HAL::millis();
 
+    // GPS movement threshold: Use 90% of configured min groundspeed, or 150cm/s default
+    // The 90% factor provides margin to avoid ground speed noise triggering false flying state
     uint32_t ground_speed_thresh_cm = (aparm.min_groundspeed > 0) ? ((uint32_t)(aparm.min_groundspeed*(100*0.9))) : GPS_IS_FLYING_SPEED_CMS;
     bool gps_confirmed_movement = (gps.status() >= AP_GPS::GPS_OK_FIX_3D) &&
                                     (gps.ground_speed_cm() >= ground_speed_thresh_cm);
 
-    // airspeed at least 75% of stall speed?
+    // Airspeed threshold: 75% of stall speed indicates we're moving through the air fast enough to be flying
+    // Minimum threshold of 2 m/s * 0.75 = 1.5 m/s prevents sensor noise from triggering detection
     const float airspeed_threshold = MAX(aparm.airspeed_min,2)*0.75f;
     bool airspeed_movement = ahrs.airspeed_estimate(aspeed) && (aspeed >= airspeed_threshold);
 
+    // Handle GPS loss during flight: If we've lost GPS but still have some flying confidence,
+    // continue using the last airspeed estimate. This prevents false crash detection during
+    // extended GPS dropouts when dead-reckoning. The 0.3 probability threshold ensures we only
+    // do this when we have reasonable confidence we were recently flying.
     if (gps.status() < AP_GPS::GPS_OK_FIX_2D && arming.is_armed() && !airspeed_movement && isFlyingProbability > 0.3) {
         // when flying with no GPS, use the last airspeed estimate to
         // determine if we think we have airspeed movement. This
@@ -64,22 +186,29 @@ void Plane::update_is_flying_5Hz(void)
              */
 
             // Detect X-axis deceleration for probable ground impacts.
+            // When a hard deceleration is detected (e.g., hitting ground, tree, or other obstacle),
+            // clip the flying probability to 0.2 to allow faster transition to "not flying" state.
+            // This helps crash detection respond more quickly after impacts.
             // Limit the max probability so it can decay faster. This
             // will not change the is_flying state, anything above 0.1
             // is "true", it just allows it to decay faster once we decide we
             // aren't flying using the normal schemes
             if (g.crash_accel_threshold == 0) {
+                // Impact detection disabled via parameter
                 crash_state.impact_detected = false;
             } else if (ins.get_accel_peak_hold_neg_x() < -(g.crash_accel_threshold)) {
-                // large deceleration detected, lets lower confidence VERY quickly
+                // Large negative X-axis deceleration detected (units: m/s²)
+                // Peak hold value captures maximum deceleration since last reset
+                // Negative X = forward deceleration (nose hitting something)
                 crash_state.impact_detected = true;
                 crash_state.impact_timer_ms = now_ms;
                 if (isFlyingProbability > 0.2f) {
-                    isFlyingProbability = 0.2f;
+                    isFlyingProbability = 0.2f;  // Clip to 0.2 to accelerate decay toward "not flying"
                 }
             } else if (crash_state.impact_detected &&
                 (now_ms - crash_state.impact_timer_ms > IS_FLYING_IMPACT_TIMER_MS)) {
-                // no impacts seen in a while, clear the flag so we stop clipping isFlyingProbability
+                // No impacts seen for IS_FLYING_IMPACT_TIMER_MS (3 seconds), 
+                // clear the flag so we stop clipping isFlyingProbability
                 crash_state.impact_detected = false;
             }
 
@@ -128,10 +257,13 @@ void Plane::update_is_flying_5Hz(void)
         }
     }
 
+    // Apply low-pass filter to flying determination to create probabilistic confidence value
+    // When impact detected, only allow probability to decrease (prevents bouncing back to "flying")
     if (!crash_state.impact_detected || !is_flying_bool) {
-        // when impact is detected, enforce a clip. Only allow isFlyingProbability to go down, not up.
-        // low-pass the result.
-        // coef=0.15f @ 5Hz takes 3.0s to go from 100% down to 10% (or 0% up to 90%)
+        // Low-pass filter: y(n) = 0.85*y(n-1) + 0.15*x(n)
+        // At 5Hz update rate, coefficient 0.15 gives time constant of ~3 seconds
+        // Takes 3.0s to go from 100% down to 10% (or 0% up to 90%)
+        // This prevents rapid state oscillations during brief sensor dropouts
         isFlyingProbability = (0.85f * isFlyingProbability) + (0.15f * (float)is_flying_bool);
     }
 
@@ -183,10 +315,52 @@ void Plane::update_is_flying_5Hz(void)
     ground_mode = !is_flying() && !arming.is_armed_and_safety_off();
 }
 
-/*
-  return true if we think we are flying. This is a probabilistic
-  estimate, and needs to be used very carefully. Each use case needs
-  to be thought about individually.
+/**
+ * @brief Determine if the aircraft is currently airborne
+ * 
+ * @details This is the main query interface for flight state, used throughout
+ *          ArduPlane code to determine if the aircraft is flying. The determination
+ *          is based on a probabilistic confidence value (isFlyingProbability) that
+ *          is continuously updated by update_is_flying_5Hz().
+ * 
+ *          Thresholds vary based on arming state to reflect different assumptions:
+ *          
+ *          ARMED + Safety Off:
+ *          - Returns true if isFlyingProbability >= 0.1 (10% confidence)
+ *          - Conservative threshold: Assume flying unless proven otherwise
+ *          - Prevents inadvertent disarm or mode changes during flight
+ *          - Quadplane: Returns true immediately if in VTOL flying mode
+ *          
+ *          DISARMED or Safety On:
+ *          - Returns true only if isFlyingProbability >= 0.9 (90% confidence)
+ *          - High threshold: Assume grounded unless clearly flying
+ *          - Prevents false flying state from bench testing or wind gusts
+ * 
+ *          The asymmetric thresholds (0.1 armed vs 0.9 disarmed) provide safe
+ *          behavior: When armed, err on the side of "flying" to prevent unsafe
+ *          actions; when disarmed, err on the side of "not flying" to avoid
+ *          false alarms.
+ * 
+ * @return true if aircraft is determined to be airborne, false if on ground
+ * 
+ * @note This is a probabilistic estimate that requires careful use. Each use
+ *       case should consider the implications of false positives vs false negatives.
+ *       
+ * @note Common uses:
+ *       - Crash detection logic (requires sustained not-flying when armed)
+ *       - Auto-disarm after landing
+ *       - Mode transition guards
+ *       - Logging flight time
+ *       - Failsafe behavior selection
+ * 
+ * @warning Do not use for critical control decisions that require immediate response.
+ *          The probabilistic filter has ~3 second time constant, so state changes
+ *          are not instantaneous.
+ * 
+ * @see update_is_flying_5Hz() for the detection algorithm
+ * @see quadplane.is_flying_vtol() for quadplane-specific detection
+ * 
+ * Source: ArduPlane/is_flying.cpp:191-205
  */
 bool Plane::is_flying(void)
 {
@@ -204,8 +378,72 @@ bool Plane::is_flying(void)
     return (isFlyingProbability >= 0.9f);
 }
 
-/*
- * Determine if we have crashed
+/**
+ * @brief Detect aircraft crashes and trigger appropriate safety actions
+ * 
+ * @details This function monitors for crash conditions during AUTO mode when crash
+ *          detection is enabled (CRASH_DETECT parameter). It uses multiple indicators
+ *          to determine if the aircraft has impacted the ground unexpectedly:
+ * 
+ *          Detection Methods by Flight Stage:
+ *          
+ *          1. TAKEOFF Stage:
+ *             - Detects failed launches: throttle applied, acceleration threshold met,
+ *               but aircraft still not flying after a delay
+ *             - Only active if TKOFF_THR_MINACC > 0 and throttle not suppressed
+ *          
+ *          2. NORMAL Flight Stage:
+ *             - Armed and not flying = crash (after 2.5s of auto flight)
+ *             - Exception: Pre-launch stage (throttle suppressed, waiting for launch)
+ *          
+ *          3. LANDING Approach:
+ *             - Armed and not flying while on approach = tree/obstacle strike
+ *          
+ *          4. LANDING Expected Impact (Flare):
+ *             - Monitors attitude: Crash if roll or pitch exceeds 60 degrees
+ *             - Distinguishes hard landing (within 75m of waypoint) from true crash
+ *             - Only checks once to avoid false triggers when handling landed aircraft
+ *          
+ *          5. VTOL Mode:
+ *             - Crash detection disabled (needs different detection method)
+ * 
+ *          Debouncing:
+ *          Uses CRASH_DETECTION_DELAY_MS (500ms) debounce timer to avoid false
+ *          positives from turbulence or transient sensor events.
+ * 
+ *          Safety Actions on Confirmed Crash:
+ *          - Sets crash_state.is_crashed flag
+ *          - Sends emergency or critical message to GCS:
+ *            * "Hard landing detected" if within 75m of landing waypoint
+ *            * "Crash detected" for true crashes
+ *          - Disarms if CRASH_DETECT_ACTION_BITMASK_DISARM bit set
+ * 
+ *          GPS/Airspeed Dependency:
+ *          Crash detection is disabled if both GPS lock is lost (< 3D fix) AND
+ *          airspeed sensor is unavailable or unhealthy, as detection relies on
+ *          flying state which requires these sensors.
+ * 
+ * @note Only active in AUTO mode and requires CRASH_DETECT parameter enabled.
+ *       Other modes do not have predictable flight behavior for crash detection.
+ * 
+ * @note Requires at least 2.5 seconds of auto flight before detection activates
+ *       (auto_state.started_flying_in_auto_ms) to avoid false positives during
+ *       mode transitions or initial takeoff.
+ * 
+ * @warning This is safety-critical code that can automatically disarm the aircraft.
+ *          False positives during flight are dangerous (unwanted disarm in air).
+ *          False negatives are less critical (pilot can manually disarm).
+ * 
+ * @warning Test crash detection thoroughly in SITL before hardware testing:
+ *          - Simulate normal landings (should not trigger)
+ *          - Simulate nose-over landings (should trigger crash)
+ *          - Simulate tree strikes during approach
+ *          - Simulate failed catapult launches
+ * 
+ * @see is_flying() for the flying state used in crash detection
+ * @see crash_state structure for maintained crash detection state
+ * 
+ * Source: ArduPlane/is_flying.cpp:210-326
  */
 void Plane::crash_detection_update(void)
 {
@@ -325,8 +563,44 @@ void Plane::crash_detection_update(void)
     }
 }
 
-/*
- * return true if we are in a pre-launch phase of an auto-launch, typically used in bungee launches
+/**
+ * @brief Check if aircraft is in pre-launch phase awaiting launch trigger
+ * 
+ * @details Determines if the aircraft is in the pre-launch state where it's armed
+ *          and ready for an automatic launch (typically catapult or bungee) but
+ *          has not yet been released. In this state:
+ *          - Throttle is suppressed (waiting for launch trigger)
+ *          - Flight stage is NORMAL or in TAKEOFF mode
+ *          - Currently executing NAV_TAKEOFF mission command
+ * 
+ *          Pre-launch detection prevents false "flying" state from:
+ *          - Uncalibrated airspeed sensors drifting to 7+ m/s on the ground
+ *          - Wind gusts causing momentary airspeed readings
+ *          - Vibration or movement while being positioned for launch
+ * 
+ *          Launch Sequence:
+ *          1. Pre-launch: Throttle suppressed, waiting for acceleration trigger
+ *          2. Launch detected: Acceleration exceeds TKOFF_THR_MINACC threshold
+ *          3. Throttle enabled: Motor spools up
+ *          4. Flying detected: Airspeed and/or GPS speed exceed thresholds
+ * 
+ * @return true if in pre-launch phase (armed, waiting for launch trigger)
+ *         false if not in pre-launch (either not waiting, or already launched)
+ * 
+ * @note Pre-launch phase is specific to automatic launches with acceleration-based
+ *       triggering. Hand launches and runway takeoffs do not use this state.
+ * 
+ * @note For quadplane VTOL takeoffs (NAV_VTOL_TAKEOFF), pre-launch state is
+ *       not applicable as VTOL takeoffs do not use throttle suppression.
+ * 
+ * @note This function is called by update_is_flying_5Hz() to ensure the aircraft
+ *       is not incorrectly marked as flying while sitting on the launcher.
+ * 
+ * @see update_is_flying_5Hz() where this is used to prevent false flying state
+ * @see Plane::set_throttle_suppressed() for throttle suppression control
+ * @see TKOFF_THR_MINACC parameter for launch acceleration threshold
+ * 
+ * Source: ArduPlane/is_flying.cpp:331-345
  */
 bool Plane::in_preLaunch_flight_stage(void)
 {
