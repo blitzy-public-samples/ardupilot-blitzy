@@ -1,5 +1,57 @@
+/**
+ * @file mode.cpp
+ * @brief Base Mode class implementation for ArduPlane flight modes
+ * 
+ * @details This file implements the Mode base class, which provides common
+ *          functionality and lifecycle management for all ArduPlane flight modes.
+ *          Each specific mode (AUTO, MANUAL, FBWA, etc.) inherits from this base
+ *          class and overrides virtual methods to implement mode-specific behavior.
+ *          
+ *          The Mode base class handles:
+ *          - Mode initialization and state reset in enter() method
+ *          - Mode cleanup in exit() method
+ *          - Common stabilization through run() method
+ *          - Controller reset via reset_controllers() method
+ *          - Shared helper methods for throttle, rudder, and steering output
+ *          - Capability checking (throttle limits, battery compensation, etc.)
+ *          - Target altitude updates for navigation modes
+ *          - Pre-arm checks for mode-specific arming requirements
+ *          
+ *          All flight modes in ArduPlane follow a consistent lifecycle:
+ *          1. enter() - Initialize mode state, reset controllers, configure systems
+ *          2. run() - Called at scheduler loop rate to perform mode control
+ *          3. exit() - Clean up mode state when switching to another mode
+ *          
+ * @note This is safety-critical flight control code. Any modifications must be
+ *       thoroughly tested in SITL before hardware deployment.
+ * 
+ * @see Mode.h for the Mode base class definition
+ * @see Plane.h for the main vehicle class
+ * 
+ * Source: ArduPlane/mode.cpp
+ */
+
 #include "Plane.h"
 
+/**
+ * @brief Mode base class constructor
+ * 
+ * @details Initializes the Mode base class with references to key subsystems.
+ *          For quadplane-enabled builds, initializes references to VTOL control
+ *          systems (position control, attitude control, loiter navigation).
+ *          All modes share a reference to the AHRS (Attitude and Heading Reference
+ *          System) for vehicle state estimation.
+ *          
+ *          The unused_integer member exists for compatibility reasons and is not
+ *          used in current implementation.
+ * 
+ * @note This constructor is called by all derived mode classes during their
+ *       instantiation. The references are bound to the main Plane object's
+ *       subsystems.
+ * 
+ * @warning Constructor must not perform any flight control operations or state
+ *          changes. All mode initialization happens in enter() method.
+ */
 Mode::Mode() :
     unused_integer{17},
 #if HAL_QUADPLANE_ENABLED
@@ -13,6 +65,27 @@ Mode::Mode() :
 {
 }
 
+/**
+ * @brief Exit the current flight mode
+ * 
+ * @details Called when switching away from this mode to another flight mode.
+ *          This method performs cleanup operations to ensure a clean transition.
+ *          The base implementation:
+ *          1. Calls the derived class's _exit() method for mode-specific cleanup
+ *          2. Stops autotuning if leaving any mode other than AUTOTUNE mode
+ *          
+ *          Derived classes should override _exit() to implement mode-specific
+ *          cleanup while this base method handles common cleanup tasks.
+ * 
+ * @note This is called automatically by the mode change system and should not
+ *       be called directly from user code.
+ * 
+ * @warning Failing to properly clean up mode state can lead to unexpected
+ *          behavior in the next mode, potentially affecting flight safety.
+ * 
+ * @see enter() for mode initialization
+ * @see _exit() for mode-specific cleanup implementation
+ */
 void Mode::exit()
 {
     // call sub-classes exit
@@ -24,6 +97,42 @@ void Mode::exit()
 
 }
 
+/**
+ * @brief Enter this flight mode from another mode
+ * 
+ * @details Called when switching into this mode from another flight mode.
+ *          This method performs comprehensive initialization to ensure the mode
+ *          starts in a safe, known state. The initialization sequence:
+ *          
+ *          1. Reset scripting, inverted flight, and special state flags
+ *          2. Clear mission and navigation state (cross-track, autoland checks)
+ *          3. Reset steering and crash detection state
+ *          4. Clear external guidance commands (forced RPY, throttle, offboard guided)
+ *          5. Configure camera auto mode state
+ *          6. Initialize altitude and takeoff state tracking
+ *          7. Reset loiter start time and record mode change timestamp
+ *          8. Set VTOL mode flags for quadplane transitions
+ *          9. Call derived class's _enter() method for mode-specific initialization
+ *          10. If _enter() succeeds, configure throttle suppression, ADSB, navigation
+ *          11. Reset steering integrator and update failsafe state
+ *          12. Handle fence breach recovery and mission reset if appropriate
+ *          13. Update flight stage and landing state
+ *          14. Configure quadplane assisted flight if enabled
+ * 
+ * @return true if mode entry successful, false if mode cannot be entered
+ *         (failure typically indicates mode-specific requirements not met)
+ * 
+ * @note This is called automatically by the mode change system. The extensive
+ *       state reset ensures no residual state from the previous mode affects
+ *       the new mode's behavior.
+ * 
+ * @warning This is safety-critical initialization code. All vehicle state must
+ *          be properly initialized to prevent unexpected behavior. Missing
+ *          initialization can cause control instability or loss of vehicle.
+ * 
+ * @see exit() for mode cleanup
+ * @see _enter() for mode-specific initialization implementation
+ */
 bool Mode::enter()
 {
 #if AP_SCRIPTING_ENABLED
@@ -171,6 +280,28 @@ bool Mode::enter()
     return enter_result;
 }
 
+/**
+ * @brief Check if manual throttle control applies to VTOL motors in this mode
+ * 
+ * @details Determines whether the pilot has direct manual control of VTOL
+ *          vertical thrust motors in the current mode. This is primarily used
+ *          for tailsitter aircraft in Q-assisted forward flight.
+ *          
+ *          Special case: When a tailsitter has fully transitioned to Q-assisted
+ *          forward flight, the forward throttle stick directly drives the vertical
+ *          throttle, so the vertical throttle state must match the forward throttle
+ *          control state. Note the inverted logic: forward throttle uses
+ *          'does_auto_throttle' while vertical uses 'is_vtol_man_throttle'.
+ * 
+ * @return true if pilot has direct manual control of VTOL vertical throttle
+ * @return false if VTOL vertical throttle is under automatic control or not applicable
+ * 
+ * @note This method is only relevant for quadplane builds with VTOL capabilities.
+ *       For conventional fixed-wing builds, always returns false.
+ * 
+ * @see does_auto_throttle() for forward throttle control state
+ * @see is_vtol_mode() for VTOL mode detection
+ */
 bool Mode::is_vtol_man_throttle() const
 {
 #if HAL_QUADPLANE_ENABLED
@@ -186,6 +317,34 @@ bool Mode::is_vtol_man_throttle() const
     return false;
 }
 
+/**
+ * @brief Update the target altitude for TECS (Total Energy Control System)
+ * 
+ * @details Calculates and sets the target altitude based on the current flight phase
+ *          and conditions. This method handles multiple special cases to provide
+ *          smooth altitude tracking throughout the flight:
+ *          
+ *          Priority order:
+ *          1. Landing flare: Use TECS_LAND_SINK as target sink rate
+ *          2. Landing approach: Setup glide slope with optional rangefinder adjustment
+ *          3. Landing phase with target location: Use landing-specific altitude
+ *          4. Soaring with throttle suppressed: Lock to current altitude
+ *          5. Reached loiter target: Lock to final waypoint altitude
+ *          6. Terrain-following: Use terrain-relative altitude proportioning
+ *          7. Climb/descent with offset: Proportional altitude between waypoints
+ *          8. Default: Use next waypoint altitude as target
+ * 
+ * @note This method is called regularly during navigation modes to update the
+ *       altitude target that TECS uses for energy management and climb/descent
+ *       control. The target altitude directly affects aircraft vertical trajectory.
+ * 
+ * @warning Incorrect altitude targeting can cause dangerous flight behavior
+ *          including terrain impact or excessive climb rates. All altitude
+ *          calculations must account for terrain, obstacles, and aircraft limits.
+ * 
+ * @see Plane::set_target_altitude_location() for target altitude setting
+ * @see AP_TECS for Total Energy Control System implementation
+ */
 void Mode::update_target_altitude()
 {
     Location target_location;
@@ -229,7 +388,30 @@ void Mode::update_target_altitude()
     }
 }
 
-// returns true if the vehicle can be armed in this mode
+/**
+ * @brief Perform pre-arm safety checks for this flight mode
+ * 
+ * @details Validates whether the vehicle can be safely armed in this mode.
+ *          This method calls the mode-specific _pre_arm_checks() and provides
+ *          a generic error message if the check fails without providing a
+ *          specific reason. Pre-arm checks prevent arming in unsafe configurations
+ *          that could lead to loss of control or unexpected behavior.
+ * 
+ * @param[in]  buflen Size of the error message buffer in bytes
+ * @param[out] buffer Character buffer to receive error message if check fails
+ * 
+ * @return true if vehicle can be armed in this mode
+ * @return false if arming should be prevented (buffer contains reason)
+ * 
+ * @note This is part of the arming safety system. Failed pre-arm checks will
+ *       prevent the vehicle from arming until the issue is resolved.
+ * 
+ * @warning These checks are critical for flight safety. Bypassing or weakening
+ *          pre-arm checks can lead to dangerous flight conditions.
+ * 
+ * @see _pre_arm_checks() for mode-specific check implementation
+ * @see AP_Arming for overall arming system
+ */
 bool Mode::pre_arm_checks(size_t buflen, char *buffer) const
 {
     if (!_pre_arm_checks(buflen, buffer)) {
@@ -243,7 +425,28 @@ bool Mode::pre_arm_checks(size_t buflen, char *buffer) const
     return true;
 }
 
-// Auto and Guided do not call this to bypass the q-mode check.
+/**
+ * @brief Mode-specific pre-arm checks implementation
+ * 
+ * @details Implements mode-specific arming requirements. The base implementation
+ *          checks for quadplane ONLY_ARM_IN_QMODE_OR_AUTO option, which restricts
+ *          arming to Q modes or AUTO mode when enabled. This prevents accidental
+ *          fixed-wing arming when VTOL-only operation is desired.
+ *          
+ *          Note: AUTO and Guided modes override this method to bypass the Q-mode
+ *          check since they are explicitly allowed by the option name.
+ * 
+ * @param[in]  buflen Size of the error message buffer in bytes
+ * @param[out] buffer Character buffer to receive error message if check fails
+ * 
+ * @return true if mode-specific arming requirements are met
+ * @return false if mode cannot be armed (buffer contains reason)
+ * 
+ * @note Derived classes can override this method to implement mode-specific
+ *       arming restrictions based on vehicle state or configuration.
+ * 
+ * @see pre_arm_checks() for the public interface
+ */
 bool Mode::_pre_arm_checks(size_t buflen, char *buffer) const
 {
 #if HAL_QUADPLANE_ENABLED
@@ -256,6 +459,38 @@ bool Mode::_pre_arm_checks(size_t buflen, char *buffer) const
     return true;
 }
 
+/**
+ * @brief Execute mode control loop and stabilization
+ * 
+ * @details Called at the main scheduler loop rate to perform flight stabilization.
+ *          This base implementation handles:
+ *          1. Stick mixing (if configured): Blends pilot inputs with mode commands
+ *          2. Roll stabilization: Maintains desired roll attitude
+ *          3. Pitch stabilization: Maintains desired pitch attitude
+ *          4. Yaw stabilization: Coordinates turns and maintains heading
+ *          
+ *          Stick mixing behavior depends on STICK_MIXING parameter:
+ *          - NONE: No stick mixing, mode has full control
+ *          - FBW: Fly-by-wire mixing of pilot inputs
+ *          - FBW_NO_PITCH: FBW mixing but excluding pitch axis
+ *          - VTOL_YAW: Yaw mixing only for VTOL modes
+ *          - DIRECT_REMOVED: Legacy option, now maps to FBW mixing
+ *          
+ *          Most modes override this method to implement mode-specific control
+ *          before or instead of calling the base stabilization.
+ * 
+ * @note This method is called at high frequency (typically 50-400 Hz depending
+ *       on scheduler configuration). Performance is critical.
+ * 
+ * @warning This is the core control loop for fixed-wing stabilization. Changes
+ *          to this method or the stabilization functions it calls can directly
+ *          affect flight stability and safety.
+ * 
+ * @see Plane::stabilize_roll() for roll control implementation
+ * @see Plane::stabilize_pitch() for pitch control implementation
+ * @see Plane::stabilize_yaw() for yaw control implementation
+ * @see Plane::stabilize_stick_mixing_fbw() for stick mixing implementation
+ */
 void Mode::run()
 {
     // Direct stick mixing functionality has been removed, so as not to remove all stick mixing from the user completely
@@ -275,7 +510,35 @@ void Mode::run()
     plane.stabilize_yaw();
 }
 
-// Reset rate and steering controllers
+/**
+ * @brief Reset all flight control integrators and steering state
+ * 
+ * @details Resets control system state to prevent integrator windup and unwanted
+ *          control responses when starting a new control sequence. This method:
+ *          1. Resets roll controller integrator to zero
+ *          2. Resets pitch controller integrator to zero
+ *          3. Resets yaw controller integrator to zero
+ *          4. Clears steering locked course mode and accumulated error
+ *          5. Resets TECS (Total Energy Control System) internal state
+ *          
+ *          Resetting integrators is important when:
+ *          - Starting a new mode that changes control objectives
+ *          - Beginning a new navigation segment (waypoint, landing, etc.)
+ *          - Recovering from a control saturation condition
+ *          - Transitioning between significantly different flight phases
+ * 
+ * @note This is typically called during mode transitions or at the start of
+ *       new navigation segments to ensure clean initial conditions.
+ * 
+ * @warning Failing to reset integrators when appropriate can cause control
+ *          overshoot, oscillation, or instability when control objectives change.
+ *          However, unnecessary resets can reduce tracking performance.
+ * 
+ * @see AP_RollController::reset_I() for roll integrator reset
+ * @see AP_PitchController::reset_I() for pitch integrator reset  
+ * @see AP_YawController::reset_I() for yaw integrator reset
+ * @see AP_TECS::reset() for TECS state reset
+ */
 void Mode::reset_controllers()
 {
     // reset integrators
@@ -291,21 +554,76 @@ void Mode::reset_controllers()
     plane.TECS_controller.reset();
 }
 
+/**
+ * @brief Check if vehicle is currently in takeoff flight stage
+ * 
+ * @details Simple query method that checks if the vehicle's flight stage is
+ *          currently set to TAKEOFF. The flight stage is managed by the main
+ *          flight code and transitions through TAKEOFF, NORMAL, LAND, and other
+ *          stages during flight.
+ * 
+ * @return true if flight_stage is TAKEOFF
+ * @return false if in any other flight stage
+ * 
+ * @note Flight stage affects control behavior, particularly for altitude
+ *       management and automatic mode sequencing.
+ * 
+ * @see AP_FixedWing::FlightStage for flight stage definitions
+ * @see Plane::update_flight_stage() for flight stage management
+ */
 bool Mode::is_taking_off() const
 {
     return (plane.flight_stage == AP_FixedWing::FlightStage::TAKEOFF);
 }
 
-// Helper to output to both k_rudder and k_steering servo functions
+/**
+ * @brief Output command value to both rudder and steering servo channels
+ * 
+ * @details Helper function that simultaneously sets the same output value to
+ *          both the rudder servo function and the steering servo function.
+ *          This is used for ground steering control where the rudder also
+ *          controls the nose wheel or tail wheel steering. By setting both
+ *          channels to the same value, the aircraft can coordinate rudder
+ *          and ground steering for directional control.
+ * 
+ * @param[in] val Output value in scaled servo units (typically -4500 to +4500)
+ * 
+ * @note This is commonly used during ground operations (taxi, takeoff roll,
+ *       landing rollout) where both air rudder and ground steering need to
+ *       work together for directional control.
+ * 
+ * @see SRV_Channel::k_rudder for rudder servo function
+ * @see SRV_Channel::k_steering for steering servo function
+ * @see SRV_Channels::set_output_scaled() for servo output control
+ */
 void Mode::output_rudder_and_steering(float val)
 {
     SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, val);
     SRV_Channels::set_output_scaled(SRV_Channel::k_steering, val);
 }
 
-// Output pilot throttle, this is used in stabilized modes without auto throttle control
-// Direct mapping if THR_PASS_STAB is set
-// Otherwise apply curve for trim correction if configured
+/**
+ * @brief Output pilot's throttle stick input to throttle servo channel
+ * 
+ * @details Processes and outputs the pilot's throttle stick position to the
+ *          throttle servo channel. This is used in stabilized modes where the
+ *          pilot has direct manual control of throttle (not auto-throttle modes).
+ *          
+ *          Two throttle mapping modes are supported:
+ *          1. Direct passthrough (THR_PASS_STAB=1): Pilot stick directly maps
+ *             to throttle output with no modification
+ *          2. Adjusted mapping (THR_PASS_STAB=0): Applies trim correction curve
+ *             if configured via flight options, centering throttle stick around
+ *             TRIM_THROTTLE parameter value
+ * 
+ * @note This method is typically called by manual throttle modes (MANUAL,
+ *       STABILIZE, FBWA, TRAINING, ACRO, AUTOTUNE) where pilot directly
+ *       controls engine power.
+ * 
+ * @see Plane::get_throttle_input() for direct throttle reading
+ * @see Plane::get_adjusted_throttle_input() for trim-adjusted throttle
+ * @see SRV_Channel::k_throttle for throttle servo function
+ */
 void Mode::output_pilot_throttle()
 {
     if (plane.g.throttle_passthru_stabilize) {
@@ -318,7 +636,35 @@ void Mode::output_pilot_throttle()
     SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, plane.get_adjusted_throttle_input(true));
 }
 
-// true if throttle min/max limits should be applied
+/**
+ * @brief Check if throttle min/max limits should be applied in this mode
+ * 
+ * @details Determines whether the throttle output should be constrained to
+ *          configured minimum and maximum values (THR_MIN and THR_MAX parameters).
+ *          
+ *          Throttle limits are NOT applied when:
+ *          - Navigation scripting is active (script has full control)
+ *          - Manual throttle modes with direct passthrough enabled (STABILIZE,
+ *            TRAINING, ACRO, FBWA, AUTOTUNE with THR_PASS_STAB=1)
+ *          - GUIDED mode with throttle passthrough enabled
+ *          - VTOL mode where forward throttle limiting is disabled
+ *          
+ *          Throttle limits ARE applied in automatic throttle modes to prevent
+ *          excessive power or throttle cutoff during automated flight.
+ * 
+ * @return true if throttle should be limited to THR_MIN/THR_MAX range
+ * @return false if throttle should pass through without min/max limiting
+ * 
+ * @note Throttle limiting is a safety feature for auto-throttle modes to
+ *       prevent runaway throttle conditions or complete throttle cutoff.
+ * 
+ * @warning Disabling throttle limits in automatic modes can allow throttle
+ *          to reach 0% (engine off) or 100% (full power) which may not be
+ *          safe in all flight conditions.
+ * 
+ * @see Plane::g.throttle_passthru_stabilize (THR_PASS_STAB parameter)
+ * @see does_auto_throttle() for auto-throttle mode detection
+ */
 bool Mode::use_throttle_limits() const
 {
 #if AP_SCRIPTING_ENABLED
@@ -350,7 +696,40 @@ bool Mode::use_throttle_limits() const
     return true;
 }
 
-// true if voltage correction should be applied to throttle
+/**
+ * @brief Check if battery voltage compensation should be applied to throttle
+ * 
+ * @details Determines whether throttle output should be compensated for battery
+ *          voltage sag. Battery compensation increases throttle as battery voltage
+ *          decreases to maintain consistent power output throughout the flight.
+ *          This helps maintain consistent flight performance as the battery
+ *          discharges.
+ *          
+ *          Battery compensation is NOT applied when:
+ *          - Navigation scripting is active (script controls power directly)
+ *          - Manual throttle modes (STABILIZE, TRAINING, ACRO, FBWA, AUTOTUNE)
+ *            where pilot directly controls throttle
+ *          - GUIDED mode with manual throttle passthrough enabled
+ *          - Any VTOL mode (quadplane handles compensation separately)
+ *          
+ *          Battery compensation IS applied in automatic throttle modes to
+ *          maintain consistent airspeed and climb performance throughout flight.
+ * 
+ * @return true if throttle should be compensated for battery voltage
+ * @return false if throttle should be used without voltage compensation
+ * 
+ * @note Battery compensation is important for maintaining consistent performance
+ *       in automatic modes as battery voltage decreases during flight. Without
+ *       compensation, aircraft speed and climb rate would decrease as battery
+ *       voltage drops.
+ * 
+ * @warning Battery compensation is disabled in manual modes to give pilot
+ *          direct control feel. Enabling it in manual modes would cause throttle
+ *          response to change as battery voltage changes.
+ * 
+ * @see AP_BattMonitor for battery voltage monitoring
+ * @see does_auto_throttle() for auto-throttle mode detection
+ */
 bool Mode::use_battery_compensation() const
 {
 #if AP_SCRIPTING_ENABLED
