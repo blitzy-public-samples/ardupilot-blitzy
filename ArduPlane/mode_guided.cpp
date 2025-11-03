@@ -1,6 +1,56 @@
+/**
+ * @file mode_guided.cpp
+ * @brief GUIDED flight mode implementation for ArduPlane
+ * 
+ * @details GUIDED mode enables external control of the aircraft via Ground Control Station (GCS)
+ *          or companion computer through MAVLink commands. This mode supports multiple control
+ *          methods including:
+ *          - Position control: Navigate to waypoint locations
+ *          - Heading control: Fly towards a specified heading or course
+ *          - Attitude override: Direct roll/pitch/yaw control from external commands
+ *          - Velocity control: Airspeed and altitude rate control
+ *          - Throttle passthrough: Manual throttle control (fence breach recovery)
+ * 
+ *          The mode integrates with QuadPlane for VTOL operations and supports both
+ *          fixed-wing and VTOL loiter behaviors.
+ * 
+ *          Control inputs are accepted via MAVLink SET_POSITION_TARGET_GLOBAL_INT,
+ *          SET_POSITION_TARGET_LOCAL_NED, SET_ATTITUDE_TARGET, and related commands.
+ * 
+ *          Safety considerations:
+ *          - External control commands timeout after 3 seconds
+ *          - Integrates with geofencing and failsafe systems
+ *          - Supports terrain following when configured
+ *          - Roll and pitch angles constrained to configured limits
+ * 
+ * @note This mode requires active MAVLink communication for continuous control
+ * @warning Loss of communication will cause timeout to standard navigation after 3 seconds
+ * 
+ * Source: ArduPlane/mode_guided.cpp
+ */
+
 #include "mode.h"
 #include "Plane.h"
 
+/**
+ * @brief Enter GUIDED flight mode and initialize guided state
+ * 
+ * @details Initializes the GUIDED mode by:
+ *          1. Disabling throttle passthrough mode
+ *          2. Setting the initial guided waypoint to the current location
+ *          3. For QuadPlane: Projects target forward by stopping distance to smooth entry
+ *          4. Resets the active loiter radius to default (WP_LOITER_RAD)
+ * 
+ *          This initialization matches the behavior of ArduCopter's GUIDED mode,
+ *          providing consistent behavior across vehicle types.
+ * 
+ * @return true Always returns true (mode entry always succeeds)
+ * 
+ * @note Called automatically by the mode change logic when switching to GUIDED mode
+ * @note QuadPlane stopping distance projection helps prevent aggressive braking on entry
+ * 
+ * Source: ArduPlane/mode_guided.cpp:4-28
+ */
 bool ModeGuided::_enter()
 {
     plane.guided_throttle_passthru = false;
@@ -27,6 +77,53 @@ bool ModeGuided::_enter()
     return true;
 }
 
+/**
+ * @brief Update roll, pitch, and throttle control for GUIDED mode
+ * 
+ * @details This is the main control update function called at the scheduler rate (typically 50Hz).
+ *          It handles multiple guided control sub-modes and external command inputs:
+ * 
+ *          **QuadPlane VTOL Loiter Mode:**
+ *          - Delegates to quadplane.guided_update() for multirotor control
+ * 
+ *          **Roll Control Priority Order:**
+ *          1. Forced RPY commands (if received within last 3 seconds)
+ *             - Direct roll angle control from MAVLink SET_ATTITUDE_TARGET
+ *             - Constrained to configured roll limits
+ *          2. Heading/Course control (if AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED)
+ *             - GUIDED_HEADING_HEADING: Fly towards absolute heading
+ *             - GUIDED_HEADING_COURSE: Fly towards ground track direction
+ *             - Uses AC_PID controller for smooth heading changes
+ *             - Bank angle limited by lateral acceleration limit and roll limits
+ *          3. Standard navigation: calc_nav_roll() for waypoint tracking
+ * 
+ *          **Pitch Control Priority Order:**
+ *          1. Forced RPY commands (if received within last 3 seconds)
+ *             - Direct pitch angle control from MAVLink
+ *             - Constrained between pitch_limit_min and pitch_limit_max
+ *          2. Standard navigation: calc_nav_pitch() for altitude/airspeed control
+ * 
+ *          **Throttle Control Priority Order:**
+ *          1. Manual passthrough (guided_throttle_passthru = true)
+ *             - Used for fence breach recovery or manual override
+ *          2. Forced throttle commands (if received within last 3 seconds)
+ *             - Direct throttle output from MAVLink
+ *          3. TECS control: calc_throttle() for energy management
+ * 
+ * @note Called every scheduler loop iteration while in GUIDED mode (typically 50Hz)
+ * @note External command timeout of 3 seconds provides safety fallback
+ * @note Heading control requires AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED compile option
+ * 
+ * @warning All forced control inputs (roll/pitch/throttle) time out after 3 seconds
+ *          If communication is lost, aircraft reverts to standard navigation
+ * @warning Bank angle in heading mode is limited by both roll limits and lateral G forces
+ * 
+ * @see plane.guided_state for external command state tracking
+ * @see plane.calc_nav_roll(), plane.calc_nav_pitch(), plane.calc_throttle() for standard navigation
+ * @see Plane::handle_set_attitude_target() for forced RPY command processing
+ * 
+ * Source: ArduPlane/mode_guided.cpp:30-102
+ */
 void ModeGuided::update()
 {
 #if HAL_QUADPLANE_ENABLED
@@ -101,11 +198,56 @@ void ModeGuided::update()
 
 }
 
+/**
+ * @brief Calculate navigation parameters for waypoint tracking in GUIDED mode
+ * 
+ * @details Updates the L1 navigation controller to track towards the current guided waypoint
+ *          using a loiter pattern. The loiter radius and direction are configured via
+ *          MAVLink MISSION_ITEM or DO_REPOSITION commands.
+ * 
+ *          This function is called by the navigation update loop to compute the desired
+ *          ground track and lateral acceleration for waypoint approach and loiter.
+ * 
+ * @note Called at navigation update rate (typically 10Hz) from main flight loop
+ * @note Loiter radius can be set via set_radius_and_direction() or defaults to WP_LOITER_RAD
+ * 
+ * @see set_radius_and_direction() for configuring loiter parameters
+ * @see plane.update_loiter() for L1 controller waypoint tracking
+ * 
+ * Source: ArduPlane/mode_guided.cpp:104-107
+ */
 void ModeGuided::navigate()
 {
     plane.update_loiter(active_radius_m);
 }
 
+/**
+ * @brief Process MAVLink command to navigate to a new guided waypoint
+ * 
+ * @details Handles external requests to change the guided waypoint target location.
+ *          This function is called when receiving MAVLink commands such as:
+ *          - MAV_CMD_NAV_WAYPOINT in GUIDED mode
+ *          - MAV_CMD_DO_REPOSITION
+ *          - SET_POSITION_TARGET_GLOBAL_INT with position mask
+ * 
+ *          Processing steps:
+ *          1. Applies terrain altitude corrections if terrain following is enabled
+ *          2. Converts relative altitudes to absolute frame if needed
+ *          3. Updates the active guided waypoint via plane.set_guided_WP()
+ * 
+ * @param[in] target_loc Target location to navigate towards (lat, lon, alt)
+ *                       May be in various altitude frames (ABSOLUTE, RELATIVE, TERRAIN)
+ * 
+ * @return true Always returns true (command acceptance always succeeds)
+ * 
+ * @note Altitude frame is normalized to ABSOLUTE if not terrain-relative
+ * @note Terrain altitude lookup may adjust target altitude for terrain following
+ * 
+ * @see plane.set_guided_WP() for waypoint update and L1 controller initialization
+ * @see plane.fix_terrain_WP() for terrain altitude correction
+ * 
+ * Source: ArduPlane/mode_guided.cpp:109-120
+ */
 bool ModeGuided::handle_guided_request(Location target_loc)
 {
     plane.fix_terrain_WP(target_loc, __LINE__);
@@ -120,6 +262,43 @@ bool ModeGuided::handle_guided_request(Location target_loc)
 }
 
 #if AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
+/**
+ * @brief Process external command to change target airspeed with rate limiting
+ * 
+ * @details Handles MAVLink commands to change the aircraft's target airspeed with
+ *          controlled acceleration limits. This provides smooth airspeed transitions
+ *          for external control applications.
+ * 
+ *          Command validation:
+ *          - Rejects airspeeds outside the configured envelope (ARSPD_FBW_MIN to ARSPD_FBW_MAX)
+ *          - Ignores duplicate commands with same airspeed target
+ * 
+ *          Acceleration handling:
+ *          - acceleration = 0: Maximum acceleration (treated as 1000 m/s²)
+ *          - acceleration > 0: Uses specified value for smooth transitions
+ *          - Acceleration direction automatically determined by target vs current airspeed
+ * 
+ *          The acceleration limit is applied incrementally in update_target_altitude()
+ *          to slew the airspeed smoothly over time.
+ * 
+ * @param[in] airspeed Target airspeed in m/s
+ * @param[in] acceleration Maximum acceleration/deceleration in m/s²
+ *                         Zero value requests maximum acceleration
+ * 
+ * @return true if airspeed change accepted
+ * @return false if airspeed is outside valid range (below ARSPD_FBW_MIN or above ARSPD_FBW_MAX)
+ * 
+ * @note Only available when AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED is compiled in
+ * @note Stored in plane.guided_state.target_airspeed_cm (centimeters/sec)
+ * @note Acceleration is stored as signed value (negative for deceleration)
+ * 
+ * @warning Excessive acceleration values may cause altitude loss during airspeed changes
+ * @warning Airspeed limits enforced for flight envelope protection
+ * 
+ * @see update_target_altitude() for acceleration slew rate application
+ * 
+ * Source: ArduPlane/mode_guided.cpp:123-152
+ */
 bool ModeGuided::handle_change_airspeed(const float airspeed, const float acceleration)
 {
     // reject airspeeds that are outside of the tuning envelope
@@ -151,6 +330,32 @@ bool ModeGuided::handle_change_airspeed(const float airspeed, const float accele
 }
 #endif // AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
 
+/**
+ * @brief Configure loiter radius and direction for waypoint approach
+ * 
+ * @details Sets the loiter pattern parameters used when the aircraft reaches the guided
+ *          waypoint target. This is typically called when processing MAVLink commands that
+ *          specify loiter behavior (e.g., MAV_CMD_DO_REPOSITION with loiter radius).
+ * 
+ *          The radius is constrained to fit in uint16_t range (0-65535 meters) as required
+ *          by the update_loiter() function. Direction determines clockwise (CW) or
+ *          counter-clockwise (CCW) loiter pattern.
+ * 
+ * @param[in] radius Loiter radius in meters (absolute value used)
+ *                   Constrained to range [0, 65535]
+ * @param[in] direction_is_ccw Loiter direction
+ *                              - true: Counter-clockwise (left turns, direction = -1)
+ *                              - false: Clockwise (right turns, direction = 1)
+ * 
+ * @note Radius of 0 uses the WP_LOITER_RAD parameter default
+ * @note Direction follows standard aviation convention (left = CCW, right = CW)
+ * @note Active radius stored in active_radius_m member variable
+ * 
+ * @see plane.update_loiter() for L1 controller loiter implementation
+ * @see navigate() where active_radius_m is used
+ * 
+ * Source: ArduPlane/mode_guided.cpp:154-159
+ */
 void ModeGuided::set_radius_and_direction(const float radius, const bool direction_is_ccw)
 {
     // constrain to (uint16_t) range for update_loiter()
@@ -158,6 +363,44 @@ void ModeGuided::set_radius_and_direction(const float radius, const bool directi
     plane.loiter.direction = direction_is_ccw ? -1 : 1;
 }
 
+/**
+ * @brief Update target altitude with optional rate limiting for smooth altitude changes
+ * 
+ * @details Manages altitude target updates with two modes of operation:
+ * 
+ *          **Offboard Altitude Control Mode** (AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED):
+ *          When external altitude commands are active (guided_state.target_alt_time_ms != 0),
+ *          implements rate-limited altitude changes:
+ *          - Calculates incremental altitude change based on target_alt_rate (m/s)
+ *          - Clamps change to not exceed specified rate over time delta
+ *          - Supports multiple altitude frames (ABSOLUTE, RELATIVE, TERRAIN)
+ *          - Creates intermediate target that steps towards final altitude
+ *          - Prevents sudden altitude changes that could stress airframe
+ * 
+ *          Algorithm:
+ *          1. Calculate time delta since last update
+ *          2. Compute allowed altitude change = delta_time * target_alt_rate
+ *          3. Constrain target altitude to current ± allowed change
+ *          4. Update TECS with intermediate altitude target
+ * 
+ *          **Standard Mode** (offboard control not active):
+ *          Delegates to base Mode::update_target_altitude() for normal waypoint
+ *          altitude tracking without rate limiting.
+ * 
+ * @note Called every control loop iteration (typically 50Hz)
+ * @note Rate limiting active only when external altitude commands are being processed
+ * @note Altitude frame conversions handled automatically for terrain-relative targets
+ * @note Rate limit defaults to -1 (disabled) until set by MAVLink command
+ * 
+ * @warning Altitude rate limiting requires valid current location and target location
+ * @warning Frame conversion failures fall back to previous target altitude
+ * 
+ * @see plane.guided_state.target_alt_rate for altitude change rate in m/s
+ * @see plane.guided_state.target_location for final altitude target
+ * @see plane.set_target_altitude_location() for TECS altitude update
+ * 
+ * Source: ArduPlane/mode_guided.cpp:161-192
+ */
 void ModeGuided::update_target_altitude()
 {
 #if AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
