@@ -1,8 +1,56 @@
+/**
+ * @file Log.cpp
+ * @brief ArduPlane flight data logging implementation
+ * 
+ * @details This file implements flight data logging for fixed-wing aircraft, including:
+ * - Custom ArduPlane-specific log message definitions (CTUN, NTUN, STATUS, AETR, etc.)
+ * - Logging functions for attitude, control tuning, navigation, and vehicle status
+ * - Integration with AP_Logger subsystem for dataflash/SD card storage
+ * - QuadPlane-specific logging when HAL_QUADPLANE_ENABLED
+ * 
+ * All logged data is written in binary format for efficient storage and can be
+ * analyzed post-flight using tools like MAVExplorer or Mission Planner.
+ * 
+ * Key log message types:
+ * - CTUN: Control tuning (roll/pitch/yaw controller performance, airspeed, throttle)
+ * - NTUN: Navigation tuning (waypoint tracking, crosstrack error, altitude error)
+ * - STATUS: Vehicle status (flying state, armed state, crash detection)
+ * - AETR: Control surface outputs (aileron, elevator, throttle, rudder)
+ * - QTUN: QuadPlane vertical tuning (when in VTOL mode)
+ * 
+ * @note This file is only compiled when HAL_LOGGING_ENABLED is defined
+ * 
+ * Source: ArduPlane/Log.cpp
+ */
+
 #include "Plane.h"
 
 #if HAL_LOGGING_ENABLED
 
-// Write an attitude packet
+/**
+ * @brief Write attitude and PID controller data to dataflash log
+ * 
+ * @details Logs the current vehicle attitude (roll, pitch, yaw) along with desired
+ * attitude targets and PID controller performance data. This function is called at
+ * the logging rate configured by MASK_LOG_ATTITUDE_* parameters.
+ * 
+ * For standard fixed-wing flight, logs:
+ * - Desired nav_roll_cd and nav_pitch_cd targets
+ * - Actual roll/pitch from AHRS
+ * - Roll, pitch, yaw, and steering PID controller data
+ * 
+ * For QuadPlane VTOL flight (when HAL_QUADPLANE_ENABLED), additionally logs:
+ * - QuadPlane rate controller PIDs (roll/pitch/yaw rates)
+ * - Position controller PIDs (velocity NE, acceleration Z)
+ * - Tailsitter-specific data
+ * 
+ * @note Called from Log_Write_FullRate() at rates up to 400Hz depending on configuration
+ * @warning High logging rates consume SD card space quickly and may impact performance
+ * 
+ * @see Log_Write_FullRate()
+ * @see Plane::nav_roll_cd
+ * @see Plane::nav_pitch_cd
+ */
 void Plane::Log_Write_Attitude(void)
 {
     Vector3f targets {       // Package up the targets into a vector for commonality with Copter usage of Log_Wrote_Attitude
@@ -57,7 +105,26 @@ void Plane::Log_Write_Attitude(void)
     AP::ahrs().Log_Write();
 }
 
-// do fast logging for plane
+/**
+ * @brief High-rate data logging function called from main scheduler loop
+ * 
+ * @details Performs fast-rate logging of time-critical data based on configured
+ * log bitmasks. This function is called from the scheduler at the highest logging
+ * rate and selectively logs data based on these masks:
+ * - MASK_LOG_ATTITUDE_FULLRATE: Logs attitude at 400Hz (highest rate)
+ * - MASK_LOG_ATTITUDE_FAST: Logs attitude at 25Hz
+ * - MASK_LOG_ATTITUDE_MED: Logs attitude at 10Hz
+ * - MASK_LOG_NOTCH_FULLRATE: Logs harmonic notch filter data at high rate
+ * 
+ * The highest rate selected by the bitmask wins, allowing users to balance
+ * logging detail against SD card space and write performance.
+ * 
+ * @note Called from main scheduler fast loop
+ * @warning FULLRATE logging at 400Hz generates large log files quickly
+ * 
+ * @see Log_Write_Attitude()
+ * @see should_log()
+ */
 void Plane::Log_Write_FullRate(void)
 {
     // MASK_LOG_ATTITUDE_FULLRATE logs at 400Hz, MASK_LOG_ATTITUDE_FAST at 25Hz, MASK_LOG_ATTIUDE_MED logs at 10Hz
@@ -73,6 +140,24 @@ void Plane::Log_Write_FullRate(void)
 }
 
 
+/**
+ * @brief Log structure for control tuning data (CTUN message)
+ * 
+ * @details Packed structure containing fixed-wing control loop performance data.
+ * This message logs the commanded vs achieved attitude, throttle outputs, and
+ * airspeed estimates for analyzing controller tuning and performance.
+ * 
+ * Key fields:
+ * - nav_roll_cd/nav_pitch_cd: Desired attitude in centidegrees
+ * - roll/pitch: Achieved attitude in centidegrees
+ * - throttle_out/rudder_out: Normalized control surface outputs
+ * - throttle_dem: TECS energy controller throttle demand
+ * - airspeed_estimate: Current airspeed estimate or measurement
+ * - EAS2TAS: Equivalent to true airspeed ratio for altitude compensation
+ * - groundspeed_undershoot: Undershoot when flying at minimum groundspeed (cm/s)
+ * 
+ * @note PACKED ensures no padding bytes for consistent binary log format
+ */
 struct PACKED log_Control_Tuning {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -90,7 +175,32 @@ struct PACKED log_Control_Tuning {
     int32_t groundspeed_undershoot;
 };
 
-// Write a control tuning packet. Total length : 22 bytes
+/**
+ * @brief Write control tuning data to dataflash log (CTUN message)
+ * 
+ * @details Logs comprehensive control loop performance data for fixed-wing flight,
+ * including attitude targets, achieved attitude, control outputs, and airspeed.
+ * This data is essential for:
+ * - PID controller tuning (analyzing commanded vs achieved attitude)
+ * - Airspeed sensor validation and tuning
+ * - TECS energy management performance analysis
+ * - Diagnosing control oscillations or instability
+ * 
+ * For QuadPlane vehicles, the pitch value is adjusted to show VTOL view when
+ * in QuadPlane mode (quadplane.show_vtol_view() == true).
+ * 
+ * Airspeed sources logged:
+ * - airspeed_estimate: Primary airspeed (sensor or EKF estimate)
+ * - synthetic_airspeed: DCM synthetic airspeed (NaN if unavailable)
+ * - airspeed_estimate_status: Type/source of airspeed estimate
+ * 
+ * @note Typically called at 10-25Hz (MASK_LOG_ATTITUDE_MED or _FAST)
+ * @warning Accurate airspeed logging critical for tuning TECS and airspeed limits
+ * 
+ * @see TECS_controller
+ * @see Plane::nav_roll_cd
+ * @see Plane::nav_pitch_cd
+ */
 void Plane::Log_Write_Control_Tuning()
 {
     float est_airspeed = 0;
@@ -128,6 +238,26 @@ void Plane::Log_Write_Control_Tuning()
 }
 
 #if AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
+/**
+ * @brief Log structure for offboard guided mode targets (OFG message)
+ * 
+ * @details Packed structure for advanced offboard guided mode control from companion
+ * computers. This extends basic GUIDED mode with rate limiting and acceleration control.
+ * Logs the target trajectory including position, velocity, and acceleration limits.
+ * 
+ * Fields:
+ * - target_airspeed_cm: Commanded airspeed in cm/s
+ * - target_airspeed_accel: Airspeed acceleration limit
+ * - target_alt: Target altitude (frame specified by target_alt_frame)
+ * - target_alt_rate: Vertical velocity target/limit
+ * - target_mav_frame: MAVLink frame type received from GCS
+ * - target_heading: Desired heading in degrees
+ * - target_heading_limit: Heading rate/acceleration limit
+ * - target_alt_frame: Internal altitude frame representation
+ * 
+ * @note Only compiled when AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
+ * @see Plane::guided_state
+ */
 struct PACKED log_OFG_Guided {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -141,7 +271,21 @@ struct PACKED log_OFG_Guided {
     uint8_t target_alt_frame;   // internal AltFrame
 };
 
-// Write a OFG Guided packet.
+/**
+ * @brief Write offboard guided mode targets to dataflash log (OFG message)
+ * 
+ * @details Logs the current guided mode trajectory targets when using advanced
+ * offboard guided control with slew rate limiting. This data is useful for:
+ * - Debugging companion computer guidance commands
+ * - Analyzing trajectory smoothness and rate limiting
+ * - Verifying MAVLink frame transformations
+ * 
+ * Only logs when in guided mode with active offboard control targets.
+ * 
+ * @note Only available when AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
+ * @see Plane::guided_state
+ * @see Log_Write_Guided()
+ */
 void Plane::Log_Write_OFG_Guided()
 {
     struct log_OFG_Guided pkt = {
@@ -160,6 +304,28 @@ void Plane::Log_Write_OFG_Guided()
 }
 #endif
 
+/**
+ * @brief Log structure for navigation tuning data (NTUN message)
+ * 
+ * @details Packed structure containing fixed-wing navigation controller performance.
+ * Logs waypoint tracking accuracy, crosstrack error, altitude error, and target
+ * trajectory for analyzing L1 controller performance and mission execution.
+ * 
+ * Key fields:
+ * - wp_distance: Distance to current waypoint (meters)
+ * - target_bearing_cd: Bearing to waypoint in centidegrees
+ * - nav_bearing_cd: Desired track bearing in centidegrees
+ * - altitude_error_cm: Altitude error in centimeters
+ * - xtrack_error: Crosstrack distance from desired track (meters)
+ * - xtrack_error_i: Integral of crosstrack error
+ * - airspeed_error: Difference between actual and target airspeed
+ * - target_lat/lng: Target waypoint coordinates
+ * - target_alt_wp: Waypoint altitude
+ * - target_alt_tecs: TECS controller target altitude
+ * - target_airspeed: Commanded airspeed in cm/s
+ * 
+ * @note Essential for tuning L1 navigation controller and TECS
+ */
 struct PACKED log_Nav_Tuning {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -177,7 +343,30 @@ struct PACKED log_Nav_Tuning {
     int32_t target_airspeed;
 };
 
-// Write a navigation tuning packet
+/**
+ * @brief Write navigation tuning data to dataflash log (NTUN message)
+ * 
+ * @details Logs comprehensive navigation controller performance for fixed-wing
+ * waypoint tracking. This data is critical for:
+ * - Tuning L1 navigation controller parameters
+ * - Analyzing waypoint tracking accuracy
+ * - Diagnosing crosstrack error and path following
+ * - Verifying TECS altitude tracking performance
+ * - Monitoring airspeed controller performance
+ * 
+ * The logged data shows both the desired trajectory (target waypoint, bearing,
+ * altitude) and tracking errors (crosstrack, altitude error, airspeed error).
+ * 
+ * Crosstrack error indicates lateral deviation from the desired track between
+ * waypoints. Large crosstrack errors suggest L1 controller needs tuning.
+ * 
+ * @note Typically logged at 10-25Hz
+ * @warning Large persistent errors indicate controller tuning issues
+ * 
+ * @see AP_L1_Control
+ * @see TECS_controller
+ * @see Plane::nav_controller
+ */
 void Plane::Log_Write_Nav_Tuning()
 {
     struct log_Nav_Tuning pkt = {
@@ -199,6 +388,27 @@ void Plane::Log_Write_Nav_Tuning()
     logger.WriteBlock(&pkt, sizeof(pkt));
 }
 
+/**
+ * @brief Log structure for vehicle status information (STATUS message)
+ * 
+ * @details Packed structure containing critical vehicle state information including
+ * flight detection, arming status, crash detection, and flight stage. This data
+ * is essential for post-flight analysis of vehicle behavior and safety events.
+ * 
+ * Fields:
+ * - is_flying: Boolean indicating if aircraft is detected as flying
+ * - is_flying_probability: Confidence level (0.0-1.0) that vehicle is airborne
+ * - armed: Vehicle armed state (1=armed, 0=disarmed)
+ * - safety: Hardware safety switch state
+ * - is_crashed: Crash detection flag
+ * - is_still: True when vehicle has no motion detected on any axis
+ * - stage: Current flight stage (takeoff, normal, land, abort, etc.)
+ * - impact: True if impact/collision detected
+ * - throttle_supressed: True if throttle output is being suppressed
+ * 
+ * @note Critical for analyzing safety events and flight phase transitions
+ * @warning is_crashed and impact flags indicate potential vehicle damage
+ */
 struct PACKED log_Status {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -213,6 +423,31 @@ struct PACKED log_Status {
     bool throttle_supressed;
 };
 
+/**
+ * @brief Write vehicle status information to dataflash log (STATUS message)
+ * 
+ * @details Logs critical vehicle state for safety analysis and flight phase tracking.
+ * This message provides essential context for understanding vehicle behavior:
+ * 
+ * Flying detection (is_flying, is_flying_probability):
+ * - Used to determine when vehicle has launched and landed
+ * - Affects arming checks, throttle suppression, and mode transitions
+ * 
+ * Safety states (armed, safety, is_crashed):
+ * - Records arming events and safety switch state
+ * - Logs crash detection events for post-flight analysis
+ * 
+ * Flight stage tracking:
+ * - Records progression through takeoff, cruise, approach, landing phases
+ * - Essential for analyzing automated takeoff/landing performance
+ * 
+ * @note Logged at moderate rate (typically 5-10Hz)
+ * @warning Crash and impact flags should trigger immediate log download and inspection
+ * 
+ * @see Plane::is_flying()
+ * @see Plane::crash_state
+ * @see Plane::flight_stage
+ */
 void Plane::Log_Write_Status()
 {
     struct log_Status pkt = {
@@ -232,6 +467,26 @@ void Plane::Log_Write_Status()
     logger.WriteBlock(&pkt, sizeof(pkt));
 }
 
+/**
+ * @brief Log structure for normalized control surface outputs (AETR message)
+ * 
+ * @details Packed structure containing pre-mixer control surface demand values.
+ * These are the normalized outputs from the attitude/navigation controllers
+ * before being mixed and scaled to servo PWM values. AETR stands for:
+ * Aileron, Elevator, Throttle, Rudder.
+ * 
+ * Fields:
+ * - aileron: Normalized aileron output (-4500 to 4500, where ±4500 = ±45°)
+ * - elevator: Normalized elevator output (-4500 to 4500)
+ * - throttle: Normalized throttle output (-100 to 100, where 100 = full throttle)
+ * - rudder: Normalized rudder output (-4500 to 4500)
+ * - flap: Normalized flap output (0 to 100, where 100 = full flaps)
+ * - steering: Normalized ground steering output (-4500 to 4500)
+ * - speed_scaler: Surface movement scaling factor based on airspeed
+ * 
+ * @note Pre-mixer values allow analysis of controller outputs independent of servo mixing
+ * @see SRV_Channels for servo mixing and output scaling
+ */
 struct PACKED log_AETR {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -244,6 +499,28 @@ struct PACKED log_AETR {
     float speed_scaler;
 };
 
+/**
+ * @brief Write normalized control surface outputs to dataflash log (AETR message)
+ * 
+ * @details Logs pre-mixer control surface demand values from the attitude and
+ * navigation controllers. These normalized values show what the controllers are
+ * commanding before servo mixing, reversing, and trim are applied.
+ * 
+ * This data is valuable for:
+ * - Analyzing controller output saturation
+ * - Verifying control mixing is working correctly
+ * - Diagnosing control surface coordination issues
+ * - Understanding speed scaling effects on control authority
+ * 
+ * Speed scaler (get_speed_scaler()):
+ * - Reduces control surface deflection at high airspeeds
+ * - Increases deflection at low airspeeds to maintain authority
+ * - Helps prevent over-control and maintains stability across speed range
+ * 
+ * @note Compare with RCOU (servo outputs) to verify mixing and scaling
+ * @see Log_Write_RC()
+ * @see SRV_Channels::get_output_scaled()
+ */
 void Plane::Log_Write_AETR()
 {
     struct log_AETR pkt = {
@@ -261,6 +538,27 @@ void Plane::Log_Write_AETR()
     logger.WriteBlock(&pkt, sizeof(pkt));
 }
 
+/**
+ * @brief Write RC (radio control) input and output data to dataflash log
+ * 
+ * @details Comprehensive logging of all RC-related data including:
+ * - RCIN: Raw RC input values from receiver
+ * - RCOUT: Servo/motor PWM output values
+ * - RSSI: Receiver signal strength (if enabled and available)
+ * - AETR: Pre-mixer control surface demands
+ * 
+ * This combined logging provides complete visibility into the RC input chain
+ * through to final servo outputs, essential for diagnosing:
+ * - RC signal quality and failsafe events
+ * - Servo mixing and output configuration
+ * - Control surface response and trim
+ * - Radio link performance
+ * 
+ * @note Called at RC logging rate (typically 10-25Hz)
+ * @see Log_Write_AETR()
+ * @see AP_Logger::Write_RCIN()
+ * @see AP_Logger::Write_RCOUT()
+ */
 void Plane::Log_Write_RC(void)
 {
     logger.Write_RCIN();
@@ -273,6 +571,30 @@ void Plane::Log_Write_RC(void)
     Log_Write_AETR();
 }
 
+/**
+ * @brief Write guided mode control data to dataflash log
+ * 
+ * @details Logs guided mode-specific information when vehicle is under external
+ * guidance control (typically from companion computer or GCS). Only logs when
+ * in GUIDED mode and active guidance commands are present.
+ * 
+ * Logged data includes:
+ * - PIDG: Heading PID controller when target heading is active
+ * - OFG: Offboard guided trajectory targets (altitude, airspeed, heading with rates)
+ * 
+ * This data is essential for:
+ * - Debugging companion computer guidance commands
+ * - Tuning guided mode heading controller
+ * - Analyzing trajectory tracking performance
+ * - Verifying MAVLink guidance message handling
+ * 
+ * @note Only active when control_mode == mode_guided
+ * @note Only compiled when AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
+ * 
+ * @see Log_Write_OFG_Guided()
+ * @see Plane::guided_state
+ * @see Plane::mode_guided
+ */
 void Plane::Log_Write_Guided(void)
 {
 #if AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
@@ -290,7 +612,29 @@ void Plane::Log_Write_Guided(void)
 #endif // AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
 }
 
-// incoming-to-vehicle mavlink COMMAND_INT can be logged
+/**
+ * @brief Log structure for incoming MAVLink COMMAND_INT messages
+ * 
+ * @details Packed structure for logging COMMAND_INT MAVLink messages received
+ * by the vehicle. COMMAND_INT provides precise position commands using integer
+ * coordinates (latitude/longitude in 1e7 format).
+ * 
+ * Fields:
+ * - TimeUS: Timestamp in microseconds
+ * - CId: Command ID (MAVLink command number)
+ * - TSys: Target system ID
+ * - TCmp: Target component ID
+ * - cur: Current waypoint flag
+ * - cont: Autocontinue flag
+ * - Prm1-4: Command-specific parameters
+ * - Lat: Latitude in 1e7 degrees
+ * - Lng: Longitude in 1e7 degrees
+ * - Alt: Altitude (frame depends on command)
+ * - F: Frame type (MAV_FRAME enum)
+ * 
+ * @note Used for debugging MAVLink command reception and parameter values
+ * @see MAVLink COMMAND_INT message definition
+ */
 struct PACKED log_CMDI {
     LOG_PACKET_HEADER;
     uint64_t TimeUS;
@@ -309,9 +653,34 @@ struct PACKED log_CMDI {
     uint8_t F;
 };
 
-// type and unit information can be found in
-// libraries/AP_Logger/Logstructure.h; search for "log_Units" for
-// units and "Format characters" for field type information
+/**
+ * @brief Log message structure definitions for ArduPlane
+ * 
+ * @details Array defining all custom log message formats specific to fixed-wing
+ * aircraft. Each entry specifies:
+ * - Message ID (LOG_*_MSG constants)
+ * - Structure size for validation
+ * - Format string defining field types
+ * - Field names for log analysis tools
+ * - Units for each field
+ * - Multipliers for fixed-point encoding
+ * 
+ * This array is used by AP_Logger to:
+ * - Write correctly formatted binary log messages
+ * - Generate log message documentation
+ * - Enable post-flight log analysis tools (MAVExplorer, Mission Planner)
+ * 
+ * Type and unit information reference:
+ * - Type format characters: See libraries/AP_Logger/LogStructure.h "Format characters"
+ * - Units: See libraries/AP_Logger/LogStructure.h "log_Units"
+ * - Common units: s=seconds, m=meters, d=degrees, n=no units, -=N/A
+ * 
+ * Message documentation uses @LoggerMessage tags for auto-generation.
+ * 
+ * @note LOG_COMMON_STRUCTURES included first (attitude, GPS, IMU, etc.)
+ * @see AP_Logger::WriteBlock()
+ * @see libraries/AP_Logger/LogStructure.h
+ */
 const struct LogStructure Plane::log_structure[] = {
     LOG_COMMON_STRUCTURES,
 
@@ -511,11 +880,44 @@ const struct LogStructure Plane::log_structure[] = {
 #endif
 };
 
+/**
+ * @brief Get the number of custom log message structures defined for ArduPlane
+ * 
+ * @details Returns the count of ArduPlane-specific log message definitions in
+ * the log_structure array. This count is used by AP_Logger to allocate resources
+ * and iterate through message definitions.
+ * 
+ * @return Number of log structures (size of log_structure array)
+ * 
+ * @note Called by AP_Logger during initialization
+ * @see Plane::log_structure
+ */
 uint8_t Plane::get_num_log_structures() const
 {
     return ARRAY_SIZE(log_structure);
 }
 
+/**
+ * @brief Write vehicle-specific startup messages to log
+ * 
+ * @details Logs important vehicle configuration and state information at startup
+ * or when logging begins. This provides essential context for log analysis:
+ * 
+ * Logged information:
+ * - QuadPlane configuration: Frame type and motor configuration (if enabled)
+ * - Initial flight mode: Mode at startup and reason for mode selection
+ * - Home position: Logged home and origin coordinates from AHRS
+ * - GPS startup data: Satellite count, fix type, initial position
+ * 
+ * This startup data helps correlate log files with specific flights and provides
+ * initial state for understanding subsequent events.
+ * 
+ * @note Called when logging starts (arm, log-on-boot, or explicit log start)
+ * @warning Only first 200 bytes guaranteed available at startup
+ * 
+ * @see Plane::control_mode
+ * @see QuadPlane::motors
+ */
 void Plane::Log_Write_Vehicle_Startup_Messages()
 {
     // only 200(?) bytes are guaranteed by AP_Logger
