@@ -12,16 +12,56 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-/*
-  main logic for servo control
+
+/**
+ * @file servos.cpp
+ * @brief Servo output management for ArduPlane including mixing, slew rate limiting, battery compensation, and final PWM output
+ * 
+ * @details This file implements the complete servo output pipeline for fixed-wing aircraft:
+ * - Servo mixing for various airframe configurations (elevons, v-tail, differential spoilers, flaperons)
+ * - Throttle slew rate limiting to prevent motor damage and provide smooth power changes
+ * - Battery voltage compensation to maintain consistent performance as battery drains
+ * - Throttle suppression logic for ground safety
+ * - Automatic flap deployment based on airspeed
+ * - Twin-engine differential thrust mixing
+ * - Final PWM output to all control surfaces and motors via SRV_Channels
+ * 
+ * The main entry point is set_servos() which is called at the main loop rate (typically 400Hz).
+ * This coordinates all servo output calculations and applies safety limits before final output.
+ * 
+ * @note This is a critical flight control path - all control surface and motor outputs pass through here
+ * @warning Any modifications to this file can directly affect vehicle control authority and safety
  */
 
 #include "Plane.h"
 #include <utility>
 
-/*****************************************
-* Throttle slew limit
-*****************************************/
+/**
+ * @brief Apply throttle slew rate limiting to prevent abrupt motor speed changes
+ * 
+ * @details Implements gradual throttle changes to:
+ * - Prevent motor damage from rapid power transitions
+ * - Avoid stalling internal combustion engines
+ * - Provide smoother flight characteristics
+ * - Reduce stress on propulsion system components
+ * 
+ * The slew rate varies based on flight phase:
+ * - Normal flight: Uses THROTTLE_SLEWRATE parameter
+ * - Takeoff: Uses TKOFF_THR_SLEW if configured (typically more aggressive)
+ * - Landing: Uses landing-specific slew rate if configured
+ * - VTOL transition: Uses takeoff slew rate for forward transition
+ * 
+ * Slew limiting is only applied in auto-throttle modes (Auto, Guided, etc.) and
+ * during quadplane assisted flight or VTOL modes. In manual throttle modes, the
+ * slew rate is set to maximum (100%/cycle) to allow immediate pilot control.
+ * 
+ * @note Called at main loop rate (typically 400Hz) before final throttle output
+ * @note Applies to k_throttle, k_throttleLeft, and k_throttleRight channels
+ * @warning Slew rate too low can prevent reaching commanded throttle in time
+ * @warning Slew rate too high defeats the protection mechanism
+ * 
+ * Source: ArduPlane/servos.cpp:25-63
+ */
 void Plane::throttle_slew_limit()
 {
 #if HAL_QUADPLANE_ENABLED
@@ -62,19 +102,59 @@ void Plane::throttle_slew_limit()
     SRV_Channels::set_slew_rate(SRV_Channel::k_throttleRight, slewrate, 100, G_Dt);
 }
 
-/* We want to suppress the throttle if we think we are on the ground and in an autopilot controlled throttle mode.
-
-   Disable throttle if following conditions are met:
-   *       1 - We are in Circle mode (which we use for short term failsafe), or in FBW-B or higher
-   *       AND
-   *       2 - Our reported altitude is within 10 meters of the home altitude.
-   *       3 - Our reported speed is under 5 meters per second.
-   *       4 - We are not performing a takeoff in Auto mode or takeoff speed/accel not yet reached
-   *       OR
-   *       5 - Home location is not set
-   *       OR
-   *       6- Landing does not want to allow throttle
-*/
+/**
+ * @brief Determine if throttle should be suppressed for ground safety
+ * 
+ * @details Implements safety logic to prevent propeller strike and unintended takeoff by
+ * cutting throttle when the aircraft appears to be on the ground. This is a critical safety
+ * feature that prevents accidents during ground handling and after landing.
+ * 
+ * Throttle is ALWAYS suppressed when:
+ * - In Manual mode (pilot has direct throttle control)
+ * - Parachute has been deployed (in auto-throttle modes)
+ * - Landing controller explicitly requests suppression
+ * 
+ * Throttle suppression logic (in auto-throttle modes):
+ * 
+ * Throttle is suppressed (cut to zero) when ALL conditions are met:
+ * 1. In auto-throttle mode (Auto, Guided, Loiter, Circle, etc.)
+ * 2. Altitude is within 10m of home altitude
+ * 3. Ground speed < 5 m/s (or airspeed < 5 m/s if sensor available)
+ * 4. NOT performing active takeoff sequence
+ * 
+ * Special handling for takeoff sequences:
+ * - During Auto takeoff or Takeoff mode: suppression active until auto_takeoff_check() passes
+ * - Suppression released when takeoff conditions detected:
+ *   * Been flying >5s in any mode
+ *   * Altitude >5m above ground/home
+ *   * Pitch angle < 30° (not being held for hand launch)
+ *   * GPS showing movement
+ * - This prevents stuck suppression if mission is reset while already airborne
+ * 
+ * Once unsuppressed (throttle enabled), remains unsuppressed if:
+ * - Altitude exceeds 10m from home
+ * - Ground speed exceeds 5 m/s (and airspeed > 5 m/s if sensor equipped)
+ * - Quadplane reports is_flying() (if equipped)
+ * 
+ * The throttle_suppressed flag maintains state to prevent rapid toggling.
+ * It is cleared (throttle enabled) when above altitude/speed thresholds,
+ * and set (throttle disabled) when on ground in auto mode.
+ * 
+ * @return true if throttle should be suppressed (cut to zero), false if throttle allowed
+ * 
+ * @note This is a safety-critical function - prevents propeller strikes on ground
+ * @note Manual mode always returns false (pilot has direct control)
+ * @note Suppression can prevent legitimate takeoffs if conditions not met
+ * @warning GPS velocity spikes can briefly unsuppress throttle on ground
+ * @warning Altitude drift can cause unwanted suppression at low altitude
+ * @warning Takeoff detection must be reliable to avoid stuck suppression
+ * 
+ * @see auto_takeoff_check() for takeoff sequence validation
+ * @see set_throttle() which applies the suppression
+ * @see landing.is_throttle_suppressed() for landing-specific suppression
+ * 
+ * Source: ArduPlane/servos.cpp:78-167
+ */
 bool Plane::suppress_throttle(void)
 {
     if (control_mode == &mode_manual) {
@@ -167,11 +247,52 @@ bool Plane::suppress_throttle(void)
 }
 
 
-/*
-  mixer for elevon and vtail channels setup using designated servo
-  function values. This mixer operates purely on scaled values,
-  allowing the user to trim and limit individual servos using the
-  SERVOn_* parameters
+/**
+ * @brief Core mixing function for elevon and v-tail configurations
+ * 
+ * @details Implements generic two-axis to two-surface mixing for flying wings (elevons)
+ * and v-tail aircraft. The mixer combines two input channels (e.g., aileron and elevator)
+ * and produces two output channels (e.g., left and right elevons).
+ * 
+ * Mixing algorithm:
+ * - Apply MIXING_OFFSET to bias inputs if needed (for asymmetric airframes)
+ * - Output1 = (Input2 - Input1) * MIXING_GAIN
+ * - Output2 = (Input2 + Input1) * MIXING_GAIN
+ * 
+ * For elevons (typical flying wing):
+ * - Input1 = aileron (roll control)
+ * - Input2 = elevator (pitch control)
+ * - Output1 = left elevon = elevator - aileron
+ * - Output2 = right elevon = elevator + aileron
+ * 
+ * For v-tail:
+ * - Input1 = rudder (yaw control)
+ * - Input2 = elevator (pitch control)
+ * - Output1 = right v-tail = elevator + rudder
+ * - Output2 = left v-tail = elevator - rudder
+ * 
+ * MIXING_OFFSET (g.mixing_offset):
+ * - Compensates for asymmetric airframes or motor placement
+ * - Positive values scale input1 down, negative values scale input2 down
+ * - Range: -100 to +100 (percentage)
+ * 
+ * MIXING_GAIN (g.mixing_gain):
+ * - Controls how much of each input contributes to outputs
+ * - Typical value: 0.5 (50% of each input)
+ * - Range: 0.0 to 1.0
+ * 
+ * @param[in] func1_in First input function (e.g., k_aileron or k_rudder)
+ * @param[in] func2_in Second input function (e.g., k_elevator)
+ * @param[in] func1_out First output function (e.g., k_elevon_left or k_vtail_right)
+ * @param[in] func2_out Second output function (e.g., k_elevon_right or k_vtail_left)
+ * 
+ * @note Operates on scaled servo values (-4500 to +4500 representing -100% to +100%)
+ * @note Outputs are constrained to ±4500 to prevent overflow
+ * @note Individual servo trim and limits (SERVOn_MIN/MAX/TRIM) are applied after mixing
+ * @warning Incorrect MIXING_GAIN can cause control surface saturation
+ * @warning MIXING_OFFSET should be adjusted carefully to avoid control coupling
+ * 
+ * Source: ArduPlane/servos.cpp:176-196
  */
 void Plane::channel_function_mixer(SRV_Channel::Function func1_in, SRV_Channel::Function func2_in,
                                    SRV_Channel::Function func1_out, SRV_Channel::Function func2_out) const
@@ -196,8 +317,40 @@ void Plane::channel_function_mixer(SRV_Channel::Function func1_in, SRV_Channel::
 }
 
 
-/*
-  setup flaperon output channels
+/**
+ * @brief Calculate flaperon outputs by mixing aileron and flap commands
+ * 
+ * @details Flaperons are control surfaces that act as both ailerons (roll control) and
+ * flaps (lift augmentation). This function combines aileron input for roll control with
+ * flap input for high-lift configuration, allowing the same surfaces to serve both functions.
+ * 
+ * Mixing algorithm:
+ * - Get aileron command from flight controller (-4500 to +4500)
+ * - Get flap percentage from automatic flap controller (0 to 100%)
+ * - Left flaperon = aileron + (flap_percent * 45)
+ * - Right flaperon = aileron - (flap_percent * 45)
+ * 
+ * The 45-degree scaling factor converts flap percentage to the same scale as aileron
+ * commands (4500 = 100%, so 45 per percent gives proper scaling).
+ * 
+ * When flaps are deployed:
+ * - Both flaperons move down (positive) to increase lift
+ * - Aileron input still provides differential movement for roll control
+ * - Full flaps (100%) produces ±4500 offset, adding to aileron command
+ * 
+ * The flap input comes from k_flap_auto which is set by set_servos_flaps() as the
+ * maximum of manual flap input and automatic flap deployment based on airspeed.
+ * Flap slew rate limiting is applied before this function sees the value.
+ * 
+ * @note Called from set_servos_flaps() after flap position is calculated
+ * @note Uses slew-limited flap output to ensure gradual flaperon transitions
+ * @note Outputs are constrained to ±4500 to prevent saturation
+ * @warning Flaperon deflection affects both lift and roll control simultaneously
+ * 
+ * @see set_servos_flaps() for automatic flap deployment logic
+ * @see SRV_Channels::get_slew_limited_output_scaled() for rate-limited flap input
+ * 
+ * Source: ArduPlane/servos.cpp:202-215
  */
 void Plane::flaperon_update()
 {
@@ -215,11 +368,65 @@ void Plane::flaperon_update()
 }
 
 
-/*
-  setup differential spoiler output channels
-
-  Differential spoilers are a type of elevon that is split on each
-  wing to give yaw control, mixed from rudder
+/**
+ * @brief Calculate differential spoiler outputs for advanced wing control
+ * 
+ * @details Differential spoilers are a four-surface wing configuration that provides
+ * independent control of roll, pitch, yaw, and drag. Each wing has an outer and inner
+ * surface that can be deflected independently, enabling:
+ * - Roll control via differential deflection (aileron function)
+ * - Pitch control via symmetric deflection (elevator function, flying wing only)
+ * - Yaw control via asymmetric spoiler deployment (rudder mixing)
+ * - Drag control via crow flap configuration (both surfaces up on both wings)
+ * 
+ * Surface naming:
+ * - Left wing: dspoilerLeft1 (outer), dspoilerLeft2 (inner)
+ * - Right wing: dspoilerRight1 (outer), dspoilerRight2 (inner)
+ * 
+ * Control mixing modes (controlled by CROW_FLAP_OPT bitmask):
+ * 
+ * 1. **Standard mode** (FLYINGWING=0):
+ *    - Outer surfaces: aileron + rudder
+ *    - Inner surfaces: crow flaps only
+ *    - Pitch control via separate elevator
+ * 
+ * 2. **Flying wing mode** (FLYINGWING=1):
+ *    - Outer surfaces: elevon (aileron + elevator) + rudder
+ *    - Inner surfaces: crow flaps only
+ *    - No separate elevator (elevon mixing used)
+ * 
+ * 3. **Full span aileron** (FULLSPAN=1):
+ *    - Inner surfaces also provide aileron function
+ *    - Increases roll authority
+ *    - CROW_FLAP_AILERON_MATCHING limits inner surface throw for flaps
+ * 
+ * 4. **Crow flaps** (for landing drag/speed control):
+ *    - Outer surfaces: move up by CROW_FLAP_WEIGHT_OUTER percent
+ *    - Inner surfaces: move down by CROW_FLAP_WEIGHT_INNER percent
+ *    - Creates high drag configuration for steep descents
+ *    - Progressive mode: deploys inner first (0-50% flap), then adds outer (50-100%)
+ * 
+ * Rudder mixing:
+ * - Applies to outer surfaces only
+ * - Scaled by DSPOILR_RUD_RATE (typically 25-100%)
+ * - Right rudder: increases right outer spoiler, decreases right inner
+ * - Left rudder: increases left outer spoiler, decreases left inner
+ * - Provides yaw control without dedicated rudder
+ * 
+ * Key parameters:
+ * - CROW_FLAP_OPT: Configuration bitmask
+ * - CROW_FLAP_WEIGHT_OUTER: Outer surface crow deflection (0-100%)
+ * - CROW_FLAP_WEIGHT_INNER: Inner surface crow deflection (0-100%)
+ * - DSPOILR_RUD_RATE: Rudder mixing gain (0-100%)
+ * - CROW_FLAP_AILERON_MATCHING: Limits inner surface aileron throw (0-100%)
+ * 
+ * @note Called from servos_output() after base control surface commands calculated
+ * @note All outputs constrained to ±4500 (±100%) to prevent saturation
+ * @note Crow mode can be disabled via RC switch (crow_mode = CROW_DISABLED)
+ * @warning Complex mixing - test thoroughly before flight
+ * @warning High crow weights can cause significant pitch changes
+ * 
+ * Source: ArduPlane/servos.cpp:224-314
  */
 void Plane::dspoiler_update(void)
 {
@@ -313,8 +520,77 @@ void Plane::dspoiler_update(void)
     SRV_Channels::set_output_scaled(SRV_Channel::k_dspoilerRight2, dspoiler_inner_right);
 }
 
-/*
- set airbrakes based on reverse thrust and/or manual input RC channel
+/**
+ * @brief Calculate airbrake deployment from reverse thrust and manual RC input
+ * 
+ * @details Airbrakes are drag-producing surfaces that help slow the aircraft without
+ * using engine power. They deploy automatically when reverse thrust is commanded,
+ * or manually via RC channel. This is particularly useful for steep descents and
+ * landing approaches where speed control is critical.
+ * 
+ * @note Airbrakes are distinct from spoilers - they only produce drag, not roll control
+ * @note Multiple airbrake servos can be assigned using SERVOx_FUNCTION = Airbrake (86)
+ * 
+ * Airbrake deployment sources (highest value wins):
+ * 
+ * 1. **Manual RC input**:
+ *    - Read from channel assigned to RCx_OPTION = Airbrake (87)
+ *    - Only used if RC not in failsafe and throttle failsafe not active
+ *    - Percentage input: 0% = retracted, 100% = fully deployed
+ *    - Pilot has direct control independent of flight mode
+ * 
+ * 2. **Automatic from reverse thrust** (requires THR_MIN < 0):
+ *    - **During flare**: 100% airbrakes for maximum deceleration
+ *    - **Negative throttle commanded**: Proportional to throttle magnitude
+ *      - 0% throttle = 0% airbrakes
+ *      - -100% throttle (full reverse) = 100% airbrakes
+ *    - Helps aircraft slow down without excessive engine reverse thrust
+ *    - Reduces wear on propulsion system
+ * 
+ * Selection logic:
+ * - Manual input takes priority if larger than auto deployment
+ * - Allows pilot to override automatic logic if needed
+ * - Auto logic only active when THR_MIN parameter allows reverse thrust
+ * - Failsafe conditions disable manual input, use auto logic only
+ * 
+ * Use cases:
+ * - **Steep descent**: Deploy airbrakes to maintain safe speed on approach
+ * - **Landing flare**: Full deployment for short landing roll
+ * - **Go-around prevention**: Reduces float during landing
+ * - **Speed control**: Alternative to engine idle for descents
+ * - **Emergency descent**: Rapid altitude loss without overspeeding
+ * 
+ * Configuration requirements:
+ * - THR_MIN < 0: Enables reverse thrust and auto airbrake logic
+ * - RCx_OPTION = 87: Assigns channel for manual airbrake control
+ * - SERVOx_FUNCTION = 86: Assigns servo output(s) as airbrakes
+ * - Physical installation: Airbrake surfaces must produce pure drag
+ * 
+ * Safety considerations:
+ * - Airbrakes increase sink rate - requires careful altitude management
+ * - Full deployment may require power to maintain approach angle
+ * - Should not affect longitudinal or lateral trim
+ * - Must be balanced left/right to avoid yaw
+ * - Emergency retraction may be needed for go-around
+ * 
+ * Output:
+ * - Sets SRV_Channel::k_airbrake to calculated percentage (0-100)
+ * - No slew rate limiting (immediate response for drag control)
+ * - All servos assigned to Airbrake function receive same command
+ * 
+ * @note Called from set_servos() after throttle has been calculated
+ * @note No slew rate limiting - airbrakes respond immediately
+ * @note Airbrakes do not affect control authority (unlike spoilers)
+ * @warning Excessive airbrake deployment can cause high sink rates
+ * @warning Asymmetric deployment will cause yaw - verify balanced installation
+ * @warning Full deployment during cruise can overstress airframe
+ * 
+ * @see landing.is_flaring() for flare detection
+ * @see SRV_Channel::k_airbrake for output channel assignment
+ * @see channel_airbrake RC input channel
+ * @see Parameters: THR_MIN for reverse thrust enable
+ * 
+ * Source: ArduPlane/servos.cpp:319-352
  */
 void Plane::airbrake_update(void)
 {
@@ -528,8 +804,88 @@ void Plane::throttle_watt_limiter(int8_t &min_throttle, int8_t &max_throttle)
 }
 #endif // #if AP_BATTERY_WATT_MAX_ENABLED
 
-/*
-  Apply min/max safety limits to throttle.
+/**
+ * @brief Apply comprehensive safety limits and constraints to throttle command
+ * 
+ * @details Coordinates multiple throttle limiting systems to ensure safe motor operation
+ * across all flight phases. Applies limits from parameters, flight stage, battery state,
+ * and power draw monitoring. Final limits are also communicated to TECS controller.
+ * 
+ * @param[in] throttle_in Desired throttle percentage from flight mode (-100 to 100)
+ * @return Constrained throttle output in range [min_throttle, max_throttle]
+ * 
+ * Limiting sequence (each stage can modify min/max):
+ * 
+ * 1. **Base limits from parameters**:
+ *    - THR_MIN: Minimum throttle (can be negative for reverse thrust)
+ *    - THR_MAX: Maximum throttle for normal operation
+ * 
+ * 2. **ICE idle governor** (if internal combustion engine enabled):
+ *    - May increase min_throttle to maintain engine idle speed
+ *    - Prevents engine stall during low throttle conditions
+ * 
+ * 3. **Reverse thrust inhibit**:
+ *    - If reverse thrust available but not allowed (mode-specific):
+ *    - Clamps min_throttle to 0 to prevent reverse operation
+ *    - Controlled by allow_reverse_thrust() per flight mode
+ * 
+ * 4. **Takeoff/abort landing limits**:
+ *    - Uses TKOFF_THR_MAX and TKOFF_THR_MIN parameters
+ *    - Prevents excessive or insufficient thrust during critical phase
+ *    - Applied when flight_stage is TAKEOFF or ABORT_LANDING
+ * 
+ * 5. **Landing flare limits**:
+ *    - During flare: min_throttle forced to 0 to allow engine cutoff
+ *    - Enables faster deceleration and shorter landing roll
+ * 
+ * 6. **Quadplane transition limits** (if equipped):
+ *    - Forward transition uses TKOFF_THR_MAX as ceiling
+ *    - SLT thrust type: min_throttle set to TKOFF_THR_MIN or cruise
+ *    - Ensures adequate thrust during transition to forward flight
+ * 
+ * 7. **Battery voltage compensation**:
+ *    - Scales min/max limits based on battery voltage
+ *    - Allows higher throttle percentage as battery drains
+ *    - Provides consistent power output across flight
+ *    - May cut throttle completely if voltage below FWD_THR_CUTOFF_V
+ * 
+ * 8. **Watt limiter** (if battery watt limit enabled):
+ *    - Monitors battery power draw via throttle_watt_limiter()
+ *    - Reduces max_throttle if overpower detected (>10% per second attack)
+ *    - Gradually releases limit when power is within spec (1% per second)
+ *    - Protects battery from damage due to excessive current draw
+ *    - Always preserves at least 25% throttle authority
+ * 
+ * 9. **Sanity check**:
+ *    - Ensures min_throttle <= max_throttle
+ *    - Prevents impossible constraint conflicts
+ * 
+ * 10. **TECS controller update**:
+ *     - Informs Total Energy Control System of updated limits
+ *     - TECS uses these for next iteration's throttle calculation
+ *     - Ensures energy management respects all constraints
+ * 
+ * Flight phase examples:
+ * - **Ground idle**: THR_MIN (possibly increased by ICE governor)
+ * - **Takeoff roll**: [TKOFF_THR_MIN, TKOFF_THR_MAX]
+ * - **Cruise**: [THR_MIN, THR_MAX] with battery compensation
+ * - **Landing flare**: [0, THR_MAX]
+ * - **Reverse thrust landing**: [THR_MIN (negative), 0] if allowed
+ * 
+ * @note This is the final throttle limiting stage before output
+ * @note Limits are cumulative - each stage can further restrict the range
+ * @note TECS receives limit information for coordinated energy management
+ * @note Battery compensation can significantly alter effective limits
+ * @warning Incorrect limit parameters can prevent takeoff or cause unsafe landings
+ * @warning Watt limiter may reduce climb performance to protect battery
+ * @warning Reverse thrust limits must match ESC/motor capabilities
+ * 
+ * @see g2.fwd_batt_cmp.apply_min_max() for battery voltage limiting
+ * @see throttle_watt_limiter() for power draw limiting
+ * @see TECS_controller.set_throttle_min/max() for energy controller coordination
+ * @see allow_reverse_thrust() for reverse thrust mode logic
+ * 
+ * Source: ArduPlane/servos.cpp:534-607
  */
 float Plane::apply_throttle_limits(float throttle_in)
 {
@@ -606,8 +962,55 @@ float Plane::apply_throttle_limits(float throttle_in)
     return constrain_float(throttle_in, min_throttle, max_throttle);
 }
 
-/*
-  setup output channels all non-manual modes
+/**
+ * @brief Calculate final throttle output with compensation and safety limits
+ * 
+ * @details Applies battery voltage compensation and throttle suppression to the throttle
+ * command from the flight mode controller. This ensures consistent aircraft performance
+ * as the battery drains and provides ground safety through throttle cutoff.
+ * 
+ * Processing sequence:
+ * 
+ * 1. **Battery voltage compensation** (if enabled by mode):
+ *    - Updates voltage scaling factor from current battery voltage
+ *    - Scales throttle command to maintain constant power output
+ *    - Ratio increases as battery drains (e.g., 1.2x at low voltage)
+ *    - Controlled by FWD_BAT_VOLT_MIN and FWD_BAT_VOLT_MAX parameters
+ *    - Only applied in modes that use_battery_compensation()
+ * 
+ * 2. **Throttle limit application** (if enabled by mode):
+ *    - Applies minimum and maximum throttle constraints
+ *    - Handles reverse thrust limits (if enabled)
+ *    - Applies takeoff-specific throttle limits
+ *    - Applies transition-specific limits (quadplane)
+ *    - Applies watt limiter if battery overpower detected
+ *    - Only applied in modes that use_throttle_limits()
+ * 
+ * 3. **Throttle suppression** (ground safety):
+ *    If suppress_throttle() returns true, throttle is overridden:
+ *    - Manual passthrough: Uses pilot stick input if g.throttle_suppress_manual=1
+ *    - Flare mode: Uses THR_MIN if landing.use_thr_min_during_flare()=1
+ *    - Takeoff idle: Uses TKOFF_THR_IDLE if in takeoff phase and parameter set
+ *    - Default: Sets throttle to 0 (motor stop)
+ * 
+ * Battery compensation details:
+ * - Compensates for voltage sag under load and battery discharge
+ * - Maintains consistent thrust throughout flight
+ * - Can be disabled per-mode if not desired
+ * - Compensation ratio capped to prevent excessive throttle at low voltage
+ * - Will cut throttle completely if voltage drops below FWD_THR_CUTOFF_V
+ * 
+ * @note Called from set_servos() before slew rate limiting is applied
+ * @note Throttle suppression is safety-critical - prevents ground accidents
+ * @note Battery compensation requires accurate battery monitor configuration
+ * @warning Incorrect battery voltage parameters can cause thrust variations
+ * @warning Suppression logic must be reliable to prevent propeller strikes
+ * 
+ * @see g2.fwd_batt_cmp.update() for battery compensation calculation
+ * @see apply_throttle_limits() for limit application logic
+ * @see suppress_throttle() for ground safety suppression logic
+ * 
+ * Source: ArduPlane/servos.cpp:612-651
  */
 void Plane::set_throttle(void)
 {
@@ -650,8 +1053,74 @@ void Plane::set_throttle(void)
 
 }
 
-/*
-  Warn AHRS that we might take off soon
+/**
+ * @brief Notify AHRS system that takeoff is imminent to improve yaw estimation
+ * 
+ * @details Informs the EKF's Ground-based yaw Sensor Fusion (GSF) estimator that
+ * takeoff motion is about to occur. This allows the GSF to initialize before
+ * movement starts, resulting in better yaw angle accuracy during takeoff roll
+ * and initial climb. Particularly important for fixed-wing launches.
+ * 
+ * Trigger conditions (must be armed and not flying):
+ * 
+ * 1. **Throw detection** (hand-launch):
+ *    - Monitors acceleration along X axis (forward/back in body frame)
+ *    - Subtracts gravity component: accel_x_due_to_throw = measured_accel_x - gravity*sin(pitch)
+ *    - Threshold: Acceleration > 1g indicates a throw
+ *    - Typical hand launch produces 1-3g forward acceleration spike
+ *    - 1g threshold confirmed not to false trigger during normal handling
+ * 
+ * 2. **Throttle increase detection**:
+ *    - Throttle commanded above cruise setting
+ *    - Indicates pilot is applying takeoff power
+ *    - Used for ground-roll takeoffs and catapult launches
+ * 
+ * GSF yaw estimator benefits:
+ * - Initializes multiple yaw hypotheses before motion begins
+ * - Rapidly converges to correct yaw during acceleration
+ * - Improves heading accuracy in first few seconds of flight
+ * - Reduces possibility of bad yaw estimate causing control issues
+ * - Critical for GPS-based yaw before airspeed provides heading
+ * 
+ * Why early notification matters:
+ * - GSF needs several seconds to initialize yaw estimator bank
+ * - Starting before motion gives estimator time to prepare
+ * - Better yaw estimate reduces initial flight path errors
+ * - Prevents EKF innovation failures during launch
+ * - Smoves transition from ground to flight state
+ * 
+ * Launch type handling:
+ * - **Hand launch**: Detects throw via accelerometer spike
+ * - **Bungee/catapult**: Detects via throttle up command
+ * - **Ground roll**: Detects via throttle application
+ * - **Autonomous takeoff**: Detects when AUTO mode commands takeoff throttle
+ * 
+ * State machine integration:
+ * - Only active when armed but not yet is_flying()
+ * - Once flying, notification no longer needed
+ * - Disarmed state: No notification (safety locked out)
+ * - Already flying: GSF already converged, notification redundant
+ * 
+ * Coordinate frame notes:
+ * - X axis: Forward in body frame (nose direction)
+ * - Gravity component removed: Only actual acceleration considered
+ * - Pitch angle used to project gravity onto X axis
+ * - 1g = 9.81 m/s² (GRAVITY_MSS constant)
+ * 
+ * @note Called from set_servos() on every iteration when armed
+ * @note GSF estimator is part of EKF3 - requires EK3_ENABLE=1
+ * @note Throw detection tested extensively on micro UAS platforms
+ * @note False triggers can be prevented by increasing threshold if needed
+ * @warning Incorrect IMU orientation will break throw detection
+ * @warning Heavy vibration might cause false triggers at 1g threshold
+ * 
+ * @see ahrs.set_takeoff_expected() to notify AHRS system
+ * @see is_flying() for flight state detection
+ * @see ahrs.get_accel() for IMU acceleration data
+ * @see ahrs.sin_pitch() for gravity component calculation
+ * @see EKF3 GSF yaw estimator documentation
+ * 
+ * Source: ArduPlane/servos.cpp:656-672
  */
 void Plane::set_takeoff_expected(void)
 {
@@ -671,8 +1140,82 @@ void Plane::set_takeoff_expected(void)
     }
 }
 
-/*
-  setup flap outputs
+/**
+ * @brief Calculate and set flap deflection based on airspeed, flight phase, and manual input
+ * 
+ * @details Implements automatic flap deployment strategy based on aircraft speed and flight
+ * phase, with manual override capability. Flaps improve low-speed handling and reduce
+ * stall speed but increase drag. This function balances these tradeoffs automatically.
+ * 
+ * Flap deployment logic (in priority order):
+ * 
+ * 1. **Manual flap input** (highest priority if larger than auto):
+ *    - Read from RC flap channel if assigned and RC valid
+ *    - Converts stick position to percentage (0-100%)
+ *    - Manual overrides automatic deployment
+ * 
+ * 2. **Flight phase specific** (overrides speed-based logic):
+ *    - **Takeoff/Abort landing**: Uses TKOFF_FLAP_PCNT parameter
+ *    - **Pre-launch**: Uses TKOFF_FLAP_PCNT if configured
+ *    - **Landing**: Uses landing.get_flap_percent() from landing controller
+ *    - **Thermal soaring**: Uses g2.soaring_controller.get_thermalling_flap()
+ *    - These provide optimal flap settings for each critical phase
+ * 
+ * 3. **Speed-based automatic deployment**:
+ *    - Uses airspeed (target or actual) to determine flap percentage
+ *    - Two-stage deployment system with hysteresis:
+ *      - **Stage 1**: If speed <= FLAP_1_SPEED, deploy to FLAP_1_PERCNT
+ *      - **Stage 2**: If speed <= FLAP_2_SPEED, deploy to FLAP_2_PERCNT
+ *    - FLAP_2_SPEED < FLAP_1_SPEED (stage 2 is more flaps at lower speed)
+ *    - Speed source priority:
+ *      1. Target airspeed (if auto-throttle mode and sensor available)
+ *      2. Actual airspeed (if FLIGHT_OPTIONS FlapsActualSpeed set)
+ *      3. Throttle cruise setting (fallback if no airspeed sensor)
+ * 
+ * Speed source selection logic:
+ * - **has_target_airspeed**: Modes with auto-throttle have target speed
+ * - **flap_actual_speed option**: Use real airspeed instead of target
+ * - **Combined mode**: Use minimum of target and actual (brings flaps in early when slowing)
+ * - **No sensor**: Falls back to THR_CRUISE as proxy for cruise speed
+ * 
+ * Slew rate limiting:
+ * - Flaps move gradually at FLAP_SLEWRATE degrees per second
+ * - Prevents abrupt load changes that could damage airframe
+ * - Applies to both k_flap (manual) and k_flap_auto channels
+ * - Slewing happens in SRV_Channels layer after this function sets target
+ * 
+ * Output channels:
+ * - **k_flap**: Manual flap position (direct pilot control)
+ * - **k_flap_auto**: Automatic flap position (maximum of manual or auto)
+ * - Mixers read k_flap_auto for flaperon and crow flap calculations
+ * - Dedicated flap servos typically read k_flap or k_flap_auto
+ * 
+ * Typical speed thresholds (example):
+ * - Cruise: 0% flaps (clean configuration)
+ * - FLAP_1_SPEED = 15 m/s: 25% flaps (FLAP_1_PERCNT)
+ * - FLAP_2_SPEED = 12 m/s: 50% flaps (FLAP_2_PERCNT)
+ * - Landing: 100% flaps (LAND_FLAP_PERCNT)
+ * 
+ * Integration with other systems:
+ * - **flaperon_update()**: Mixes flaps with ailerons for flaperon aircraft
+ * - **dspoiler_update()**: Uses flap position for crow flap mixing
+ * - **Landing controller**: Manages flap deployment during approach and flare
+ * - **Soaring controller**: Optimizes flaps for thermalling efficiency
+ * 
+ * @note Called from set_servos() before mixer functions that use flap position
+ * @note Slew rate limiting happens after this function in SRV_Channels
+ * @note Manual input always takes priority over automatic deployment
+ * @note Flight phase flaps override speed-based logic for safety
+ * @warning Incorrect speed thresholds can cause premature or late flap deployment
+ * @warning Too fast slew rate can overstress airframe
+ * @warning Flap deployment affects stall speed and must match flight envelope
+ * 
+ * @see flaperon_update() for flaperon mixing
+ * @see dspoiler_update() for crow flap implementation
+ * @see landing.get_flap_percent() for landing flap logic
+ * @see Parameters: FLAP_1_SPEED, FLAP_1_PERCNT, FLAP_2_SPEED, FLAP_2_PERCNT, FLAP_SLEWRATE
+ * 
+ * Source: ArduPlane/servos.cpp:677-761
  */
 void Plane::set_servos_flaps(void)
 {
@@ -760,8 +1303,63 @@ void Plane::set_servos_flaps(void)
     flaperon_update();
 }
 
-/*
-  support for twin-engine planes
+/**
+ * @brief Mix rudder input with throttle for differential thrust control on twin-engine aircraft
+ * 
+ * @details Implements differential thrust for yaw control by adding rudder input to
+ * left/right throttle channels. This provides yaw authority through asymmetric thrust,
+ * which is particularly useful at low airspeeds when rudder effectiveness is reduced.
+ * 
+ * Algorithm:
+ * 
+ * 1. **Read base throttle**: Get commanded throttle from k_throttle channel
+ * 2. **Calculate rudder differential**: Scale rudder input by RUDD_DT_GAIN parameter
+ *    - RUDD_DT_GAIN is percentage (0-100) of rudder authority for differential thrust
+ *    - Positive rudder (right) increases right engine, decreases left engine
+ *    - Negative rudder (left) increases left engine, decreases right engine
+ * 3. **Apply thrust direction logic**:
+ *    - Forward thrust: Add/subtract 50% of rudder_dt within [0, 100] range
+ *    - Reverse thrust: Add/subtract 50% of rudder_dt within [-100, 0] range
+ *    - Zero throttle: Set both engines to 0 (no differential)
+ * 4. **Safety override**: In AFS failsafe, force rudder_dt to 0 (no yaw)
+ * 5. **Output final values**: Write to k_throttleLeft and k_throttleRight channels
+ * 
+ * Physical implementation:
+ * - Left engine at higher throttle creates left yaw (nose left)
+ * - Right engine at higher throttle creates right yaw (nose right)
+ * - Differential is added to commanded throttle, not replacing it
+ * - Total thrust is preserved (sum of both engines ~ 2x throttle command)
+ * 
+ * Typical usage scenarios:
+ * - Crosswind landing: Maintain runway heading with differential thrust
+ * - Single-engine failure: Opposite engine at higher thrust compensates for yaw
+ * - Low-speed maneuvering: Supplement rudder authority during slow flight
+ * - Takeoff roll: Counteract torque effects and maintain centerline
+ * 
+ * Safety considerations:
+ * - Disarmed state: Outputs ZERO_PWM or 0 depending on arming requirements
+ * - AFS failsafe: Disables differential to prevent unintended yaw during emergency
+ * - Constrained output: Each engine limited to valid throttle range
+ * - Split throttle: Both channels must be properly configured for twin-engine operation
+ * 
+ * Configuration requirements:
+ * - SERVOx_FUNCTION must be set to ThrottleLeft (73) and ThrottleRight (74)
+ * - RUDD_DT_GAIN parameter sets mixing percentage (0=disabled, 100=full authority)
+ * - Both engines should have similar thrust characteristics for predictable behavior
+ * - ESC calibration must be identical for both engines
+ * 
+ * @note Called from servos_output() after set_throttle() has calculated base throttle
+ * @note Differential thrust is always applied, even in manual mode
+ * @note Only works when both k_throttleLeft and k_throttleRight channels are assigned
+ * @warning Incorrect RUDD_DT_GAIN can cause oscillations or insufficient yaw control
+ * @warning Engine thrust imbalance will cause persistent yaw requiring rudder trim
+ * @warning Single-engine failure requires immediate pilot intervention
+ * 
+ * @see RUDD_DT_GAIN parameter documentation
+ * @see SRV_Channels for throttle output functions
+ * @see afs.should_crash_vehicle() for advanced failsafe override
+ * 
+ * Source: ArduPlane/servos.cpp:766-804
  */
 void Plane::servos_twin_engine_mix(void)
 {
@@ -847,17 +1445,57 @@ void Plane::force_flare(void)
 #endif
 }
 
-/* Set the flight control servos based on the current calculated values
-
-  This function operates by first building up output values for
-  channels using set_servo() and set_radio_out(). Using
-  set_radio_out() is for when a raw PWM value of output is given which
-  does not depend on any output scaling. Using set_servo() is for when
-  scaling and mixing will be needed.
-
-  Finally servos_output() is called to push the final PWM values
-  for output channels
-*/
+/**
+ * @brief Calculate and output servo positions for all control surfaces and motors
+ * 
+ * @details This is the main servo output coordination function called at the main loop rate.
+ * It implements the complete servo output pipeline from commanded positions to final PWM values:
+ * 
+ * Pipeline stages:
+ * 1. Cork servo outputs to batch updates (reduces interrupt overhead)
+ * 2. Check for advanced failsafe termination conditions
+ * 3. Update quadplane transition states (if equipped)
+ * 4. Allow landing controller to override servos if in landing phase
+ * 5. Calculate and apply throttle output:
+ *    - Apply battery voltage compensation
+ *    - Apply min/max throttle safety limits
+ *    - Apply throttle suppression for ground safety
+ * 6. Set throttle to zero or min_pwm if disarmed (based on arming config)
+ * 7. Warn AHRS about potential imminent takeoff
+ * 8. Calculate automatic flap deployment based on airspeed
+ * 9. Calculate airbrake deployment
+ * 10. Apply throttle slew rate limiting
+ * 11. Handle ICE (internal combustion engine) throttle overrides
+ * 12. Call servos_output() which applies mixing and pushes final PWM values
+ * 
+ * Servo mixing (done in servos_output()):
+ * - Elevon mixing (aileron + elevator → left/right elevons)
+ * - V-tail mixing (rudder + elevator → left/right v-tail surfaces)
+ * - Flaperon mixing (aileron + flaps → left/right flaperons)
+ * - Differential spoiler mixing (aileron + flaps + rudder → 4 spoiler surfaces)
+ * - Twin-engine differential thrust (throttle + rudder → left/right throttles)
+ * 
+ * Battery compensation adjusts throttle output to maintain consistent power as
+ * battery voltage drops, controlled by FWD_BAT_VOLT_MAX and FWD_BAT_VOLT_MIN parameters.
+ * 
+ * Throttle suppression prevents propeller strike on ground by cutting throttle when:
+ * - Altitude is within 10m of home
+ * - Ground speed is under 5 m/s
+ * - Not performing active takeoff
+ * - In auto-throttle mode
+ * 
+ * @note Called at main loop rate (typically 400Hz) from main vehicle update loop
+ * @note This function coordinates all servo outputs but delegates actual PWM calculation to servos_output()
+ * @warning This is a critical output path - errors here affect ALL control surfaces and motors
+ * @warning Throttle suppression logic is safety-critical to prevent ground accidents
+ * 
+ * @see servos_output() for mixer implementation and final PWM output
+ * @see set_throttle() for throttle calculation and compensation
+ * @see throttle_slew_limit() for gradual throttle changes
+ * @see suppress_throttle() for ground safety throttle cutoff logic
+ * 
+ * Source: ArduPlane/servos.cpp:861-963
+ */
 void Plane::set_servos(void)
 {
     // start with output corked. the cork is released when we run
@@ -1010,10 +1648,65 @@ void Plane::indicate_waiting_for_rud_neutral_to_takeoff(void)
 }
 
 
-/*
-  run configured output mixer. This takes calculated servo_out values
-  for each channel and calculates PWM values, then pushes them to
-  hal.rcout
+/**
+ * @brief Apply servo mixing for various airframe configurations and output final PWM values
+ * 
+ * @details This function implements the final stage of servo output processing by applying
+ * mixing algorithms for different airframe configurations and pushing PWM values to hardware.
+ * 
+ * Supported mixing configurations:
+ * 
+ * 1. **Elevon mixing** (flying wings):
+ *    - Combines aileron and elevator inputs
+ *    - Left elevon = elevator - aileron (nose up + roll right → left elevon up)
+ *    - Right elevon = elevator + aileron (nose up + roll right → right elevon down)
+ *    - Controlled by MIXING_GAIN parameter (typically 0.5 for 50% mixing)
+ * 
+ * 2. **V-tail mixing**:
+ *    - Combines rudder and elevator inputs
+ *    - Right v-tail = elevator + rudder
+ *    - Left v-tail = elevator - rudder
+ *    - Uses same mixing gain and offset as elevons
+ * 
+ * 3. **Flaperon mixing** (in flaperon_update()):
+ *    - Combines aileron and flap inputs
+ *    - Left flaperon = aileron + (flap_percent * 45)
+ *    - Right flaperon = aileron - (flap_percent * 45)
+ * 
+ * 4. **Differential spoiler mixing** (in dspoiler_update()):
+ *    - 4-surface split wing configuration
+ *    - Provides aileron, elevator, rudder, and crow flap functions
+ *    - Outer surfaces: aileron + rudder + crow flaps
+ *    - Inner surfaces: aileron (optional) - crow flaps
+ *    - Controlled by DSPOILR_RUD_RATE for rudder mixing
+ * 
+ * 5. **Twin-engine differential thrust** (in servos_twin_engine_mix()):
+ *    - Splits throttle command between left/right engines
+ *    - Adds rudder input scaled by RUDD_DT_GAIN for yaw control
+ *    - Left throttle = throttle + (rudder * gain * 50%)
+ *    - Right throttle = throttle - (rudder * gain * 50%)
+ * 
+ * Additional processing:
+ * - Quadplane tailsitter and bicopter output transformations
+ * - Forced flare mode servo positions
+ * - Landing neutral control surface positions after auto-land
+ * - Rudder arming wait state indication
+ * - Manual RC passthrough for selected channels (MANUAL_RCMASK)
+ * - Automatic servo trim adjustment in cruise flight
+ * 
+ * @note Called from set_servos() after all commanded positions are calculated
+ * @note Outputs are corked (batched) and pushed together to reduce interrupt overhead
+ * @note This is the final stage before PWM values are sent to hardware (hal.rcout)
+ * @warning Mixing gain and offset parameters directly affect control surface response
+ * @warning Incorrect mixing can lead to inverted or coupled control responses
+ * 
+ * @see channel_function_mixer() for elevon and v-tail mixing algorithm
+ * @see dspoiler_update() for differential spoiler implementation
+ * @see servos_twin_engine_mix() for differential thrust implementation
+ * @see flaperon_update() for flaperon mixing algorithm
+ * @see SRV_Channels::calc_pwm() for final PWM calculation from scaled values
+ * 
+ * Source: ArduPlane/servos.cpp:1018-1064
  */
 void Plane::servos_output(void)
 {
