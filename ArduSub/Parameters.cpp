@@ -17,13 +17,87 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*
- *  ArduSub parameter definitions
- *
+/**
+ * @file Parameters.cpp
+ * @brief ArduSub parameter definitions and registration
+ * 
+ * @details This file defines all parameters for the ArduSub underwater vehicle using the AP_Param 
+ *          parameter management system. Parameters are stored persistently in EEPROM/flash storage
+ *          and can be modified via ground control stations, MAVLink, or through the parameter API.
+ * 
+ *          The file contains three main components:
+ *          1. var_info[] - Primary parameter table defining all vehicle parameters
+ *          2. ParametersG2::var_info[] - Secondary parameter group for extended parameters
+ *          3. Parameter conversion tables for firmware updates
+ * 
+ * @section param_registration Parameter Registration
+ *          Parameters are registered using three macro types:
+ *          - GSCALAR(var, name, default): Registers a scalar parameter (int, float, etc.)
+ *          - GGROUP(var, name, class): Registers a parameter group (array of related parameters)
+ *          - GOBJECT(var, prefix, class): Registers a complete object with its own parameters
+ * 
+ * @section param_persistence Parameter Persistence
+ *          All parameters are automatically persisted to non-volatile storage (EEPROM or flash)
+ *          by the AP_Param system. Changes are saved immediately when modified, with wear-leveling
+ *          to prevent flash degradation. Parameters survive firmware updates through the conversion
+ *          system defined in conversion_table[] and implemented in convert_old_parameters().
+ * 
+ * @section param_naming Parameter Naming Conventions for ArduSub
+ *          ArduSub follows these naming conventions:
+ *          - FS_*: Failsafe-related parameters (leak, pressure, GCS, terrain, etc.)
+ *          - JS_*: Joystick-related parameters (gain, throttle, lights)
+ *          - BTN*_: Button function assignments (BTN0_ through BTN31_)
+ *          - PILOT_*: Pilot input scaling (speed, acceleration, deadzone)
+ *          - SURFACE_*: Surface-related behavior (depth, throttle limiting)
+ *          - FLTMODE*: Flight mode assignments (FLTMODE1 through FLTMODE6)
+ *          - Object prefixes: MOT_ (motors), ATC_ (attitude control), PSC_ (position control),
+ *            WPNAV_ (waypoint navigation), LOIT_ (loiter), etc.
+ * 
+ * @note Parameter changes take effect immediately but some require vehicle reboot (marked with
+ *       @RebootRequired in their @Param documentation)
+ * 
+ * @note Parameters are organized by functional groups for easier ground station display and
+ *       to maintain logical grouping for developers
+ * 
+ * @warning Changing parameter names, types, or removing parameters requires adding conversion
+ *          entries to maintain compatibility with existing vehicle configurations
+ * 
+ * @see AP_Param class for parameter management API
+ * @see Parameters.h for parameter structure definitions
+ * @see load_parameters() for parameter loading and conversion sequence
+ * 
+ * Source: ArduSub/Parameters.cpp:1-900
  */
 
+/**
+ * @brief Primary parameter table for ArduSub
+ * 
+ * @details This table defines all vehicle parameters in the order they are stored in EEPROM.
+ *          The order is important for parameter compatibility across firmware versions.
+ *          
+ *          Parameter groups in this table:
+ *          - Depth/surface detection parameters
+ *          - Flight mode configuration
+ *          - Failsafe thresholds and actions (GCS, leak, pressure, temperature, terrain, pilot input)
+ *          - RC input configuration (throttle filtering, arming position)
+ *          - Navigation parameters (crosstrack, waypoint yaw behavior)
+ *          - Pilot speed limits (vertical up/down, horizontal)
+ *          - Joystick configuration (gain, throttle, lights)
+ *          - Frame configuration
+ *          - Button function assignments (BTN0_ through BTN31_)
+ *          - Acro mode parameters
+ *          - Object parameter groups (camera, relay, compass, IMU, navigation, control, sensors)
+ * 
+ * @note Each parameter entry uses @Param documentation tags for auto-generation of ground
+ *       station metadata and user documentation
+ */
 const AP_Param::Info Sub::var_info[] = {
 
+    // ========================================
+    // Depth and Surface Detection Parameters
+    // ========================================
+    // These parameters configure the depth sensor calibration and surface detection behavior
+    
     // @Param: SURFACE_DEPTH
     // @DisplayName: Depth reading at surface
     // @Description: The depth the external pressure sensor will read when the vehicle is considered at the surface (in centimeters)
@@ -60,6 +134,19 @@ const AP_Param::Info Sub::var_info[] = {
     // @Bitmask: 0:Roll,1:Pitch,2:Yaw
     GSCALAR(gcs_pid_mask,           "GCS_PID_MASK",     0),
 
+    // ========================================
+    // Failsafe Configuration Parameters
+    // ========================================
+    // These parameters configure failsafe behavior for various fault conditions:
+    // - GCS communication loss (FS_GCS_*)
+    // - Water leak detection (FS_LEAK_*)
+    // - Internal pressure/temperature (FS_PRESS_*, FS_TEMP_*)
+    // - RC signal loss (FS_THR_*)
+    // - Terrain data loss (FS_TERRAIN_*)
+    // - Pilot input timeout (FS_PILOT_*)
+    // - EKF failures (FS_EKF_*)
+    // - Crash detection (FS_CRASH_*)
+    
     // @Param: FS_GCS_ENABLE
     // @DisplayName: Ground Station Failsafe Enable
     // @Description: Controls what action to take when GCS heartbeat is lost.
@@ -112,6 +199,13 @@ const AP_Param::Info Sub::var_info[] = {
     // @Increment: 1
     // @User: Standard
     GSCALAR(failsafe_throttle_value, "FS_THR_VALUE",  FS_THR_VALUE_DEFAULT),
+    
+    // ========================================
+    // Flight Mode Configuration
+    // ========================================
+    // These parameters define which flight modes are available on the mode switch channel (FLTMODE_CH).
+    // Six modes can be configured (FLTMODE1-6) corresponding to different PWM ranges.
+    // Available modes: Stabilize, Acro, AltHold, Auto, Guided, Circle, Surface, PosHold, Manual, Motor Detect, SurfTrak
     
     // @Param: FLTMODE1
     // @DisplayName: Flight Mode 1
@@ -178,6 +272,11 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Standard
     GSCALAR(failsafe_temperature_max, "FS_TEMP_MAX", FS_TEMP_MAX_DEFAULT),
 
+    // ========================================
+    // Surface Throttle Limiting
+    // ========================================
+    // Prevents excessive upward thrust when vehicle approaches the surface to avoid breaching
+    
     // @Param: SURFACE_MAX_THR
     // @DisplayName: Surface Maximum Throttle
     // @Description: Maximum throttle value when the vehicle is at the surface. This value is used to scale throttle linearly from 1. (full) to min as the vehicle approaches the surface. The attenuation starts at 1 meter from surface.  Only upwards throttle is limited.
@@ -208,6 +307,11 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Standard
     GSCALAR(failsafe_pilot_input_timeout, "FS_PILOT_TIMEOUT", 3.0f),
 
+    // ========================================
+    // Waypoint Navigation and Yaw Control
+    // ========================================
+    // Configuration for autonomous waypoint navigation behavior
+    
     // @Param: XTRACK_ANG_LIM
     // @DisplayName: Crosstrack correction angle limit
     // @Description: Maximum allowed angle (in degrees) between current track and desired heading during waypoint navigation
@@ -222,6 +326,12 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Standard
     GSCALAR(wp_yaw_behavior,  "WP_YAW_BEHAVIOR",    WP_YAW_BEHAVIOR_DEFAULT),
 
+    // ========================================
+    // Pilot Input Scaling Parameters
+    // ========================================
+    // These parameters control the maximum speeds and accelerations the pilot can command.
+    // Values are in cm/s for speeds and cm/s/s for accelerations.
+    
     // @Param: PILOT_SPEED_UP
     // @DisplayName: Pilot maximum vertical ascending speed
     // @Description: The maximum vertical ascending velocity the pilot may request in cm/s
@@ -304,6 +414,12 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Advanced
     GSCALAR(fs_crash_check, "FS_CRASH_CHECK",    FS_CRASH_DISABLED),
 
+    // ========================================
+    // Joystick Configuration Parameters
+    // ========================================
+    // These parameters configure joystick sensitivity, gain adjustment, throttle scaling, and lights control.
+    // The gain system allows dynamic adjustment of input sensitivity during operation via button functions.
+    
     // @Param: JS_GAIN_DEFAULT
     // @DisplayName: Default gain at boot
     // @Description: Default gain at boot, must be in range [JS_GAIN_MIN , JS_GAIN_MAX]. Current gain value is accessible via NAMED_VALUE_FLOAT MAVLink message with name 'PilotGain'.
@@ -347,6 +463,11 @@ const AP_Param::Info Sub::var_info[] = {
     // @Range: 0.5 4.0
     GSCALAR(throttle_gain, "JS_THR_GAIN", 1.0f),
 
+    // ========================================
+    // Frame Configuration
+    // ========================================
+    // Defines the motor configuration and thrust vectoring capabilities
+    
     // @Param: FRAME_CONFIG
     // @DisplayName: Frame configuration
     // @Description: Set this parameter according to your vehicle/motor configuration
@@ -355,6 +476,14 @@ const AP_Param::Info Sub::var_info[] = {
     // @Values: 0:BlueROV1, 1:Vectored, 2:Vectored_6DOF, 3:Vectored_6DOF_90, 4:SimpleROV-3, 5:SimpleROV-4, 6:SimpleROV-5, 7:Custom
     GSCALAR(frame_configuration, "FRAME_CONFIG", AP_Motors6DOF::SUB_FRAME_VECTORED),
 
+    // ========================================
+    // Joystick Button Function Assignments
+    // ========================================
+    // GGROUP registers parameter groups - each button (BTN0_ through BTN31_) has its own
+    // set of sub-parameters defined in the JSButton class (function, shift function, etc.)
+    // These allow mapping joystick buttons to vehicle functions like mode changes, arm/disarm,
+    // gain adjustment, lights control, camera/mount control, etc.
+    
     // @Group: BTN0_
     // @Path: ../libraries/AP_JSButton/AP_JSButton.cpp
     GGROUP(jbtn_0,                   "BTN0_", JSButton),
@@ -483,6 +612,11 @@ const AP_Param::Info Sub::var_info[] = {
     // @Path: ../libraries/AP_JSButton/AP_JSButton.cpp
     GGROUP(jbtn_31,                   "BTN31_", JSButton),
 
+    // ========================================
+    // RC Output Configuration
+    // ========================================
+    // ESC/servo update rate configuration
+    
     // @Param: RC_SPEED
     // @DisplayName: ESC Update Speed
     // @Description: This is the speed in Hertz that your ESCs will receive updates
@@ -492,6 +626,12 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Advanced
     GSCALAR(rc_speed, "RC_SPEED",              RC_SPEED_DEFAULT),
 
+    // ========================================
+    // Acro Mode Configuration
+    // ========================================
+    // These parameters configure the rate-controlled acrobatic flight mode.
+    // Acro mode allows direct control of rotation rates rather than angles.
+    
     // @Param: ACRO_RP_P
     // @DisplayName: Acro Roll and Pitch P gain
     // @Description: Converts pilot roll and pitch into a desired rate of rotation in ACRO and SPORT mode.  Higher values mean faster rate of rotation.
@@ -536,7 +676,24 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Advanced
     GSCALAR(acro_expo,  "ACRO_EXPO",    ACRO_EXPO_DEFAULT),
 
-    // variables not in the g class which contain EEPROM saved variables
+    // ========================================
+    // Object Parameter Groups
+    // ========================================
+    // GOBJECT registers complete objects with their own parameter hierarchies.
+    // Each object manages its own parameters defined in its respective library.
+    // The prefix (e.g., "CAM", "COMPASS_", "MOT_") is prepended to all object parameters.
+    // 
+    // This section includes:
+    // - Peripheral devices: Camera, relay, mount, gripper
+    // - Sensors: Compass, IMU, barometer, GPS, rangefinder, optical flow, leak detector
+    // - Navigation: AHRS, EKF2, EKF3, waypoint navigation, loiter, circle navigation
+    // - Control: Attitude control, position control, motors
+    // - Communication: MAVLink GCS, CAN manager
+    // - Safety: Arming checks, avoidance, rally points
+    // - Mission: Mission management, terrain following
+    // - Monitoring: Battery monitor, RPM, RSSI, notifications
+    // - Configuration: Board config, scheduler, RC mapping
+    // - Extended parameters: ParametersG2 for additional features
 
 #if AP_CAMERA_ENABLED
     // @Group: CAM
@@ -741,8 +898,26 @@ const AP_Param::Info Sub::var_info[] = {
     AP_VAREND
 };
 
-/*
-  2nd group of parameters
+/**
+ * @brief Secondary parameter group (G2) for extended ArduSub parameters
+ * 
+ * @details The G2 parameter group was introduced to add new parameters without breaking
+ *          compatibility with existing parameter storage layouts. When the primary var_info[]
+ *          table became full or required reorganization, new parameters were added to this
+ *          separate group to avoid forcing users to reconfigure their vehicles.
+ * 
+ *          ParametersG2 contains:
+ *          - Extended sensor support (proximity sensors)
+ *          - Servo and RC channel configuration (moved from main group)
+ *          - EKF origin backup coordinates for GPS-denied operation
+ *          - Surface mode behavior when barometer unavailable
+ *          - Actuator configuration
+ * 
+ * @note Numbered slots (1, 3, 18) marked as "was X" indicate parameters that were removed
+ *       but their slot numbers are preserved to maintain storage compatibility
+ * 
+ * @see ParametersG2::ParametersG2() for object initialization
+ * @see AP_Param::setup_object_defaults() for parameter default value assignment
  */
 const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
@@ -802,14 +977,39 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_GROUPEND
 };
 
-/*
-  constructor for g2 object
+/**
+ * @brief Constructor for ParametersG2 object
+ * 
+ * @details Initializes the secondary parameter group (G2) by setting up default values
+ *          for all parameters defined in the ParametersG2::var_info[] table.
+ * 
+ * @note This is called during vehicle initialization before parameters are loaded from storage.
+ *       Values set here serve as defaults if no stored parameter value exists.
  */
 ParametersG2::ParametersG2()
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
 
+/**
+ * @brief Parameter name conversion table for firmware updates
+ * 
+ * @details This table maps old parameter storage locations and names to new parameter names,
+ *          allowing firmware updates to automatically migrate user settings to new parameter
+ *          structures without requiring manual reconfiguration.
+ * 
+ *          Each entry specifies:
+ *          - Old parameter key (from Parameters::k_param_* enumeration)
+ *          - Old element index within the parameter group (0 for scalar parameters)
+ *          - Parameter type (AP_PARAM_FLOAT, AP_PARAM_INT8, AP_PARAM_INT16, etc.)
+ *          - New parameter name as a string
+ * 
+ * @note Conversion entries must remain in this table permanently to support users upgrading
+ *       from old firmware versions. Do not remove entries even if the parameter is very old.
+ * 
+ * @see AP_Param::convert_old_parameters() for conversion implementation
+ * @see convert_old_parameters() for additional vehicle-specific conversions
+ */
 const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_fs_batt_voltage,   0,      AP_PARAM_FLOAT,  "BATT_LOW_VOLT" },
     { Parameters::k_param_fs_batt_mah,       0,      AP_PARAM_FLOAT,  "BATT_LOW_MAH" },
@@ -818,6 +1018,35 @@ const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_arming,            2,     AP_PARAM_INT16,  "ARMING_CHECK" },
 };
 
+/**
+ * @brief Load and initialize all ArduSub parameters
+ * 
+ * @details This function orchestrates the complete parameter loading sequence:
+ *          1. Load parameters from storage using AP_Vehicle base class
+ *          2. Convert old parameter names/locations to current structure
+ *          3. Set ArduSub-specific parameter frame type flags
+ *          4. Apply vehicle-specific parameter conversions
+ *          5. Set default values from defaults_table (defined in Parameters.h)
+ *          6. Apply ArduSub-specific overrides (e.g., MOT_THST_HOVER for neutral buoyancy)
+ *          7. Convert deprecated fence parameters (added Mar-2022)
+ *          8. Convert G2 object parameters to new locations
+ *          9. Convert top-level objects (serial manager, etc.)
+ *          10. Convert GCS system ID parameters to MAV_ namespace (added Mar-2025)
+ * 
+ * @note This function is called once during vehicle initialization (Sub::init_ardupilot())
+ * 
+ * @note Parameter conversions are dated with PARAMETER_CONVERSION comments to track when
+ *       each conversion was added, helping determine when old conversions can potentially
+ *       be removed (typically after several years when old firmware usage is negligible)
+ * 
+ * @note The MOT_THST_HOVER parameter is forced to 0.5 for ROVs because they are designed
+ *       for neutral buoyancy, unlike multirotors that must overcome gravity
+ * 
+ * @see AP_Vehicle::load_parameters() for base parameter loading
+ * @see AP_Param::convert_old_parameters() for name/location conversion
+ * @see AP_Param::set_defaults_from_table() for default value application
+ * @see convert_old_parameters() for ArduSub-specific parameter conversions
+ */
 void Sub::load_parameters()
 {
     AP_Vehicle::load_parameters(g.format_version, Parameters::k_format_version);
@@ -884,6 +1113,32 @@ void Sub::load_parameters()
 #endif  // HAL_GCS_ENABLED
 }
 
+/**
+ * @brief Convert ArduSub-specific old parameter names and locations
+ * 
+ * @details This function performs vehicle-specific parameter conversions that are unique
+ *          to ArduSub and not handled by the common conversion_table. Currently handles:
+ * 
+ *          1. Attitude control filter parameter migration:
+ *             - Old naming: ATC_RAT_RLL/PIT/YAW_FILT
+ *             - New naming: ATC_RAT_RLL/PIT/YAW_FLTE (E = Error, D = Derivative)
+ *             - This separates error filtering from derivative filtering for improved control tuning
+ * 
+ *          2. Servo channel parameter upgrades:
+ *             - Calls SRV_Channels::upgrade_parameters() to convert legacy servo configurations
+ * 
+ * @note This function is called from load_parameters() after base parameter loading
+ * 
+ * @note Conversion entries use element indices (385, 386, 387) to identify specific
+ *       parameters within the attitude_control parameter group structure
+ * 
+ * @warning Do not remove conversion entries - they must remain to support users upgrading
+ *          from old firmware versions, even years after the parameter change was made
+ * 
+ * @see load_parameters() for the complete parameter loading sequence
+ * @see AP_Param::convert_old_parameters() for the conversion mechanism
+ * @see SRV_Channels::upgrade_parameters() for servo channel-specific upgrades
+ */
 void Sub::convert_old_parameters()
 {
     // attitude control filter parameter changes from _FILT to FLTE or FLTD
