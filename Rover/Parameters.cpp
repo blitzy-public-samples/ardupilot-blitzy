@@ -1,12 +1,73 @@
+/**
+ * @file Parameters.cpp
+ * @brief Implementation of Rover parameter definitions and management
+ * 
+ * @details This file contains the complete parameter definition tables for the Rover vehicle,
+ *          including both the primary parameter group (var_info) and the secondary parameter
+ *          group (ParametersG2). It also implements parameter loading, conversion from legacy
+ *          parameter names, and default value initialization.
+ * 
+ *          The parameter system uses AP_Param for persistent storage in EEPROM with wear leveling.
+ *          Parameters are organized hierarchically with top-level scalar values (GSCALAR) and
+ *          grouped object parameters (GOBJECT, AP_SUBGROUPINFO) that encapsulate related settings.
+ * 
+ *          Parameter Groups:
+ *          - System: FORMAT_VERSION, LOG_BITMASK, INITIAL_MODE, GCS_PID_MASK
+ *          - Navigation: CRUISE_SPEED, CRUISE_THROTTLE, WP_* parameters in g2.wp_nav
+ *          - Control: Steering (ATC_* in g2.attitude_control), Motors (MOT_* in g2.motors)
+ *          - Safety: Failsafe (FS_*), Crash detection (CRASH_*), EKF monitoring (FS_EKF_*)
+ *          - Modes: MODE1-MODE6, MODE_CH, PILOT_STEER_TYPE
+ *          - Sensors: COMPASS_, BARO, INS, GPS, AHRS_, EK2_, EK3_
+ *          - Peripherals: SERVO, RC, CAM, MNT, NTF_
+ * 
+ * @note Parameter naming conventions:
+ *       - Top-level scalars use descriptive names (CRUISE_SPEED, FS_ACTION)
+ *       - Object groups use prefixes (COMPASS_, BARO, MOT_, ATC_, WP_)
+ *       - Group prefixes end with underscore for sub-parameters
+ *       - Numeric suffixes indicate indexed items (MODE1-MODE6)
+ * 
+ * @warning Changing parameter names requires entries in conversion_table to preserve
+ *          user settings across firmware updates. Never reuse parameter indices.
+ * 
+ * @see Rover.h for parameter structure definitions (Parameters and ParametersG2)
+ * @see AP_Param.h for parameter storage and conversion system
+ * 
+ * Source: Rover/Parameters.cpp
+ */
+
 #include "Rover.h"
 
 #include <AP_Gripper/AP_Gripper.h>
 
-/*
-  Rover parameter definitions
-*/
-
+/**
+ * @brief Primary parameter information table for Rover vehicle
+ * 
+ * This table defines all parameters accessible through the ground control station and stored
+ * persistently in EEPROM. Each entry uses one of the following macros:
+ * 
+ * - GSCALAR(variable, "NAME", default): Top-level scalar parameter stored in Parameters.g
+ * - GOBJECT(object, "PREFIX_", Type): Object with its own var_info table (separate library)
+ * - GOBJECTN(object, name, "PREFIX_", Type): Named object reference (for nested objects)
+ * - AP_SUBGROUPINFO(object, "PREFIX_", key, class, Type): Sub-group within ParametersG2
+ * 
+ * Parameter documentation uses @Param tags processed by the ArduPilot build system to generate
+ * ground station metadata files. Required tags: @DisplayName, @Description, @User.
+ * Optional tags: @Units, @Range, @Increment, @Values, @Bitmask, @RebootRequired.
+ * 
+ * Storage: Parameters are stored using a key-based system where each top-level parameter gets
+ * a unique key from the k_param enum in Parameters.h. Changes to this table must maintain
+ * backward compatibility through conversion_table entries below.
+ * 
+ * @note This table is parsed at compile time to generate parameter metadata.
+ * @note Parameter order affects EEPROM layout - only append new parameters at the end.
+ * @note Removed parameters must leave placeholder comments to avoid key reuse.
+ */
 const AP_Param::Info Rover::var_info[] = {
+    // ========================================
+    // System Configuration Parameters
+    // ========================================
+    // Core system parameters for version tracking, logging, and system identification
+
     // @Param: FORMAT_VERSION
     // @DisplayName: Eeprom format version number
     // @Description: This value is incremented when changes are made to the eeprom format
@@ -62,6 +123,13 @@ const AP_Param::Info Rover::var_info[] = {
     // @User: Standard
     GSCALAR(auto_kickstart,          "AUTO_KICKSTART", 0.0f),
 
+    // ========================================
+    // Navigation and Speed Control Parameters
+    // ========================================
+    // Target speeds, throttle settings, and navigation behavior for autonomous modes.
+    // CRUISE_SPEED defines target velocity, CRUISE_THROTTLE provides initial throttle estimate.
+    // The speed controller adjusts throttle dynamically to maintain CRUISE_SPEED.
+
     // @Param: CRUISE_SPEED
     // @DisplayName: Target cruise speed in auto modes
     // @Description: The target speed in auto missions.
@@ -87,6 +155,17 @@ const AP_Param::Info Rover::var_info[] = {
     // @Values: 0:Default,1:Two Paddles Input,2:Direction reversed when backing up,3:Direction unchanged when backing up
     // @User: Standard
     GSCALAR(pilot_steer_type, "PILOT_STEER_TYPE", 0),
+
+    // ========================================
+    // Failsafe Configuration Parameters
+    // ========================================
+    // Safety parameters that define rover behavior when communication is lost or sensors fail.
+    // FS_ACTION determines what the rover does (Hold, RTL, SmartRTL, Terminate).
+    // FS_TIMEOUT sets the delay before triggering failsafe to avoid false triggers.
+    // FS_THR_ENABLE/FS_THR_VALUE: Throttle failsafe when RC signal lost
+    // FS_GCS_ENABLE: Ground control station heartbeat failsafe
+    // FS_CRASH_CHECK: Crash detection and automatic stop
+    // FS_EKF_*: Extended Kalman Filter health monitoring and failsafe
 
     // @Param: FS_ACTION
     // @DisplayName: Failsafe Action
@@ -147,6 +226,19 @@ const AP_Param::Info Rover::var_info[] = {
     // @User: Advanced
     GSCALAR(fs_ekf_thresh, "FS_EKF_THRESH", 0.8f),
 
+    // ========================================
+    // Flight Mode Configuration Parameters
+    // ========================================
+    // MODE_CH selects which RC channel controls mode switching (typically channel 8).
+    // MODE1-MODE6 define which driving mode is selected for each position of the mode switch:
+    //   - MODE1: Switch low (910-1230 PWM, and >2049 PWM)
+    //   - MODE2: Switch position 2 (1231-1360 PWM)
+    //   - MODE3: Switch position 3 (1361-1490 PWM)
+    //   - MODE4: Switch position 4 (1491-1620 PWM)
+    //   - MODE5: Switch position 5 (1621-1749 PWM)
+    //   - MODE6: Switch high (1750-2049 PWM)
+    // Available modes: Manual, Acro, Steering, Hold, Loiter, Follow, Simple, Dock, Circle, Auto, RTL, SmartRTL, Guided
+
     // @Param: MODE_CH
     // @DisplayName: Mode channel
     // @Description: RC Channel to use for driving mode control
@@ -191,7 +283,12 @@ const AP_Param::Info Rover::var_info[] = {
     // @Description: Driving mode for switch position 6 (1750 to 2049)
     GSCALAR(mode6,           "MODE6",         (int8_t)Mode::Number::MANUAL),
 
-    // variables not in the g class which contain EEPROM saved variables
+    // ========================================
+    // Sensor and Hardware Object Groups
+    // ========================================
+    // These GOBJECT/GOBJECTN entries reference parameter groups defined in their respective
+    // library implementations. Each has its own var_info table and parameter prefix.
+    // Ground control stations query these groups to discover all available sub-parameters.
 
     // @Group: COMPASS_
     // @Path: ../libraries/AP_Compass/AP_Compass.cpp
@@ -347,13 +444,39 @@ const AP_Param::Info Rover::var_info[] = {
     AP_VAREND
 };
 
-/*
-  2nd group of parameters
+/**
+ * @brief Secondary parameter group (ParametersG2) for Rover
+ * 
+ * @details This second-level parameter group was introduced to overcome the 256 parameter limit
+ *          in the original var_info table. ParametersG2 is itself a GOBJECT entry in the primary
+ *          var_info table, allowing it to contain additional scalars and sub-groups.
+ * 
+ *          ParametersG2 contains:
+ *          - Vehicle-specific objects: servo_channels, rc_channels, motors, attitude_control
+ *          - Navigation: wp_nav (AR_WPNav), smart_rtl, pos_control
+ *          - Safety: Advanced failsafe (afs), avoidance (avoid)
+ *          - Sensors: beacon, wheel_encoder, proximity, windvane
+ *          - Peripherals: Camera/mount integration via mode_dock
+ *          - Vehicle configuration: FRAME_CLASS, FRAME_TYPE, TURN_RADIUS
+ *          - Mode behavior: LOIT_TYPE, LOIT_RADIUS, STICK_MIXING, MIS_DONE_BEHAVE
+ *          - Advanced features: Balance bot (BAL_*), sailboat (SAIL_*), omni steering
+ * 
+ *          Each AP_SUBGROUPINFO entry has a unique numeric key that must never be reused, even
+ *          if the parameter is removed. Placeholder comments mark removed entries.
+ * 
+ * @note Key numbering in this table is non-sequential due to removed parameters - this is normal.
+ * @warning Never reuse key numbers - always use the next available number for new parameters.
+ * 
+ * Source: Rover/Parameters.cpp:353-643
  */
 const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // 1 was AP_Stats
 
     // 2 was SYSID_ENFORCE
+
+    // ========================================
+    // Output and Control Object Groups
+    // ========================================
 
     // @Group: SERVO
     // @Path: ../libraries/SRV_Channel/SRV_Channels.cpp
@@ -389,6 +512,11 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: ../libraries/APM_Control/AR_AttitudeControl.cpp
     AP_SUBGROUPINFO(attitude_control, "ATC", 10, ParametersG2, AR_AttitudeControl),
 
+    // ========================================
+    // Vehicle Configuration Parameters
+    // ========================================
+    // Physical characteristics and frame-specific settings
+
     // @Param: TURN_RADIUS
     // @DisplayName: Turn radius of vehicle
     // @Description: Turn radius of vehicle in meters while at low speeds.  Lower values produce tighter turns in steering mode
@@ -406,6 +534,10 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Increment: 1
     // @User: Standard
     AP_GROUPINFO("ACRO_TURN_RATE", 12, ParametersG2, acro_turn_rate, 180.0f),
+
+    // ========================================
+    // Navigation and Autonomous Mode Parameters
+    // ========================================
 
     // @Group: SRTL_
     // @Path: ../libraries/AP_SmartRTL/AP_SmartRTL.cpp
@@ -442,6 +574,11 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 #endif
 
     // 20 was PIVOT_TURN_RATE and should not be re-used
+
+    // ========================================
+    // Safety and Crash Detection Parameters
+    // ========================================
+    // Balance bot specific parameters and crash angle detection
 
     // @Param: BAL_PITCH_MAX
     // @DisplayName: BalanceBot Maximum Pitch
@@ -705,43 +842,85 @@ ParametersG2::ParametersG2(void)
 }
 
 
-/*
-  This is a conversion table from old parameter values to new
-  parameter names. The startup code looks for saved values of the old
-  parameters and will copy them across to the new parameters if the
-  new parameter does not yet have a saved value. It then saves the new
-  value.
-
-  Note that this works even if the old parameter has been removed. It
-  relies on the old k_param index not being removed
-
-  The second column below is the index in the var_info[] table for the
-  old object. This should be zero for top level parameters.
+/**
+ * @brief Parameter name conversion table for backward compatibility
+ * 
+ * @details This table enables automatic migration of parameter values when parameter names
+ *          change between firmware versions. During startup in load_parameters(), the
+ *          AP_Param::convert_old_parameters() function scans EEPROM for old parameter names
+ *          and copies their values to the new parameter names if the new parameter has not
+ *          been set by the user.
+ * 
+ *          Conversion Process:
+ *          1. load_parameters() calls AP_Param::convert_old_parameters() with this table
+ *          2. For each entry, the system checks if the old parameter exists in EEPROM
+ *          3. If found, and new parameter is not set, the value is copied to new parameter
+ *          4. The new parameter is marked as set and saved to EEPROM
+ *          5. User settings are preserved across firmware updates automatically
+ * 
+ *          Table Entry Format:
+ *          { old_key, old_group_element, old_type, "NEW_NAME" }
+ *          - old_key: k_param enum value from Parameters.h for the old parameter location
+ *          - old_group_element: Index within the old var_info[] table (0 for top-level)
+ *          - old_type: AP_PARAM_* type (INT8, INT16, INT32, FLOAT)
+ *          - "NEW_NAME": New parameter name as a string
+ * 
+ *          This works even if the old parameter has been completely removed from var_info[],
+ *          because the k_param enum keys are never reused. The old_key provides the EEPROM
+ *          location where the old parameter was stored.
+ * 
+ * @note When renaming a parameter, always add an entry here to preserve user settings.
+ * @note The old k_param enum value must remain in Parameters.h with a comment marking it as unused.
+ * @note For parameters moved into sub-groups, old_group_element indicates the specific sub-parameter.
+ * 
+ * @warning Never remove entries from this table - old firmware may need them indefinitely.
+ * @warning Always test parameter conversion with SITL before releasing firmware updates.
+ * 
+ * Examples:
+ * - Simple rename: { k_param_battery_monitoring, 0, AP_PARAM_INT8, "BATT_MONITOR" }
+ * - Move to group: { k_param_g2, 299, AP_PARAM_INT16, "WP_PIVOT_ANGLE" }
+ *   (old_group_element 299 refers to position within old g2 structure)
+ * 
+ * Source: Rover/Parameters.cpp:721-765
  */
 const AP_Param::ConversionInfo conversion_table[] = {
+    // Battery parameter conversions - migrated to AP_BattMonitor library with BATT_ prefix
     { Parameters::k_param_battery_monitoring, 0,      AP_PARAM_INT8,  "BATT_MONITOR" },
     { Parameters::k_param_battery_volt_pin,   0,      AP_PARAM_INT8,  "BATT_VOLT_PIN" },
     { Parameters::k_param_battery_curr_pin,   0,      AP_PARAM_INT8,  "BATT_CURR_PIN" },
     { Parameters::k_param_volt_div_ratio,     0,      AP_PARAM_FLOAT, "BATT_VOLT_MULT" },
     { Parameters::k_param_curr_amp_per_volt,  0,      AP_PARAM_FLOAT, "BATT_AMP_PERVOLT" },
     { Parameters::k_param_pack_capacity,      0,      AP_PARAM_INT32, "BATT_CAPACITY" },
+    
+    // Serial port baud rate conversions - migrated to AP_SerialManager library
     { Parameters::k_param_serial0_baud,       0,      AP_PARAM_INT16, "SERIAL0_BAUD" },
     { Parameters::k_param_serial1_baud,       0,      AP_PARAM_INT16, "SERIAL1_BAUD" },
     { Parameters::k_param_serial2_baud,       0,      AP_PARAM_INT16, "SERIAL2_BAUD" },
+    
+    // Motor/throttle parameter conversions - migrated to MOT_ prefix in g2.motors
     { Parameters::k_param_throttle_min_old,   0,      AP_PARAM_INT8,  "MOT_THR_MIN" },
     { Parameters::k_param_throttle_max_old,   0,      AP_PARAM_INT8,  "MOT_THR_MAX" },
+    // Sensor parameter conversions
     { Parameters::k_param_compass_enabled_deprecated,       0,      AP_PARAM_INT8, "COMPASS_ENABLE" },
+    
+    // Navigation parameter conversions - waypoint and pivot steering moved to WP_ namespace
     { Parameters::k_param_waypoint_radius_old,    0,  AP_PARAM_FLOAT,  "WP_RADIUS" },
     { Parameters::k_param_g2,               299,      AP_PARAM_INT16,  "WP_PIVOT_ANGLE" },
     { Parameters::k_param_g2,               363,      AP_PARAM_INT16,  "WP_PIVOT_RATE" },
     { Parameters::k_param_g2,               491,      AP_PARAM_FLOAT,  "WP_PIVOT_DELAY" },
+    
+    // Sailboat parameter conversions - consolidated into SAIL_ namespace in g2.sailboat
     { Parameters::k_param_g2,                32,      AP_PARAM_FLOAT,  "SAIL_ANGLE_MIN" },
     { Parameters::k_param_g2,                33,      AP_PARAM_FLOAT,  "SAIL_ANGLE_MAX" },
     { Parameters::k_param_g2,                34,      AP_PARAM_FLOAT,  "SAIL_ANGLE_IDEAL" },
     { Parameters::k_param_g2,                35,      AP_PARAM_FLOAT,  "SAIL_HEEL_MAX" },
     { Parameters::k_param_g2,                36,      AP_PARAM_FLOAT,  "SAIL_NO_GO_ANGLE" },
+    
+    // Arming and attitude control conversions
     { Parameters::k_param_arming,             2,     AP_PARAM_INT16,  "ARMING_CHECK" },
     { Parameters::k_param_turn_max_g_old,     0,     AP_PARAM_FLOAT,  "ATC_TURN_MAX_G" },
+    
+    // Proximity sensor conversions - old g2 sub-parameters moved to PRX1_ namespace
     { Parameters::k_param_g2,                82,     AP_PARAM_INT8 , "PRX1_TYPE" },
     { Parameters::k_param_g2,               146,     AP_PARAM_INT8 , "PRX1_ORIENT" },
     { Parameters::k_param_g2,               210,     AP_PARAM_INT16, "PRX1_YAW_CORR" },
@@ -755,6 +934,8 @@ const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_g2,               722,     AP_PARAM_INT8,  "PRX1_IGN_WID4" },
     { Parameters::k_param_g2,               1234,    AP_PARAM_FLOAT, "PRX1_MIN" },
     { Parameters::k_param_g2,               1298,    AP_PARAM_FLOAT, "PRX1_MAX" },
+    
+    // Torqeedo motor controller conversions - consolidated into TRQ1_ namespace in g2.torqeedo
     { Parameters::k_param_g2,               113,     AP_PARAM_INT8, "TRQ1_TYPE" },
     { Parameters::k_param_g2,               177,     AP_PARAM_INT8, "TRQ1_ONOFF_PIN" },
     { Parameters::k_param_g2,               241,     AP_PARAM_INT8, "TRQ1_DE_PIN" },
@@ -765,27 +946,78 @@ const AP_Param::ConversionInfo conversion_table[] = {
 };
 
 
+/**
+ * @brief Load and initialize all Rover parameters from persistent storage
+ * 
+ * @details This function is called once during Rover initialization and performs the complete
+ *          parameter loading sequence including:
+ *          1. Loading base parameters from EEPROM via AP_Vehicle::load_parameters()
+ *          2. Converting old parameter names to new names for backward compatibility
+ *          3. Setting vehicle-specific frame type flags
+ *          4. Initializing default servo channel functions
+ *          5. Applying vehicle-specific parameter adjustments (e.g., balance bot crash angle)
+ *          6. Handling complex parameter migrations that require special logic
+ *          7. Converting legacy G2 objects to their new locations
+ * 
+ *          Parameter Loading Sequence:
+ *          - Base parameters loaded and validated against format version
+ *          - conversion_table applied to migrate renamed parameters
+ *          - Frame type set to ROVER for parameter database
+ *          - Default servo functions assigned (CH1=steering, CH3=throttle)
+ *          - Vehicle-specific defaults applied based on frame configuration
+ *          - Special case migrations handled (CH7_OPTION, WP_SPEED, etc.)
+ *          - G2 object migrations for feature-specific parameters
+ * 
+ *          Thread Safety: This function is only called during initialization before the
+ *          scheduler starts, so no locking is required.
+ * 
+ * @note This function must complete successfully before the vehicle can arm or operate.
+ * @warning Parameter conversion errors are logged but do not prevent boot - verify logs
+ *          after firmware updates to ensure settings migrated correctly.
+ * 
+ * @see conversion_table for parameter name migrations
+ * @see AP_Vehicle::load_parameters() for base parameter loading
+ * @see AP_Param::convert_old_parameters() for conversion mechanism
+ * 
+ * Source: Rover/Parameters.cpp:949-1074
+ */
 void Rover::load_parameters(void)
 {
+    // Load base parameters from EEPROM, checking format version for compatibility
     AP_Vehicle::load_parameters(g.format_version, Parameters::k_format_version);
 
+    // Apply parameter name conversions for backward compatibility with older firmware versions
+    // This preserves user settings when parameter names change across releases
     AP_Param::convert_old_parameters(&conversion_table[0], ARRAY_SIZE(conversion_table));
 
+    // Set vehicle frame type to ROVER for the parameter system - this affects which
+    // parameters are visible in ground control stations and parameter documentation
     AP_Param::set_frame_type_flags(AP_PARAM_FRAME_ROVER);
 
+    // Set default servo channel assignments for typical rover configuration
+    // CH_1 = steering (left/right control), CH_3 = throttle (forward/backward)
+    // These can be overridden by user-configured SERVOx_FUNCTION parameters
     SRV_Channels::set_default_function(CH_1, SRV_Channel::k_steering);
     SRV_Channels::set_default_function(CH_3, SRV_Channel::k_throttle);
 
+    // Apply vehicle-specific parameter defaults based on frame configuration
+    // Balance bots need a higher crash detection angle due to their unstable equilibrium
     if (is_balancebot()) {
         g2.crash_angle.set_default(30);
     }
 
+    // Upgrade legacy servo parameters to current format (handles pre-3.x parameter format)
     SRV_Channels::upgrade_parameters();
 
-    // convert CH7_OPTION to RC7_OPTION for Rover-3.4 to 3.5 upgrade
+    // Special case: Convert CH7_OPTION to RC7_OPTION for Rover-3.4 to 3.5 upgrade
+    // The parameter was renamed AND the option values were renumbered, so a direct
+    // conversion is insufficient. This mapping translates old option values to new ones.
+    // Old values: 0=None, 1=SaveWP, 2=LearnCruiseSpeed, 3-12 various aux functions
+    // New values follow the standardized RCx_OPTION scheme shared across vehicle types
     const AP_Param::ConversionInfo ch7_option_info = { Parameters::k_param_ch7_option, 0, AP_PARAM_INT8, "RC7_OPTION" };
     AP_Int8 ch7_opt_old;
     if (AP_Param::find_old_parameter(&ch7_option_info, &ch7_opt_old)) {
+        // Mapping table from old CH7_OPTION values to new RC7_OPTION values
         const uint8_t ch7_opt_map[] = {0,7,50,41,51,52,53,54,16,4,42,55,56};
         const uint8_t ch7_opt_old_val = (uint8_t)ch7_opt_old.get();
         if (ch7_opt_old_val < ARRAY_SIZE(ch7_opt_map)) {
@@ -793,19 +1025,31 @@ void Rover::load_parameters(void)
         }
     }
 
-    // set AR_WPNav's WP_SPEED to be old WP_SPEED (if set) or CRUISE_SPEED (if set)
+    // Special case: WP_SPEED parameter migration with fallback logic
+    // WP_SPEED was moved into the AR_WPNav sub-group. This conversion handles two scenarios:
+    // 1. If old WP_SPEED was explicitly set by user, migrate that value
+    // 2. If old WP_SPEED was never set, use CRUISE_SPEED as the default for WP_SPEED
+    // This ensures waypoint navigation speed is initialized sensibly for all users
     const AP_Param::ConversionInfo wp_speed_old_info = { Parameters::k_param_g2, 14, AP_PARAM_FLOAT, "WP_SPEED" };
     const AP_Param::ConversionInfo cruise_speed_info = { Parameters::k_param_speed_cruise, 0, AP_PARAM_FLOAT, "WP_SPEED" };
     AP_Float wp_speed_old;
     if (AP_Param::find_old_parameter(&wp_speed_old_info, &wp_speed_old)) {
-        // old WP_SPEED parameter value was set so copy to new WP_SPEED
+        // Old WP_SPEED parameter value was explicitly set by user, so copy to new location
         AP_Param::convert_old_parameter(&wp_speed_old_info, 1.0f);
     } else {
-        // copy CRUISE_SPEED to new WP_SPEED
+        // Old WP_SPEED was never set, so use CRUISE_SPEED as default for new WP_SPEED
+        // This maintains expected behavior where waypoint speed matches general cruise speed
         AP_Param::convert_old_parameter(&cruise_speed_info, 1.0f);
     }
 
-    // attitude control FF and FILT parameter changes for Rover-3.6
+    // Attitude control feedforward (FF) and filter (FILT) parameter conversions for Rover-3.6
+    // These parameters were reorganized in the attitude control library with new naming
+    // and moved locations. The conversions map old embedded indices to new parameter names:
+    // - STR_RAT = Steering rate controller parameters
+    // - SPEED = Speed controller parameters
+    // - BAL = Balance bot controller parameters
+    // - SAIL = Sailboat controller parameters
+    // Each controller has FLTE (error filter) and FF (feedforward gain) parameters
     const AP_Param::ConversionInfo ff_and_filt_conversion_info[] = {
         { Parameters::k_param_g2, 24650, AP_PARAM_FLOAT, "ATC_STR_RAT_FLTE" },
         { Parameters::k_param_g2, 28746, AP_PARAM_FLOAT, "ATC_STR_RAT_FF" },
@@ -818,67 +1062,93 @@ void Rover::load_parameters(void)
     };
     AP_Param::convert_old_parameters(&ff_and_filt_conversion_info[0], ARRAY_SIZE(ff_and_filt_conversion_info));
 
-    // configure safety switch to allow stopping the motors while armed
+    // Configure hardware safety switch behavior for Rover (if board has one)
+    // Rover allows motor stop/start via safety button while armed, unlike Copter which
+    // disables this for flight safety. Ground vehicles can safely stop motors when armed.
+    // BRD_SAFETYOPTION bits: BUTTON_ACTIVE_SAFETY_OFF | BUTTON_ACTIVE_SAFETY_ON | BUTTON_ACTIVE_ARMED
 #if HAL_HAVE_SAFETY_SWITCH
     AP_Param::set_default_by_name("BRD_SAFETYOPTION", AP_BoardConfig::BOARD_SAFETY_OPTION_BUTTON_ACTIVE_SAFETY_OFF|
                                                       AP_BoardConfig::BOARD_SAFETY_OPTION_BUTTON_ACTIVE_SAFETY_ON|
                                                       AP_BoardConfig::BOARD_SAFETY_OPTION_BUTTON_ACTIVE_ARMED);
 #endif
 
+    // G2 object conversions: Migrate feature-specific parameter groups that were previously
+    // embedded in ParametersG2 to their own top-level objects. This improves parameter
+    // organization and allows libraries to manage their own parameters independently.
+    // Required for conditional features that may be enabled/disabled at compile time.
 #if AP_AIRSPEED_ENABLED | AP_AIS_ENABLED | AP_FENCE_ENABLED
-    // Find G2's Top Level Key
+    // Find G2's top-level parameter key needed for G2 sub-object conversions
     AP_Param::ConversionInfo info;
     if (!AP_Param::find_top_level_key_by_pointer(&g2, info.old_key)) {
-        return;
+        return;  // Conversion cannot proceed without G2 key - should not happen in normal operation
     }
 #endif
 
+    // G2 sub-object conversion table: Each entry specifies an object that was moved from
+    // being a G2 sub-parameter to being a top-level parameter group. The number indicates
+    // the old index within ParametersG2 where this object was located.
     static const AP_Param::G2ObjectConversion g2_conversions[] {
 #if AP_AIRSPEED_ENABLED
-// PARAMETER_CONVERSION - Added: JAN-2022
+        // PARAMETER_CONVERSION - Added: JAN-2022
+        // Airspeed sensor parameters (ARSPD_*) moved from g2 to top-level
         { &airspeed, airspeed.var_info, 37 },
 #endif
 #if AP_AIS_ENABLED
-// PARAMETER_CONVERSION - Added: MAR-2022
+        // PARAMETER_CONVERSION - Added: MAR-2022
+        // AIS (Automatic Identification System) parameters moved from g2 to top-level
         { &ais, ais.var_info, 50 },
 #endif
 #if AP_FENCE_ENABLED
-// PARAMETER_CONVERSION - Added: Mar-2022
+        // PARAMETER_CONVERSION - Added: Mar-2022
+        // Geofencing parameters (FENCE_*) moved from g2 to top-level
         { &fence, fence.var_info, 17 },
 #endif
 #if AP_STATS_ENABLED
-    // PARAMETER_CONVERSION - Added: Jan-2024 for Rover-4.6
+        // PARAMETER_CONVERSION - Added: Jan-2024 for Rover-4.6
+        // Flight statistics parameters (STAT_*) moved from g2 to top-level
         { &stats, stats.var_info, 1 },
 #endif
 #if AP_SCRIPTING_ENABLED
-    // PARAMETER_CONVERSION - Added: Jan-2024 for Rover-4.6
+        // PARAMETER_CONVERSION - Added: Jan-2024 for Rover-4.6
+        // Lua scripting parameters (SCR_*) moved from g2 to top-level
         { &scripting, scripting.var_info, 41 },
 #endif
 #if AP_GRIPPER_ENABLED
-    // PARAMETER_CONVERSION - Added: Feb-2024 for Copter-4.6
+        // PARAMETER_CONVERSION - Added: Feb-2024 for Copter-4.6
+        // Gripper control parameters (GRIP_*) moved from g2 to top-level
         { &gripper, gripper.var_info, 39 },
 #endif
     };
 
+    // Execute all G2 object conversions defined above
     AP_Param::convert_g2_objects(&g2, g2_conversions, ARRAY_SIZE(g2_conversions));
 
     // PARAMETER_CONVERSION - Added: Feb-2024 for Rover-4.6
+    // Logger parameters (LOG_*) conversion: Move from g.logger to top-level logger object
+    // This allows the logging library to manage its own parameters independently
 #if HAL_LOGGING_ENABLED
     AP_Param::convert_class(g.k_param_logger, &logger, logger.var_info, 0, true);
 #endif
 
+    // Top-level object conversions: Migrate entire parameter groups that were previously
+    // embedded in the main Parameters structure to standalone top-level objects
     static const AP_Param::TopLevelObjectConversion toplevel_conversions[] {
 #if AP_SERIALMANAGER_ENABLED
         // PARAMETER_CONVERSION - Added: Feb-2024 for Rover-4.6
+        // Serial port parameters (SERIALx_*) moved from Parameters to SerialManager object
         { &serial_manager, serial_manager.var_info, Parameters::k_param_serial_manager_old },
 #endif
     };
 
+    // Execute all top-level object conversions
     AP_Param::convert_toplevel_objects(toplevel_conversions, ARRAY_SIZE(toplevel_conversions));
 
 #if HAL_GCS_ENABLED
-    // Move parameters into new MAV_ parameter namespace
     // PARAMETER_CONVERSION - Added: Mar-2025 for ArduPilot-4.7
+    // MAVLink/GCS parameter namespace consolidation: Move all MAVLink-related parameters
+    // into a unified MAV_ namespace for better organization and discoverability
+    // Old names: SYSID_THISMAV, SYSID_MYGCS, TELEM_DELAY
+    // New names: MAV_SYSID, MAV_GCS_SYSID, MAV_TELEM_DELAY, MAV_OPTIONS
     {
         static const AP_Param::ConversionInfo gcs_conversion_info[] {
             { Parameters::k_param_sysid_this_mav_old, 0, AP_PARAM_INT16,  "MAV_SYSID" },
