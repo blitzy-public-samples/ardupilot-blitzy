@@ -1,3 +1,35 @@
+/**
+ * @file GCS_MAVLink_Rover.cpp
+ * @brief Implementation of rover-specific MAVLink command handlers and message processing
+ * 
+ * @details This file implements the rover-specific extensions to the MAVLink Ground Control Station
+ *          interface. It handles incoming MAVLink commands and messages specific to ground vehicles,
+ *          boats, and other rover platforms, and provides telemetry output tailored for rover operation.
+ *          
+ *          Key responsibilities:
+ *          - Process rover-specific MAVLink commands (DO_CHANGE_SPEED, DO_SET_REVERSE, DO_REPOSITION, etc.)
+ *          - Handle guided mode position/velocity/attitude target messages
+ *          - Send rover-specific telemetry (position targets, navigation controller output, servo outputs)
+ *          - Coordinate frame transformations for guided mode commands
+ *          - Vehicle capability reporting for rover platforms
+ *          
+ * @note Coordinate Frame Conventions:
+ *       - NED (North-East-Down): Earth-fixed frame with X=North, Y=East, Z=Down
+ *       - Body Frame: Vehicle-fixed frame with X=forward, Y=right, Z=down
+ *       - Global Frames: Latitude/longitude with various altitude references (MSL, terrain, etc.)
+ *       
+ * @note Unit Conventions:
+ *       - Angles: Degrees in MAVLink messages, centidegrees (deg*100) internally
+ *       - Speed: m/s in MAVLink messages and internal calculations
+ *       - Turn rates: deg/s in MAVLink, centideg/s internally
+ *       - Position: Latitude/longitude as 1e7 integers, altitude as float meters
+ *       
+ * @see GCS_MAVLink_Rover.h for class declarations
+ * @see libraries/GCS_MAVLink/GCS.h for base MAVLink implementation
+ * 
+ * Source: Rover/GCS_MAVLink_Rover.cpp
+ */
+
 #include "Rover.h"
 
 #include "GCS_MAVLink_Rover.h"
@@ -72,32 +104,65 @@ MAV_STATE GCS_MAVLINK_Rover::vehicle_system_status() const
     return MAV_STATE_ACTIVE;
 }
 
+/**
+ * @brief Send current rover position target to ground control station
+ * 
+ * @details Transmits the POSITION_TARGET_GLOBAL_INT MAVLink message containing the rover's
+ *          current desired/target position as determined by the active flight mode. This allows
+ *          the GCS to display where the rover is trying to navigate to.
+ *          
+ *          The message only includes position (lat/lon/alt) fields; velocity, acceleration, and
+ *          attitude fields are masked as ignored since rovers typically navigate to waypoints
+ *          rather than following velocity vectors.
+ *          
+ *          Coordinate Frame: MAV_FRAME_GLOBAL (global latitude/longitude with MSL altitude)
+ *          
+ *          Type Mask Behavior:
+ *          - Bits set to 1 indicate that field should be IGNORED by receiver
+ *          - Only position (lat/lon/alt) fields are valid (mask bits = 0)
+ *          - All velocity, acceleration, yaw, and yaw rate fields are masked as ignored (bits = 1)
+ *          
+ * @note Only sends if the current mode has a defined target location (e.g., Auto, Guided, RTL)
+ * @note Altitude is converted from centimeters (internal) to meters (MAVLink) via 0.01f scaling
+ * @note Latitude and longitude are sent as 1e7 integers (degrees * 10^7)
+ * 
+ * @warning This function returns silently if the current mode does not have a target location
+ * 
+ * Source: Rover/GCS_MAVLink_Rover.cpp:75-101
+ */
 void GCS_MAVLINK_Rover::send_position_target_global_int()
 {
+    // Get the desired location from the current control mode
     Location target;
     if (!rover.control_mode->get_desired_location(target)) {
+        // Current mode doesn't have a target location (e.g., Manual, Hold)
         return;
     }
+    
+    // Type mask configuration: Set bits indicate fields to IGNORE
+    // Rover only uses position fields; velocity, acceleration, and yaw are not used
     static constexpr uint16_t POSITION_TARGET_TYPEMASK_LAST_BYTE = 0xF000;
     static constexpr uint16_t TYPE_MASK = POSITION_TARGET_TYPEMASK_VX_IGNORE | POSITION_TARGET_TYPEMASK_VY_IGNORE | POSITION_TARGET_TYPEMASK_VZ_IGNORE |
                                           POSITION_TARGET_TYPEMASK_AX_IGNORE | POSITION_TARGET_TYPEMASK_AY_IGNORE | POSITION_TARGET_TYPEMASK_AZ_IGNORE |
                                           POSITION_TARGET_TYPEMASK_YAW_IGNORE | POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE | POSITION_TARGET_TYPEMASK_LAST_BYTE;
+    
+    // Send POSITION_TARGET_GLOBAL_INT message with only position fields populated
     mavlink_msg_position_target_global_int_send(
         chan,
-        AP_HAL::millis(), // time_boot_ms
-        MAV_FRAME_GLOBAL, // targets are always global altitude
-        TYPE_MASK, // ignore everything except the x/y/z components
-        target.lat, // latitude as 1e7
-        target.lng, // longitude as 1e7
-        target.alt * 0.01f, // altitude is sent as a float
-        0.0f, // vx
-        0.0f, // vy
-        0.0f, // vz
-        0.0f, // afx
-        0.0f, // afy
-        0.0f, // afz
-        0.0f, // yaw
-        0.0f); // yaw_rate
+        AP_HAL::millis(), // time_boot_ms - timestamp in milliseconds since system boot
+        MAV_FRAME_GLOBAL, // targets are always global altitude (MSL reference)
+        TYPE_MASK, // ignore everything except the lat/lon/alt components
+        target.lat, // latitude as 1e7 (degrees * 10^7)
+        target.lng, // longitude as 1e7 (degrees * 10^7)
+        target.alt * 0.01f, // altitude is sent as a float in meters (converted from centimeters)
+        0.0f, // vx - North velocity in m/s (ignored, set to 0)
+        0.0f, // vy - East velocity in m/s (ignored, set to 0)
+        0.0f, // vz - Down velocity in m/s (ignored, set to 0)
+        0.0f, // afx - North acceleration in m/s² (ignored, set to 0)
+        0.0f, // afy - East acceleration in m/s² (ignored, set to 0)
+        0.0f, // afz - Down acceleration in m/s² (ignored, set to 0)
+        0.0f, // yaw - Yaw angle in radians (ignored, set to 0)
+        0.0f); // yaw_rate - Yaw rate in rad/s (ignored, set to 0)
 }
 
 void GCS_MAVLINK_Rover::send_nav_controller_output() const
@@ -502,43 +567,153 @@ MAV_RESULT GCS_MAVLINK_Rover::_handle_command_preflight_calibration(const mavlin
     return GCS_MAVLINK::_handle_command_preflight_calibration(packet, msg);
 }
 
+/**
+ * @brief Handle rover-specific MAVLink COMMAND_INT messages
+ * 
+ * @details Processes MAVLink commands sent via COMMAND_INT messages (commands with integer position fields).
+ *          This function extends the base GCS_MAVLink command handler to implement rover-specific behaviors
+ *          for commands related to speed control, positioning, motor testing, and mission execution.
+ *          
+ *          Rover-Specific Commands Handled:
+ *          - MAV_CMD_DO_CHANGE_SPEED: Change target ground speed
+ *          - MAV_CMD_DO_REPOSITION: Navigate to a new position in Guided mode
+ *          - MAV_CMD_DO_SET_REVERSE: Set forward/reverse direction
+ *          - MAV_CMD_NAV_RETURN_TO_LAUNCH: Enter RTL mode
+ *          - MAV_CMD_DO_MOTOR_TEST: Test individual motors
+ *          - MAV_CMD_MISSION_START: Start autonomous mission (Auto mode)
+ *          - MAV_CMD_NAV_SET_YAW_SPEED: Set heading and speed in Guided mode
+ *          
+ * @param[in] packet The COMMAND_INT packet containing command ID and parameters
+ * @param[in] msg The complete MAVLink message (for base class processing)
+ * 
+ * @return MAV_RESULT indicating command execution status:
+ *         - MAV_RESULT_ACCEPTED: Command executed successfully
+ *         - MAV_RESULT_DENIED: Command not applicable in current state
+ *         - MAV_RESULT_FAILED: Command execution failed
+ *         - Other: Handled by base class for unsupported commands
+ *         
+ * @note All commands forwarded to base class if not handled by rover implementation
+ * @note Speed units are in m/s, angles in degrees, positions as 1e7 lat/lon integers
+ * 
+ * @warning Some commands (e.g., DO_REPOSITION) may change vehicle mode without explicit mode change command
+ * 
+ * Source: Rover/GCS_MAVLink_Rover.cpp:505-571
+ */
 MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_packet(const mavlink_command_int_t &packet, const mavlink_message_t &msg)
 {
     switch (packet.command) {
 
     case MAV_CMD_DO_CHANGE_SPEED:
-        // param1 : type
-        // param2 : new speed in m/s
+        /**
+         * Change the rover's target speed
+         * 
+         * param1 : Speed type (SPEED_TYPE enum)
+         *          - SPEED_TYPE_AIRSPEED: Treated as ground speed for rover (GCS compatibility)
+         *          - SPEED_TYPE_GROUNDSPEED: Ground speed in m/s
+         *          - SPEED_TYPE_CLIMB_SPEED: Not supported for rovers (denied)
+         *          - SPEED_TYPE_DESCENT_SPEED: Not supported for rovers (denied)
+         * param2 : New target speed in m/s (positive = forward, negative = reverse)
+         * 
+         * For rovers, both AIRSPEED and GROUNDSPEED are interpreted as ground speed since
+         * rovers don't have meaningful airspeed. This provides compatibility with GCS software
+         * designed for aircraft.
+         * 
+         * The speed change applies to the current control mode and persists until changed again
+         * or the mode is switched. Not all modes support speed changes.
+         */
         switch (SPEED_TYPE(packet.param1)) {
             case SPEED_TYPE_CLIMB_SPEED:
             case SPEED_TYPE_DESCENT_SPEED:
             case SPEED_TYPE_ENUM_END:
+                // Climb/descent speeds don't apply to ground vehicles
                 return MAV_RESULT_DENIED;
 
             case SPEED_TYPE_AIRSPEED: // Airspeed is treated as ground speed for GCS compatibility
             case SPEED_TYPE_GROUNDSPEED:
+                // Valid speed types for rovers
                 break;
         }
+        // Attempt to set the desired speed in the current control mode
         if (!rover.control_mode->set_desired_speed(packet.param2)) {
+            // Mode doesn't support speed changes or speed value is invalid
             return MAV_RESULT_FAILED;
         }
         return MAV_RESULT_ACCEPTED;
 
     case MAV_CMD_DO_REPOSITION:
+        /**
+         * Command rover to navigate to a new position
+         * 
+         * param1 : Target speed in m/s (optional, -1 = use default)
+         * param2 : Bitmask of options (MAV_DO_REPOSITION_FLAGS)
+         *          - Bit 0 (MAV_DO_REPOSITION_FLAGS_CHANGE_MODE): Switch to Guided mode if not already
+         * x : Target latitude (degrees * 1e7)
+         * y : Target longitude (degrees * 1e7)
+         * z : Target altitude (meters, frame-dependent)
+         * 
+         * This command sends the rover to a specific global position. If the rover is not in
+         * Guided mode and the CHANGE_MODE flag is set, it will automatically switch to Guided mode.
+         * If the flag is not set and the rover is not in Guided mode, the command is denied.
+         * 
+         * The rover will navigate to the specified location using its current navigation algorithm
+         * (typically following a path that avoids obstacles and respects turn radius constraints).
+         */
         return handle_command_int_do_reposition(packet);
 
     case MAV_CMD_DO_SET_REVERSE:
+        /**
+         * Set rover travel direction (forward or reverse)
+         * 
+         * param1 : Direction (0 = Forward, 1 = Reverse)
+         * 
+         * This command instructs the rover to drive in reverse (backwards) or return to forward
+         * motion. The rover will maintain its current speed but reverse the direction of travel.
+         * This is useful for backing out of tight spaces or reversing along a path.
+         * 
+         * Not all modes support reversing. The command will be accepted but may have no effect
+         * in modes that don't implement reverse behavior.
+         */
         // param1 : Direction (0=Forward, 1=Reverse)
         rover.control_mode->set_reversed(is_equal(packet.param1,1.0f));
         return MAV_RESULT_ACCEPTED;
 
     case MAV_CMD_NAV_RETURN_TO_LAUNCH:
+        /**
+         * Command rover to return to launch position (RTL mode)
+         * 
+         * No parameters used
+         * 
+         * Switches the rover to RTL (Return To Launch) mode, which navigates back to the
+         * location where the vehicle was armed. The rover will follow the most direct path
+         * considering obstacles and terrain, or may use SmartRTL path if configured.
+         * 
+         * If mode change fails (e.g., due to pre-arm checks or system state), MAV_RESULT_FAILED
+         * is returned. Otherwise, the mode change is accepted and rover begins RTL navigation.
+         */
         if (rover.set_mode(rover.mode_rtl, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_ACCEPTED;
         }
         return MAV_RESULT_FAILED;
 
     case MAV_CMD_DO_MOTOR_TEST:
+        /**
+         * Test individual rover motors/servos
+         * 
+         * param1 : Motor sequence number (1 to max number of motors on vehicle)
+         *          For rovers: 1 = left motor, 2 = right motor, 3 = throttle, 4 = steering
+         * param2 : Throttle type (MOTOR_TEST_THROTTLE_TYPE enum)
+         *          - 0 = Throttle percentage (0-100)
+         *          - 1 = PWM (typically 1000-2000 µs)
+         *          - 2 = Pilot throttle channel pass-through
+         * param3 : Throttle value (range depends on param2 type)
+         * param4 : Timeout in seconds (test will run for this duration)
+         * 
+         * Allows testing of individual motor outputs for diagnostic purposes. This is typically
+         * used during setup and calibration to verify motor connections and directions.
+         * 
+         * @warning Vehicle must be disarmed and in a safe configuration before motor testing
+         * @warning Ensure vehicle is secured and cannot move during motor tests
+         */
         // param1 : motor sequence number (a number from 1 to max number of motors on the vehicle)
         // param2 : throttle type (0=throttle percentage, 1=PWM, 2=pilot throttle channel pass-through. See MOTOR_TEST_THROTTLE_TYPE enum)
         // param3 : throttle (range depends upon param2)
@@ -550,17 +725,46 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_packet(const mavlink_command_in
                                               packet.param4);
 
     case MAV_CMD_MISSION_START:
+        /**
+         * Start autonomous mission execution (Auto mode)
+         * 
+         * param1 : First mission item to run (0 = start from beginning, not currently supported)
+         * param2 : Last mission item to run (0 = run to end, not currently supported)
+         * 
+         * Switches the rover to Auto mode and begins executing the pre-loaded mission from the
+         * beginning. The rover will navigate through all mission waypoints in sequence until
+         * the mission completes or is interrupted.
+         * 
+         * Currently, selective mission execution (starting/ending at specific items) is not
+         * supported. param1 and param2 must both be zero for the command to be accepted.
+         * 
+         * @note Mission must be uploaded and validated before this command will succeed
+         */
         if (!is_zero(packet.param1) || !is_zero(packet.param2)) {
-            // first-item/last item not supported
+            // first-item/last item selective execution not supported for rovers
             return MAV_RESULT_DENIED;
         }
         if (rover.set_mode(rover.mode_auto, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_ACCEPTED;
         }
+        // Mode change failed (likely due to mission validation or arming checks)
         return MAV_RESULT_FAILED;
 
 #if AP_MAVLINK_MAV_CMD_NAV_SET_YAW_SPEED_ENABLED
     case MAV_CMD_NAV_SET_YAW_SPEED:
+        /**
+         * Set rover heading and speed in Guided mode (DEPRECATED)
+         * 
+         * @deprecated This command is deprecated. Use SET_POSITION_TARGET_GLOBAL_INT or 
+         *             SET_POSITION_TARGET_LOCAL_NED messages for guided mode control instead.
+         * 
+         * param1 : Target yaw angle in degrees (absolute or relative based on param3)
+         * param2 : Target speed in m/s
+         * param3 : Angle mode (0 = absolute North-referenced, 1 = relative to current heading)
+         * 
+         * Commands the rover to turn to a specific heading and travel at the specified speed.
+         * Only works when rover is in Guided mode.
+         */
         send_received_message_deprecation_warning("MAV_CMD_NAV_SET_YAW_SPEED");
         return handle_command_nav_set_yaw_speed(packet, msg);
 #endif
@@ -634,23 +838,51 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_do_reposition(const mavlink_com
     return MAV_RESULT_ACCEPTED;
 }
 
+/**
+ * @brief Dispatch rover-specific MAVLink messages to appropriate handlers
+ * 
+ * @details Routes incoming MAVLink messages to rover-specific message handlers. This function
+ *          is called for every MAVLink message received on this channel and provides the entry
+ *          point for rover-specific guided mode control messages.
+ *          
+ *          Rover-Specific Messages Handled:
+ *          - SET_ATTITUDE_TARGET: Direct attitude and thrust control in Guided mode
+ *          - SET_POSITION_TARGET_LOCAL_NED: Position/velocity targets in NED frame
+ *          - SET_POSITION_TARGET_GLOBAL_INT: Position/velocity targets in global (lat/lon) frame
+ *          
+ *          These messages enable external systems (GCS, companion computers, offboard controllers)
+ *          to command the rover's motion in Guided mode with precise control over position,
+ *          velocity, or attitude.
+ *          
+ * @param[in] msg The received MAVLink message to be processed
+ * 
+ * @note Messages not handled by rover-specific code are forwarded to base class GCS_MAVLINK::handle_message()
+ * @note All guided mode messages require the rover to be in Guided mode to take effect
+ * @note Coordinate frames and type masks must be properly configured in messages
+ * 
+ * Source: Rover/GCS_MAVLink_Rover.cpp:637-657
+ */
 void GCS_MAVLINK_Rover::handle_message(const mavlink_message_t &msg)
 {
     switch (msg.msgid) {
 
     case MAVLINK_MSG_ID_SET_ATTITUDE_TARGET:
+        // Direct attitude (heading) and thrust (speed) control for Guided mode
         handle_set_attitude_target(msg);
         break;
 
     case MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED:
+        // Position/velocity targets in local NED or body-fixed frames
         handle_set_position_target_local_ned(msg);
         break;
 
     case MAVLINK_MSG_ID_SET_POSITION_TARGET_GLOBAL_INT:
+        // Position/velocity targets in global lat/lon coordinates
         handle_set_position_target_global_int(msg);
         break;
 
     default:
+        // Forward unhandled messages to base class implementation
         GCS_MAVLINK::handle_message(msg);
         break;
     }
@@ -701,251 +933,377 @@ void GCS_MAVLINK_Rover::send_acc_ignore_must_be_set_message(const char *msgname)
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ignoring %s; set ACC_IGNORE in mask", msgname);
 }
 
+/**
+ * @brief Handle position/velocity target commands in local NED or body-fixed frames
+ * 
+ * @details Processes SET_POSITION_TARGET_LOCAL_NED messages for guided mode control using local
+ *          or body-relative coordinate frames. This message provides flexible control options:
+ *          position-only, velocity-only, or combined position+velocity+yaw commands.
+ *          
+ *          Supported Coordinate Frames:
+ *          - MAV_FRAME_LOCAL_NED: Relative to EKF origin (North-East-Down)
+ *          - MAV_FRAME_LOCAL_OFFSET_NED: Offset from current vehicle position in NED
+ *          - MAV_FRAME_BODY_NED: Relative to vehicle body frame (forward-right-down)
+ *          - MAV_FRAME_BODY_OFFSET_NED: Offset from current position in body frame
+ *          
+ *          Type Mask Usage (bits set to 1 = IGNORE that field):
+ *          - POSITION_IGNORE: Ignore position fields (x, y)
+ *          - VEL_IGNORE: Ignore velocity fields (vx, vy)
+ *          - ACC_IGNORE: Must be set (acceleration control not supported)
+ *          - YAW_IGNORE: Ignore yaw field
+ *          - YAW_RATE_IGNORE: Ignore yaw_rate field
+ *          
+ *          Control Modes Based on Type Mask:
+ *          1. Position-only: Set target location (pos_ignore=0, vel_ignore=1)
+ *          2. Velocity+Heading: Set speed and direction (pos_ignore=1, vel_ignore=0, yaw_ignore=0)
+ *          3. Velocity+TurnRate: Set speed and turn rate (pos_ignore=1, vel_ignore=0, yaw_rate_ignore=0)
+ *          4. Heading-only: Set target heading at zero speed (skid-steer only)
+ *          5. Turn rate-only: Set turn rate at zero speed (skid-steer only)
+ *          
+ * @param[in] msg The MAVLink message containing position/velocity target data
+ * 
+ * @note Only active when rover is in Guided mode
+ * @note Requires valid EKF origin for MAV_FRAME_LOCAL_NED
+ * @note Acceleration fields are not supported and must be masked as ignored
+ * @note Body-frame commands are rotated to NED frame using current vehicle heading
+ * @note Velocity magnitude is constrained to vehicle's maximum configured speed
+ * 
+ * @warning Acceleration control (ACC_IGNORE=0) will cause command to be rejected
+ * @warning Invalid coordinate frames are silently ignored
+ * 
+ * Source: Rover/GCS_MAVLink_Rover.cpp:704-841
+ */
 void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_message_t &msg)
 {
     // decode packet
     mavlink_set_position_target_local_ned_t packet;
     mavlink_msg_set_position_target_local_ned_decode(&msg, &packet);
 
-    // exit if vehicle is not in Guided mode
+    // exit if vehicle is not in Guided mode - only process guided commands when in guided mode
     if (!rover.control_mode->in_guided_mode()) {
         return;
     }
 
-    // need ekf origin
+    // Need EKF origin to interpret MAV_FRAME_LOCAL_NED coordinates
     Location ekf_origin;
     if (!rover.ahrs.get_origin(ekf_origin)) {
         return;
     }
 
-    // check for supported coordinate frames
+    // Validate coordinate frame - only accept supported NED and body frames
     switch (packet.coordinate_frame) {
-    case MAV_FRAME_LOCAL_NED:
-    case MAV_FRAME_LOCAL_OFFSET_NED:
-    case MAV_FRAME_BODY_NED:
-    case MAV_FRAME_BODY_OFFSET_NED:
+    case MAV_FRAME_LOCAL_NED:        // Position relative to EKF origin
+    case MAV_FRAME_LOCAL_OFFSET_NED: // Offset from current position in NED
+    case MAV_FRAME_BODY_NED:         // Position relative to vehicle body frame
+    case MAV_FRAME_BODY_OFFSET_NED:  // Offset from current position in body frame
         break;
 
     default:
+        // Unsupported frame - silently ignore message
         return;
     }
 
+    // Decode type mask to determine which fields are active
+    // Type mask bits set to 1 indicate field should be IGNORED
     bool pos_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_POS_IGNORE;
     bool vel_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_VEL_IGNORE;
     bool acc_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_ACC_IGNORE;
     bool yaw_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_IGNORE;
     bool yaw_rate_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_RATE_IGNORE;
 
-    // prepare target position
+    // Process position target if not ignored
+    // Start with current location and apply offsets based on coordinate frame
     Location target_loc = rover.current_loc;
     if (!pos_ignore) {
         switch (packet.coordinate_frame) {
         case MAV_FRAME_BODY_NED:
         case MAV_FRAME_BODY_OFFSET_NED: {
-            // rotate from body-frame to NE frame
+            // Body-frame: X=forward, Y=right, Z=down
+            // Rotate body-frame coordinates to NED frame using current vehicle heading
             const float ne_x = packet.x * rover.ahrs.cos_yaw() - packet.y * rover.ahrs.sin_yaw();
             const float ne_y = packet.x * rover.ahrs.sin_yaw() + packet.y * rover.ahrs.cos_yaw();
-            // add offset to current location
+            // Apply rotated offset to current location
             target_loc.offset(ne_x, ne_y);
         }
             break;
 
         case MAV_FRAME_LOCAL_OFFSET_NED:
-            // add offset to current location
+            // NED offset from current vehicle position (North=X, East=Y, Down=Z)
             target_loc.offset(packet.x, packet.y);
             break;
 
         case MAV_FRAME_LOCAL_NED:
         default:
-            // MAV_FRAME_LOCAL_NED is interpreted as an offset from EKF origin
+            // Absolute position in NED frame relative to EKF origin
+            // Start from EKF origin and apply offset
             target_loc = ekf_origin;
             target_loc.offset(packet.x, packet.y);
             break;
         }
     }
 
-    float target_speed = 0.0f;
-    float target_yaw_cd = 0.0f;
+    // Initialize target motion parameters
+    float target_speed = 0.0f;        // Target ground speed in m/s
+    float target_yaw_cd = 0.0f;       // Target heading in centidegrees
 
-    // consume velocity and convert to target speed and heading
+    // Process velocity vector if not ignored
+    // Velocity is provided as North (vx) and East (vy) components in m/s
     if (!vel_ignore) {
         const float speed_max = rover.control_mode->get_speed_default();
-        // convert vector length into a speed
+        // Calculate speed magnitude from velocity vector (Pythagoras: sqrt(vx² + vy²))
+        // Constrain to configured maximum speed (supports negative for reverse)
         target_speed = constrain_float(safe_sqrt(sq(packet.vx) + sq(packet.vy)), -speed_max, speed_max);
-        // convert vector direction to target yaw
+        // Calculate heading from velocity vector direction using atan2(East, North)
+        // Convert from radians to centidegrees (deg * 100)
         target_yaw_cd = degrees(atan2f(packet.vy, packet.vx)) * 100.0f;
 
-        // rotate target yaw if provided in body-frame
+        // If velocity provided in body frame, rotate to NED frame
         if (packet.coordinate_frame == MAV_FRAME_BODY_NED || packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
             target_yaw_cd = wrap_180_cd(target_yaw_cd + rover.ahrs.yaw_sensor);
         }
     }
 
-    // consume yaw heading
+    // Process yaw (heading) if explicitly provided
+    // Explicit yaw overrides heading derived from velocity vector
     if (!yaw_ignore) {
+        // Convert yaw from radians to centidegrees
         target_yaw_cd = degrees(packet.yaw) * 100.0f;
-        // rotate target yaw if provided in body-frame
+        // Rotate from body frame to NED frame if necessary
         if (packet.coordinate_frame == MAV_FRAME_BODY_NED || packet.coordinate_frame == MAV_FRAME_BODY_OFFSET_NED) {
             target_yaw_cd = wrap_180_cd(target_yaw_cd + rover.ahrs.yaw_sensor);
         }
     }
-    // consume yaw rate
-    float target_turn_rate_cds = 0.0f;
+    
+    // Process yaw rate (turn rate) if provided
+    float target_turn_rate_cds = 0.0f; // Target turn rate in centidegrees per second
     if (!yaw_rate_ignore) {
+        // Convert from radians/sec to centidegrees/sec
         target_turn_rate_cds = degrees(packet.yaw_rate) * 100.0f;
     }
 
-    // handling case when both velocity and either yaw or yaw-rate are provided
-    // by default, we consider that the rover will drive forward
+    // Determine forward/reverse direction when both velocity and yaw/yaw_rate are provided
+    // Default assumption is forward motion (positive speed)
     float speed_dir = 1.0f;
     if (!vel_ignore && (!yaw_ignore || !yaw_rate_ignore)) {
-        // Note: we are using the x-axis velocity to determine direction even though
-        // the frame may have been provided in MAV_FRAME_LOCAL_OFFSET_NED or MAV_FRAME_LOCAL_NED
+        // Check sign of vx (North velocity) to determine if rover should drive backwards
+        // Note: Using vx even for offset frames - negative vx indicates reverse motion
         if (is_negative(packet.vx)) {
-            speed_dir = -1.0f;
+            speed_dir = -1.0f; // Reverse direction
         }
     }
 
+    // Validate acceleration field is ignored - rovers don't support acceleration control
     if (!acc_ignore) {
-        // ignore any command where acceleration is not ignored
+        // Reject command if acceleration control was requested
         send_acc_ignore_must_be_set_message("SET_POSITION_TARGET_LOCAL_NED");
         return;
     }
 
-    // set guided mode targets
+    // Dispatch to appropriate guided mode control based on which fields are provided
+    // Priority: Position > Velocity+Heading > Velocity+TurnRate > Heading-only > TurnRate-only
+    
     if (!pos_ignore) {
-        // consume position target
+        // Position control mode: Navigate to target location
+        // This is highest priority - if position provided, use position control
         if (!rover.mode_guided.set_desired_location(target_loc)) {
-            // GCS will need to monitor desired location to
-            // see if they are having an effect.
+            // Failed to set location (e.g., unreachable)
+            // GCS should monitor actual desired location to see if command took effect
         }
-        return;
+        return; // Position control is mutually exclusive with velocity control
     }
 
+    // Velocity control modes (only reached if position is ignored)
     if (!vel_ignore && yaw_ignore && yaw_rate_ignore) {
-        // consume velocity
+        // Velocity-only: Drive at target speed using heading derived from velocity vector
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
     } else if (!vel_ignore && yaw_ignore && !yaw_rate_ignore) {
-        // consume velocity and turn rate
+        // Velocity + turn rate: Drive at target speed while turning at specified rate
         rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
     } else if (!vel_ignore && !yaw_ignore && yaw_rate_ignore) {
-        // consume velocity and heading
+        // Velocity + heading: Drive at target speed toward specified heading
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
     } else if (vel_ignore && !yaw_ignore && yaw_rate_ignore) {
-        // consume just target heading (probably only skid steering vehicles can do this)
+        // Heading-only: Turn to face specified heading at zero speed
+        // Note: Typically only skid-steer vehicles can turn in place
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
     } else if (vel_ignore && yaw_ignore && !yaw_rate_ignore) {
-        // consume just turn rate (probably only skid steering vehicles can do this)
+        // Turn rate-only: Turn at specified rate at zero speed
+        // Note: Typically only skid-steer vehicles can turn in place
         rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
     }
 }
 
+/**
+ * @brief Handle position/velocity target commands in global latitude/longitude coordinates
+ * 
+ * @details Processes SET_POSITION_TARGET_GLOBAL_INT messages for guided mode control using global
+ *          coordinate frames (latitude/longitude). This provides similar control to the local NED
+ *          version but uses GPS coordinates instead of relative positioning.
+ *          
+ *          Supported Coordinate Frames:
+ *          - MAV_FRAME_GLOBAL: Global lat/lon with altitude relative to MSL (mean sea level)
+ *          - MAV_FRAME_GLOBAL_INT: Same as GLOBAL (integer lat/lon fields)
+ *          - MAV_FRAME_GLOBAL_RELATIVE_ALT: Global lat/lon with altitude relative to home
+ *          - MAV_FRAME_GLOBAL_RELATIVE_ALT_INT: Same as GLOBAL_RELATIVE_ALT (integer fields)
+ *          - MAV_FRAME_GLOBAL_TERRAIN_ALT: Global lat/lon with altitude relative to terrain
+ *          - MAV_FRAME_GLOBAL_TERRAIN_ALT_INT: Same as GLOBAL_TERRAIN_ALT (integer fields)
+ *          
+ *          Type Mask Usage (bits set to 1 = IGNORE that field):
+ *          - POSITION_IGNORE: Ignore position fields (lat, lon, alt)
+ *          - VEL_IGNORE: Ignore velocity fields (vx, vy, vz)
+ *          - ACC_IGNORE: Must be set (acceleration control not supported)
+ *          - YAW_IGNORE: Ignore yaw field
+ *          - YAW_RATE_IGNORE: Ignore yaw_rate field
+ *          
+ *          Control Modes (same as local NED version):
+ *          1. Position-only: Navigate to GPS waypoint
+ *          2. Velocity+Heading: Move at specified speed in specified direction (NED frame)
+ *          3. Velocity+TurnRate: Move at specified speed while turning
+ *          4. Heading-only: Turn to face specified heading (skid-steer only)
+ *          5. Turn rate-only: Turn at specified rate (skid-steer only)
+ *          
+ * @param[in] msg The MAVLink message containing global position/velocity target data
+ * 
+ * @note Only active when rover is in Guided mode
+ * @note Position coordinates provided as 1e7 integers (degrees * 10^7)
+ * @note Velocity vectors are in NED frame (North, East, Down) even though position is global
+ * @note Acceleration fields are not supported and must be masked as ignored
+ * @note Altitude field is ignored for ground rovers (uses terrain following if enabled)
+ * 
+ * @warning Invalid latitude/longitude values will cause command to be rejected
+ * @warning Acceleration control (ACC_IGNORE=0) will cause command to be rejected
+ * @warning Unsupported coordinate frames are silently ignored
+ * 
+ * Source: Rover/GCS_MAVLink_Rover.cpp:843-950
+ */
 void GCS_MAVLINK_Rover::handle_set_position_target_global_int(const mavlink_message_t &msg)
 {
-    // decode packet
+    // Decode the incoming MAVLink message
     mavlink_set_position_target_global_int_t packet;
     mavlink_msg_set_position_target_global_int_decode(&msg, &packet);
 
-    // exit if vehicle is not in Guided mode
+    // Only process if vehicle is in Guided mode - ignore commands in other modes
     if (!rover.control_mode->in_guided_mode()) {
         return;
     }
-    // check for supported coordinate frames
+    
+    // Validate coordinate frame - only accept global lat/lon frames
     switch (packet.coordinate_frame) {
-    case MAV_FRAME_GLOBAL:
-    case MAV_FRAME_GLOBAL_INT:
-    case MAV_FRAME_GLOBAL_RELATIVE_ALT:
-    case MAV_FRAME_GLOBAL_RELATIVE_ALT_INT:
-    case MAV_FRAME_GLOBAL_TERRAIN_ALT:
-    case MAV_FRAME_GLOBAL_TERRAIN_ALT_INT:
+    case MAV_FRAME_GLOBAL:                    // MSL altitude reference
+    case MAV_FRAME_GLOBAL_INT:                // MSL altitude reference (integer)
+    case MAV_FRAME_GLOBAL_RELATIVE_ALT:       // Home altitude reference
+    case MAV_FRAME_GLOBAL_RELATIVE_ALT_INT:   // Home altitude reference (integer)
+    case MAV_FRAME_GLOBAL_TERRAIN_ALT:        // Terrain altitude reference
+    case MAV_FRAME_GLOBAL_TERRAIN_ALT_INT:    // Terrain altitude reference (integer)
         break;
 
     default:
+        // Unsupported frame - silently ignore message
         return;
     }
     
+    // Decode type mask to determine which fields are active
+    // Type mask bits set to 1 indicate field should be IGNORED
     bool pos_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_POS_IGNORE;
     bool vel_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_VEL_IGNORE;
     bool acc_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_ACC_IGNORE;
     bool yaw_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_IGNORE;
     bool yaw_rate_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_YAW_RATE_IGNORE;
 
-    // prepare target position
+    // Process position target if not ignored
     Location target_loc = rover.current_loc;
     if (!pos_ignore) {
-        // sanity check location
+        // Validate latitude and longitude are within acceptable ranges
+        // Reject invalid coordinates (e.g., lat > 90°, lon > 180°)
         if (!check_latlng(packet.lat_int, packet.lon_int)) {
-            // result = MAV_RESULT_FAILED;
+            // Invalid coordinates - reject command silently
             return;
         }
+        // Position provided as 1e7 integers (degrees * 10^7)
         target_loc.lat = packet.lat_int;
         target_loc.lng = packet.lon_int;
+        // Note: Altitude is not used for ground rovers (uses terrain following if enabled)
     }
 
-    float target_speed = 0.0f;
-    float target_yaw_cd = 0.0f;
+    // Initialize target motion parameters
+    float target_speed = 0.0f;        // Target ground speed in m/s
+    float target_yaw_cd = 0.0f;       // Target heading in centidegrees
 
-    // consume velocity and convert to target speed and heading
+    // Process velocity vector if not ignored
+    // Velocity is provided in NED frame: vx=North (m/s), vy=East (m/s), vz=Down (m/s)
     if (!vel_ignore) {
         const float speed_max = rover.control_mode->get_speed_default();
-        // convert vector length into a speed
+        // Calculate speed magnitude from velocity vector (Pythagoras: sqrt(vx² + vy²))
+        // Constrain to configured maximum speed (supports negative for reverse)
         target_speed = constrain_float(safe_sqrt(sq(packet.vx) + sq(packet.vy)), -speed_max, speed_max);
-        // convert vector direction to target yaw
+        // Calculate heading from velocity vector direction using atan2(East, North)
+        // Convert from radians to centidegrees (deg * 100)
         target_yaw_cd = degrees(atan2f(packet.vy, packet.vx)) * 100.0f;
     }
 
-    // consume yaw heading
+    // Process yaw (heading) if explicitly provided
+    // Explicit yaw overrides heading derived from velocity vector
     if (!yaw_ignore) {
+        // Convert yaw from radians to centidegrees
+        // Yaw is in NED frame: 0=North, 90=East, 180=South, 270=West
         target_yaw_cd = degrees(packet.yaw) * 100.0f;
     }
 
-    // consume yaw rate
-    float target_turn_rate_cds = 0.0f;
+    // Process yaw rate (turn rate) if provided
+    float target_turn_rate_cds = 0.0f; // Target turn rate in centidegrees per second
     if (!yaw_rate_ignore) {
+        // Convert from radians/sec to centidegrees/sec
         target_turn_rate_cds = degrees(packet.yaw_rate) * 100.0f;
     }
 
-    // handling case when both velocity and either yaw or yaw-rate are provided
-    // by default, we consider that the rover will drive forward
+    // Determine forward/reverse direction when both velocity and yaw/yaw_rate are provided
+    // Default assumption is forward motion (positive speed)
     float speed_dir = 1.0f;
     if (!vel_ignore && (!yaw_ignore || !yaw_rate_ignore)) {
-        // Note: we are using the x-axis velocity to determine direction even though
-        // the frame is provided in MAV_FRAME_GLOBAL_xxx
+        // Check sign of vx (North velocity) to determine if rover should drive backwards
+        // Note: Using vx even for global frames - negative vx indicates reverse motion
         if (is_negative(packet.vx)) {
-            speed_dir = -1.0f;
+            speed_dir = -1.0f; // Reverse direction
         }
     }
 
+    // Validate acceleration field is ignored - rovers don't support acceleration control
     if (!acc_ignore) {
-        // ignore any command where acceleration is not ignored
+        // Reject command if acceleration control was requested
         send_acc_ignore_must_be_set_message("SET_POSITION_TARGET_GLOBAL_INT");
         return;
     }
 
-    // set guided mode targets
+    // Dispatch to appropriate guided mode control based on which fields are provided
+    // Priority: Position > Velocity+Heading > Velocity+TurnRate > Heading-only > TurnRate-only
+    
     if (!pos_ignore) {
-        // consume position target
+        // Position control mode: Navigate to GPS target location
+        // This is highest priority - if position provided, use position control
         if (!rover.mode_guided.set_desired_location(target_loc)) {
-            // GCS will just need to look at desired location
-            // outputs to see if it having an effect.
+            // Failed to set location (e.g., unreachable or invalid)
+            // GCS should monitor actual desired location to see if command took effect
         }
-        return;
+        return; // Position control is mutually exclusive with velocity control
     }
 
+    // Velocity control modes (only reached if position is ignored)
     if (!vel_ignore && yaw_ignore && yaw_rate_ignore) {
-        // consume velocity
+        // Velocity-only: Drive at target speed using heading derived from velocity vector
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
     } else if (!vel_ignore && yaw_ignore && !yaw_rate_ignore) {
-        // consume velocity and turn rate
+        // Velocity + turn rate: Drive at target speed while turning at specified rate
         rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
     } else if (!vel_ignore && !yaw_ignore && yaw_rate_ignore) {
-        // consume velocity
+        // Velocity + heading: Drive at target speed toward specified heading
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
     } else if (vel_ignore && !yaw_ignore && yaw_rate_ignore) {
-        // consume just target heading (probably only skid steering vehicles can do this)
+        // Heading-only: Turn to face specified heading at zero speed
+        // Note: Typically only skid-steer vehicles can turn in place
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
     } else if (vel_ignore && yaw_ignore && !yaw_rate_ignore) {
-        // consume just turn rate(probably only skid steering vehicles can do this)
+        // Turn rate-only: Turn at specified rate at zero speed
+        // Note: Typically only skid-steer vehicles can turn in place
         rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
     }
 }
