@@ -1,25 +1,108 @@
+/**
+ * @file mode_auto.cpp
+ * @brief Implementation of Auto mode for autonomous mission execution
+ * 
+ * @details This file implements the ModeAuto class which executes uploaded mission
+ *          waypoints with autonomous navigation for ground vehicles (Rover). Auto mode
+ *          enables the vehicle to follow a pre-programmed mission consisting of waypoints,
+ *          navigation commands, and conditional commands uploaded via MAVLink.
+ * 
+ *          Key Features:
+ *          - Mission waypoint navigation with automatic path following
+ *          - Support for various mission command types (NAV_WAYPOINT, NAV_LOITER, NAV_RETURN_TO_LAUNCH, etc.)
+ *          - Auto-kickstart feature to delay throttle until vehicle is aligned with target
+ *          - Mission resume capability based on MIS_RESTART parameter
+ *          - Integration with external navigation systems via NAV_GUIDED_ENABLE
+ *          - Support for Lua scripting via NAV_SCRIPT_TIME commands
+ *          - Configurable mission completion behavior (hold, loiter, switch to manual/acro)
+ * 
+ *          State Machine:
+ *          The Auto mode operates through submodes that handle different navigation states:
+ *          - WP: Waypoint navigation using path following controller
+ *          - HeadingAndSpeed: Turn to heading and achieve target speed
+ *          - RTL: Return to launch
+ *          - Loiter: Station keeping at current location
+ *          - Guided: External navigation control via MAVLink
+ *          - Stop: Vehicle stopped
+ *          - NavScriptTime: Lua script control
+ *          - Circle: Circular loiter pattern
+ * 
+ * @note Missions are uploaded/downloaded via MAVLink mission protocol
+ * @note Mission resumption behavior controlled by MIS_RESTART parameter
+ * @note Auto-kickstart (AUTO_KICKSTART parameter) delays throttle until heading aligned
+ * 
+ * @see AP_Mission for mission storage and command execution
+ * @see AR_WPNav for waypoint navigation controller
+ * 
+ * Source: Rover/mode_auto.cpp
+ */
+
 #include "Rover.h"
 
+// Maximum time between sending position targets to external navigation controller (milliseconds)
 #define AUTO_GUIDED_SEND_TARGET_MS 1000
 
+/**
+ * @brief Enter Auto mode and initialize mission execution
+ * 
+ * @details Initializes the Auto mode state machine and prepares for mission execution.
+ *          This function is called when the vehicle transitions into Auto mode.
+ * 
+ *          Initialization sequence:
+ *          1. Verify mission is present (uploaded and valid)
+ *          2. Initialize waypoint navigation controller (AR_WPNav)
+ *          3. Reset auto-kickstart trigger state
+ *          4. Clear any previous guided mode limits
+ *          5. Set initial submode based on vehicle type:
+ *             - Boats: Start in Loiter submode (station keeping)
+ *             - Land vehicles: Start in Stop submode (stationary)
+ *          6. Set waiting_to_start flag (mission will begin once origin is set)
+ * 
+ *          Mission Start Behavior:
+ *          The mission does not immediately start upon entering Auto mode. The actual
+ *          mission execution begins in update() once an origin is available from AHRS.
+ *          This ensures the vehicle has a valid navigation reference frame before
+ *          attempting autonomous navigation.
+ * 
+ *          Mission Resume:
+ *          Mission resumption is handled by mission.start_or_resume() in update(),
+ *          which respects the MIS_RESTART parameter to either:
+ *          - Resume from last commanded waypoint (MIS_RESTART=0)
+ *          - Restart mission from beginning (MIS_RESTART=1)
+ * 
+ * @return true if successfully entered Auto mode, false if no mission present
+ * 
+ * @note Returns false if no mission is present, preventing mode change
+ * @note Boats prefer loiter over stop to maintain position against currents
+ * @note Auto-kickstart (if configured) prevents throttle until trigger condition met
+ * 
+ * @see update() for mission start sequence
+ * @see mission.start_or_resume() for mission resumption logic
+ */
 bool ModeAuto::_enter()
 {
-    // fail to enter auto if no mission commands
+    // Fail to enter auto if no mission commands
+    // Mission must be uploaded via MAVLink before Auto mode can be used
     if (!mission.present()) {
         GCS_SEND_TEXT(MAV_SEVERITY_NOTICE, "No Mission. Can't set AUTO.");
         return false;
     }
 
-    // initialise waypoint navigation library
+    // Initialize waypoint navigation library
+    // Resets path following controller state and navigation parameters
     g2.wp_nav.init();
 
-    // other initialisation
+    // Reset auto-kickstart trigger
+    // If AUTO_KICKSTART is configured, vehicle won't apply throttle until triggered
     auto_triggered = false;
 
-    // clear guided limits
+    // Clear guided limits from any previous guided operations
+    // Ensures fresh state if mission contains NAV_GUIDED_ENABLE commands
     rover.mode_guided.limit_clear();
 
-    // initialise submode to stop or loiter
+    // Initialize submode to stop or loiter based on vehicle type
+    // Boats benefit from active station-keeping to counteract currents
+    // Land vehicles simply stop and wait for mission to start
     if (rover.is_boat()) {
         if (!start_loiter()) {
             start_stop();
@@ -28,67 +111,129 @@ bool ModeAuto::_enter()
         start_stop();
     }
 
-    // set flag to start mission
+    // Set flag to start mission once origin is available
+    // Mission execution begins in update() after AHRS origin is established
     waiting_to_start = true;
 
     return true;
 }
 
+/**
+ * @brief Exit Auto mode and stop mission execution
+ * 
+ * @details Called when the vehicle transitions out of Auto mode to another flight mode.
+ *          Stops the mission if currently running, preserving the current mission index
+ *          for potential resumption if Auto mode is re-entered.
+ * 
+ * @note Mission progress is preserved - re-entering Auto respects MIS_RESTART parameter
+ * @note Does not clear the mission from memory, only stops execution
+ */
 void ModeAuto::_exit()
 {
-    // stop running the mission
+    // Stop running the mission
+    // Mission index is preserved for potential resumption
     if (mission.state() == AP_Mission::MISSION_RUNNING) {
         mission.stop();
     }
 }
 
+/**
+ * @brief Main update loop for Auto mode - executes mission commands and navigates autonomously
+ * 
+ * @details Called at main loop rate (typically 50Hz) to execute the current mission,
+ *          navigate to waypoints, and handle mission state changes.
+ * 
+ *          Update Sequence:
+ *          1. Safety check: Stop vehicle if disarmed and mission cleared
+ *          2. Mission start: Wait for AHRS origin before starting mission execution
+ *          3. Mission change detection: Restart current waypoint if mission modified
+ *          4. Mission update: Process current command and advance to next when complete
+ *          5. Submode execution: Run appropriate navigation controller for current submode
+ * 
+ *          Mission Start Logic:
+ *          On first entry to Auto mode, waiting_to_start flag is set. Mission execution
+ *          is delayed until AHRS has a valid origin (navigation reference frame). Once
+ *          origin is available, mission.start_or_resume() begins mission execution based
+ *          on MIS_RESTART parameter.
+ * 
+ *          Mission Change Handling:
+ *          If mission is modified while running (e.g., new mission uploaded via MAVLink),
+ *          the change is detected and the current navigation command is restarted if it's
+ *          a waypoint command. This ensures the vehicle navigates to the new waypoint
+ *          location rather than continuing to the old one.
+ * 
+ *          Submode Navigation:
+ *          - WP: Follow path to waypoint using L1 controller, boats loiter at waypoint
+ *          - HeadingAndSpeed: Turn to desired heading while maintaining target speed
+ *          - RTL: Delegate to RTL mode for return-to-launch behavior
+ *          - Loiter: Delegate to Loiter mode for station keeping
+ *          - Guided: External navigation control via MAVLink position targets
+ *          - Stop: Hold vehicle stationary
+ *          - NavScriptTime: Lua script control of vehicle
+ *          - Circle: Circular loiter pattern
+ * 
+ * @note Called at main loop rate (typically 50Hz)
+ * @note Mission must have valid origin before execution begins
+ * @note Boats automatically loiter at waypoints instead of stopping
+ * 
+ * @see mission.update() for mission command processing
+ * @see navigate_to_waypoint() for waypoint following controller
+ */
 void ModeAuto::update()
 {
-    // check if mission exists (due to being cleared while disarmed in AUTO,
-    // if no mission, then stop...needs mode change out of AUTO, mission load,
-    // and change back to AUTO to run a mission at this point
+    // Safety check: If mission has been cleared while disarmed in AUTO mode,
+    // stop the vehicle. Mission must be reloaded and mode cycled to run again.
     if (!hal.util->get_soft_armed() && !mission.present()) {
         start_stop();
     }
-    // start or update mission
+
+    // Mission start sequence - wait for valid navigation origin
     if (waiting_to_start) {
-        // don't start the mission until we have an origin
+        // Don't start the mission until we have an origin from AHRS
+        // Origin provides the navigation reference frame for lat/lon/alt conversions
         Location loc;
         if (ahrs.get_origin(loc)) {
-            // start/resume the mission (based on MIS_RESTART parameter)
+            // Start or resume the mission based on MIS_RESTART parameter:
+            // MIS_RESTART=0: Resume from last commanded waypoint
+            // MIS_RESTART=1: Restart mission from beginning
             mission.start_or_resume();
             waiting_to_start = false;
 
-            // initialise mission change check
+            // Initialize mission change detection to baseline current mission state
             IGNORE_RETURN(mis_change_detector.check_for_mission_change());
         }
     } else {
-        // check for mission changes
+        // Check for mission changes (new mission uploaded via MAVLink)
         if (mis_change_detector.check_for_mission_change()) {
-            // if mission is running restart the current command if it is a waypoint command
+            // If mission is running and we're navigating to a waypoint,
+            // restart the current command to navigate to the new waypoint location
             if ((mission.state() == AP_Mission::MISSION_RUNNING) && (_submode == SubMode::WP)) {
                 if (mission.restart_current_nav_cmd()) {
                     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Auto mission changed, restarted command");
                 } else {
-                    // failed to restart mission for some reason
+                    // Failed to restart mission for some reason
                     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Auto mission changed but failed to restart command");
                 }
             }
         }
 
+        // Update mission state machine: execute current command, check for completion,
+        // advance to next command when current completes
         mission.update();
     }
 
+    // Execute navigation controller for current submode
     switch (_submode) {
         case SubMode::WP:
         {
-            // boats loiter once the waypoint is reached
+            // Waypoint navigation submode - follow path to target waypoint
+            // Boats loiter once the waypoint is reached for station keeping
             bool keep_navigating = true;
             if (rover.is_boat() && g2.wp_nav.reached_destination() && !g2.wp_nav.is_fast_waypoint()) {
                 keep_navigating = !start_loiter();
             }
 
-            // update navigation controller
+            // Update waypoint navigation controller (L1 path following)
             if (keep_navigating) {
                 navigate_to_waypoint();
             }
@@ -97,14 +242,18 @@ void ModeAuto::update()
 
         case SubMode::HeadingAndSpeed:
         {
+            // Turn to desired heading while achieving target speed
+            // Used by NAV_SET_YAW_SPEED command
             if (!_reached_heading) {
-                // run steering and throttle controllers
+                // Run steering and throttle controllers to turn to target heading
+                // Steering: Calculate steering output to achieve _desired_yaw_cd
                 calc_steering_to_heading(_desired_yaw_cd);
+                // Throttle: Maintain _desired_speed with avoidance enabled
                 calc_throttle(calc_speed_nudge(_desired_speed, is_negative(_desired_speed)), true);
-                // check if we have reached within 5 degrees of target
+                // Check if we have reached within 5 degrees (500 centidegrees) of target heading
                 _reached_heading = (fabsf(_desired_yaw_cd - ahrs.yaw_sensor) < 500);
             } else {
-                // we have reached the destination so stay here
+                // We have reached the destination heading, stop or loiter
                 if (rover.is_boat()) {
                     if (!start_loiter()) {
                         stop_vehicle();
@@ -117,42 +266,76 @@ void ModeAuto::update()
         }
 
         case SubMode::RTL:
+            // Return to launch - delegate to RTL mode
             rover.mode_rtl.update();
             break;
 
         case SubMode::Loiter:
+            // Station keeping - delegate to Loiter mode
             rover.mode_loiter.update();
             break;
 
         case SubMode::Guided:
         {
-            // send location target to offboard navigation system
+            // External navigation control via MAVLink
+            // Send location target to offboard navigation system at 1Hz
             send_guided_position_target();
             rover.mode_guided.update();
             break;
         }
 
         case SubMode::Stop:
+            // Hold vehicle stationary
             stop_vehicle();
             break;
 
         case SubMode::NavScriptTime:
+            // Lua script control - delegate to Guided mode for vehicle control
             rover.mode_guided.update();
             break;
 
         case SubMode::Circle:
+            // Circular loiter pattern - delegate to Circle mode
             g2.mode_circle.update();
             break;
     }
 }
 
+/**
+ * @brief Calculate throttle output with auto-kickstart feature
+ * 
+ * @details Overrides base Mode::calc_throttle() to implement auto-kickstart functionality.
+ *          If auto-kickstart is configured (AUTO_KICKSTART parameter or trigger pin),
+ *          throttle is held at zero until the trigger condition is met. This prevents
+ *          the vehicle from moving until intentionally started, even in Auto mode.
+ * 
+ *          Auto-Kickstart Trigger Conditions:
+ *          - AUTO_KICKSTART parameter: Vehicle acceleration exceeds threshold (m/s²)
+ *          - Auto trigger pin: Digital pin pulled low
+ *          - Both disabled: Throttle immediately enabled
+ * 
+ *          Once triggered, auto_triggered flag is set true and throttle control
+ *          passes to normal Mode::calc_throttle() for speed controller operation.
+ * 
+ * @param[in] target_speed Target speed in m/s (positive forward, negative reverse)
+ * @param[in] avoidance_enabled True to enable object avoidance speed limits
+ * 
+ * @note Called at main loop rate (typically 50Hz) when navigating
+ * @note Prevents vehicle motion until trigger condition met
+ * @note Trigger pin (if configured) can also stop vehicle by going high
+ * 
+ * @see check_trigger() for auto-kickstart logic
+ * @see Mode::calc_throttle() for base throttle controller
+ */
 void ModeAuto::calc_throttle(float target_speed, bool avoidance_enabled)
 {
-    // If not autostarting set the throttle to minimum
+    // If not autostarting, set the throttle to minimum (vehicle stopped)
+    // check_trigger() implements auto-kickstart feature
     if (!check_trigger()) {
         stop_vehicle();
         return;
     }
+    // Auto-kickstart triggered, use normal throttle controller
     Mode::calc_throttle(target_speed, avoidance_enabled);
 }
 
@@ -406,37 +589,81 @@ void ModeAuto::nav_script_time_done(uint16_t id)
 #endif
 }
 
-// check for triggering of start of auto mode
+/**
+ * @brief Check for auto-kickstart trigger conditions
+ * 
+ * @details Implements the auto-kickstart feature that delays throttle application in Auto
+ *          mode until the vehicle is intentionally started by the user. This prevents
+ *          unintended vehicle motion when entering Auto mode.
+ * 
+ *          Trigger Mechanisms:
+ *          1. Digital Pin Trigger (AUTO_TRIGGER_PIN parameter):
+ *             - Pin pulled low (0): Auto triggered, vehicle can move
+ *             - Pin pulled high (1): Auto disabled, vehicle stopped
+ *             - Pin = -1: Trigger pin disabled
+ * 
+ *          2. Acceleration Kickstart (AUTO_KICKSTART parameter):
+ *             - Vehicle pushed/kicked producing X-axis acceleration > AUTO_KICKSTART (m/s²)
+ *             - Useful for hand-launching or push-starting vehicles
+ *             - AUTO_KICKSTART = 0: Kickstart disabled
+ * 
+ *          3. No Trigger Configured:
+ *             - If both AUTO_TRIGGER_PIN=-1 and AUTO_KICKSTART=0
+ *             - Auto immediately triggered on mode entry
+ * 
+ *          Once triggered, auto_triggered flag is latched true and remains true until:
+ *          - Mode is exited and re-entered (resets in _enter())
+ *          - Trigger pin goes high (stops vehicle)
+ * 
+ *          Typical Use Case:
+ *          Set AUTO_KICKSTART to 2.0 m/s² to require a push to start the vehicle,
+ *          providing a safety interlock that prevents motion until user confirms
+ *          the vehicle is ready to navigate autonomously.
+ * 
+ * @return true if auto is triggered and throttle should be applied, false to hold throttle at zero
+ * 
+ * @note Called every time calc_throttle() runs (main loop rate, ~50Hz)
+ * @note Trigger state latches true once triggered (doesn't require holding)
+ * @note Trigger pin can stop vehicle by going high even after initial trigger
+ * @note Uses X-axis acceleration (forward/backward) for kickstart detection
+ * 
+ * @warning Ensure AUTO_KICKSTART threshold is achievable but not too sensitive to prevent false triggers
+ * 
+ * @see calc_throttle() for throttle control integration
+ * @see _enter() for auto_triggered reset
+ */
 bool ModeAuto::check_trigger(void)
 {
-    // check for user pressing the auto trigger to off
+    // Check for user pressing the auto trigger pin to off (pin goes high)
+    // This can stop the vehicle even after initial trigger
     if (auto_triggered && g.auto_trigger_pin != -1 && rover.check_digital_pin(g.auto_trigger_pin) == 1) {
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "AUTO triggered off");
         auto_triggered = false;
         return false;
     }
 
-    // if already triggered, then return true, so you don't
-    // need to hold the switch down
+    // If already triggered, return true (latched state)
+    // User doesn't need to hold the switch down or maintain acceleration
     if (auto_triggered) {
         return true;
     }
 
-    // return true if auto trigger and kickstart are disabled
+    // Return true if auto trigger and kickstart are both disabled
+    // No trigger configured - let's go immediately!
     if (g.auto_trigger_pin == -1 && is_zero(g.auto_kickstart)) {
-        // no trigger configured - let's go!
         auto_triggered = true;
         return true;
     }
 
-    // check if trigger pin has been pushed
+    // Check if trigger pin has been pushed (pin pulled low)
     if (g.auto_trigger_pin != -1 && rover.check_digital_pin(g.auto_trigger_pin) == 0) {
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Triggered AUTO with pin");
         auto_triggered = true;
         return true;
     }
 
-    // check if mission is started by giving vehicle a kick with acceleration > AUTO_KICKSTART
+    // Check if mission is started by giving vehicle a kick with acceleration > AUTO_KICKSTART
+    // Uses X-axis (forward/backward) acceleration from IMU
     if (!is_zero(g.auto_kickstart)) {
         const float xaccel = rover.ins.get_accel().x;
         if (xaccel >= g.auto_kickstart) {
@@ -446,6 +673,7 @@ bool ModeAuto::check_trigger(void)
         }
     }
 
+    // No trigger condition met yet - keep throttle at zero
     return false;
 }
 
@@ -485,22 +713,57 @@ void ModeAuto::start_stop()
 }
 
 // send latest position target to offboard navigation system
+/**
+ * @brief Send position target to external navigation controller during NAV_GUIDED_ENABLE
+ * 
+ * @details Sends SET_POSITION_TARGET_GLOBAL_INT MAVLink messages to an offboard
+ *          navigation system at 1Hz when in Guided submode. This allows an external
+ *          computer (e.g., companion computer) to know where the vehicle is trying
+ *          to navigate while it provides control inputs via MAVLink guided commands.
+ * 
+ *          Use Case:
+ *          NAV_GUIDED_ENABLE missions hand control to an external navigation system,
+ *          which sends position/velocity/attitude targets via MAVLink. This function
+ *          informs the external system of the mission's intended destination so it
+ *          can make informed navigation decisions.
+ * 
+ *          Rate Limiting:
+ *          Position targets are sent at maximum 1Hz (every 1000ms) to avoid flooding
+ *          the MAVLink channel. The target location remains constant until the mission
+ *          provides a new target via set_desired_location().
+ * 
+ *          Target Selection:
+ *          Messages are sent only to MAV_TYPE_ONBOARD_CONTROLLER systems, which are
+ *          typically companion computers running navigation software. Ground control
+ *          stations are not sent these messages.
+ * 
+ * @note Only sends when guided_target.valid is true (target location set)
+ * @note Sends at maximum 1Hz (AUTO_GUIDED_SEND_TARGET_MS = 1000ms)
+ * @note Only sends to MAV_TYPE_ONBOARD_CONTROLLER (companion computers)
+ * @note Called from update() when _submode == SubMode::Guided
+ * 
+ * @see do_nav_guided_enable() for entering guided submode
+ * @see ModeGuided for processing external navigation commands
+ */
 void ModeAuto::send_guided_position_target()
 {
+    // Only send if we have a valid target location
     if (!guided_target.valid) {
         return;
     }
 
-    // send at maximum of 1hz
+    // Rate limit to maximum of 1Hz to avoid flooding MAVLink channel
     const uint32_t now_ms = AP_HAL::millis();
     if ((guided_target.last_sent_ms == 0) || (now_ms - guided_target.last_sent_ms > AUTO_GUIDED_SEND_TARGET_MS)) {
         guided_target.last_sent_ms = now_ms;
 
-        // get system id and component id of offboard navigation system
+        // Get system ID and component ID of offboard navigation controller
+        // Only send to MAV_TYPE_ONBOARD_CONTROLLER (companion computers)
         uint8_t sysid;
         uint8_t compid;
         mavlink_channel_t chan;
         if (GCS_MAVLINK::find_by_mavtype(MAV_TYPE_ONBOARD_CONTROLLER, sysid, compid, chan)) {
+            // Send SET_POSITION_TARGET_GLOBAL_INT message with target location
             gcs().chan(chan-MAVLINK_COMM_0)->send_set_position_target_global_int(sysid, compid, guided_target.loc);
         }
     }
@@ -510,95 +773,143 @@ void ModeAuto::send_guided_position_target()
 /********************************************************************************/
 // Command Event Handlers
 /********************************************************************************/
+
+/**
+ * @brief Start execution of a mission command
+ * 
+ * @details Called by AP_Mission when a new mission command should be started.
+ *          Routes the command to the appropriate handler based on command ID.
+ *          This function implements the mission command dispatch logic for Auto mode.
+ * 
+ *          Supported Navigation Commands (Must):
+ *          - MAV_CMD_NAV_WAYPOINT: Navigate to waypoint with optional loiter time
+ *          - MAV_CMD_NAV_RETURN_TO_LAUNCH: Return to launch location
+ *          - MAV_CMD_NAV_LOITER_UNLIM: Loiter indefinitely at location
+ *          - MAV_CMD_NAV_LOITER_TIME: Loiter for specified duration
+ *          - MAV_CMD_NAV_LOITER_TURNS: Circle loiter pattern
+ *          - MAV_CMD_NAV_GUIDED_ENABLE: Hand control to external navigation system
+ *          - MAV_CMD_NAV_SET_YAW_SPEED: Turn to heading and maintain speed
+ *          - MAV_CMD_NAV_DELAY: Delay next navigation command
+ *          - MAV_CMD_NAV_SCRIPT_TIME: Lua script control (if scripting enabled)
+ * 
+ *          Supported Conditional Commands (May):
+ *          - MAV_CMD_CONDITION_DELAY: Wait for specified time
+ *          - MAV_CMD_CONDITION_DISTANCE: Wait until within distance of target
+ * 
+ *          Supported Do Commands (Now):
+ *          - MAV_CMD_DO_CHANGE_SPEED: Change target speed
+ *          - MAV_CMD_DO_SET_HOME: Set home location
+ *          - MAV_CMD_DO_SET_ROI*: Set region of interest for camera/mount
+ *          - MAV_CMD_DO_SET_REVERSE: Enable/disable reverse driving
+ *          - MAV_CMD_DO_GUIDED_LIMITS: Set guided mode timeout and position limits
+ * 
+ *          Command Types:
+ *          - Nav commands: Block mission progression until complete (verified by verify_command)
+ *          - Condition commands: Gate execution of subsequent commands until condition met
+ *          - Do commands: Execute immediately, don't block mission progression
+ * 
+ * @param[in] cmd Mission command structure containing command ID and parameters
+ * 
+ * @return true if command was handled successfully, false if command not recognized
+ * 
+ * @note Called by AP_Mission when advancing to new command
+ * @note Nav commands transition to appropriate submode (WP, RTL, Guided, etc.)
+ * @note Do commands execute immediately without blocking mission progression
+ * @note Unrecognized commands return false to allow mission to continue
+ * 
+ * @see verify_command() for checking command completion
+ * @see AP_Mission::update() for mission state machine
+ */
 bool ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
 {
     switch (cmd.id) {
-    case MAV_CMD_NAV_WAYPOINT:  // Navigate to Waypoint
+    // Navigation Commands (Must) - These block mission progression until complete
+    
+    case MAV_CMD_NAV_WAYPOINT:  // Navigate to waypoint with path following
         return do_nav_wp(cmd, false);
 
-    case MAV_CMD_NAV_RETURN_TO_LAUNCH:
+    case MAV_CMD_NAV_RETURN_TO_LAUNCH:  // Return to launch location
         do_RTL();
         break;
 
-    case MAV_CMD_NAV_LOITER_UNLIM:  // Loiter indefinitely
-    case MAV_CMD_NAV_LOITER_TIME:   // Loiter for specified time
+    case MAV_CMD_NAV_LOITER_UNLIM:  // Loiter indefinitely at location
+    case MAV_CMD_NAV_LOITER_TIME:   // Loiter for specified time (param1 = seconds)
         return do_nav_wp(cmd, true);
 
-    case MAV_CMD_NAV_LOITER_TURNS:
+    case MAV_CMD_NAV_LOITER_TURNS:  // Circle loiter pattern (param1 = turns, param2 = radius)
         return do_circle(cmd);
 
-    case MAV_CMD_NAV_GUIDED_ENABLE: // accept navigation commands from external nav computer
+    case MAV_CMD_NAV_GUIDED_ENABLE:  // Hand control to external navigation computer via MAVLink
         do_nav_guided_enable(cmd);
         break;
 
-    case MAV_CMD_NAV_SET_YAW_SPEED:
+    case MAV_CMD_NAV_SET_YAW_SPEED:  // Turn to heading (param1 = angle deg) at speed (param2 = m/s)
         do_nav_set_yaw_speed(cmd);
         break;
 
-    case MAV_CMD_NAV_DELAY:                    // 93 Delay the next navigation command
+    case MAV_CMD_NAV_DELAY:  // Delay next navigation command for time or until absolute time
         do_nav_delay(cmd);
         break;
 
 #if AP_SCRIPTING_ENABLED
-    case MAV_CMD_NAV_SCRIPT_TIME:
+    case MAV_CMD_NAV_SCRIPT_TIME:  // Lua script control with timeout
         do_nav_script_time(cmd);
         break;
 #endif
 
-    // Conditional commands
-    case MAV_CMD_CONDITION_DELAY:
+    // Conditional Commands (May) - Gate subsequent commands until condition met
+    
+    case MAV_CMD_CONDITION_DELAY:  // Delay for specified time (param1 = seconds)
         do_wait_delay(cmd);
         break;
 
-    case MAV_CMD_CONDITION_DISTANCE:
+    case MAV_CMD_CONDITION_DISTANCE:  // Wait until within distance of target (param1 = meters)
         do_within_distance(cmd);
         break;
 
-    // Do commands
-    case MAV_CMD_DO_CHANGE_SPEED:
+    // Do Commands (Now) - Execute immediately without blocking mission
+    
+    case MAV_CMD_DO_CHANGE_SPEED:  // Change target speed (param1 = m/s)
         do_change_speed(cmd);
         break;
 
-    case MAV_CMD_DO_SET_HOME:
+    case MAV_CMD_DO_SET_HOME:  // Set home location (param1=1: current location, else: command location)
         do_set_home(cmd);
         break;
 
 #if HAL_MOUNT_ENABLED
-    // Sets the region of interest (ROI) for a sensor set or the
-    // vehicle itself. This can then be used by the vehicles control
-    // system to control the vehicle attitude and the attitude of various
-    // devices such as cameras.
-    //    |Region of interest mode. (see MAV_ROI enum)| Waypoint index/ target ID. (see MAV_ROI enum)| ROI index (allows a vehicle to manage multiple cameras etc.)| Empty| x the location of the fixed ROI (see MAV_FRAME)| y| z|
-    // ROI_NONE can be handled by the regular ROI handler because lat, lon, alt are always zero
+    // Region of Interest commands - Point camera/mount at location
+    // Sets the region of interest (ROI) for camera mount control
+    // If location is (0,0,0), disables ROI tracking
     case MAV_CMD_DO_SET_ROI_LOCATION:
     case MAV_CMD_DO_SET_ROI_NONE:
     case MAV_CMD_DO_SET_ROI:
         if (cmd.content.location.alt == 0 && cmd.content.location.lat == 0 && cmd.content.location.lng == 0) {
-            // switch off the camera tracking if enabled
+            // Zero location: switch off camera tracking if enabled
             if (rover.camera_mount.get_mode() == MAV_MOUNT_MODE_GPS_POINT) {
                 rover.camera_mount.set_mode_to_default();
             }
         } else {
-            // send the command to the camera mount
+            // Non-zero location: point camera/mount at target
             rover.camera_mount.set_roi_target(cmd.content.location);
         }
         break;
 #endif
 
-    case MAV_CMD_DO_SET_REVERSE:
+    case MAV_CMD_DO_SET_REVERSE:  // Enable/disable reverse driving (param1=1: reverse, 0: forward)
         do_set_reverse(cmd);
         break;
 
-    case MAV_CMD_DO_GUIDED_LIMITS:
+    case MAV_CMD_DO_GUIDED_LIMITS:  // Set guided mode timeout (param1=seconds) and distance limit (param2=meters)
         do_guided_limits(cmd);
         break;
 
     default:
-        // return false for unhandled commands
+        // Return false for unhandled commands to allow mission to continue
         return false;
     }
 
-    // if we got this far we must have been successful
+    // If we got this far we must have been successful
     return true;
 }
 
@@ -649,53 +960,103 @@ bool ModeAuto::verify_command_callback(const AP_Mission::Mission_Command& cmd)
 }
 
 /*******************************************************************************
-Verify command Handlers
+ * Verify Command Handlers
+ * 
+ * Each type of mission element has a "verify" operation that checks whether
+ * the command has completed. The verify operation returns true when the mission
+ * element has completed and the mission should advance to the next element.
+ * 
+ * Verification Logic:
+ * - Nav commands: Check if waypoint reached, loiter time elapsed, etc.
+ * - Condition commands: Check if condition is met (delay expired, within distance)
+ * - Do commands: Always return true (executed immediately, no verification needed)
+ * 
+ * Unknown commands return true to allow mission progression rather than blocking.
+ *******************************************************************************/
 
-Each type of mission element has a "verify" operation. The verify
-operation returns true when the mission element has completed and we
-should move onto the next mission element.
-Return true if we do not recognize the command so that we move on to the next command
-*******************************************************************************/
-
+/**
+ * @brief Verify if current mission command has completed
+ * 
+ * @details Routes the verification to the appropriate handler based on command ID.
+ *          Called by AP_Mission at main loop rate to check command completion status.
+ * 
+ *          Nav Command Verification:
+ *          - MAV_CMD_NAV_WAYPOINT: Waypoint reached within acceptance radius
+ *          - MAV_CMD_NAV_RETURN_TO_LAUNCH: RTL complete (home reached)
+ *          - MAV_CMD_NAV_LOITER_UNLIM: Never completes (requires mode change)
+ *          - MAV_CMD_NAV_LOITER_TURNS: Required turns completed
+ *          - MAV_CMD_NAV_LOITER_TIME: Loiter time expired
+ *          - MAV_CMD_NAV_GUIDED_ENABLE: Guided mode timeout or disabled
+ *          - MAV_CMD_NAV_DELAY: Delay time expired or absolute time reached
+ *          - MAV_CMD_NAV_SCRIPT_TIME: Script timeout or script signals complete
+ *          - MAV_CMD_NAV_SET_YAW_SPEED: Target heading reached
+ * 
+ *          Condition Command Verification:
+ *          - MAV_CMD_CONDITION_DELAY: Delay time expired
+ *          - MAV_CMD_CONDITION_DISTANCE: Within specified distance of target
+ * 
+ *          Do Command Verification:
+ *          - All DO commands: Always return true (execute immediately, no waiting)
+ * 
+ *          Mission Progression:
+ *          When verify_command returns true, AP_Mission advances to next command.
+ *          Nav commands block progression until complete, while Do commands
+ *          execute immediately without blocking.
+ * 
+ * @param[in] cmd Mission command structure to verify
+ * 
+ * @return true if command has completed, false if still executing
+ * 
+ * @note Called at main loop rate (typically 50Hz) for active command
+ * @note Unknown commands return true to prevent mission blocking
+ * @note Do commands always return true (immediate execution)
+ * 
+ * @see start_command() for command initialization
+ * @see AP_Mission::update() for mission state machine
+ */
 bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
 {
     switch (cmd.id) {
-    case MAV_CMD_NAV_WAYPOINT:
+    // Nav Command Verification - These block until complete
+    
+    case MAV_CMD_NAV_WAYPOINT:  // Waypoint reached within acceptance radius?
         return verify_nav_wp(cmd);
 
-    case MAV_CMD_NAV_RETURN_TO_LAUNCH:
+    case MAV_CMD_NAV_RETURN_TO_LAUNCH:  // RTL complete (home reached)?
         return verify_RTL();
 
-    case MAV_CMD_NAV_LOITER_UNLIM:
+    case MAV_CMD_NAV_LOITER_UNLIM:  // Never completes (infinite loiter)
         return verify_loiter_unlimited(cmd);
 
-    case MAV_CMD_NAV_LOITER_TURNS:
+    case MAV_CMD_NAV_LOITER_TURNS:  // Required turns completed?
         return verify_circle(cmd);
 
-    case MAV_CMD_NAV_LOITER_TIME:
+    case MAV_CMD_NAV_LOITER_TIME:  // Loiter time expired?
         return verify_loiter_time(cmd);
 
-    case MAV_CMD_NAV_GUIDED_ENABLE:
+    case MAV_CMD_NAV_GUIDED_ENABLE:  // Guided timeout or disabled?
         return verify_nav_guided_enable(cmd);
 
-    case MAV_CMD_NAV_DELAY:
+    case MAV_CMD_NAV_DELAY:  // Delay time expired or absolute time reached?
         return verify_nav_delay(cmd);
 
 #if AP_SCRIPTING_ENABLED
-    case MAV_CMD_NAV_SCRIPT_TIME:
+    case MAV_CMD_NAV_SCRIPT_TIME:  // Script timeout or completion?
         return verify_nav_script_time();
 #endif
 
-    case MAV_CMD_CONDITION_DELAY:
-        return verify_wait_delay();
-
-    case MAV_CMD_CONDITION_DISTANCE:
-        return verify_within_distance();
-
-    case MAV_CMD_NAV_SET_YAW_SPEED:
+    case MAV_CMD_NAV_SET_YAW_SPEED:  // Target heading reached?
         return verify_nav_set_yaw_speed();
 
-    // do commands (always return true)
+    // Condition Command Verification - Gate subsequent commands
+    
+    case MAV_CMD_CONDITION_DELAY:  // Delay time expired?
+        return verify_wait_delay();
+
+    case MAV_CMD_CONDITION_DISTANCE:  // Within distance of target?
+        return verify_within_distance();
+
+    // Do Commands - Always complete immediately (no verification needed)
     case MAV_CMD_DO_CHANGE_SPEED:
     case MAV_CMD_DO_SET_HOME:
     case MAV_CMD_DO_SET_CAM_TRIGG_DIST:
@@ -708,9 +1069,9 @@ bool ModeAuto::verify_command(const AP_Mission::Mission_Command& cmd)
         return true;
 
     default:
-        // error message
+        // Unknown command - report warning and return true to continue mission
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Skipping invalid cmd #%i", cmd.id);
-        // return true if we do not recognize the command so that we move on to the next command
+        // Return true to move on to next command rather than blocking mission
         return true;
     }
 }
@@ -725,28 +1086,72 @@ void ModeAuto::do_RTL(void)
     start_RTL();
 }
 
+/**
+ * @brief Start navigation to waypoint
+ * 
+ * @details Initializes navigation to a target waypoint using L1 path following controller.
+ *          Handles both single waypoint navigation and corner cutting optimization when
+ *          multiple sequential waypoints exist.
+ * 
+ *          Waypoint Processing:
+ *          1. Sanitize target location (ensure valid altitude, wrap longitude)
+ *          2. Extract loiter duration from p1 parameter (0 = no loiter)
+ *          3. Determine navigation strategy:
+ *             - Corner cutting: If next waypoint exists and no loiter required
+ *             - Stop at waypoint: If loiter required or last waypoint in mission
+ *          4. Configure waypoint navigation controller with target(s)
+ *          5. Reset waypoint reached flag
+ * 
+ *          Corner Cutting Optimization:
+ *          When navigating between multiple waypoints without loitering, the controller
+ *          is given both the current target and next target. This enables the L1
+ *          controller to smooth the path and begin turning toward the next waypoint
+ *          before fully reaching the current one, improving navigation efficiency.
+ * 
+ *          Loiter Behavior:
+ *          If param1 > 0, vehicle will loiter at waypoint for specified seconds before
+ *          advancing to next command. Loiter time is enforced by verify_nav_wp().
+ * 
+ * @param[in] cmd Mission command containing waypoint location and loiter time
+ * @param[in] always_stop_at_destination True to disable corner cutting (for loiter commands)
+ * 
+ * @return true if waypoint navigation started successfully, false if location invalid
+ * 
+ * @note MAV_CMD_NAV_WAYPOINT: param1 = loiter time (seconds), location = target
+ * @note MAV_CMD_NAV_LOITER_TIME: Always stops at destination for timed loiter
+ * @note Corner cutting only enabled if no loiter time and next nav command exists
+ * @note Location sanitization ensures altitude is valid and longitude wrapped to ±180°
+ * 
+ * @see set_desired_location() for navigation controller setup
+ * @see verify_nav_wp() for waypoint reached detection
+ * @see AR_WPNav for L1 path following controller
+ */
 bool ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd, bool always_stop_at_destination)
 {
-    // retrieve and sanitize target location
+    // Retrieve target location and sanitize to ensure valid altitude and wrapped longitude
     Location cmdloc = cmd.content.location;
     cmdloc.sanitize(rover.current_loc);
 
-    // delayed stored in p1 in seconds
+    // Extract loiter duration from param1 (seconds), ensure non-negative
     loiter_duration = ((int16_t) cmd.p1 < 0) ? 0 : cmd.p1;
     loiter_start_time = 0;
     if (loiter_duration > 0) {
+        // If loiter time specified, must stop at waypoint (disable corner cutting)
         always_stop_at_destination = true;
     }
 
-    // do not add next wp if there are no more navigation commands
+    // Determine navigation strategy: corner cutting vs stop at waypoint
     AP_Mission::Mission_Command next_cmd;
     if (always_stop_at_destination || !mission.get_next_nav_cmd(cmd.index+1, next_cmd)) {
-        // single destination
+        // Single destination mode: Stop at this waypoint
+        // Used when: loiter required, last waypoint, or explicit stop requested
         if (!set_desired_location(cmdloc)) {
             return false;
         }
     } else {
-        // retrieve and sanitize next destination location
+        // Corner cutting mode: Provide current AND next waypoint to L1 controller
+        // Controller will smooth path and begin turn before reaching current waypoint
+        // Retrieve and sanitize next destination location
         Location next_cmdloc = next_cmd.content.location;
         next_cmdloc.sanitize(cmdloc);
         if (!set_desired_location(cmdloc, next_cmdloc)) {
@@ -754,7 +1159,7 @@ bool ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd, bool always_sto
         }
     }
 
-    // just starting so we haven't previously reached the waypoint
+    // Reset waypoint reached flag - just starting navigation to this waypoint
     previously_reached_wp = false;
 
     return true;
