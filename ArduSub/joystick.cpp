@@ -1,3 +1,33 @@
+/**
+ * @file joystick.cpp
+ * @brief Joystick and gamepad input processing for ArduSub ROV control
+ * 
+ * @details This file handles the conversion of joystick/gamepad inputs from MAVLink
+ *          MANUAL_CONTROL messages to RC channel overrides for 6-DOF underwater vehicle control.
+ *          
+ *          The joystick system supports:
+ *          - 32 configurable buttons (16 standard + 16 extended via MANUAL_CONTROL extensions)
+ *          - 6 axes: roll, pitch, yaw, throttle (vertical), forward, lateral
+ *          - Multiple button functions: arming, mode switching, camera/mount control,
+ *            lights adjustment, gain tuning, trim control, relay/servo control
+ *          - Shift modifier for dual-function buttons
+ *          - Input hold feature for maintaining position
+ *          - Configurable gain scaling for sensitivity adjustment
+ *          
+ *          Button states are transmitted as two 16-bit bitmasks (buttons and buttons2)
+ *          which are merged into a single 32-bit value for processing. Each bit represents
+ *          the state of one button (1=pressed, 0=released).
+ *          
+ *          Axis values are converted from joystick coordinates (-1000 to 1000 for most axes,
+ *          0 to 1000 for throttle) to RC PWM values (typically 1100-1900 μs) with gain
+ *          scaling applied.
+ * 
+ * @note This is called from GCS_MAVLINK when MANUAL_CONTROL messages are received
+ * @warning Joystick control bypasses RC receiver input when active
+ * 
+ * Source: ArduSub/joystick.cpp:1-end
+ */
+
 #include "Sub.h"
 #include "mode.h"
 
@@ -21,6 +51,25 @@ uint32_t buttons_prev;
 bool controls_reset_since_input_hold = true;
 }
 
+/**
+ * @brief Initialize joystick control system for ArduSub
+ * 
+ * @details Performs initial setup of the joystick/gamepad control system:
+ *          1. Sets default button mappings for standard ROV control
+ *          2. Initializes vehicle to MANUAL mode
+ *          3. Configures gain settings based on parameters
+ *          4. Initializes lights and video switch outputs to off state
+ *          
+ *          The gain system allows stepped sensitivity adjustment with configurable
+ *          min/max values and number of steps. If only one gain setting is configured,
+ *          the default gain value is used. Otherwise, gain is initialized to the
+ *          middle step value.
+ * 
+ * @note Called during vehicle initialization
+ * @see default_js_buttons(), transform_manual_control_to_rc_override()
+ * 
+ * Source: ArduSub/joystick.cpp:24-45
+ */
 void Sub::init_joystick()
 {
     default_js_buttons();
@@ -44,6 +93,70 @@ void Sub::init_joystick()
     SRV_Channels::set_output_scaled(SRV_Channel::k_video_switch, 0.0);
 }
 
+/**
+ * @brief Transform MAVLink MANUAL_CONTROL message to RC channel overrides
+ * 
+ * @details Converts joystick/gamepad input from MAVLink MANUAL_CONTROL messages into
+ *          RC channel override values for 6-DOF underwater vehicle control. This function
+ *          handles axis scaling with gain adjustment, button state processing with shift
+ *          modifier support, and trim/hold functionality.
+ *          
+ *          Axis Mapping (ROV 6-DOF control):
+ *          - s (pitch axis) → RC channel 0 (pitch)
+ *          - t (roll axis) → RC channel 1 (roll)
+ *          - z (throttle axis) → RC channel 2 (throttle/vertical)
+ *          - r (yaw axis) → RC channel 3 (yaw)
+ *          - x (forward axis) → RC channel 4 (forward movement)
+ *          - y (lateral axis) → RC channel 5 (lateral movement)
+ *          - Camera pan → RC channel 6
+ *          - Camera tilt → RC channel 7
+ *          
+ *          Button Processing:
+ *          - Supports 32 buttons via two 16-bit masks (buttons, buttons2)
+ *          - Buttons are merged: all_buttons = buttons | (buttons2 << 16)
+ *          - Each bit represents one button state (1=pressed, 0=released)
+ *          - Detects press, hold, and release events
+ *          - Shift modifier allows dual functions per button
+ *          
+ *          Scaling and Gains:
+ *          - RPY axes scaled by 0.4 * gain (maps ±1000 to ±400 * gain)
+ *          - Throttle scaled by 0.8 * gain * throttle_gain parameter
+ *          - Final values constrained to 1100-1900 μs PWM range
+ *          - Gain adjustable 0.1-1.0 via button controls
+ *          
+ *          Input Hold Feature:
+ *          - When active, maintains last commanded forward/lateral/vertical input
+ *          - Prevents control until operator returns sticks to neutral
+ *          - Useful for maintaining position during other operations
+ *          
+ *          Attitude vs Movement Mode:
+ *          - roll_pitch_flag=0: Standard ROV mode (x/y control forward/lateral)
+ *          - roll_pitch_flag=1: Attitude mode (x/y adjust roll/pitch trim)
+ * 
+ * @param[in] x Forward/backward axis input (-1000 to 1000)
+ * @param[in] y Lateral/strafe axis input (-1000 to 1000)
+ * @param[in] z Throttle/vertical axis input (0 to 1000, 500=neutral)
+ * @param[in] r Yaw/rotation axis input (-1000 to 1000)
+ * @param[in] buttons Button state bitmask for buttons 0-15 (bit set = pressed)
+ * @param[in] buttons2 Button state bitmask for buttons 16-31 (bit set = pressed)
+ * @param[in] enabled_extensions MAVLink extension flags (currently unused)
+ * @param[in] s Pitch axis input (-1000 to 1000)
+ * @param[in] t Roll axis input (-1000 to 1000)
+ * @param[in] aux1 Auxiliary axis 1 (currently unused)
+ * @param[in] aux2 Auxiliary axis 2 (currently unused)
+ * @param[in] aux3 Auxiliary axis 3 (currently unused)
+ * @param[in] aux4 Auxiliary axis 4 (currently unused)
+ * @param[in] aux5 Auxiliary axis 5 (currently unused)
+ * @param[in] aux6 Auxiliary axis 6 (currently unused)
+ * 
+ * @note Called from GCS_MAVLINK::handle_manual_control() when MANUAL_CONTROL messages received
+ * @note Typical update rate: 25-50 Hz depending on ground control station
+ * @warning RC channel overrides bypass RC receiver input completely
+ * 
+ * @see handle_jsbutton_press(), handle_jsbutton_release(), RC_Channels::set_override()
+ * 
+ * Source: ArduSub/joystick.cpp:47-139
+ */
 void Sub::transform_manual_control_to_rc_override(int16_t x, int16_t y, int16_t z, int16_t r, uint16_t buttons, uint16_t buttons2, uint8_t enabled_extensions,
             int16_t s,
             int16_t t,
@@ -66,25 +179,35 @@ void Sub::transform_manual_control_to_rc_override(int16_t x, int16_t y, int16_t 
     cam_tilt = 1500;
     cam_pan = 1500;
 
+    // Merge two 16-bit button masks into single 32-bit value
+    // buttons contains bits 0-15, buttons2 contains bits 16-31
     uint32_t all_buttons = buttons | (buttons2 << 16);
-    // Detect if any shift button is pressed
+    
+    // First pass: Detect if any shift button is pressed
+    // Shift modifier allows buttons to have alternate functions
     for (uint8_t i = 0 ; i < 32 ; i++) {
         if ((all_buttons & (1 << i)) && get_button(i)->function() == JSButton::button_function_t::k_shift) {
             shift = true;
         }
     }
 
-    // Act if button is pressed
+    // Second pass: Process all 32 button states
+    // Detects press events (button newly pressed), hold events (button still pressed),
+    // and release events (button newly released)
     // Only act upon pressing button and ignore holding. This provides compatibility with Taranis as joystick.
     for (uint8_t i = 0 ; i < 32 ; i++) {
         if ((all_buttons & (1 << i))) {
+            // Button is currently pressed
+            // Pass held flag (true if button was also pressed last cycle)
             handle_jsbutton_press(i,shift,(buttons_prev & (1 << i)));
             // buttonDebounce = tnow_ms;
         } else if (buttons_prev & (1 << i)) {
+            // Button was pressed last cycle but not this cycle = release event
             handle_jsbutton_release(i, shift);
         }
     }
 
+    // Store current button state for next cycle's edge detection
     buttons_prev = all_buttons;
 
     // attitude mode:
@@ -138,6 +261,73 @@ void Sub::transform_manual_control_to_rc_override(int16_t x, int16_t y, int16_t 
     z_last = z;
 }
 
+/**
+ * @brief Handle joystick button press and hold events
+ * 
+ * @details Processes button press events based on the configured function for each button.
+ *          Supports 32 buttons (0-31) with configurable functions including:
+ *          
+ *          Arming Functions:
+ *          - k_arm_toggle, k_arm, k_disarm: Vehicle arming control
+ *          
+ *          Mode Selection (8 modes):
+ *          - k_mode_manual, k_mode_stabilize, k_mode_depth_hold, k_mode_auto
+ *          - k_mode_guided, k_mode_circle, k_mode_acro, k_mode_poshold
+ *          - k_mode_surftrak (if rangefinder enabled)
+ *          
+ *          Camera/Mount Control:
+ *          - k_mount_center, k_mount_tilt_up, k_mount_tilt_down
+ *          - k_mount_pan_left, k_mount_pan_right
+ *          - k_camera_trigger, k_camera_source_toggle
+ *          
+ *          Lights Control:
+ *          - k_lights1_cycle, k_lights1_brighter, k_lights1_dimmer
+ *          - k_lights2_cycle, k_lights2_brighter, k_lights2_dimmer
+ *          
+ *          Gain Adjustment:
+ *          - k_gain_toggle (50% / 100%), k_gain_inc, k_gain_dec
+ *          
+ *          Trim Control:
+ *          - k_trim_roll_inc, k_trim_roll_dec, k_trim_pitch_inc, k_trim_pitch_dec
+ *          
+ *          Input Hold:
+ *          - k_input_hold_set: Captures current stick positions as trim offsets
+ *          
+ *          Relay Control (if AP_RELAY_ENABLED):
+ *          - k_relay_1/2/3/4_on, k_relay_1/2/3/4_off
+ *          - k_relay_1/2/3/4_toggle, k_relay_1/2/3/4_momentary
+ *          
+ *          Servo/Actuator Control (if AP_SERVORELAYEVENTS_ENABLED):
+ *          - k_servo_1-6_inc, k_servo_1-6_dec, k_servo_1-6_center
+ *          - k_servo_1-6_min, k_servo_1-6_max
+ *          - k_servo_1-6_min_toggle, k_servo_1-6_max_toggle
+ *          - k_servo_1-6_min_momentary, k_servo_1-6_max_momentary
+ *          
+ *          Mode Toggle:
+ *          - k_roll_pitch_toggle: Switch between movement and attitude control
+ *          
+ *          Custom Functions:
+ *          - k_custom_1 through k_custom_6: Reserved for future use
+ *          
+ *          Scripting Functions (if AP_SCRIPTING_ENABLED):
+ *          - k_script_1 through k_script_4: Trigger Lua script button events
+ *          
+ *          The 'held' parameter prevents repeated actions on buttons that should only
+ *          trigger once per press (toggles, increments). Some functions like momentary
+ *          relays or continuous camera movement are active while held.
+ * 
+ * @param[in] _button Button index (0-31)
+ * @param[in] shift True if shift modifier is active (enables alternate button functions)
+ * @param[in] held True if button was already pressed in previous cycle (held down)
+ * 
+ * @note Most toggle/increment functions check !held to prevent repeated triggering
+ * @note Camera tilt/pan values set here are applied to RC channels in parent function
+ * @warning Mode changes while armed should be done carefully to avoid loss of control
+ * 
+ * @see handle_jsbutton_release(), get_button(), JSButton::function()
+ * 
+ * Source: ArduSub/joystick.cpp:141-637
+ */
 void Sub::handle_jsbutton_press(uint8_t _button, bool shift, bool held)
 {
     // Act based on the function assigned to this button
@@ -636,6 +826,37 @@ void Sub::handle_jsbutton_press(uint8_t _button, bool shift, bool held)
     }
 }
 
+/**
+ * @brief Handle joystick button release events
+ * 
+ * @details Processes button release events for functions that require action on release.
+ *          Most button functions are handled entirely in handle_jsbutton_press(), but
+ *          momentary functions need release handling to return to neutral state:
+ *          
+ *          Momentary Relay Functions (if AP_RELAY_ENABLED):
+ *          - k_relay_1/2/3/4_momentary: Turns relay off when button released
+ *          
+ *          Momentary Servo Functions (if AP_SERVORELAYEVENTS_ENABLED):
+ *          - k_servo_1-6_min_momentary: Returns servo to center when released
+ *          - k_servo_1-6_max_momentary: Returns servo to center when released
+ *          
+ *          Scripting Functions (if AP_SCRIPTING_ENABLED):
+ *          - k_script_1 through k_script_4: Notifies Lua scripts of button release
+ *          
+ *          This provides spring-loaded behavior where the control returns to neutral
+ *          when the operator releases the button, useful for manipulator arms, grippers,
+ *          or other actuators that should hold position only while button is pressed.
+ * 
+ * @param[in] _button Button index (0-31)
+ * @param[in] shift True if shift modifier is active (enables alternate button functions)
+ * 
+ * @note Only processes button functions that explicitly require release handling
+ * @note Most button functions are fully handled in handle_jsbutton_press()
+ * 
+ * @see handle_jsbutton_press(), get_button(), JSButton::function()
+ * 
+ * Source: ArduSub/joystick.cpp:639-711
+ */
 void Sub::handle_jsbutton_release(uint8_t _button, bool shift) {
 
     // Act based on the function assigned to this button
@@ -710,6 +931,32 @@ void Sub::handle_jsbutton_release(uint8_t _button, bool shift) {
     }
 }
 
+/**
+ * @brief Get JSButton parameter object for specified button index
+ * 
+ * @details Returns a pointer to the JSButton parameter object that stores the
+ *          configuration for the specified button. ArduSub supports 32 configurable
+ *          buttons (jbtn_0 through jbtn_31) that can be mapped to different functions.
+ *          
+ *          Each JSButton object stores:
+ *          - Normal function (default button action)
+ *          - Shift function (alternate action when shift modifier pressed)
+ *          
+ *          Button indices map directly to bit positions in the button bitmasks:
+ *          - Buttons 0-15: From MAVLink MANUAL_CONTROL 'buttons' field
+ *          - Buttons 16-31: From MAVLink MANUAL_CONTROL 'buttons2' field (extension)
+ * 
+ * @param[in] index Button index (0-31)
+ * 
+ * @return JSButton* Pointer to button parameter object, or &g.jbtn_0 if index invalid
+ * 
+ * @note Returns jbtn_0 as safe fallback for invalid indices
+ * @note Button parameters are stored in the g (parameters) object
+ * 
+ * @see JSButton, handle_jsbutton_press(), handle_jsbutton_release()
+ * 
+ * Source: ArduSub/joystick.cpp:713-786
+ */
 JSButton* Sub::get_button(uint8_t index)
 {
     // Help to access appropriate parameter
@@ -785,6 +1032,52 @@ JSButton* Sub::get_button(uint8_t index)
     }
 }
 
+/**
+ * @brief Set default button mappings for standard ROV joystick control
+ * 
+ * @details Initializes the first 16 buttons with factory default function mappings
+ *          optimized for typical ROV operations. Each button has two functions:
+ *          - Index [0]: Normal function (no shift modifier)
+ *          - Index [1]: Shift function (when shift button held)
+ *          
+ *          Default Button Layout:
+ *          Button  Normal Function          Shift Function
+ *          ------  ----------------------   ----------------------
+ *          0       None                     None
+ *          1       Manual Mode              None
+ *          2       Depth Hold Mode          None
+ *          3       Stabilize Mode           None
+ *          4       Disarm                   None
+ *          5       Shift Modifier           None
+ *          6       Arm                      None
+ *          7       Mount Center             None
+ *          8       Input Hold Set           None
+ *          9       Mount Tilt Down          Mount Pan Left
+ *          10      Mount Tilt Up            Mount Pan Right
+ *          11      Gain Increase            Trim Pitch Down
+ *          12      Gain Decrease            Trim Pitch Up
+ *          13      Lights1 Dimmer           Trim Roll Left
+ *          14      Lights1 Brighter         Trim Roll Right
+ *          15      None                     None
+ *          
+ *          Buttons 16-31 are not initialized by this function and default to "none".
+ *          
+ *          This layout provides quick access to:
+ *          - Essential modes (Manual, Stabilize, Depth Hold)
+ *          - Arming/disarming
+ *          - Camera/mount control with shift modifier for pan
+ *          - Lights brightness adjustment
+ *          - Gain control for sensitivity tuning
+ *          - Trim adjustment when shift is held
+ * 
+ * @note Called during init_joystick() at vehicle startup
+ * @note Users can reconfigure button functions via parameters (BTN0_FUNCTION, etc.)
+ * @note Button 5 (shift) should not be reassigned as it enables alternate functions
+ * 
+ * @see init_joystick(), get_button(), JSButton::set_default()
+ * 
+ * Source: ArduSub/joystick.cpp:788-815
+ */
 void Sub::default_js_buttons()
 {
     JSButton::button_function_t defaults[16][2] = {
@@ -814,6 +1107,32 @@ void Sub::default_js_buttons()
     }
 }
 
+/**
+ * @brief Reset all control channels to neutral/trim positions
+ * 
+ * @details Sets all six RC input channels to their configured trim values,
+ *          effectively commanding zero movement on all axes. Also clears any
+ *          accumulated pitch and roll trim offsets.
+ *          
+ *          Channels reset to trim:
+ *          - Roll: Typically 1500 μs (neutral)
+ *          - Pitch: Typically 1500 μs (neutral)
+ *          - Yaw: Typically 1500 μs (neutral)
+ *          - Throttle: Typically 1500 μs (neutral for vertical)
+ *          - Forward: Typically 1500 μs (neutral)
+ *          - Lateral: Typically 1500 μs (neutral)
+ *          
+ *          This is used when:
+ *          - Switching to a mode that doesn't use manual control
+ *          - Failsafe activation
+ *          - Disarming
+ *          - Clearing accumulated trims
+ * 
+ * @note Does not clear input hold trims (xTrim, yTrim, zTrim)
+ * @see clear_input_hold()
+ * 
+ * Source: ArduSub/joystick.cpp:817-829
+ */
 void Sub::set_neutral_controls()
 {
     channel_roll->set_radio_in(channel_roll->get_radio_trim());
@@ -828,6 +1147,34 @@ void Sub::set_neutral_controls()
     rollTrim  = 0;
 }
 
+/**
+ * @brief Clear input hold trim offsets and disengage hold mode
+ * 
+ * @details Resets all input hold trim values to zero and disengages the input hold
+ *          feature. Input hold allows the operator to "lock" forward, lateral, and
+ *          vertical inputs at their current values, maintaining position/velocity
+ *          while freeing up hands for other controls.
+ *          
+ *          When input hold is engaged:
+ *          - xTrim stores forward/backward offset
+ *          - yTrim stores lateral/strafe offset  
+ *          - zTrim stores vertical/throttle offset
+ *          
+ *          Clearing input hold:
+ *          - Returns vehicle to direct joystick control
+ *          - Removes all trim offsets
+ *          - Allows immediate response to stick inputs
+ *          
+ *          This is typically called when:
+ *          - Disarming the vehicle
+ *          - Changing flight modes
+ *          - Operator presses input hold button with sticks neutral
+ * 
+ * @note Separate from pitch/roll trim which is cleared by set_neutral_controls()
+ * @see set_neutral_controls(), handle_jsbutton_press() k_input_hold_set case
+ * 
+ * Source: ArduSub/joystick.cpp:831-837
+ */
 void Sub::clear_input_hold()
 {
     xTrim = 0;
@@ -837,11 +1184,50 @@ void Sub::clear_input_hold()
 }
 
 #if AP_SCRIPTING_ENABLED
+/**
+ * @brief Check if a script button is currently pressed
+ * 
+ * @details Allows Lua scripts to query the current pressed state of script buttons
+ *          (k_script_1 through k_script_4). This provides real-time button state
+ *          information for scripts that need to know if a button is being held.
+ * 
+ * @param[in] index Script button index (1-4, corresponding to k_script_1 through k_script_4)
+ * 
+ * @return true if script button is currently pressed, false otherwise
+ * 
+ * @note Index is 1-based (1-4) but internally maps to 0-based array (0-3)
+ * @see get_and_clear_button_count(), handle_jsbutton_press() k_script_* cases
+ * 
+ * Source: ArduSub/joystick.cpp:840-843
+ */
 bool Sub::is_button_pressed(uint8_t index)
 {
     return script_buttons[index - 1].is_pressed();
 }
 
+/**
+ * @brief Get and reset the press count for a script button
+ * 
+ * @details Returns the number of times a script button has been pressed since the
+ *          last call to this function, then resets the counter to zero. This allows
+ *          Lua scripts to detect button presses even if they don't run at the same
+ *          rate as button processing, ensuring no press events are missed.
+ *          
+ *          Useful for:
+ *          - Counting button presses for multi-click detection
+ *          - Ensuring all presses are processed even with slow script execution
+ *          - Implementing button press accumulators in scripts
+ * 
+ * @param[in] index Script button index (1-4, corresponding to k_script_1 through k_script_4)
+ * 
+ * @return uint8_t Number of button presses since last call (counter is then reset to 0)
+ * 
+ * @note Index is 1-based (1-4) but internally maps to 0-based array (0-3)
+ * @note Counter resets after reading, so subsequent calls return 0 until new presses
+ * @see is_button_pressed(), handle_jsbutton_press() k_script_* cases
+ * 
+ * Source: ArduSub/joystick.cpp:845-848
+ */
 uint8_t Sub::get_and_clear_button_count(uint8_t index)
 {
     return script_buttons[index - 1].get_and_clear_count();
