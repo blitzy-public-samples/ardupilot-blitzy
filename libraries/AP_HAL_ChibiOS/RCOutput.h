@@ -63,7 +63,7 @@ public:
     void     enable_ch(uint8_t ch) override;
     void     disable_ch(uint8_t ch) override;
     void     write(uint8_t ch, uint16_t period_us) override;
-    uint16_t read(uint8_t ch) override;
+    uint16_t read(uint8_t chan) override;
     void     read(uint16_t* period_us, uint8_t len) override;
     uint16_t read_last_sent(uint8_t ch) override;
     void     read_last_sent(uint16_t* period_us, uint8_t len) override;

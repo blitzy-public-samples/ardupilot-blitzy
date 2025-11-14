@@ -496,11 +496,11 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
 /*
   set default output rate
  */
-void RCOutput::set_default_rate(uint16_t freq_hz)
+void RCOutput::set_default_rate(uint16_t rate_hz)
 {
 #if HAL_WITH_IO_MCU
     if (iomcu_enabled) {
-        iomcu.set_default_rate(freq_hz);
+        iomcu.set_default_rate(rate_hz);
     }
 #endif
     for (auto &group : pwm_group_list) {
@@ -508,7 +508,7 @@ void RCOutput::set_default_rate(uint16_t freq_hz)
             // don't change fast channels
             continue;
         }
-        group.pwm_cfg.period = group.pwm_cfg.frequency/freq_hz;
+        group.pwm_cfg.period = group.pwm_cfg.frequency/rate_hz;
         if (group.pwm_started) {
             pwmChangePeriod(group.pwm_drv, group.pwm_cfg.period);
         }

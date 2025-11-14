@@ -225,10 +225,10 @@ static int srxl_channels_get_v5(uint16_t max_values, uint8_t *num_values, uint16
  * Byte[N-1] - Byte[N]: CRC16 over payload and header
  *
  * @param[in]  timestamp_us - timestamp in microseconds
- * @param[in]  received byte in microseconds
+ * @param[in]  byte - received byte to decode
  * @param[out] num_values - number of RC channels extracted from srxl frame
  * @param[out] values - array of RC channels with refreshed information as pulsewidth in microseconds Range: 800us - 2200us
- * @param[in] maximum number of values supported by pixhawk
+ * @param[in] max_values - maximum number of values supported by receiver
  * @param[out] failsafe_state - true: RC-receiver is in failsafe state, false: RC-receiver is not in failsafe state
  * @retval 0 success (a decoded packet)
  * @retval 1 no packet yet (accumulating)

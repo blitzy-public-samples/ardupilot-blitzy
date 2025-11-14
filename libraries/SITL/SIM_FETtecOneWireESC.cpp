@@ -57,14 +57,14 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo FETtecOneWireESC::var_info[] = {
 
-    // @Param: ENA
+    // `@Param`: ENA
     // @DisplayName: FETtec OneWire ESC simulator enable/disable
     // @Description: Allows you to enable (1) or disable (0) the FETtecOneWireESC simulator
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENA", 1, FETtecOneWireESC, _enabled, 0),
 
-    // @Param: POW
+    // `@Param`: POW
     // @DisplayName: Power off FETtec ESC mask
     // @Description: Allows you to turn power off to the simulated ESCs.  Bits correspond to the ESC ID, *NOT* their servo channel.
     // @User: Advanced

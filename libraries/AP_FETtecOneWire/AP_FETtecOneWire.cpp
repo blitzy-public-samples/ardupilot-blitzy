@@ -38,7 +38,7 @@ static constexpr uint32_t FULL_DUPLEX_BAUDRATE =  500000;
 
 const AP_Param::GroupInfo AP_FETtecOneWire::var_info[] {
 
-    // @Param: MASK
+    // `@Param`: MASK
     // @DisplayName: Servo channel output bitmask
     // @Description: Servo channel mask specifying FETtec ESC output.
     // @Bitmask: 0:SERVO1,1:SERVO2,2:SERVO3,3:SERVO4,4:SERVO5,5:SERVO6,6:SERVO7,7:SERVO8,8:SERVO9,9:SERVO10,10:SERVO11,11:SERVO12
@@ -46,7 +46,7 @@ const AP_Param::GroupInfo AP_FETtecOneWire::var_info[] {
     // @User: Standard
     AP_GROUPINFO_FLAGS("MASK",  1, AP_FETtecOneWire, _motor_mask_parameter, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: RVMASK
+    // `@Param`: RVMASK
     // @DisplayName: Servo channel reverse rotation bitmask
     // @Description: Servo channel mask to reverse rotation of FETtec ESC outputs.
     // @Bitmask: 0:SERVO1,1:SERVO2,2:SERVO3,3:SERVO4,4:SERVO5,5:SERVO6,6:SERVO7,7:SERVO8,8:SERVO9,9:SERVO10,10:SERVO11,11:SERVO12
@@ -54,7 +54,7 @@ const AP_Param::GroupInfo AP_FETtecOneWire::var_info[] {
     AP_GROUPINFO("RVMASK",  2, AP_FETtecOneWire, _reverse_mask_parameter, 0),
 
 #if HAL_WITH_ESC_TELEM
-    // @Param: POLES
+    // `@Param`: POLES
     // @DisplayName: Nr. electrical poles
     // @Description: Number of motor electrical poles
     // @Range: 2 50

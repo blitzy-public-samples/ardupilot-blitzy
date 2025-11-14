@@ -147,7 +147,7 @@ const AP_Param::GroupInfo AP_Vehicle::var_info[] = {
 #endif
 
 #if APM_BUILD_COPTER_OR_HELI || APM_BUILD_TYPE(APM_BUILD_ArduPlane) || APM_BUILD_TYPE(APM_BUILD_Rover)
-    // @Param: FLTMODE_GCSBLOCK
+    // `@Param`: FLTMODE_GCSBLOCK
     // @DisplayName: Flight mode block from GCS
     // @Description: Bitmask of flight modes to disable for GCS selection. Mode can still be accessed via RC or failsafe.
     // @Bitmask{Copter}: 0:Stabilize

@@ -30,9 +30,9 @@ static const uint8_t base64url_table[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij
 
 /**
  * base64_encode - Base64 encode
- * @src: Data to be encoded
- * @len: Length of the data to be encoded
- * @out_len: Pointer to output length variable, or %nullptr if not used
+ * `@src`: Data to be encoded
+ * `@len`: Length of the data to be encoded
+ * `@out_len`: Pointer to output length variable, or %nullptr if not used
  * Returns: Allocated buffer of out_len bytes of encoded data,
  * or %nullptr on failure
  *
@@ -125,9 +125,9 @@ uint8_t* base64url_encode(const uint8_t *src, uint16_t len, uint16_t *out_len)
 
 /**
  * base64_decode - Base64 decode
- * @src: Data to be decoded
- * @len: Length of the data to be decoded
- * @out_len: Pointer to output length variable
+ * `@src`: Data to be decoded
+ * `@len`: Length of the data to be decoded
+ * `@out_len`: Pointer to output length variable
  * Returns: Allocated buffer of out_len bytes of decoded data,
  * or %nullptr on failure
  *

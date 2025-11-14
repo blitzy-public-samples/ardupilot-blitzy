@@ -37,7 +37,7 @@
 
 const AP_Param::GroupInfo AP_AIS::var_info[] = {
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: AIS receiver type
     // @Description: AIS receiver type
     // @Values: 0:None,1:NMEA AIVDM message
@@ -45,14 +45,14 @@ const AP_Param::GroupInfo AP_AIS::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO_FLAGS("TYPE", 1, AP_AIS, _type, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: LIST_MAX
+    // `@Param`: LIST_MAX
     // @DisplayName: AIS vessel list size
     // @Description: AIS list size of nearest vessels. Longer lists take longer to refresh with lower SRx_ADSB values.
     // @Range: 1 100
     // @User: Advanced
     AP_GROUPINFO("LIST_MAX", 2, AP_AIS, _max_list, 25),
 
-    // @Param: TIME_OUT
+    // `@Param`: TIME_OUT
     // @DisplayName: AIS vessel time out
     // @Description: if no updates are received in this time a vessel will be removed from the list
     // @Units: s
@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AP_AIS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TIME_OUT", 3, AP_AIS, _time_out, 600),
 
-    // @Param: LOGGING
+    // `@Param`: LOGGING
     // @DisplayName: AIS logging options
     // @Description: Bitmask of AIS logging options
     // @Bitmask: 0:Log all AIVDM messages,1:Log only unsupported AIVDM messages,2:Log decoded messages

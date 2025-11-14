@@ -1,3 +1,16 @@
+================================================================================
+ARDUROVER RELEASE NOTES
+================================================================================
+
+This file contains historical release notes for ArduRover, documenting major
+features, bug fixes, and changes across versions. These notes provide a 
+chronological record of improvements, board-specific updates, and issue 
+resolutions for the ArduRover ground vehicle autopilot system.
+
+Note: This is a text file for human reference, not compiled code.
+
+================================================================================
+
 ArduPilot Rover Release Notes:
 ------------------------------------------------------------------
 Release 4.6.2 17-Jul-2025 / 4.6.2-beta2 02-Jul-2025

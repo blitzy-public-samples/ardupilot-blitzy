@@ -1,6 +1,6 @@
 #pragma once
 
-/// @file	AC_PD.h
+/// @file	AC_P.h
 /// @brief	Single-axis P controller with EEPROM-backed gain storage.
 
 #include <AP_Common/AP_Common.h>

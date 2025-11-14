@@ -55,35 +55,35 @@ AP_ExternalAHRS::AP_ExternalAHRS()
 // table of user settable parameters
 const AP_Param::GroupInfo AP_ExternalAHRS::var_info[] = {
 
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: AHRS type
     // @Description: Type of AHRS device
     // @Values: 0:None,1:VectorNav,2:MicroStrain5,5:InertialLabs,7:MicroStrain7
     // @User: Standard
     AP_GROUPINFO_FLAGS("_TYPE", 1, AP_ExternalAHRS, devtype, HAL_EXTERNAL_AHRS_DEFAULT, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _RATE
+    // `@Param`: _RATE
     // @DisplayName: AHRS data rate
     // @Description: Requested rate for AHRS device
     // @Units: Hz
     // @User: Standard
     AP_GROUPINFO("_RATE", 2, AP_ExternalAHRS, rate, 50),
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: External AHRS options
     // @Description: External AHRS options bitmask
     // @Bitmask: 0:Vector Nav use uncompensated values for accel gyro and mag.
     // @User: Standard
     AP_GROUPINFO("_OPTIONS", 3, AP_ExternalAHRS, options, 0),
 
-    // @Param: _SENSORS
+    // `@Param`: _SENSORS
     // @DisplayName: External AHRS sensors
     // @Description: External AHRS sensors bitmask
     // @Bitmask: 0:GPS,1:IMU,2:Baro,3:Compass
     // @User: Advanced
     AP_GROUPINFO("_SENSORS", 4, AP_ExternalAHRS, sensors, 0xF),
 
-    // @Param: _LOG_RATE
+    // `@Param`: _LOG_RATE
     // @DisplayName: AHRS logging rate
     // @Description: Logging rate for EARHS devices
     // @Units: Hz
@@ -397,7 +397,7 @@ void AP_ExternalAHRS::update(void)
     if (log_rate.get() > 0 && now_ms - last_log_ms >= uint32_t(1000U/log_rate.get())) {
         last_log_ms = now_ms;
 
-        // @LoggerMessage: EAHR
+        // `@LoggerMessage`: EAHR
         // @Description: External AHRS data
         // @Field: TimeUS: Time since system startup
         // @Field: Roll: euler roll
@@ -426,7 +426,7 @@ void AP_ExternalAHRS::update(void)
                                     state.location.lat, state.location.lng, state.location.alt*0.01,
                                     filterStatus.value);
 
-        // @LoggerMessage: EAHV
+        // `@LoggerMessage`: EAHV
         // @Description: External AHRS variances
         // @Field: TimeUS: Time since system startup
         // @Field: Vel: velocity variance

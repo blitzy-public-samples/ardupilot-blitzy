@@ -2,14 +2,133 @@
 
 #if MODE_RTL_ENABLED
 
-/*
- * Init and run calls for RTL flight mode
- *
- * There are two parts to RTL, the high level decision making which controls which state we are in
- * and the lower implementation of the waypoint or landing controllers within those states
+/**
+ * @file mode_rtl.cpp
+ * @brief RTL (Return To Launch) flight mode implementation for ArduCopter
+ * 
+ * @details RTL mode implements autonomous return to home functionality, which is one of the most
+ *          safety-critical flight modes in ArduPilot. It is automatically triggered by failsafe
+ *          conditions (radio loss, battery failsafe, geofence breach) and can be manually invoked
+ *          by the pilot via mode switch or GCS command.
+ * 
+ *          RTL executes a multi-stage sequence to safely return the vehicle to the launch point
+ *          or a designated rally point and land. The sequence consists of:
+ *          
+ *          1. STARTING: Initial state, builds the return path
+ *          2. INITIAL_CLIMB: Climbs to RTL_ALT to clear obstacles
+ *          3. RETURN_HOME: Navigates horizontally to home/rally point at RTL_ALT
+ *          4. LOITER_AT_HOME: Loiters for RTL_LOIT_TIME, aligns to armed yaw heading
+ *          5. FINAL_DESCENT: Descends to RTL_ALT_FINAL (may be above ground)
+ *          6. LAND: Final landing with landing detector
+ * 
+ *          RTL State Machine Diagram:
+ *          ```mermaid
+ *          stateDiagram-v2
+ *              [*] --> STARTING: RTL Mode Activated
+ *              STARTING --> INITIAL_CLIMB: build_path() complete
+ *              INITIAL_CLIMB --> RETURN_HOME: Reached RTL_ALT
+ *              RETURN_HOME --> LOITER_AT_HOME: Reached home/rally point
+ *              LOITER_AT_HOME --> FINAL_DESCENT: RTL_LOIT_TIME elapsed & yaw aligned
+ *              LOITER_AT_HOME --> LAND: RTL_ALT_FINAL=0 or radio failsafe
+ *              FINAL_DESCENT --> LAND: Reached RTL_ALT_FINAL
+ *              LAND --> [*]: Touchdown & disarm
+ *              
+ *              note right of INITIAL_CLIMB
+ *                  Climbs to RTL_ALT (default 15m)
+ *                  Respects RTL_CLIMB_MIN
+ *                  Can use RTL_CONE_SLOPE for gradual climb
+ *              end note
+ *              
+ *              note right of RETURN_HOME
+ *                  Navigates to nearest rally point or home
+ *                  Maintains RTL_ALT throughout
+ *                  Supports terrain following if enabled
+ *              end note
+ *              
+ *              note right of LOITER_AT_HOME
+ *                  Loiters for RTL_LOIT_TIME seconds
+ *                  Rotates to initial armed yaw
+ *                  Allows pilot repositioning
+ *              end note
+ *          ```
+ * 
+ * Key Configuration Parameters:
+ * - RTL_ALT (cm): Target altitude above home for return journey (default 1500cm = 15m)
+ * - RTL_ALT_FINAL (cm): Altitude above home for final descent before land (default 0 = land immediately)
+ * - RTL_CLIMB_MIN (cm): Minimum climb regardless of current altitude (default 0)
+ * - RTL_CONE_SLOPE: Defines cone for gradual climb when close to home (default 3.0, 0=disabled)
+ * - RTL_SPEED (cm/s): Horizontal speed during return (default from WPNAV_SPEED)
+ * - RTL_LOIT_TIME (ms): Time to loiter at home before descending (default 5000ms = 5 seconds)
+ * - RTL_ALT_TYPE: Altitude frame reference (0=relative to home, 1=relative to terrain)
+ * 
+ * Terrain Following:
+ * When RTL_ALT_TYPE=1 (terrain), RTL maintains constant height above ground using either
+ * rangefinder or terrain database. This is critical for operations in mountainous terrain
+ * where a fixed altitude above home could result in ground collision.
+ * 
+ * Rally Point Support:
+ * If rally points are enabled (HAL_RALLY_ENABLED), RTL selects the nearest rally point
+ * instead of home. Rally points can be positioned for better landing zones or to avoid
+ * obstacles near the launch point.
+ * 
+ * Safety Considerations:
+ * - RTL is a primary failsafe mode - reliability is critical for vehicle recovery
+ * - Terrain data loss during RTL triggers restart without terrain following
+ * - Altitude fence limits are respected to prevent airspace violations
+ * - Landing detector prevents premature disarm during descent
+ * - Pilot can override with throttle during final descent (if THR_BEHAVE allows)
+ * 
+ * Thread Safety: Called from main scheduler loop at 400Hz
+ * 
+ * @warning Modifying RTL behavior affects primary failsafe recovery - changes must be
+ *          thoroughly tested in SITL and on actual hardware with multiple scenarios
+ * 
+ * @see ModeRTL class definition in mode.h
+ * @see AC_WPNav library for waypoint navigation
+ * @see AP_Rally library for rally point management
+ * @see Parameters documentation for RTL_* parameter details
+ * 
+ * Source: ArduCopter/mode_rtl.cpp
  */
 
-// rtl_init - initialise rtl controller
+/**
+ * @brief Initialize RTL mode and prepare for autonomous return to launch
+ * 
+ * @details Initializes the RTL mode controller, setting up waypoint navigation and resetting
+ *          the state machine to STARTING. This function performs critical pre-flight checks
+ *          unless explicitly bypassed (e.g., during failsafe entry where immediate action
+ *          is required).
+ *          
+ *          Initialization sequence:
+ *          1. Verify home position is set (unless ignore_checks=true)
+ *          2. Initialize waypoint and spline controller with RTL_SPEED
+ *          3. Reset state machine to STARTING with _state_complete=true
+ *          4. Determine terrain following eligibility based on terrain failsafe state
+ *          5. Reset landing repositioning and precision landing flags
+ *          6. Initialize precision landing state machine if enabled
+ *          
+ *          The terrain_following_allowed flag is set based on whether a terrain failsafe
+ *          is currently active. If terrain data was lost, RTL will operate in altitude-above-home
+ *          mode even if RTL_ALT_TYPE is set to terrain mode.
+ * 
+ * @param[in] ignore_checks If true, bypasses the home position check. Used when RTL is
+ *                          triggered by failsafe conditions where immediate return is
+ *                          required even if home is not optimally set.
+ * 
+ * @return true if initialization successful and RTL can proceed
+ * @return false if initialization failed (home not set and checks not ignored)
+ * 
+ * @note Called by mode selection logic when pilot switches to RTL or when failsafe triggers RTL
+ * @note If home is not set and ignore_checks=false, mode change will be rejected
+ * @note This function is called at mode entry, not at high frequency
+ * 
+ * @warning Failing to set home position before RTL will prevent mode entry unless
+ *          triggered by failsafe. Always wait for GPS fix and home position before
+ *          arming in modes that may trigger RTL as failsafe.
+ * 
+ * @see ModeRTL::run() for the main RTL execution loop
+ * @see ModeRTL::build_path() for RTL path construction
+ */
 bool ModeRTL::init(bool ignore_checks)
 {
     if (!ignore_checks) {
@@ -59,8 +178,51 @@ ModeRTL::RTLAltType ModeRTL::get_alt_type() const
     return RTLAltType::RELATIVE;
 }
 
-// rtl_run - runs the return-to-launch controller
-// should be called at 100hz or more
+/**
+ * @brief Main RTL mode execution function - runs the return-to-launch state machine
+ * 
+ * @details This is the primary RTL controller function called at high frequency (typically 400Hz)
+ *          from the main scheduler loop. It implements a two-level control architecture:
+ *          
+ *          1. High-level state machine: Manages transitions between RTL stages (climb, return,
+ *             loiter, descend, land) based on completion of each stage
+ *          2. Low-level controllers: Executes the appropriate controller (waypoint nav, loiter,
+ *             landing) for the current state
+ *          
+ *          State Transition Logic:
+ *          - Transitions occur when _state_complete flag is set by the current stage controller
+ *          - Each transition calls a *_start() function to initialize the next stage
+ *          - Some transitions have conditional logic (e.g., LOITER_AT_HOME can go to either
+ *            LAND or FINAL_DESCENT depending on RTL_ALT_FINAL and radio failsafe state)
+ *          
+ *          State Execution:
+ *          - STARTING: Should not be reached; immediately transitions to INITIAL_CLIMB
+ *          - INITIAL_CLIMB & RETURN_HOME: Both use climb_return_run() (waypoint controller)
+ *          - LOITER_AT_HOME: Uses loiterathome_run() for loiter and yaw alignment
+ *          - FINAL_DESCENT: Uses descent_run() for controlled descent to RTL_ALT_FINAL
+ *          - LAND: Uses land_run() for final landing sequence with landing detector
+ *          
+ *          The function first checks if motors are armed and returns immediately if not.
+ *          Then it checks _state_complete flag to determine if state transition is needed.
+ *          Finally, it calls the appropriate run function for the current state.
+ * 
+ * @param[in] disarm_on_land If true, automatically disarms motors when landing detector
+ *                           confirms touchdown. Typically true for RTL, but may be false
+ *                           in some autonomous mission contexts.
+ * 
+ * @note Called at main loop rate (typically 400Hz on modern flight controllers)
+ * @note Early return if motors not armed - prevents control output when disarmed
+ * @note State machine is designed to be robust to state completion flag timing
+ * 
+ * @warning This is a safety-critical function running in the main control loop.
+ *          Any modifications must maintain deterministic execution time and not
+ *          introduce blocking operations or excessive computation.
+ * 
+ * @see ModeRTL::climb_return_run() for climb and return stage implementation
+ * @see ModeRTL::loiterathome_run() for loiter stage implementation
+ * @see ModeRTL::descent_run() for final descent stage implementation
+ * @see ModeRTL::land_run() for landing stage implementation
+ */
 void ModeRTL::run(bool disarm_on_land)
 {
     if (!motors->armed()) {
@@ -142,7 +304,38 @@ void ModeRTL::climb_start()
     auto_yaw.set_mode(AutoYaw::Mode::HOLD);
 }
 
-// rtl_return_start - initialise return to home
+/**
+ * @brief Initialize the RETURN_HOME stage of RTL
+ * 
+ * @details Transitions RTL from INITIAL_CLIMB to RETURN_HOME state. This function configures
+ *          the waypoint controller to navigate horizontally to the return target (home position
+ *          or rally point) while maintaining the current altitude achieved during initial climb.
+ *          
+ *          The return target was previously computed by build_path() and stored in
+ *          rtl_path.return_target. This target may be:
+ *          - Home position (if no rally points configured)
+ *          - Nearest rally point (if HAL_RALLY_ENABLED and rally points defined)
+ *          
+ *          If setting the waypoint destination fails (typically due to missing terrain data
+ *          when using terrain-relative altitude mode), the function automatically restarts
+ *          RTL without terrain following by calling restart_without_terrain().
+ *          
+ *          Yaw control is set to auto_yaw default mode, which typically means the vehicle
+ *          points toward the return target during navigation.
+ * 
+ * @note Called automatically by run() when INITIAL_CLIMB stage completes
+ * @note Sets _state_complete=false; will be set true when waypoint reached
+ * @note Terrain following mode may be disabled if terrain data unavailable
+ * 
+ * @warning If waypoint setting fails, RTL restarts from STARTING state without terrain
+ *          following. This is a safety mechanism to ensure RTL continues even with
+ *          terrain data loss, though altitude reference changes to home-relative.
+ * 
+ * @see ModeRTL::build_path() for return target computation
+ * @see ModeRTL::compute_return_target() for rally point selection logic
+ * @see ModeRTL::restart_without_terrain() for terrain failsafe handling
+ * @see ModeRTL::climb_return_run() for the execution of this stage
+ */
 void ModeRTL::return_start()
 {
     _state = SubMode::RETURN_HOME;
@@ -157,8 +350,57 @@ void ModeRTL::return_start()
     auto_yaw.set_mode_to_default(true);
 }
 
-// rtl_climb_return_run - implements the initial climb, return home and descent portions of RTL which all rely on the wp controller
-//      called by rtl_run at 100hz or more
+/**
+ * @brief Execute climb and return stages using waypoint controller
+ * 
+ * @details Implements the INITIAL_CLIMB and RETURN_HOME stages of RTL, both of which rely
+ *          on the waypoint navigation controller (wp_nav). This function runs at high frequency
+ *          (typically 400Hz) and performs the following control sequence:
+ *          
+ *          Control Flow:
+ *          1. Safety check: If disarmed or landed, make motors safe and return
+ *          2. Set motor spool state to THROTTLE_UNLIMITED for full control authority
+ *          3. Update waypoint controller (wp_nav->update_wpnav())
+ *             - Computes position and velocity targets along the path
+ *             - Handles terrain following if enabled
+ *             - Sets vertical position control targets
+ *          4. Update vertical position controller (pos_control->update_U_controller())
+ *             - Converts altitude targets to throttle output
+ *             - Implements altitude hold with velocity feedforward
+ *          5. Update attitude controller with thrust vector and yaw heading
+ *             - Converts position controller output to attitude targets
+ *             - Applies auto-yaw (typically pointing toward target)
+ *          6. Check completion: Set _state_complete when waypoint reached
+ *          
+ *          During INITIAL_CLIMB:
+ *          - Vehicle climbs vertically to rtl_path.climb_target altitude
+ *          - Yaw typically held at current heading (AutoYaw::Mode::HOLD)
+ *          - Minimal horizontal movement (climb mostly vertical)
+ *          
+ *          During RETURN_HOME:
+ *          - Vehicle navigates horizontally to rtl_path.return_target
+ *          - Altitude maintained at RTL_ALT (or terrain-relative equivalent)
+ *          - Yaw typically points toward home/rally point
+ *          
+ *          Terrain Following:
+ *          The wp_nav->update_wpnav() call returns terrain following status, which is
+ *          passed to failsafe_terrain_set_status(). If terrain data is lost during
+ *          navigation, a terrain failsafe may be triggered.
+ * 
+ * @note Called at main loop rate (typically 400Hz)
+ * @note Shared by INITIAL_CLIMB and RETURN_HOME states for code efficiency
+ * @note Sets _state_complete=true when wp_nav reports destination reached
+ * @note Early exit with make_safe_ground_handling() if disarmed or landed
+ * 
+ * @warning Safety-critical function in main control loop - must execute quickly
+ * @warning Terrain data loss during this stage may trigger failsafe actions
+ * @warning Motor spool state changes affect control authority and must be appropriate
+ *          for current flight phase
+ * 
+ * @see AC_WPNav::update_wpnav() for waypoint navigation implementation
+ * @see AC_PosControl::update_U_controller() for vertical position control
+ * @see AC_AttitudeControl::input_thrust_vector_heading() for attitude control
+ */
 void ModeRTL::climb_return_run()
 {
     // if not armed set throttle to zero and exit immediately
@@ -199,8 +441,55 @@ void ModeRTL::loiterathome_start()
     }
 }
 
-// rtl_climb_return_descent_run - implements the initial climb, return home and descent portions of RTL which all rely on the wp controller
-//      called by rtl_run at 100hz or more
+/**
+ * @brief Execute loiter at home stage with optional yaw realignment
+ * 
+ * @details Implements the LOITER_AT_HOME stage of RTL, maintaining position over the home
+ *          or rally point for a configurable duration (RTL_LOIT_TIME) while optionally
+ *          rotating the vehicle back to its initial armed yaw heading. This stage serves
+ *          multiple purposes:
+ *          
+ *          1. Position Stabilization: Ensures vehicle is centered over landing point before
+ *             descent, compensating for any waypoint navigation overshoot or wind drift
+ *          2. Yaw Realignment: Rotates vehicle back to takeoff heading for consistent landing
+ *             orientation, which can be important for camera direction, landing gear, or
+ *             operator situational awareness
+ *          3. Pilot Verification: Provides time window for pilot to verify landing zone is
+ *             clear and safe, or to switch to manual mode if needed
+ *          
+ *          Control Flow:
+ *          1. Safety check: If disarmed or landed, make motors safe and return
+ *          2. Set motor spool state to THROTTLE_UNLIMITED
+ *          3. Update waypoint controller to maintain position
+ *          4. Update vertical position controller for altitude hold
+ *          5. Update attitude controller with thrust vector and yaw command
+ *          6. Check completion conditions:
+ *             a. RTL_LOIT_TIME duration elapsed AND
+ *             b. Yaw aligned to armed heading (within 2 degrees) if yaw reset active
+ *          
+ *          Yaw Behavior:
+ *          - If auto_yaw is in RESET_TO_ARMED_YAW mode: Vehicle rotates to initial takeoff
+ *            heading and completion waits for yaw alignment within 2 degrees
+ *          - If auto_yaw is in HOLD mode: Vehicle maintains current heading and completion
+ *            only requires RTL_LOIT_TIME elapsed
+ *          
+ *          The loiter duration (RTL_LOIT_TIME) is configurable from 0 to prevent loitering
+ *          if immediate descent is desired, though some loiter time is recommended for
+ *          position stabilization.
+ * 
+ * @note Called at main loop rate (typically 400Hz) when in LOITER_AT_HOME state
+ * @note Loiter start time recorded in _loiter_start_time by loiterathome_start()
+ * @note Yaw alignment tolerance is hard-coded to 2 degrees (may be parameterized in future)
+ * @note Position control uses same waypoint controller as return home stage
+ * 
+ * @warning The 2-degree yaw tolerance check uses actual heading (ahrs.get_yaw_rad()) rather
+ *          than target heading. If yaw control is lost, this may prevent completion.
+ *          Future improvement could use target heading for more robust operation.
+ * 
+ * @see ModeRTL::loiterathome_start() for initialization of this stage
+ * @see Parameters: RTL_LOIT_TIME for loiter duration configuration
+ * @see AutoYaw::Mode::RESET_TO_ARMED_YAW for yaw realignment behavior
+ */
 void ModeRTL::loiterathome_run()
 {
     // if not armed set throttle to zero and exit immediately
@@ -255,8 +544,68 @@ void ModeRTL::descent_start()
 #endif
 }
 
-// rtl_descent_run - implements the final descent to the RTL_ALT
-//      called by rtl_run at 100hz or more
+/**
+ * @brief Execute final descent stage from RTL_ALT to RTL_ALT_FINAL
+ * 
+ * @details Implements the FINAL_DESCENT stage of RTL, descending the vehicle from the return
+ *          altitude (RTL_ALT) to the final altitude (RTL_ALT_FINAL) before initiating the
+ *          final landing sequence. This stage provides a controlled, slower descent phase
+ *          compared to the aggressive landing descent, and allows pilot intervention if needed.
+ *          
+ *          Key Behaviors:
+ *          
+ *          1. Controlled Descent: Descends at configured descent rate to RTL_ALT_FINAL
+ *             (typically 0 to land immediately, or some height above ground for staged landing)
+ *          
+ *          2. Pilot Override Options:
+ *             - Throttle Cancel: If THR_BEHAVE_HIGH_THROTTLE_CANCELS_LAND is set and pilot
+ *               applies high throttle (>700), exits RTL to LOITER or ALT_HOLD mode
+ *             - Horizontal Repositioning: If LAND_REPOSITION=1, pilot can use roll/pitch
+ *               to reposition the vehicle horizontally during descent. This is useful for
+ *               fine-tuning landing position when landing zone is slightly offset.
+ *          
+ *          3. Position Holding: Maintains horizontal position over landing point unless
+ *             pilot provides repositioning input
+ *          
+ *          Control Flow:
+ *          1. Safety checks: Disarmed/landed handling and pilot override detection
+ *          2. Process pilot input:
+ *             a. Check for throttle-based landing cancellation
+ *             b. Apply horizontal repositioning if enabled and pilot provides input
+ *          3. Set motor spool state to THROTTLE_UNLIMITED
+ *          4. Update horizontal position controller with pilot velocity corrections
+ *          5. Set vertical target to rtl_path.descent_target.alt with slew limiting
+ *          6. Update vertical position controller
+ *          7. Update attitude controller with thrust vector and yaw
+ *          8. Check completion: Within 20cm of target altitude
+ *          
+ *          Landing Gear:
+ *          Landing gear deployment is initiated at descent_start() if the vehicle has
+ *          deployable landing gear (AP_LANDINGGEAR_ENABLED).
+ *          
+ *          Completion Criteria:
+ *          Stage is complete when vehicle altitude is within 20cm of rtl_path.descent_target.alt.
+ *          This relatively tight tolerance ensures vehicle is at correct altitude before
+ *          transitioning to LAND stage.
+ * 
+ * @note Called at main loop rate (typically 400Hz) when in FINAL_DESCENT state
+ * @note RTL_ALT_FINAL=0 causes this stage to be skipped (goes directly to LAND from loiter)
+ * @note Pilot can cancel landing with high throttle if THR_BEHAVE configured appropriately
+ * @note Horizontal repositioning requires LAND_REPOSITION=1 parameter
+ * @note Completion tolerance is 20cm (hard-coded, not configurable)
+ * 
+ * @warning High throttle landing cancellation is a safety feature but may be unexpected
+ *          behavior during autonomous operations. Parameter THR_BEHAVE controls this.
+ * @warning Horizontal repositioning during descent can cause vehicle to drift from intended
+ *          landing point if pilot input is excessive or sustained
+ * @warning The 20cm completion tolerance must be achievable by the altitude controller,
+ *          or vehicle may never transition to LAND stage
+ * 
+ * @see ModeRTL::descent_start() for initialization of this stage
+ * @see Parameters: RTL_ALT_FINAL, LAND_REPOSITION, THR_BEHAVE
+ * @see LogEvent::LAND_CANCELLED_BY_PILOT for logging when pilot cancels
+ * @see LogEvent::LAND_REPO_ACTIVE for logging when pilot repositions during descent
+ */
 void ModeRTL::descent_run()
 {
     Vector2f vel_correction;
@@ -372,6 +721,41 @@ void ModeRTL::land_run(bool disarm_on_land)
     land_run_normal_or_precland();
 }
 
+/**
+ * @brief Construct the complete RTL flight path from current position to landing
+ * 
+ * @details Builds the multi-stage RTL path including origin, climb target, return target,
+ *          and descent target. This function is called once at RTL initialization (STARTING
+ *          state) and computes all waypoints for the entire RTL sequence.
+ *          
+ *          Path Construction:
+ *          1. origin_point: Vehicle's stopping point (predicted position when vehicle stops
+ *             from current velocity), converted to altitude-above-home frame
+ *          2. return_target: Home or nearest rally point with altitude set to RTL_ALT
+ *             (computed by compute_return_target() with terrain/cone logic)
+ *          3. climb_target: Directly above origin_point at return_target altitude
+ *             (vehicle climbs vertically to this waypoint)
+ *          4. descent_target: At return_target horizontal position, at RTL_ALT_FINAL altitude
+ *             (converted to above-origin frame for position controller)
+ *          
+ *          The path forms a vertical-climb, horizontal-return, vertical-descent profile
+ *          that ensures obstacle clearance during the return journey.
+ *          
+ *          Special Cases:
+ *          - If RTL_ALT_FINAL <= 0: land flag is set true, causing direct transition from
+ *            loiter to land, skipping FINAL_DESCENT stage
+ *          - If close to home and RTL_CONE_SLOPE set: climb_target altitude may be reduced
+ *            for gradual climb (cone algorithm in compute_return_target())
+ *          - If terrain following enabled: altitudes may be terrain-relative rather than
+ *            home-relative
+ * 
+ * @note Called once per RTL invocation during STARTING state transition
+ * @note All waypoints stored in rtl_path structure for use by subsequent stages
+ * @note Altitude frame conversions ensure position controller receives correct references
+ * 
+ * @see ModeRTL::compute_return_target() for return target altitude calculation
+ * @see ModeRTL::get_stopping_point() for origin point prediction
+ */
 void ModeRTL::build_path()
 {
     // origin point is our stopping point
@@ -390,12 +774,65 @@ void ModeRTL::build_path()
     // Target altitude is passed directly to the position controller so must be relative to origin
     rtl_path.descent_target.change_alt_frame(Location::AltFrame::ABOVE_ORIGIN);
 
-    // set land flag
+    // set land flag - if RTL_ALT_FINAL is zero or negative, land immediately after loiter
     rtl_path.land = g.rtl_alt_final <= 0;
 }
 
-// compute the return target - home or rally point
-//   return target's altitude is updated to a higher altitude that the vehicle can safely return at (frame may also be set)
+/**
+ * @brief Compute the return target position and safe return altitude
+ * 
+ * @details This is one of the most complex functions in RTL mode, responsible for computing
+ *          the target position (home or rally point) and determining a safe altitude for the
+ *          return journey. The altitude calculation considers multiple factors:
+ *          
+ *          1. Rally Point Selection: If enabled, selects nearest rally point, otherwise uses home
+ *          2. Altitude Type Selection: Determines if altitude should be relative to home or terrain
+ *          3. Current Altitude Assessment: Determines current altitude in the chosen frame
+ *          4. Minimum Safe Altitude: Ensures altitude is at least RTL_ALT, current_alt + RTL_CLIMB_MIN
+ *          5. Cone Slope Reduction: If close to home, may reduce climb using RTL_CONE_SLOPE
+ *          6. Fence Altitude Check: Ensures return altitude doesn't violate altitude fence
+ *          7. Descent Prevention: Ensures vehicle never descends below current altitude
+ *          
+ *          Altitude Type Selection (RTL_ALT_TYPE and terrain following):
+ *          - RELATIVE (0): Altitude above home position (default, always available)
+ *          - TERRAIN (1): Altitude above terrain using rangefinder or terrain database
+ *            * Requires terrain data availability or valid rangefinder
+ *            * Falls back to RELATIVE if terrain data unavailable
+ *            * Critical for operations in mountainous terrain
+ *          
+ *          Cone Slope Algorithm:
+ *          If RTL_CONE_SLOPE is set (default 3.0), and vehicle is close to home, the return
+ *          altitude may be reduced to create a gradual climb rather than climbing to full
+ *          RTL_ALT before returning. This saves time and battery when already near home.
+ *          Formula: target_alt = MIN(target_alt, horizontal_distance * RTL_CONE_SLOPE)
+ *          Example: At 10m from home with slope=3.0, climb to 30m max instead of RTL_ALT
+ *          
+ *          RTL_CLIMB_MIN ensures minimum climb regardless of current altitude. For example,
+ *          RTL_CLIMB_MIN=200cm ensures vehicle climbs at least 2m even if already at or above
+ *          RTL_ALT. This provides obstacle clearance margin.
+ *          
+ *          Terrain Following Fallbacks:
+ *          If terrain mode selected but data unavailable, function automatically falls back
+ *          to altitude-above-home mode and logs error. This ensures RTL continues safely
+ *          even with terrain data loss, though at reduced safety margin in mountainous terrain.
+ * 
+ * @note Called by build_path() during RTL initialization
+ * @note Modifies rtl_path.return_target with both position and altitude
+ * @note Altitude frame of return_target may be ABOVE_HOME or ABOVE_TERRAIN depending on mode
+ * @note Complex function with multiple conditional paths based on configuration
+ * 
+ * @warning Terrain data loss during this computation will cause fallback to home-relative
+ *          altitude, which may be unsafe in mountainous terrain if RTL_ALT is insufficient
+ * @warning Altitude fence (if enabled) can reduce return altitude, potentially causing
+ *          insufficient climb for obstacle clearance. Configure fence appropriately.
+ * @warning Rally point altitudes above terrain must be set carefully - function respects
+ *          rally point altitude which may be higher than RTL_ALT (e.g., for building top landing)
+ * 
+ * @see Parameters: RTL_ALT, RTL_ALT_TYPE, RTL_CLIMB_MIN, RTL_CONE_SLOPE
+ * @see AP_Rally::calc_best_rally_or_home_location() for rally point selection
+ * @see AC_WPNav::get_terrain_source() for terrain data source determination
+ * @see AC_Fence for altitude fence implementation
+ */
 void ModeRTL::compute_return_target()
 {
     // set return target to nearest rally point or home position
@@ -407,25 +844,35 @@ void ModeRTL::compute_return_target()
 #endif
 
     // get position controller Z-axis offset in cm above EKF origin
+    // This offset accounts for position controller frame differences and must be subtracted
+    // from altitude measurements to get consistent altitude reference
     int32_t pos_offset_z = pos_control->get_pos_offset_U_cm();
 
     // curr_alt is current altitude above home or above terrain depending upon use_terrain
+    // Initially computed as altitude minus position controller offset
     int32_t curr_alt = copter.current_loc.alt - pos_offset_z;
 
     // determine altitude type of return journey (alt-above-home, alt-above-terrain using range finder or alt-above-terrain using terrain database)
+    // This determines the reference frame for all subsequent altitude calculations
     ReturnTargetAltType alt_type = ReturnTargetAltType::RELATIVE;
     if (terrain_following_allowed && (get_alt_type() == RTLAltType::TERRAIN)) {
-        // convert RTL_ALT_TYPE and WPNAV_RFNG_USE parameters to ReturnTargetAltType
+        // Terrain following requested via RTL_ALT_TYPE=1 and not disabled by terrain failsafe
+        // Convert RTL_ALT_TYPE and WPNAV_RFNG_USE parameters to specific terrain source type
+        // This determines whether we use rangefinder or terrain database for terrain-relative altitude
         switch (wp_nav->get_terrain_source()) {
         case AC_WPNav::TerrainSource::TERRAIN_UNAVAILABLE:
+            // Terrain data not available - fall back to altitude-above-home for safety
+            // This can occur if terrain database not loaded or rangefinder unhealthy
             alt_type = ReturnTargetAltType::RELATIVE;
             LOGGER_WRITE_ERROR(LogErrorSubsystem::NAVIGATION, LogErrorCode::RTL_MISSING_RNGFND);
             gcs().send_text(MAV_SEVERITY_CRITICAL, "RTL: no terrain data, using alt-above-home");
             break;
         case AC_WPNav::TerrainSource::TERRAIN_FROM_RANGEFINDER:
+            // Use rangefinder for terrain-relative altitude (good for low-altitude operations)
             alt_type = ReturnTargetAltType::RANGEFINDER;
             break;
         case AC_WPNav::TerrainSource::TERRAIN_FROM_TERRAINDATABASE:
+            // Use terrain database for terrain-relative altitude (better for high-altitude/long-range)
             alt_type = ReturnTargetAltType::TERRAINDATABASE;
             break;
         }
@@ -478,13 +925,19 @@ void ModeRTL::compute_return_target()
     int32_t target_alt = MAX(rtl_path.return_target.alt, 0);
 
     // increase target to maximum of current altitude + climb_min and rtl altitude
+    // This ensures vehicle climbs at least RTL_CLIMB_MIN above current position, and reaches at least RTL_ALT
+    // min_rtl_alt is the absolute minimum altitude considering current position and minimum climb
     const float min_rtl_alt = MAX(RTL_ALT_MIN, curr_alt + MAX(0, g.rtl_climb_min));
     target_alt = MAX(target_alt, MAX(g.rtl_altitude, min_rtl_alt));
 
-    // reduce climb if close to return target
+    // reduce climb if close to return target (cone slope algorithm)
+    // If vehicle is near home, don't climb all the way to RTL_ALT - use proportional climb based on distance
+    // This saves time and battery when close to home, while still providing obstacle clearance
     float rtl_return_dist_cm = rtl_path.return_target.get_distance(rtl_path.origin_point) * 100.0f;
-    // don't allow really shallow slopes
+    // don't allow really shallow slopes (must be at least RTL_MIN_CONE_SLOPE)
     if (g.rtl_cone_slope >= RTL_MIN_CONE_SLOPE) {
+        // Apply cone: altitude = distance * slope, but never less than min_rtl_alt
+        // Example: 10m away with slope 3.0 = climb to 30m (if less than RTL_ALT)
         target_alt = MIN(target_alt, MAX(rtl_return_dist_cm * g.rtl_cone_slope, min_rtl_alt));
     }
 
@@ -493,23 +946,27 @@ void ModeRTL::compute_return_target()
 
 #if AP_FENCE_ENABLED
     // ensure not above fence altitude if alt fence is enabled
+    // This prevents RTL from violating airspace restrictions, but may reduce safety margin for obstacle clearance
     // Note: because the rtl_path.climb_target's altitude is simply copied from the return_target's altitude,
     //       if terrain altitudes are being used, the code below which reduces the return_target's altitude can lead to
     //       the vehicle not climbing at all as RTL begins.  This can be overly conservative and it might be better
     //       to apply the fence alt limit independently on the origin_point and return_target
     if ((copter.fence.get_enabled_fences() & AC_FENCE_TYPE_ALT_MAX) != 0) {
         // get return target as alt-above-home so it can be compared to fence's alt
+        // Fence altitude is always in home-relative frame
         if (rtl_path.return_target.get_alt_cm(Location::AltFrame::ABOVE_HOME, target_alt)) {
             float fence_alt = copter.fence.get_safe_alt_max()*100.0f;
             if (target_alt > fence_alt) {
-                // reduce target alt to the fence alt
+                // reduce target alt to the fence alt to prevent fence breach
+                // WARNING: This may reduce altitude below what's needed for obstacle clearance
                 rtl_path.return_target.alt -= (target_alt - fence_alt);
             }
         }
     }
 #endif
 
-    // ensure we do not descend
+    // ensure we do not descend during RTL - return altitude must be at or above current altitude
+    // This is a critical safety check to prevent descending into obstacles during return journey
     rtl_path.return_target.alt = MAX(rtl_path.return_target.alt, curr_alt);
 }
 

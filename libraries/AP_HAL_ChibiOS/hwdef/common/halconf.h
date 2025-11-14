@@ -31,7 +31,7 @@
  */
 
 /**
- * @file    templates/halconf.h
+ * @file    halconf.h
  * @brief   HAL configuration header.
  * @details HAL configuration file, this file allows to enable or disable the
  *          various device drivers from your application. You may also use
@@ -351,7 +351,7 @@
 
 /**
  * @brief   Timeout before assuming a failure while waiting for card idle.
- * #note    Time is in milliseconds.
+ * @note    Time is in milliseconds.
  */
 #if !defined(MMC_IDLE_TIMEOUT_MS) || defined(__DOXYGEN__)
 #define MMC_IDLE_TIMEOUT_MS                 1000

@@ -1,3 +1,29 @@
+/**
+ * @file RC_Channel_Plane.cpp
+ * @brief Fixed-wing aircraft RC channel handling implementation
+ * 
+ * @details This file implements plane-specific RC channel handling including:
+ * - RC failsafe detection and validation for fixed-wing aircraft
+ * - Auxiliary switch function handling for plane-specific features
+ * - Flight mode switching via RC channels
+ * - Quadplane-specific RC options (Q_ASSIST, AIRMODE, weather vane)
+ * - Fixed-wing specific features (crow flaps, landing flare, inverted flight)
+ * - Soaring thermal detection RC control
+ * - Emergency procedures (landing abort, parachute release)
+ * 
+ * The RC_Channel_Plane and RC_Channels_Plane classes extend the base RC_Channel
+ * framework to provide fixed-wing specific behavior, handling differences between
+ * traditional fixed-wing and quadplane (VTOL) configurations.
+ * 
+ * @note This implementation integrates with the Plane vehicle class singleton
+ *       for state management and mode transitions.
+ * 
+ * @see RC_Channel_Plane.h for class definitions
+ * @see RC_Channel/RC_Channel.h for base class implementation
+ * 
+ * Source: ArduPlane/RC_Channel_Plane.cpp
+ */
+
 #include "Plane.h"
 
 #include "RC_Channel_Plane.h"
@@ -11,17 +37,76 @@
 
 #include <RC_Channel/RC_Channels_VarInfo.h>
 
-// note that this callback is not presently used on Plane:
+/**
+ * @brief Get the RC channel number configured for flight mode switching
+ * 
+ * @details Returns the channel number (1-16) configured via the FLTMODE_CH parameter
+ *          for flight mode selection. This allows pilots to assign mode switching
+ *          to any available RC channel (typically channel 5 or 8).
+ * 
+ * @return int8_t RC channel number (1-16), or -1 if not configured
+ * 
+ * @note This callback is not presently used on Plane - mode switching is handled
+ *       directly by the mode switch handler. Retained for framework compatibility.
+ * 
+ * @see Plane::read_mode_switch() for actual mode switching implementation
+ */
 int8_t RC_Channels_Plane::flight_mode_channel_number() const
 {
     return plane.g.flight_mode_channel.get();
 }
 
+/**
+ * @brief Check if vehicle is currently in RC failsafe condition
+ * 
+ * @details Determines whether the aircraft has lost RC signal or is experiencing
+ *          RC communication failures that trigger failsafe mode. This combines
+ *          both active failsafe state and historical failsafe flags.
+ * 
+ *          RC failsafe is triggered when:
+ *          - No valid RC pulses received within timeout period (typically 1 second)
+ *          - Throttle failsafe action is active (FS_SHORT_ACTN or FS_LONG_ACTN)
+ *          - RC signal quality drops below minimum threshold
+ * 
+ * @return true if in RC failsafe condition
+ * @return false if RC signal is valid and reliable
+ * 
+ * @note This is checked before allowing pilot RC input to control the aircraft.
+ *       During failsafe, autonomous failsafe actions take priority over RC input.
+ * 
+ * @see Plane::rc_failsafe_active() for real-time failsafe detection
+ * @see has_valid_input() for complete input validation
+ */
 bool RC_Channels_Plane::in_rc_failsafe() const
 {
     return (plane.rc_failsafe_active() || plane.failsafe.rc_failsafe);
 }
 
+/**
+ * @brief Check if RC input is valid and safe to use for control
+ * 
+ * @details Validates that RC input is currently reliable and safe for direct
+ *          pilot control of the aircraft. This performs comprehensive checks
+ *          beyond simple signal presence, including failsafe state and throttle
+ *          validation.
+ * 
+ *          Returns false if:
+ *          - RC failsafe is active (signal loss or degradation)
+ *          - Throttle failsafe counter is non-zero (throttle signal unreliable)
+ * 
+ * @return true if RC input is valid and safe for control
+ * @return false if RC input should be ignored due to failsafe conditions
+ * 
+ * @note This is used by the mode logic to determine whether pilot stick inputs
+ *       should be processed or ignored. During invalid input, the aircraft will
+ *       maintain current autonomous behavior or execute failsafe actions.
+ * 
+ * @warning Safety-critical: Incorrectly reporting valid input during failsafe
+ *          could allow unstable control with degraded RC signals.
+ * 
+ * @see in_rc_failsafe() for RC signal failsafe detection
+ * @see Plane::failsafe for throttle counter and failsafe state
+ */
 bool RC_Channels_Plane::has_valid_input() const
 {
     if (in_rc_failsafe()) {
@@ -33,11 +118,56 @@ bool RC_Channels_Plane::has_valid_input() const
     return true;
 }
 
+/**
+ * @brief Get the RC channel used for rudder stick arming
+ * 
+ * @details Returns the rudder channel pointer for stick-based arming/disarming.
+ *          ArduPlane uses rudder stick position (typically full right for 2+ seconds)
+ *          to arm the vehicle when ARMING_RUDDER parameter is enabled.
+ * 
+ * @return RC_Channel* Pointer to rudder channel object (typically channel 4)
+ * 
+ * @note Stick arming requires:
+ *       - Rudder stick full right (>95%) for arming
+ *       - Rudder stick full left (<5%) for disarming
+ *       - Throttle at zero for safety
+ *       - All pre-arm checks passed
+ * 
+ * @see AP_Arming_Plane for complete arming logic and safety checks
+ * @see Plane::channel_rudder for the rudder channel object
+ */
 RC_Channel * RC_Channels_Plane::get_arming_channel(void) const
 {
     return plane.channel_rudder;
 }
 
+/**
+ * @brief Handle auxiliary switch for flight mode changes
+ * 
+ * @details Processes auxiliary RC switch positions to engage specific flight modes
+ *          or return to mode switch flight mode. This allows pilots to temporarily
+ *          override the main mode switch using auxiliary switches (e.g., RTL on
+ *          switch position, AUTO on another switch).
+ * 
+ *          Behavior by switch position:
+ *          - HIGH: Engage the specified mode (if mode change allowed)
+ *          - MIDDLE/LOW: If currently in this mode, return to mode switch flight mode
+ * 
+ * @param[in] number Flight mode number to engage (Mode::Number enum)
+ * @param[in] ch_flag Switch position (HIGH, MIDDLE, or LOW)
+ * 
+ * @note If mode change fails (e.g., mode not available, arming state prevents mode),
+ *       the aircraft remains in current flight mode with no error indication.
+ * 
+ * @note This implements "momentary" mode switching - returning switch to LOW/MIDDLE
+ *       returns to the main mode switch setting, allowing pilots to temporarily
+ *       activate modes without changing the main mode switch.
+ * 
+ * @see Plane::set_mode_by_number() for mode transition logic
+ * @see RC_Channels::reset_mode_switch() for mode switch reset behavior
+ * 
+ * Source: ArduPlane/RC_Channel_Plane.cpp:41-57
+ */
 void RC_Channel_Plane::do_aux_function_change_mode(const Mode::Number number,
                                                    const AuxSwitchPos ch_flag)
 {
@@ -57,6 +187,39 @@ void RC_Channel_Plane::do_aux_function_change_mode(const Mode::Number number,
 }
 
 #if HAL_QUADPLANE_ENABLED
+/**
+ * @brief Control quadplane Q_ASSIST state via auxiliary switch
+ * 
+ * @details Q_ASSIST provides automatic VTOL motor assistance during fixed-wing flight
+ *          when the aircraft is approaching stall or unable to maintain altitude.
+ *          This function allows pilots to override Q_ASSIST behavior using a 3-position
+ *          RC switch for different flight scenarios.
+ * 
+ *          Switch positions:
+ *          - HIGH: Force Q_ASSIST always enabled (VTOL motors always ready to assist)
+ *          - MIDDLE: Normal Q_ASSIST operation (automatic engagement based on flight conditions)
+ *          - LOW: Q_ASSIST disabled (fixed-wing only, no VTOL assistance)
+ * 
+ * @param[in] ch_flag Switch position (HIGH, MIDDLE, or LOW)
+ * 
+ * @note FORCE_ENABLED useful for:
+ *       - High wind conditions requiring extra power
+ *       - Learning to fly quadplane safely with backup always ready
+ *       - Difficult terrain with limited landing options
+ * 
+ * @note ASSIST_DISABLED useful for:
+ *       - Pure fixed-wing efficiency during cruise
+ *       - Testing fixed-wing performance limits
+ *       - Competition flying where VTOL assistance not allowed
+ * 
+ * @warning Disabling Q_ASSIST removes automatic stall protection. Only disable
+ *          when confident in fixed-wing flight envelope and conditions.
+ * 
+ * @see VTOL_Assist::set_state() for Q_ASSIST state management
+ * @see Q_ASSIST_SPEED, Q_ASSIST_ALT parameters for automatic trigger thresholds
+ * 
+ * Source: ArduPlane/RC_Channel_Plane.cpp:60-78
+ */
 void RC_Channel_Plane::do_aux_function_q_assist_state(AuxSwitchPos ch_flag)
 {
     switch(ch_flag) {
@@ -78,6 +241,37 @@ void RC_Channel_Plane::do_aux_function_q_assist_state(AuxSwitchPos ch_flag)
 }
 #endif  // HAL_QUADPLANE_ENABLED
 
+/**
+ * @brief Control crow flap mode via auxiliary switch
+ * 
+ * @details Crow flaps (also called butterfly or V-tail airbrakes) are a aerodynamic
+ *          braking technique where both flaperons deflect upward simultaneously to
+ *          increase drag and descent rate without increasing airspeed. This is
+ *          commonly used in sailplanes and gliders for steep approaches.
+ * 
+ *          Switch positions:
+ *          - HIGH: Crow flaps disabled (normal aileron operation)
+ *          - MIDDLE: Progressive crow (gradual crow deployment proportional to input)
+ *          - LOW: Normal crow flaps (full crow deployment when activated)
+ * 
+ * @param[in] ch_flag Switch position (HIGH, MIDDLE, or LOW)
+ * 
+ * @note Crow flap deployment is typically controlled by a separate input channel
+ *       (configured via CROW_FLAP_IN parameter) when crow mode is enabled.
+ * 
+ * @note Progressive mode allows variable crow deployment for precise descent
+ *       rate control, while normal mode provides full deployment for maximum
+ *       drag and steepest descent.
+ * 
+ * @note Crow flaps affect both roll control (reduced aileron authority) and
+ *       pitch trim (nose-down tendency). Pilots should anticipate these effects.
+ * 
+ * @see Plane::CrowMode enum for crow mode definitions
+ * @see SRV_Channel for crow flap servo output configuration
+ * @see CROW_FLAP_IN, CROW_FLAP_WEIGHT parameters
+ * 
+ * Source: ArduPlane/RC_Channel_Plane.cpp:81-97
+ */
 void RC_Channel_Plane::do_aux_function_crow_mode(AuxSwitchPos ch_flag)
 {
         switch(ch_flag) {
@@ -97,6 +291,38 @@ void RC_Channel_Plane::do_aux_function_crow_mode(AuxSwitchPos ch_flag)
 }
 
 #if HAL_SOARING_ENABLED
+/**
+ * @brief Control autonomous soaring/thermalling mode via 3-position switch
+ * 
+ * @details Soaring mode enables the aircraft to autonomously detect and exploit
+ *          thermals (rising air currents) to gain altitude without motor power.
+ *          The soaring controller uses variometer data and flight patterns to
+ *          identify thermal cores and circle within them for maximum lift.
+ * 
+ *          Switch positions:
+ *          - HIGH: Auto mode change (controller autonomously switches between
+ *                  LOITER for thermalling and CRUISE for inter-thermal gliding)
+ *          - MIDDLE: Manual mode change (pilot manually switches modes, but
+ *                    controller provides thermal detection and navigation guidance)
+ *          - LOW: Soaring disabled (normal fixed-wing flight, no thermal detection)
+ * 
+ * @param[in] ch_flag Switch position (HIGH, MIDDLE, or LOW)
+ * 
+ * @note AUTO mode provides fully autonomous soaring - aircraft will automatically
+ *       enter LOITER when thermal detected and CRUISE when thermal lost or topped out.
+ * 
+ * @note MANUAL mode provides thermal indicators to pilot but requires manual
+ *       mode switching between LOITER (for circling) and CRUISE (for gliding).
+ * 
+ * @note Requires working variometer (vertical speed sensor) for thermal detection
+ *       and appropriate SOAR_* parameters configured for local conditions.
+ * 
+ * @see SoaringController::ActiveStatus for soaring state definitions
+ * @see SoaringController for thermal detection and navigation algorithms
+ * @see SOAR_ENABLE, SOAR_ALT_MIN, SOAR_VSPEED parameters
+ * 
+ * Source: ArduPlane/RC_Channel_Plane.cpp:100-117
+ */
 void RC_Channel_Plane::do_aux_function_soaring_3pos(AuxSwitchPos ch_flag)
 {
     SoaringController::ActiveStatus desired_state = SoaringController::ActiveStatus::SOARING_DISABLED;
@@ -117,6 +343,40 @@ void RC_Channel_Plane::do_aux_function_soaring_3pos(AuxSwitchPos ch_flag)
 }
 #endif
 
+/**
+ * @brief Control manual landing flare via auxiliary switch
+ * 
+ * @details Landing flare is the final phase of landing where the aircraft pitches
+ *          up to arrest descent rate and reduce touchdown speed just before ground
+ *          contact. This function allows manual flare initiation via RC switch for
+ *          improved landing control in challenging conditions.
+ * 
+ *          Switch positions:
+ *          - HIGH: Flare enabled with pitch target (commands specific nose-up attitude)
+ *          - MIDDLE: Flare enabled without pitch target (reduces throttle, maintains level)
+ *          - LOW: Flare disabled (normal flight control)
+ * 
+ * @param[in] ch_flag Switch position (HIGH, MIDDLE, or LOW)
+ * 
+ * @note ENABLED_PITCH_TARGET mode commands positive pitch angle (typically 5-15°)
+ *       to actively arrest descent. This provides the strongest flare effect but
+ *       requires sufficient airspeed to maintain control.
+ * 
+ * @note ENABLED_NO_PITCH_TARGET mode reduces throttle to idle and attempts to
+ *       hold level flight, providing a gentler flare with less pitch change.
+ *       Useful for aircraft with high wing loading or limited elevator authority.
+ * 
+ * @note Manual flare control is typically used when automatic flare timing is
+ *       suboptimal (e.g., rough terrain, cross-wind landings, short field approaches).
+ * 
+ * @warning Initiating flare too high above ground can cause stall and hard landing.
+ *          Typically activate flare at 1-3 meters altitude.
+ * 
+ * @see Plane::FlareMode enum for flare mode definitions
+ * @see LAND_FLARE_ALT, LAND_FLARE_SEC parameters for automatic flare
+ * 
+ * Source: ArduPlane/RC_Channel_Plane.cpp:120-133
+ */
 void RC_Channel_Plane::do_aux_function_flare(AuxSwitchPos ch_flag)
 {
         switch(ch_flag) {
@@ -133,6 +393,38 @@ void RC_Channel_Plane::do_aux_function_flare(AuxSwitchPos ch_flag)
 }
 
 
+/**
+ * @brief Initialize auxiliary RC function on system startup
+ * 
+ * @details Called during RC channel initialization to set initial state for each
+ *          configured auxiliary function. Some functions require initialization to
+ *          establish correct startup state (e.g., inverted flight OFF, crow flaps
+ *          disabled), while others are stateless and require no initialization.
+ * 
+ *          This function categorizes auxiliary functions into three groups:
+ *          1. No initialization needed (mode switches, momentary actions)
+ *          2. Call run_aux_function() to initialize state (stateful features)
+ *          3. Special initialization (e.g., reverse throttle range setup)
+ * 
+ * @param[in] ch_option Auxiliary function type (AUX_FUNC enum)
+ * @param[in] ch_flag Current switch position at startup (HIGH/MIDDLE/LOW)
+ * 
+ * @note Functions requiring initialization (group 2) have current switch state
+ *       applied via run_aux_function() to ensure system starts in correct state
+ *       matching physical switch position.
+ * 
+ * @note REVERSE_THROTTLE has special initialization: sets throttle channel range
+ *       and marks reverse throttle as available, but does NOT activate reverse
+ *       thrust at startup for safety.
+ * 
+ * @note Most mode switches (AUTO, RTL, LOITER, etc.) do not initialize because
+ *       startup mode is determined by initial mode switch, not auxiliary switches.
+ * 
+ * @see run_aux_function() for state application logic
+ * @see RC_Channel::init_aux_function() for base class initialization
+ * 
+ * Source: ArduPlane/RC_Channel_Plane.cpp:136-221
+ */
 void RC_Channel_Plane::init_aux_function(const RC_Channel::AUX_FUNC ch_option,
                                          const RC_Channel::AuxSwitchPos ch_flag)
 {
@@ -220,7 +512,50 @@ void RC_Channel_Plane::init_aux_function(const RC_Channel::AUX_FUNC ch_option,
     }
 }
 
-// do_aux_function - implement the function invoked by auxiliary switches
+/**
+ * @brief Main handler for auxiliary RC switch functions
+ * 
+ * @details Processes auxiliary switch changes and executes corresponding fixed-wing
+ *          specific actions. This is the primary dispatch function for all plane
+ *          auxiliary functions, handling mode changes, feature toggles, and emergency
+ *          procedures triggered by RC switches.
+ * 
+ *          Supported auxiliary functions include:
+ *          - Flight mode selection (AUTO, RTL, LOITER, CIRCLE, MANUAL, etc.)
+ *          - Fixed-wing features (inverted flight, crow flaps, landing flare)
+ *          - Quadplane features (Q_ASSIST, AIRMODE, forward throttle override)
+ *          - Soaring (thermal detection and autonomous thermalling)
+ *          - Emergency procedures (landing abort, parachute, emergency landing)
+ *          - Tuning and calibration (FW_AUTOTUNE, ARSPD_CALIBRATE, QUICKTUNE)
+ *          - Input labels (FLAP, AIRBRAKE, FWD_THR - no action, just input identification)
+ * 
+ * @param[in] trigger Auxiliary function trigger containing:
+ *                    - func: Function type (AUX_FUNC enum)
+ *                    - pos: Switch position (HIGH/MIDDLE/LOW)
+ *                    - source: Trigger source (RC, MAVLink, scripting)
+ * 
+ * @return true if function was handled successfully
+ * @return false if function should be handled by base class
+ * 
+ * @note Input label functions (FLAP, AIRBRAKE, FWD_THR) intentionally do nothing
+ *       - they exist solely to identify RC input channels in the ground station.
+ * 
+ * @note Many functions use 3-position switches (HIGH/MIDDLE/LOW) to provide
+ *       multiple states or progressive control (e.g., Q_ASSIST, SOARING, AIRMODE).
+ * 
+ * @note Emergency functions (PARACHUTE_RELEASE, PLANE_AUTO_LANDING_ABORT) typically
+ *       only respond to HIGH position for safety - prevents accidental activation.
+ * 
+ * @warning Safety-critical function: Incorrect auxiliary function processing could
+ *          cause unexpected mode changes, disable safety features, or trigger
+ *          emergency procedures. All state changes validated before execution.
+ * 
+ * @see init_aux_function() for startup initialization of auxiliary functions
+ * @see RC_Channel::do_aux_function() for base class shared functions
+ * @see AUX_FUNC enum for complete list of available functions
+ * 
+ * Source: ArduPlane/RC_Channel_Plane.cpp:224-504
+ */
 bool RC_Channel_Plane::do_aux_function(const AuxFuncTrigger &trigger)
 {
     const AUX_FUNC &ch_option = trigger.func;

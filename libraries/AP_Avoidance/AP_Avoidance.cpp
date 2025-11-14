@@ -43,83 +43,83 @@ extern const AP_HAL::HAL& hal;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_Avoidance::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable Avoidance using ADSB
     // @Description: Enable Avoidance using ADSB
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE", 1, AP_Avoidance, _enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: F_ACTION
+    // `@Param`: F_ACTION
     // @DisplayName: Collision Avoidance Behavior
     // @Description: Specifies aircraft behaviour when a collision is imminent
     // @Values: 0:None,1:Report,2:Climb Or Descend,3:Move Horizontally,4:Move Perpendicularly in 3D,5:RTL,6:Hover
     // @User: Advanced
     AP_GROUPINFO("F_ACTION",    2, AP_Avoidance, _fail_action, AP_AVOIDANCE_FAIL_ACTION_DEFAULT),
 
-    // @Param: W_ACTION
+    // `@Param`: W_ACTION
     // @DisplayName: Collision Avoidance Behavior - Warn
     // @Description: Specifies aircraft behaviour when a collision may occur
     // @Values: 0:None,1:Report
     // @User: Advanced
     AP_GROUPINFO("W_ACTION",    3, AP_Avoidance, _warn_action, MAV_COLLISION_ACTION_REPORT),
 
-    // @Param: F_RCVRY
+    // `@Param`: F_RCVRY
     // @DisplayName: Recovery behaviour after a fail event
     // @Description: Determines what the aircraft will do after a fail event is resolved
     // @Values: 0:Remain in AVOID_ADSB,1:Resume previous flight mode,2:RTL,3:Resume if AUTO else Loiter
     // @User: Advanced
     AP_GROUPINFO("F_RCVRY",     4, AP_Avoidance, _fail_recovery, uint8_t(AP_AVOIDANCE_RECOVERY_DEFAULT)),
 
-    // @Param: OBS_MAX
+    // `@Param`: OBS_MAX
     // @DisplayName: Maximum number of obstacles to track
     // @Description: Maximum number of obstacles to track
     // @User: Advanced
     AP_GROUPINFO("OBS_MAX",     5, AP_Avoidance, _obstacles_max, 20),
 
-    // @Param: W_TIME
+    // `@Param`: W_TIME
     // @DisplayName: Time Horizon Warn
     // @Description: Aircraft velocity vectors are multiplied by this time to determine closest approach.  If this results in an approach closer than W_DIST_XY or W_DIST_Z then W_ACTION is undertaken (assuming F_ACTION is not undertaken)
     // @Units: s
     // @User: Advanced
     AP_GROUPINFO("W_TIME",      6, AP_Avoidance, _warn_time_horizon, AP_AVOIDANCE_WARN_TIME_DEFAULT),
 
-    // @Param: F_TIME
+    // `@Param`: F_TIME
     // @DisplayName: Time Horizon Fail
     // @Description: Aircraft velocity vectors are multiplied by this time to determine closest approach.  If this results in an approach closer than F_DIST_XY or F_DIST_Z then F_ACTION is undertaken
     // @Units: s
     // @User: Advanced
     AP_GROUPINFO("F_TIME",      7, AP_Avoidance, _fail_time_horizon, AP_AVOIDANCE_FAIL_TIME_DEFAULT),
 
-    // @Param: W_DIST_XY
+    // `@Param`: W_DIST_XY
     // @DisplayName: Distance Warn XY
     // @Description: Closest allowed projected distance before W_ACTION is undertaken
     // @Units: m
     // @User: Advanced
     AP_GROUPINFO("W_DIST_XY",   8, AP_Avoidance, _warn_distance_xy, AP_AVOIDANCE_WARN_DISTANCE_XY_DEFAULT),
 
-    // @Param: F_DIST_XY
+    // `@Param`: F_DIST_XY
     // @DisplayName: Distance Fail XY
     // @Description: Closest allowed projected distance before F_ACTION is undertaken
     // @Units: m
     // @User: Advanced
     AP_GROUPINFO("F_DIST_XY",   9, AP_Avoidance, _fail_distance_xy, AP_AVOIDANCE_FAIL_DISTANCE_XY_DEFAULT),
 
-    // @Param: W_DIST_Z
+    // `@Param`: W_DIST_Z
     // @DisplayName: Distance Warn Z
     // @Description: Closest allowed projected distance before BEHAVIOUR_W is undertaken
     // @Units: m
     // @User: Advanced
     AP_GROUPINFO("W_DIST_Z",    10, AP_Avoidance, _warn_distance_z, AP_AVOIDANCE_WARN_DISTANCE_Z_DEFAULT),
 
-    // @Param: F_DIST_Z
+    // `@Param`: F_DIST_Z
     // @DisplayName: Distance Fail Z
     // @Description: Closest allowed projected distance before BEHAVIOUR_F is undertaken
     // @Units: m
     // @User: Advanced
     AP_GROUPINFO("F_DIST_Z",    11, AP_Avoidance, _fail_distance_z, AP_AVOIDANCE_FAIL_DISTANCE_Z_DEFAULT),
     
-    // @Param: F_ALT_MIN
+    // `@Param`: F_ALT_MIN
     // @DisplayName: ADS-B avoidance minimum altitude
     // @Description: Minimum AMSL (above mean sea level) altitude for ADS-B avoidance. If the vehicle is below this altitude, no avoidance action will take place. Useful to prevent ADS-B avoidance from activating while below the tree line or around structures. Default of 0 is no minimum.
     // @Units: m

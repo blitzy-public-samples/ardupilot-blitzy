@@ -8,19 +8,19 @@
 
 // table of user settable parameters
 const AP_Param::GroupInfo AC_CustomControl_Empty::var_info[] = {
-    // @Param: PARAM1
+    // `@Param`: PARAM1
     // @DisplayName: Empty param1
     // @Description: Dummy parameter for empty custom controller backend
     // @User: Advanced
     AP_GROUPINFO("PARAM1", 1, AC_CustomControl_Empty, param1, 0.0f),
 
-    // @Param: PARAM2
+    // `@Param`: PARAM2
     // @DisplayName: Empty param2
     // @Description: Dummy parameter for empty custom controller backend
     // @User: Advanced
     AP_GROUPINFO("PARAM2", 2, AC_CustomControl_Empty, param2, 0.0f),
 
-    // @Param: PARAM3
+    // `@Param`: PARAM3
     // @DisplayName: Empty param3
     // @Description: Dummy parameter for empty custom controller backend
     // @User: Advanced

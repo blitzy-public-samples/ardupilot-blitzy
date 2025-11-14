@@ -41,7 +41,7 @@
 extern const AP_HAL::HAL& hal;
 const AP_Param::GroupInfo AP_BattMonitor_AD7091R5::var_info[] = {
 
-    // @Param: VOLT_PIN
+    // `@Param`: VOLT_PIN
     // @DisplayName: Battery Voltage sensing pin on the AD7091R5 Ic
     // @Description: Sets the analog input pin that should be used for voltage monitoring on AD7091R5.
     // @Values: -1:Disabled
@@ -49,7 +49,7 @@ const AP_Param::GroupInfo AP_BattMonitor_AD7091R5::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("VOLT_PIN", 56, AP_BattMonitor_AD7091R5, _volt_pin, 0),
 
-    // @Param: CURR_PIN
+    // `@Param`: CURR_PIN
     // @DisplayName: Battery Current sensing pin
     // @Description: Sets the analog input pin that should be used for Current monitoring on AD7091R5.
     // @Values: -1:Disabled
@@ -57,27 +57,27 @@ const AP_Param::GroupInfo AP_BattMonitor_AD7091R5::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("CURR_PIN", 57, AP_BattMonitor_AD7091R5, _curr_pin, 0),
 
-    // @Param: VOLT_MULT
+    // `@Param`: VOLT_MULT
     // @DisplayName: Voltage Multiplier
     // @Description: Used to convert the voltage of the voltage sensing pin (@PREFIX@VOLT_PIN) to the actual battery's voltage (pin_voltage * VOLT_MULT).
     // @User: Advanced
     AP_GROUPINFO("VOLT_MULT", 58, AP_BattMonitor_AD7091R5, _volt_multiplier, 0),
 
-    // @Param: AMP_PERVLT
+    // `@Param`: AMP_PERVLT
     // @DisplayName: Amps per volt
     // @Description: Number of amps that a 1V reading on the current sensor corresponds to.
     // @Units: A/V
     // @User: Standard
     AP_GROUPINFO("AMP_PERVLT", 59, AP_BattMonitor_AD7091R5, _curr_amp_per_volt, 0),
 
-    // @Param: AMP_OFFSET
+    // `@Param`: AMP_OFFSET
     // @DisplayName: AMP offset
     // @Description: Voltage offset at zero current on current sensor
     // @Units: V
     // @User: Standard
     AP_GROUPINFO("AMP_OFFSET", 60, AP_BattMonitor_AD7091R5, _curr_amp_offset, 0),
 
-    // @Param: VLT_OFFSET
+    // `@Param`: VLT_OFFSET
     // @DisplayName: Volage offset
     // @Description: Voltage offset on voltage pin. This allows for an offset due to a diode. This voltage is subtracted before the scaling is applied
     // @Units: V

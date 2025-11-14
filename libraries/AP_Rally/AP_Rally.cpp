@@ -27,13 +27,13 @@ StorageAccess AP_Rally::_storage(StorageManager::StorageRally);
 #endif
 
 const AP_Param::GroupInfo AP_Rally::var_info[] = {
-    // @Param: TOTAL
+    // `@Param`: TOTAL
     // @DisplayName: Rally Total
     // @Description: Number of rally points currently loaded
     // @User: Advanced
     AP_GROUPINFO("TOTAL", 0, AP_Rally, _rally_point_total_count, 0),
 
-    // @Param: LIMIT_KM
+    // `@Param`: LIMIT_KM
     // @DisplayName: Rally Limit
     // @Description: Maximum distance to rally point. If the closest rally point is more than this number of kilometers from the current position and the home location is closer than any of the rally points from the current position then do RTL to home rather than to the closest rally point. This prevents a leftover rally point from a different airfield being used accidentally. If this is set to 0 then the closest rally point is always used.
     // @User: Advanced
@@ -41,7 +41,7 @@ const AP_Param::GroupInfo AP_Rally::var_info[] = {
     // @Increment: 0.1
     AP_GROUPINFO("LIMIT_KM", 1, AP_Rally, _rally_limit_km, RALLY_LIMIT_KM_DEFAULT),
 
-    // @Param: INCL_HOME
+    // `@Param`: INCL_HOME
     // @DisplayName: Rally Include Home
     // @Description: Controls if Home is included as a Rally point (i.e. as a safe landing place) for RTL
     // @User: Standard

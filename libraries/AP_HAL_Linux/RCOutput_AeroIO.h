@@ -41,15 +41,15 @@ public:
     /**
      * Set all channels in the same frequency
      *
-     * @chmask Bitmask
-     * @freq_hz Frequency
+     * @param chmask Bitmask
+     * @param freq_hz Frequency
      */
     void set_freq(uint32_t chmask, uint16_t freq_hz) override;
 
     /**
      * Get frequency of channel
      *
-     * @ch channel
+     * @param ch channel
      *
      * Return: frequency of this channel
      */
@@ -58,8 +58,8 @@ public:
     /**
      * Set period in µs
      *
-     * @ch channel
-     * @period_us time in µs
+     * @param ch channel
+     * @param period_us time in µs
      */
     void write(uint8_t ch, uint16_t period_us) override;
 
@@ -73,11 +73,11 @@ public:
     uint16_t read(uint8_t ch) override;
 
     /**
-     * Set @period_us with the values in µs of each channel
+     * Set `@period_us` with the values in µs of each channel
      *
-     * @period_us vector that will be filled with duty cycle periods of
+     * `@period_us` vector that will be filled with duty cycle periods of
      *            each channel
-     * @len size of period_us vector
+     * `@len` size of period_us vector
      */
     void read(uint16_t *period_us, uint8_t len) override;
 
@@ -86,10 +86,10 @@ private:
      * Convert from µs to hw units, 16bits percentage of
      * the frequency, where 0xFFFF is 1/Freq seconds in high
      *
-     * @freq Frequency
-     * @usec Time in µseconds
+     * @param freq Frequency
+     * @param usec Time in µseconds
      *
-     * Return: conversion from µs in a specific frequency to 16bits
+     * @return conversion from µs in a specific frequency to 16bits
      */
     static uint16_t _usec_to_hw(uint16_t freq, uint16_t usec);
 
@@ -97,27 +97,27 @@ private:
      * Convert from hw units, 16bits percentage of the frequency, to
      * time in µs
      *
-     * @freq Frequency
-     * @hw_val 16b percentage
+     * @param freq Frequency
+     * @param hw_val 16b percentage
      */
     static uint16_t _hw_to_usec(uint16_t freq, uint16_t hw_val);
 
     /**
      * Low-level spi write
      *
-     * @address register address
-     * @data value to be written
+     * @param address register address
+     * @param data value to be written
      *
-     * Return: true on success, false otherwise
+     * @return true on success, false otherwise
      */
     bool _hw_write(uint16_t address, uint16_t data);
 
     /**
      * Low-level spi read
      *
-     * @address register address
+     * `@address` register address
      *
-     * Return: value read from @address
+     * Return: value read from `@address`
      */
     uint16_t _hw_read(uint16_t address);
 
@@ -135,7 +135,7 @@ private:
 
     /**
      * Save information about the channel that will be write in the
-     * next @RCOutput_AeroIO#push call.
+     * next RCOutput_AeroIO::push() call.
      *
      * 0b...101
      *      ││└── 1st channel (Pending operation)

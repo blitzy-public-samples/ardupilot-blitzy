@@ -64,7 +64,7 @@ AP_ADSB *AP_ADSB::_singleton;
 
 // table of user settable parameters
 const AP_Param::GroupInfo AP_ADSB::var_info[] = {
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: ADSB Type
     // @Description: Type of ADS-B hardware for ADSB-in and ADSB-out configuration and operation. If any type is selected then MAVLink based ADSB-in messages will always be enabled
     // @Values: 0:Disabled,1:uAvionix-MAVLink,2:Sagetech,3:uAvionix-UCP,4:Sagetech MX Series
@@ -74,7 +74,7 @@ const AP_Param::GroupInfo AP_ADSB::var_info[] = {
 
     // index 1 is reserved - was BEHAVIOR
 
-    // @Param: LIST_MAX
+    // `@Param`: LIST_MAX
     // @DisplayName: ADSB vehicle list size
     // @Description: ADSB list size of nearest vehicles. Longer lists take longer to refresh with lower SRx_ADSB values.
     // @Range: 1 100
@@ -83,7 +83,7 @@ const AP_Param::GroupInfo AP_ADSB::var_info[] = {
     AP_GROUPINFO("LIST_MAX",   2, AP_ADSB, in_state.list_size_param, ADSB_VEHICLE_LIST_SIZE_DEFAULT),
 
 
-    // @Param: LIST_RADIUS
+    // `@Param`: LIST_RADIUS
     // @DisplayName: ADSB vehicle list radius filter
     // @Description: ADSB vehicle list radius filter. Vehicles detected outside this radius will be completely ignored. They will not show up in the SRx_ADSB stream to the GCS and will not be considered in any avoidance calculations. A value of 0 will disable this filter.
     // @Range: 0 100000
@@ -91,49 +91,49 @@ const AP_Param::GroupInfo AP_ADSB::var_info[] = {
     // @Units: m
     AP_GROUPINFO("LIST_RADIUS",   3, AP_ADSB, in_state.list_radius, ADSB_LIST_RADIUS_DEFAULT),
 
-    // @Param: ICAO_ID
+    // `@Param`: ICAO_ID
     // @DisplayName: ICAO_ID vehicle identification number
     // @Description: ICAO_ID unique vehicle identification number of this aircraft. This is an integer limited to 24bits. If set to 0 then one will be randomly generated. If set to -1 then static information is not sent, transceiver is assumed pre-programmed.
     // @Range: -1 16777215
     // @User: Advanced
     AP_GROUPINFO("ICAO_ID",   4, AP_ADSB, out_state.cfg.ICAO_id_param, 0),
 
-    // @Param: EMIT_TYPE
+    // `@Param`: EMIT_TYPE
     // @DisplayName: Emitter type
     // @Description: ADSB classification for the type of vehicle emitting the transponder signal. Default value is 14 (UAV).
     // @Values: 0:NoInfo,1:Light,2:Small,3:Large,4:HighVortexlarge,5:Heavy,6:HighlyManuv,7:Rotocraft,8:RESERVED,9:Glider,10:LightAir,11:Parachute,12:UltraLight,13:RESERVED,14:UAV,15:Space,16:RESERVED,17:EmergencySurface,18:ServiceSurface,19:PointObstacle
     // @User: Advanced
     AP_GROUPINFO("EMIT_TYPE",   5, AP_ADSB, out_state.cfg.emitterType, ADSB_EMITTER_TYPE_UAV),
 
-    // @Param: LEN_WIDTH
+    // `@Param`: LEN_WIDTH
     // @DisplayName: Aircraft length and width
     // @Description: Aircraft length and width dimension options in Length and Width in meters. In most cases, use a value of 1 for smallest size.
 	// @Values: 0:NO_DATA,1:L15W23,2:L25W28P5,3:L25W34,4:L35W33,5:L35W38,6:L45W39P5,7:L45W45,8:L55W45,9:L55W52,10:L65W59P5,11:L65W67,12:L75W72P5,13:L75W80,14:L85W80,15:L85W90
     // @User: Advanced
     AP_GROUPINFO("LEN_WIDTH",   6, AP_ADSB, out_state.cfg.lengthWidth, UAVIONIX_ADSB_OUT_CFG_AIRCRAFT_SIZE_L15M_W23M),
 
-    // @Param: OFFSET_LAT
+    // `@Param`: OFFSET_LAT
     // @DisplayName: GPS antenna lateral offset
     // @Description: GPS antenna lateral offset. This describes the physical location offset from center of the GPS antenna on the aircraft.
 	// @Values: 0:NoData,1:Left2m,2:Left4m,3:Left6m,4:Center,5:Right2m,6:Right4m,7:Right6m
     // @User: Advanced
     AP_GROUPINFO("OFFSET_LAT",   7, AP_ADSB, out_state.cfg.gpsOffsetLat, UAVIONIX_ADSB_OUT_CFG_GPS_OFFSET_LAT_RIGHT_0M),
 
-    // @Param: OFFSET_LON
+    // `@Param`: OFFSET_LON
     // @DisplayName: GPS antenna longitudinal offset
     // @Description: GPS antenna longitudinal offset. This is usually set to 1, Applied By Sensor
     // @Values: 0:NO_DATA,1:AppliedBySensor
     // @User: Advanced
     AP_GROUPINFO("OFFSET_LON",   8, AP_ADSB, out_state.cfg.gpsOffsetLon, UAVIONIX_ADSB_OUT_CFG_GPS_OFFSET_LON_APPLIED_BY_SENSOR),
 
-    // @Param: RF_SELECT
+    // `@Param`: RF_SELECT
     // @DisplayName: Transceiver RF selection
     // @Description: Transceiver RF selection for Rx enable and/or Tx enable. This only effects devices that can Tx and/or Rx. Rx-only devices should override this to always be Rx-only.
     // @Bitmask: 0:Rx,1:Tx
     // @User: Advanced
     AP_GROUPINFO("RF_SELECT",   9, AP_ADSB, out_state.cfg.rfSelect, UAVIONIX_ADSB_OUT_RF_SELECT_RX_ENABLED),
 
-    // @Param: SQUAWK
+    // `@Param`: SQUAWK
     // @DisplayName: Squawk code
     // @Description: VFR squawk (Mode 3/A) code is a pre-programmed default code when the pilot is flying VFR and not in contact with ATC. In the USA, the VFR squawk code is octal 1200 (hex 0x280, decimal 640) and in most parts of Europe the VFR squawk code is octal 7000. If an invalid octal number is set then it will be reset to 1200.
     // @Range: 0 7777
@@ -141,14 +141,14 @@ const AP_Param::GroupInfo AP_ADSB::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SQUAWK",  10, AP_ADSB, out_state.cfg.squawk_octal_param, ADSB_SQUAWK_OCTAL_DEFAULT),
 
-    // @Param: RF_CAPABLE
+    // `@Param`: RF_CAPABLE
     // @DisplayName: RF capabilities
     // @Description: Describes your hardware RF In/Out capabilities.
     // @Bitmask: 0:UAT_in,1:1090ES_in,2:UAT_out,3:1090ES_out
     // @User: Advanced
     AP_GROUPINFO("RF_CAPABLE",  11, AP_ADSB, out_state.cfg.rf_capable, 0),
 
-    // @Param: LIST_ALT
+    // `@Param`: LIST_ALT
     // @DisplayName: ADSB vehicle list altitude filter
     // @Description: ADSB vehicle list altitude filter. Vehicles detected more than this altitude above our own altitude will be completely ignored. They will not show up in the SRx_ADSB stream to the GCS and will not be considered in any avoidance calculations. A value of 0 will disable this filter.
     // @Range: 0 32767
@@ -156,20 +156,20 @@ const AP_Param::GroupInfo AP_ADSB::var_info[] = {
     // @Units: m
     AP_GROUPINFO("LIST_ALT",   12, AP_ADSB, in_state.list_altitude, 0),
 
-    // @Param: ICAO_SPECL
+    // `@Param`: ICAO_SPECL
     // @DisplayName: ICAO_ID of special vehicle
     // @Description: ICAO_ID of special vehicle that ignores ADSB_LIST_RADIUS and ADSB_LIST_ALT. The vehicle is always tracked. Use 0 to disable.
     // @User: Advanced
     AP_GROUPINFO("ICAO_SPECL",  13, AP_ADSB, _special_ICAO_target, 0),
 
-    // @Param: LOG
+    // `@Param`: LOG
     // @DisplayName: ADS-B logging
     // @Description: 0: no logging, 1: log only special ID, 2:log all
     // @Values: 0:no logging,1:log only special ID,2:log all
     // @User: Advanced
     AP_GROUPINFO("LOG",  14, AP_ADSB, _log, 1),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: ADS-B Options
     // @Description: Options for emergency failsafe codes and device capabilities
     // @Bitmask: 0:Ping200X Send GPS,1:Squawk 7400 on RC failsafe,2:Squawk 7400 on GCS failsafe,3:Sagetech MXS use External Config,4:Transmit in traditional Mode 3A/C only and inhibit Mode-S and ES (ADSB) transmissions

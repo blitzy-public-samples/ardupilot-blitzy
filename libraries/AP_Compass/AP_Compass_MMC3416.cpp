@@ -226,7 +226,7 @@ void AP_Compass_MMC3416::timer()
         }
 
 #if 0
-// @LoggerMessage: MMO
+// `@LoggerMessage`: MMO
 // @Description: MMC3416 compass data
 // @Field: TimeUS: Time since system startup
 // @Field: Nx: new measurement X axis

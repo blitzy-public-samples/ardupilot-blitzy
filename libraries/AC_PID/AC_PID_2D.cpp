@@ -7,39 +7,39 @@
 #define AC_PID_2D_FILT_D_HZ_MIN      0.005f   // minimum input filter frequency
 
 const AP_Param::GroupInfo AC_PID_2D::var_info[] = {
-    // @Param: P
+    // `@Param`: P
     // @DisplayName: PID Proportional Gain
     // @Description: P Gain which produces an output value that is proportional to the current error value
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("P",    0, AC_PID_2D, _kp, default_kp),
 
-    // @Param: I
+    // `@Param`: I
     // @DisplayName: PID Integral Gain
     // @Description: I Gain which produces an output that is proportional to both the magnitude and the duration of the error
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("I",    1, AC_PID_2D, _ki, default_ki),
 
-    // @Param: IMAX
+    // `@Param`: IMAX
     // @DisplayName: PID Integral Maximum
     // @Description: The maximum/minimum value that the I term can output
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("IMAX", 2, AC_PID_2D, _kimax, default_kimax),
 
-    // @Param: FLTE
+    // `@Param`: FLTE
     // @DisplayName: PID Error filter frequency in Hz
     // @Description: Low-pass filter frequency applied to the error (Hz)
     // @Units: Hz
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("FLTE", 3, AC_PID_2D, _filt_E_hz, default_filt_E_hz),
 
-    // @Param: D
+    // `@Param`: D
     // @DisplayName: PID Derivative Gain
     // @Description: D Gain which produces an output that is proportional to the rate of change of the error
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("D",    4, AC_PID_2D, _kd, default_kd),
 
-    // @Param: FLTD
+    // `@Param`: FLTD
     // @DisplayName: D term filter frequency in Hz
     // @Description: Low-pass filter frequency applied to the derivative (Hz)
     // @Units: Hzs
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("FLTD", 5, AC_PID_2D, _filt_D_hz, default_filt_D_hz),
 
-    // @Param: FF
+    // `@Param`: FF
     // @DisplayName: PID Feed Forward Gain
     // @Description: FF Gain which produces an output that is proportional to the magnitude of the target
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("FF",    6, AC_PID_2D, _kff, default_kff),

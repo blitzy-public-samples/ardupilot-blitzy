@@ -484,7 +484,7 @@ bool AP_ExternalAHRS_InertialLabs::check_uart()
 #if HAL_LOGGING_ENABLED
         uint64_t now_us = AP_HAL::micros64();
 
-        // @LoggerMessage: ILB1
+        // `@LoggerMessage`: ILB1
         // @Description: InertialLabs AHRS data1
         // @Field: TimeUS: Time since system startup
         // @Field: GMS: GPS INS time (round)
@@ -533,7 +533,7 @@ bool AP_ExternalAHRS_InertialLabs::check_uart()
 #if HAL_LOGGING_ENABLED
         uint64_t now_us = AP_HAL::micros64();
 
-        // @LoggerMessage: ILB4
+        // `@LoggerMessage`: ILB4
         // @Description: InertialLabs AHRS data4
         // @Field: TimeUS: Time since system startup
         // @Field: GMS: GNSS Position timestamp
@@ -557,7 +557,7 @@ bool AP_ExternalAHRS_InertialLabs::check_uart()
                                     gnss_data.track_over_ground, gnss_data.hor_speed, gnss_data.ver_speed
                                     );
 
-        // @LoggerMessage: ILB5
+        // `@LoggerMessage`: ILB5
         // @Description: InertialLabs AHRS data5
         // @Field: TimeUS: Time since system startup
         // @Field: GMS: GNSS Position timestamp
@@ -577,7 +577,7 @@ bool AP_ExternalAHRS_InertialLabs::check_uart()
                                     gnss_data.info_short.info1, gnss_data.info_short.info2,
                                     gnss_data.angle_pos_type);
 
-        // @LoggerMessage: ILB6
+        // `@LoggerMessage`: ILB6
         // @Description: InertialLabs AHRS data6
         // @Field: TimeUS: Time since system startup
         // @Field: GMS: GNSS Position timestamp
@@ -608,7 +608,7 @@ bool AP_ExternalAHRS_InertialLabs::check_uart()
 #if HAL_LOGGING_ENABLED
         uint64_t now_us = AP_HAL::micros64();
 
-        // @LoggerMessage: ILB3
+        // `@LoggerMessage`: ILB3
         // @Description: InertialLabs AHRS data3
         // @Field: TimeUS: Time since system startup
         // @Field: GMS: GPS INS time (round)
@@ -642,7 +642,7 @@ bool AP_ExternalAHRS_InertialLabs::check_uart()
 #if HAL_LOGGING_ENABLED
         uint64_t now_us = AP_HAL::micros64();
 
-        // @LoggerMessage: ILB2
+        // `@LoggerMessage`: ILB2
         // @Description: InertialLabs AHRS data2
         // @Field: TimeUS: Time since system startup
         // @Field: GMS: GPS INS time (round)
@@ -689,7 +689,7 @@ bool AP_ExternalAHRS_InertialLabs::check_uart()
 #if HAL_LOGGING_ENABLED
         uint64_t now_us = AP_HAL::micros64();
 
-        // @LoggerMessage: ILB7
+        // `@LoggerMessage`: ILB7
         // @Description: InertialLabs AHRS data7
         // @Field: TimeUS: Time since system startup
         // @Field: GMS: GPS INS time (round)
@@ -717,7 +717,7 @@ bool AP_ExternalAHRS_InertialLabs::check_uart()
                                     state2.unit_status, state2.unit_status2,
                                     state2.supply_voltage);
 
-        // @LoggerMessage: ILB8
+        // `@LoggerMessage`: ILB8
         // @Description: InertialLabs AHRS data8
         // @Field: TimeUS: Time since system startup
         // @Field: GMS: GPS INS time (round)

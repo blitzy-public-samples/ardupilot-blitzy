@@ -6,7 +6,7 @@
 #define LOG_IDS_FROM_FENCE \
     LOG_FENCE_MSG
 
-// @LoggerMessage: FNCE
+// `@LoggerMessage`: FNCE
 // @Description: currently loaded Geo Fence points
 // @Field: TimeUS: Time since system startup
 // @Field: Tot: total number of stored items

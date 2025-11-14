@@ -1,3 +1,30 @@
+/**
+ * @file AP_RangeFinder_VL53L1X.h
+ * @brief Driver for ST VL53L1X I2C laser rangefinder
+ * 
+ * @details This file implements the backend driver for the ST VL53L1X Time-of-Flight
+ *          (ToF) laser rangefinder sensor. The VL53L1X is the next-generation sensor
+ *          after the VL53L0X, featuring improved performance with a maximum range of
+ *          approximately 4 meters and better ambient light rejection.
+ *          
+ *          Key features:
+ *          - I2C communication interface
+ *          - Multiple distance modes (Short, Medium, Long)
+ *          - Automatic calibration support
+ *          - Configurable timing budget
+ *          - Continuous measurement mode
+ *          - 940nm VCSEL (Vertical Cavity Surface-Emitting Laser) emitter
+ *          - Comprehensive error detection and reporting
+ *          
+ *          The driver manages sensor initialization, configuration, continuous ranging,
+ *          and data acquisition through I2C communication. Register addresses are based
+ *          on ST's VL53L1X API register map.
+ * 
+ * @note This driver requires the AP_HAL I2C device abstraction
+ * @see AP_RangeFinder_Backend for base class interface
+ * @see libraries/AP_RangeFinder/AP_RangeFinder_VL53L1X.cpp for implementation
+ */
+
 #pragma once
 
 #include "AP_RangeFinder_config.h"
@@ -9,56 +36,183 @@
 
 #include <AP_HAL/I2CDevice.h>
 
+/**
+ * @class AP_RangeFinder_VL53L1X
+ * @brief Backend driver for ST VL53L1X Time-of-Flight laser rangefinder
+ * 
+ * @details Implements I2C communication and control logic for the VL53L1X sensor.
+ *          This next-generation ToF sensor offers improved performance over the
+ *          VL53L0X with 4-meter maximum range, better ambient light immunity,
+ *          and more flexible configuration options.
+ *          
+ *          The driver handles:
+ *          - Sensor detection and identification
+ *          - Initialization and calibration
+ *          - Distance mode configuration (Short/Medium/Long)
+ *          - Timing budget management
+ *          - Continuous measurement operation
+ *          - Range data acquisition and filtering
+ *          - Comprehensive error handling
+ *          
+ *          Communication: I2C at up to 400 kHz (Fast mode)
+ *          Default I2C address: 0x29 (7-bit)
+ *          
+ * @note Inherits standard rangefinder backend interface
+ * @warning Ensure proper I2C bus speed configuration for reliable operation
+ */
 class AP_RangeFinder_VL53L1X : public AP_RangeFinder_Backend
 {
 
 public:
-    enum class DistanceMode { Short, Medium, Long, Unknown };
+    /**
+     * @enum DistanceMode
+     * @brief Operating distance modes for the VL53L1X sensor
+     * 
+     * @details Different ranging modes optimize the sensor for specific distance ranges
+     *          and ambient light conditions. Each mode adjusts the VCSEL pulse timing
+     *          and signal processing parameters.
+     */
+    enum class DistanceMode { 
+        Short,    ///< Short distance mode: optimized for <1.3m, best ambient light immunity
+        Medium,   ///< Medium distance mode: balanced performance up to ~3m
+        Long,     ///< Long distance mode: maximum range up to ~4m, reduced ambient immunity
+        Unknown   ///< Unknown/uninitialized mode
+    };
 
-    // static detection function
+    /**
+     * @brief Static detection function to probe and initialize VL53L1X sensor
+     * 
+     * @details Attempts to detect and initialize a VL53L1X sensor on the I2C bus.
+     *          This function is called by the rangefinder driver framework to discover
+     *          and instantiate the sensor backend.
+     *          
+     *          Detection sequence:
+     *          1. Attempts I2C communication with the device
+     *          2. Reads and verifies sensor identification registers
+     *          3. Performs sensor initialization if ID matches
+     *          4. Configures the specified distance mode
+     *          5. Returns initialized backend instance or nullptr on failure
+     * 
+     * @param[in,out] _state   Reference to rangefinder state structure
+     * @param[in,out] _params  Reference to rangefinder parameters
+     * @param[in]     _dev     I2C device pointer (ownership transferred)
+     * @param[in]     mode     Desired distance mode (Short/Medium/Long)
+     * 
+     * @return Pointer to initialized AP_RangeFinder_VL53L1X instance on success, nullptr on failure
+     * 
+     * @note This is the primary entry point for sensor instantiation
+     * @see check_id() for identification verification
+     */
     static AP_RangeFinder_Backend *detect(RangeFinder::RangeFinder_State &_state, AP_RangeFinder_Params &_params, AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev, DistanceMode mode);
 
-    // update state
+    /**
+     * @brief Update rangefinder state with latest measurement
+     * 
+     * @details Called periodically by the rangefinder framework to update sensor state.
+     *          This method reads the latest range measurement from the sensor and updates
+     *          the internal state structure with distance, status, and quality information.
+     *          
+     *          The update process includes:
+     *          - Checking for new data availability
+     *          - Reading range measurement
+     *          - Applying calibration offsets
+     *          - Filtering and validation
+     *          - Updating state variables
+     * 
+     * @note Override of AP_RangeFinder_Backend::update()
+     * @note This method is called at the scheduler rate (typically 20-50Hz)
+     */
     void update(void) override;
 
 protected:
 
+    /**
+     * @brief Get MAVLink distance sensor type identifier
+     * 
+     * @details Returns the MAVLink enum value identifying this as a laser rangefinder.
+     *          Used for telemetry reporting to ground control stations.
+     * 
+     * @return MAV_DISTANCE_SENSOR_LASER indicating laser-based ranging
+     * 
+     * @note Override of AP_RangeFinder_Backend::_get_mav_distance_sensor_type()
+     */
     virtual MAV_DISTANCE_SENSOR _get_mav_distance_sensor_type() const override {
         return MAV_DISTANCE_SENSOR_LASER;
     }
 
 private:
+    /**
+     * @enum DeviceError
+     * @brief VL53L1X sensor error codes
+     * 
+     * @details Error status values returned by the VL53L1X in the RESULT__RANGE_STATUS
+     *          register. These errors indicate various hardware, calibration, and
+     *          measurement issues that can affect range accuracy.
+     *          
+     *          Error codes are defined by ST's VL53L1X API specification.
+     *          
+     * @note Error code 0 (NOUPDATE) indicates no new measurement, not an error condition
+     * @note Errors 1-3 indicate hardware/calibration failures requiring sensor reset
+     * @note Errors 4-8 indicate measurement quality issues
+     * @note Error 9 indicates successful range measurement
+     */
     enum DeviceError : uint8_t
     {
-        NOUPDATE                    = 0,
-        VCSELCONTINUITYTESTFAILURE  = 1,
-        VCSELWATCHDOGTESTFAILURE    = 2,
-        NOVHVVALUEFOUND             = 3,
-        MSRCNOTARGET                = 4,
-        RANGEPHASECHECK             = 5,
-        SIGMATHRESHOLDCHECK         = 6,
-        PHASECONSISTENCY            = 7,
-        MINCLIP                     = 8,
-        RANGECOMPLETE               = 9,
-        ALGOUNDERFLOW               = 10,
-        ALGOOVERFLOW                = 11,
-        RANGEIGNORETHRESHOLD        = 12,
-        USERROICLIP                 = 13,
-        REFSPADCHARNOTENOUGHDPADS   = 14,
-        REFSPADCHARMORETHANTARGET   = 15,
-        REFSPADCHARLESSTHANTARGET   = 16,
-        MULTCLIPFAIL                = 17,
-        GPHSTREAMCOUNT0READY        = 18,
-        RANGECOMPLETE_NO_WRAP_CHECK = 19,
-        EVENTCONSISTENCY            = 20,
-        MINSIGNALEVENTCHECK         = 21,
-        RANGECOMPLETE_MERGED_PULSE  = 22,
+        NOUPDATE                    = 0,   ///< No range update available (not an error)
+        VCSELCONTINUITYTESTFAILURE  = 1,   ///< VCSEL (laser) continuity test failed - hardware fault
+        VCSELWATCHDOGTESTFAILURE    = 2,   ///< VCSEL watchdog test failed - hardware fault
+        NOVHVVALUEFOUND             = 3,   ///< No valid VHV (VCSEL voltage) value found - calibration issue
+        MSRCNOTARGET                = 4,   ///< MSRC (Minimum Signal Rate Check) indicates no target detected
+        RANGEPHASECHECK             = 5,   ///< Range phase check failed - signal quality issue
+        SIGMATHRESHOLDCHECK         = 6,   ///< Sigma (noise) threshold exceeded - low confidence measurement
+        PHASECONSISTENCY            = 7,   ///< Phase consistency check failed - signal interference
+        MINCLIP                     = 8,   ///< Minimum distance clipping - target too close
+        RANGECOMPLETE               = 9,   ///< Range measurement complete and valid
+        ALGOUNDERFLOW               = 10,  ///< Algorithm underflow - processing error
+        ALGOOVERFLOW                = 11,  ///< Algorithm overflow - processing error
+        RANGEIGNORETHRESHOLD        = 12,  ///< Range ignored due to threshold violation
+        USERROICLIP                 = 13,  ///< User ROI (Region of Interest) clipping issue
+        REFSPADCHARNOTENOUGHDPADS   = 14,  ///< Reference SPAD characterization: insufficient SPADs
+        REFSPADCHARMORETHANTARGET   = 15,  ///< Reference SPAD characterization: exceeds target
+        REFSPADCHARLESSTHANTARGET   = 16,  ///< Reference SPAD characterization: below target
+        MULTCLIPFAIL                = 17,  ///< Multiple clip failure
+        GPHSTREAMCOUNT0READY        = 18,  ///< GPH stream count ready indicator
+        RANGECOMPLETE_NO_WRAP_CHECK = 19,  ///< Range complete without wrap check
+        EVENTCONSISTENCY            = 20,  ///< Event consistency check failed
+        MINSIGNALEVENTCHECK         = 21,  ///< Minimum signal event check failed
+        RANGECOMPLETE_MERGED_PULSE  = 22,  ///< Range complete with merged pulse detection
     };
 
-    // register addresses from API vl53l1x_register_map.h
+    /**
+     * @enum regAddr
+     * @brief VL53L1X register address map
+     * 
+     * @details Complete register address definitions for the VL53L1X Time-of-Flight sensor.
+     *          Register addresses are 16-bit values accessed via I2C. The register map includes
+     *          configuration, calibration, control, and result registers.
+     *          
+     *          Register groups:
+     *          - 0x0000-0x0087: Configuration and control registers
+     *          - 0x0088-0x00FF: Result and status registers
+     *          - 0x0100-0x013F: Identification and SPAD configuration
+     *          - 0x0400-0x046B: MCU utility and range calculation registers
+     *          - 0x0470-0x04B5: Firmware patch registers
+     *          - 0x0680-0x07A7: Ranging core hardware registers
+     *          - 0x0780-0x0A41: NVM and SPAD enable registers
+     *          - 0x0ED0-0x0FFC: Shadow and previous result registers
+     *          
+     *          Many registers have multi-byte variants (HI/LO for 16-bit, _0/_1/_2/_3 for 32-bit)
+     *          to support both byte and word access patterns.
+     * 
+     * @note Register addresses and definitions based on ST VL53L1X API register map
+     * @note Some register names include Pololu additions for 16-bit access convenience
+     * @warning Improper register access can damage sensor or cause incorrect operation
+     * @see ST VL53L1X datasheet and API documentation for detailed register descriptions
+     */
     enum regAddr : uint16_t
     {
-        SOFT_RESET                                                                 = 0x0000,
+        // System configuration and control registers (0x0000-0x0087)
+        SOFT_RESET                                                                 = 0x0000,  ///< Software reset control
         I2C_SLAVE__DEVICE_ADDRESS                                                  = 0x0001,
         ANA_CONFIG__VHV_REF_SEL_VDDPIX                                             = 0x0002,
         ANA_CONFIG__VHV_REF_SEL_VQUENCH                                            = 0x0003,
@@ -213,6 +367,8 @@ private:
         FIRMWARE__ENABLE                                                           = 0x0085,
         SYSTEM__INTERRUPT_CLEAR                                                    = 0x0086,
         SYSTEM__MODE_START                                                         = 0x0087,
+        
+        // Result and status registers (0x0088-0x00FF)
         RESULT__INTERRUPT_STATUS                                                   = 0x0088,
         RESULT__RANGE_STATUS                                                       = 0x0089,
         RESULT__REPORT_STATUS                                                      = 0x008A,
@@ -363,6 +519,8 @@ private:
         INTERRUPT_MANAGER__ENABLES                                                 = 0x00FD,
         INTERRUPT_MANAGER__CLEAR                                                   = 0x00FE,
         INTERRUPT_MANAGER__STATUS                                                  = 0x00FF,
+        
+        // Identification and configuration registers (0x0100-0x013F)
         MCU_TO_HOST_BANK__WR_ACCESS_EN                                             = 0x0100,
         POWER_MANAGEMENT__GO1_RESET_STATUS                                         = 0x0101,
         PAD_STARTUP_MODE__VALUE_RO                                                 = 0x0102,
@@ -430,6 +588,8 @@ private:
         ROI_CONFIG__MODE_ROI_CENTRE_SPAD                                           = 0x013E,
         ROI_CONFIG__MODE_ROI_XY_SIZE                                               = 0x013F,
         GO2_HOST_BANK_ACCESS__OVERRIDE                                             = 0x0300,
+        
+        // MCU utility and range calculation registers (0x0400-0x046F)
         MCU_UTIL_MULTIPLIER__MULTIPLICAND                                          = 0x0400,
         MCU_UTIL_MULTIPLIER__MULTIPLICAND_3                                        = 0x0400,
         MCU_UTIL_MULTIPLIER__MULTIPLICAND_2                                        = 0x0401,
@@ -557,6 +717,8 @@ private:
         MCU_RANGE_CALC__SPARE_1                                                    = 0x0469,
         MCU_RANGE_CALC__SPARE_2                                                    = 0x046A,
         MCU_RANGE_CALC__SPARE_3                                                    = 0x046B,
+        
+        // Firmware patch registers (0x0470-0x04B5)
         PATCH__CTRL                                                                = 0x0470,
         PATCH__JMP_ENABLES                                                         = 0x0472,
         PATCH__JMP_ENABLES_HI                                                      = 0x0472,
@@ -660,6 +822,8 @@ private:
         PATCH__ADDRESS_15                                                          = 0x04B4,
         PATCH__ADDRESS_15_HI                                                       = 0x04B4,
         PATCH__ADDRESS_15_LO                                                       = 0x04B5,
+        
+        // SPI, clock, and GPIO configuration registers (0x04C0-0x04FF)
         SPI_ASYNC_MUX__CTRL                                                        = 0x04C0,
         CLK__CONFIG                                                                = 0x04C4,
         GPIO_LV_MUX__CTRL                                                          = 0x04CC,
@@ -687,6 +851,8 @@ private:
         TEST__PLL_BIST_COUNT_OUT_LO                                                = 0x04F5,
         TEST__PLL_BIST_GONOGO                                                      = 0x04F6,
         TEST__PLL_BIST_CTRL                                                        = 0x04F7,
+        
+        // Ranging core hardware control registers (0x0680-0x07D4)
         RANGING_CORE__DEVICE_ID                                                    = 0x0680,
         RANGING_CORE__REVISION_ID                                                  = 0x0681,
         RANGING_CORE__CLK_CTRL1                                                    = 0x0683,
@@ -755,6 +921,8 @@ private:
         RANGING_CORE__SPAD_READOUT_2                                               = 0x06D1,
         RANGING_CORE__SPAD_PS                                                      = 0x06D2,
         RANGING_CORE__LASER_SAFETY_2                                               = 0x06D4,
+        
+        // NVM (Non-Volatile Memory) control registers (0x0780-0x07A7)
         RANGING_CORE__NVM_CTRL__MODE                                               = 0x0780,
         RANGING_CORE__NVM_CTRL__PDN                                                = 0x0781,
         RANGING_CORE__NVM_CTRL__PROGN                                              = 0x0782,
@@ -777,6 +945,8 @@ private:
         RANGING_CORE__NVM_CTRL__DATAOUT_LLL                                        = 0x0793,
         RANGING_CORE__NVM_CTRL__ADDR                                               = 0x0794,
         RANGING_CORE__NVM_CTRL__DATAOUT_ECC                                        = 0x0795,
+        
+        // Return SPAD enable registers (0x0796-0x0A32)
         RANGING_CORE__RET_SPAD_EN_0                                                = 0x0796,
         RANGING_CORE__RET_SPAD_EN_1                                                = 0x0797,
         RANGING_CORE__RET_SPAD_EN_2                                                = 0x0798,
@@ -886,6 +1056,8 @@ private:
         RANGING_CORE__RET_SPAD_EN_29                                               = 0x0A30,
         RANGING_CORE__RET_SPAD_EN_30                                               = 0x0A31,
         RANGING_CORE__RET_SPAD_EN_31                                               = 0x0A32,
+        
+        // Advanced ranging core configuration registers (0x0A33-0x0A41)
         RANGING_CORE__REF_SPAD_EN_0__EWOK                                          = 0x0A33,
         RANGING_CORE__REF_SPAD_EN_1__EWOK                                          = 0x0A34,
         RANGING_CORE__REF_SPAD_EN_2__EWOK                                          = 0x0A35,
@@ -894,8 +1066,12 @@ private:
         RANGING_CORE__REF_SPAD_EN_5__EWOK                                          = 0x0A38,
         RANGING_CORE__REF_EN_START_SELECT                                          = 0x0A39,
         RANGING_CORE__REGDVDD1V2_ATEST__EWOK                                       = 0x0A41,
+        
+        // Reset control and base address registers (0x0B00-0x0E00)
         SOFT_RESET_GO1                                                             = 0x0B00,
         PRIVATE__PATCH_BASE_ADDR_RSLV                                              = 0x0E00,
+        
+        // Previous shadow result registers - previous measurement data (0x0ED0-0x0F1C)
         PREV_SHADOW_RESULT__INTERRUPT_STATUS                                       = 0x0ED0,
         PREV_SHADOW_RESULT__RANGE_STATUS                                           = 0x0ED1,
         PREV_SHADOW_RESULT__REPORT_STATUS                                          = 0x0ED2,
@@ -1001,6 +1177,8 @@ private:
         PREV_SHADOW_RESULT_CORE__TOTAL_PERIODS_ELAPSED_SD1_1                       = 0x0F1A,
         PREV_SHADOW_RESULT_CORE__TOTAL_PERIODS_ELAPSED_SD1_0                       = 0x0F1B,
         PREV_SHADOW_RESULT_CORE__SPARE_0                                           = 0x0F1C,
+        
+        // Debug and GPH (Grouped Parameter Hold) registers (0x0F20-0x0F47)
         RESULT__DEBUG_STATUS                                                       = 0x0F20,
         RESULT__DEBUG_STAGE                                                        = 0x0F21,
         GPH__SYSTEM__THRESH_RATE_HIGH                                              = 0x0F24,
@@ -1037,6 +1215,8 @@ private:
         GPH__RANGE_CONFIG__VALID_PHASE_HIGH                                        = 0x0F45,
         FIRMWARE__INTERNAL_STREAM_COUNT_DIV                                        = 0x0F46,
         FIRMWARE__INTERNAL_STREAM_COUNTER_VAL                                      = 0x0F47,
+        
+        // DSS (Dynamic SPAD Selection) calculation registers (0x0F54-0x0F83)
         DSS_CALC__ROI_CTRL                                                         = 0x0F54,
         DSS_CALC__SPARE_1                                                          = 0x0F55,
         DSS_CALC__SPARE_2                                                          = 0x0F56,
@@ -1081,6 +1261,8 @@ private:
         DSS_CALC__USER_ROI_1                                                       = 0x0F7D,
         DSS_CALC__MODE_ROI_0                                                       = 0x0F7E,
         DSS_CALC__MODE_ROI_1                                                       = 0x0F7F,
+        
+        // Sigma estimator, VHV, and phase calibration result registers (0x0F80-0x0F8F)
         SIGMA_ESTIMATOR_CALC__SPARE_0                                              = 0x0F80,
         VHV_RESULT__PEAK_SIGNAL_RATE_MCPS                                          = 0x0F82,
         VHV_RESULT__PEAK_SIGNAL_RATE_MCPS_HI                                       = 0x0F82,
@@ -1093,6 +1275,8 @@ private:
         PHASECAL_RESULT__PHASE_OUTPUT_REF                                          = 0x0F88,
         PHASECAL_RESULT__PHASE_OUTPUT_REF_HI                                       = 0x0F88,
         PHASECAL_RESULT__PHASE_OUTPUT_REF_LO                                       = 0x0F89,
+        
+        // DSS result registers (0x0F8A-0x0F91)
         DSS_RESULT__TOTAL_RATE_PER_SPAD                                            = 0x0F8A,
         DSS_RESULT__TOTAL_RATE_PER_SPAD_HI                                         = 0x0F8A,
         DSS_RESULT__TOTAL_RATE_PER_SPAD_LO                                         = 0x0F8B,
@@ -1100,6 +1284,8 @@ private:
         DSS_RESULT__NUM_REQUESTED_SPADS                                            = 0x0F8E,
         DSS_RESULT__NUM_REQUESTED_SPADS_HI                                         = 0x0F8E,
         DSS_RESULT__NUM_REQUESTED_SPADS_LO                                         = 0x0F8F,
+        
+        // MM (Minimum/Maximum) result registers (0x0F92-0x0F97)
         MM_RESULT__INNER_INTERSECTION_RATE                                         = 0x0F92,
         MM_RESULT__INNER_INTERSECTION_RATE_HI                                      = 0x0F92,
         MM_RESULT__INNER_INTERSECTION_RATE_LO                                      = 0x0F93,
@@ -1109,6 +1295,8 @@ private:
         MM_RESULT__TOTAL_OFFSET                                                    = 0x0F96,
         MM_RESULT__TOTAL_OFFSET_HI                                                 = 0x0F96,
         MM_RESULT__TOTAL_OFFSET_LO                                                 = 0x0F97,
+        
+        // Crosstalk (XTALK) calculation and result registers (0x0F98-0x0FA7)
         XTALK_CALC__XTALK_FOR_ENABLED_SPADS                                        = 0x0F98,
         XTALK_CALC__XTALK_FOR_ENABLED_SPADS_3                                      = 0x0F98,
         XTALK_CALC__XTALK_FOR_ENABLED_SPADS_2                                      = 0x0F99,
@@ -1129,6 +1317,8 @@ private:
         XTALK_RESULT__AVG_XTALK_MM_OUTER_ROI_KCPS_2                                = 0x0FA5,
         XTALK_RESULT__AVG_XTALK_MM_OUTER_ROI_KCPS_1                                = 0x0FA6,
         XTALK_RESULT__AVG_XTALK_MM_OUTER_ROI_KCPS_0                                = 0x0FA7,
+        
+        // Range result and accumulation registers (0x0FA8-0x0FAD)
         RANGE_RESULT__ACCUM_PHASE                                                  = 0x0FA8,
         RANGE_RESULT__ACCUM_PHASE_3                                                = 0x0FA8,
         RANGE_RESULT__ACCUM_PHASE_2                                                = 0x0FA9,
@@ -1137,6 +1327,9 @@ private:
         RANGE_RESULT__OFFSET_CORRECTED_RANGE                                       = 0x0FAC,
         RANGE_RESULT__OFFSET_CORRECTED_RANGE_HI                                    = 0x0FAC,
         RANGE_RESULT__OFFSET_CORRECTED_RANGE_LO                                    = 0x0FAD,
+        
+        // Shadow phase calibration result and shadow result registers (0x0FAE-0x0FDB)
+        // Shadow registers hold previous measurement data while new measurement is acquired
         SHADOW_PHASECAL_RESULT__VCSEL_START                                        = 0x0FAE,
         SHADOW_RESULT__INTERRUPT_STATUS                                            = 0x0FB0,
         SHADOW_RESULT__RANGE_STATUS                                                = 0x0FB1,
@@ -1201,6 +1394,8 @@ private:
         SHADOW_RESULT__SPARE_2_SD1_LO                                              = 0x0FD9,
         SHADOW_RESULT__SPARE_3_SD1                                                 = 0x0FDA,
         SHADOW_RESULT__THRESH_INFO                                                 = 0x0FDB,
+        
+        // Shadow result core registers - detailed event counters (0x0FDC-0x0FFC)
         SHADOW_RESULT_CORE__AMBIENT_WINDOW_EVENTS_SD0                              = 0x0FDC,
         SHADOW_RESULT_CORE__AMBIENT_WINDOW_EVENTS_SD0_3                            = 0x0FDC,
         SHADOW_RESULT_CORE__AMBIENT_WINDOW_EVENTS_SD0_2                            = 0x0FDD,
@@ -1242,60 +1437,577 @@ private:
         SHADOW_RESULT_CORE__TOTAL_PERIODS_ELAPSED_SD1_1                            = 0x0FFA,
         SHADOW_RESULT_CORE__TOTAL_PERIODS_ELAPSED_SD1_0                            = 0x0FFB,
         SHADOW_RESULT_CORE__SPARE_0                                                = 0x0FFC,
+        
+        // Shadow phase calibration result - final registers (0x0FFE-0x0FFF)
         SHADOW_PHASECAL_RESULT__REFERENCE_PHASE_HI                                 = 0x0FFE,
         SHADOW_PHASECAL_RESULT__REFERENCE_PHASE_LO                                 = 0x0FFF,
     };
 
-    // constructor
+    /**
+     * @brief Constructor for VL53L1X rangefinder backend
+     * 
+     * @param[in,out] _state Reference to rangefinder state structure shared with frontend
+     * @param[in]     _params Reference to rangefinder parameters (address, orientation, etc.)
+     * @param[in]     dev I2C device handle for communication with the sensor
+     * 
+     * @note Constructor transfers ownership of the I2C device to this backend instance
+     */
     AP_RangeFinder_VL53L1X(RangeFinder::RangeFinder_State &_state, AP_RangeFinder_Params &_params, AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev);
 
+    /**
+     * @brief Initialize the VL53L1X sensor with specified distance mode
+     * 
+     * @details Performs complete sensor initialization sequence:
+     *          - Verifies sensor ID
+     *          - Soft resets the sensor
+     *          - Loads default configuration
+     *          - Sets specified distance mode (Short/Medium/Long)
+     *          - Configures timing budget for measurements
+     *          - Starts continuous ranging operation
+     *          - Initializes calibration variables
+     * 
+     * @param[in] mode Distance mode to configure (Short, Medium, or Long)
+     * 
+     * @return true if initialization successful, false on any error
+     * 
+     * @note Marked with __INITFUNC__ to place in special init memory section on some platforms
+     * @warning Must be called before any ranging operations can be performed
+     */
     __INITFUNC__ bool init(DistanceMode mode);
+    
+    /**
+     * @brief Periodic timer callback for reading sensor data
+     * 
+     * @details Called by scheduler at regular intervals to:
+     *          - Check if new measurement data is available
+     *          - Read distance measurement from sensor
+     *          - Perform running average for calibration
+     *          - Update rangefinder state with new reading
+     *          - Handle measurement errors and sensor status
+     * 
+     * @note Called from I2C bus thread context, must be non-blocking
+     * @see AP_HAL::Device::register_periodic_callback()
+     */
     void timer();
 
-    // check sensor ID
+    /**
+     * @brief Verify sensor identity by reading device ID registers
+     * 
+     * @details Reads the IDENTIFICATION__MODEL_ID and IDENTIFICATION__MODULE_TYPE
+     *          registers to confirm this is a genuine VL53L1X sensor.
+     *          
+     *          Expected values:
+     *          - Model ID: 0xEA
+     *          - Module Type: 0xCC
+     * 
+     * @return true if sensor ID matches expected VL53L1X values, false otherwise
+     * 
+     * @note Should be called early in initialization to validate hardware
+     */
     bool check_id(void);
 
-    // get a reading
+    /**
+     * @brief Retrieve a single distance measurement from the sensor
+     * 
+     * @details Reads the ranging result registers and extracts the measured distance.
+     *          The measurement is read from RESULT__FINAL_CROSSTALK_CORRECTED_RANGE_MM_SD0
+     *          registers, which provide crosstalk-compensated distance values.
+     *          
+     *          Also checks RESULT__RANGE_STATUS for measurement quality and
+     *          potential error conditions.
+     * 
+     * @param[out] reading_cm Distance measurement in centimeters
+     * 
+     * @return true if valid reading obtained, false on I2C error or invalid measurement
+     * 
+     * @note Measurement range: 0-400 cm typical (depending on distance mode and target)
+     * @warning Returns false if sensor reports error conditions (no target, signal fail, etc.)
+     */
     bool get_reading(uint16_t &reading_cm);
+    
+    /**
+     * @brief I2C device handle for sensor communication
+     * 
+     * @details Owned pointer to I2C device interface used for all register reads
+     *          and writes. Automatically manages device lifecycle and I2C bus access.
+     *          
+     *          Communication parameters:
+     *          - Default address: 0x29 (7-bit)
+     *          - Speed: Up to 400 kHz (Fast mode I2C)
+     *          - 16-bit register addressing
+     */
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev;
 
-    // value used in measurement timing budget calculations
-    // assumes PresetMode is LOWPOWER_AUTONOMOUS
-    //
-    // vhv = LOWPOWER_AUTO_VHV_LOOP_DURATION_US + LOWPOWERAUTO_VHV_LOOP_BOUND
-    //       (tuning parm default) * LOWPOWER_AUTO_VHV_LOOP_DURATION_US
-    //     = 245 + 3 * 245 = 980
-    // TimingGuard = LOWPOWER_AUTO_OVERHEAD_BEFORE_A_RANGING +
-    //               LOWPOWER_AUTO_OVERHEAD_BETWEEN_A_B_RANGING + vhv
-    //             = 1448 + 2100 + 980 = 4528
+    /**
+     * @brief Timing guard value for measurement timing budget calculations
+     * 
+     * @details Used in calculating measurement timing budgets for LOWPOWER_AUTONOMOUS mode.
+     *          
+     *          Calculation breakdown (in microseconds):
+     *          - VHV loop time: LOWPOWER_AUTO_VHV_LOOP_DURATION_US + 
+     *                          (LOWPOWERAUTO_VHV_LOOP_BOUND * LOWPOWER_AUTO_VHV_LOOP_DURATION_US)
+     *                        = 245 + (3 * 245) = 980 μs
+     *          
+     *          - TimingGuard: LOWPOWER_AUTO_OVERHEAD_BEFORE_A_RANGING +
+     *                        LOWPOWER_AUTO_OVERHEAD_BETWEEN_A_B_RANGING + 
+     *                        VHV loop time
+     *                      = 1448 + 2100 + 980 = 4528 μs
+     *          
+     *          This overhead must be subtracted from the user-specified timing budget
+     *          to determine the time available for actual ranging measurements.
+     * 
+     * @note Units: microseconds
+     * @note Based on ST VL53L1X API timing constants
+     */
     static const uint32_t TimingGuard = 4528;
 
-    // value in DSS_CONFIG__TARGET_TOTAL_RATE_MCPS register,
-    // used in DSS calculations
+    /**
+     * @brief Target signal rate for Dynamic SPAD Selection (DSS)
+     * 
+     * @details Default value written to DSS_CONFIG__TARGET_TOTAL_RATE_MCPS register.
+     *          DSS automatically adjusts the number of active SPADs (Single Photon
+     *          Avalanche Diodes) to maintain this target signal rate under varying
+     *          lighting conditions and target distances.
+     *          
+     *          Value 0x0A00 in 9.7 fixed-point format represents:
+     *          0x0A00 >> 7 = 20 Mcps (mega counts per second)
+     * 
+     * @note Units: Mcps in 9.7 fixed-point format (value << 7)
+     * @note Higher values improve long-range performance but may increase noise
+     */
     static const uint16_t TargetRate = 0x0A00;
 
+    /**
+     * @brief Fast oscillator frequency measurement from sensor
+     * 
+     * @details Read from OSC_MEASURED__FAST_OSC__FREQUENCY register during initialization.
+     *          Used to calculate timing parameters and macro periods for ranging operations.
+     *          
+     *          Typical value: ~0x01C0 (448 in decimal), representing the oscillator
+     *          frequency in a device-specific format used for timing calculations.
+     * 
+     * @note Read once during init() and cached for subsequent timing calculations
+     */
     uint16_t fast_osc_frequency;
+    
+    /**
+     * @brief Oscillator calibration value from sensor
+     * 
+     * @details Read from RESULT__OSC_CALIBRATE_VAL register during initialization.
+     *          Factory-calibrated value specific to each sensor used in macro period
+     *          and timing budget calculations.
+     *          
+     *          This value compensates for manufacturing variations in the sensor's
+     *          internal oscillator.
+     * 
+     * @note Read once during init() and cached for subsequent timing calculations
+     */
     uint16_t osc_calibrate_val;
+    
+    /**
+     * @brief Accumulator for distance measurements during calibration
+     * 
+     * @details Running sum of distance measurements in millimeters used to calculate
+     *          average during the calibration period. Reset to 0 at start of calibration.
+     *          
+     *          Used in conjunction with `counter` to compute calibration offset.
+     * 
+     * @note Units: millimeters (accumulated sum)
+     * @see counter, calibrated
+     */
     uint32_t sum_mm;
+    
+    /**
+     * @brief Count of measurements taken during calibration period
+     * 
+     * @details Incremented for each valid measurement during calibration.
+     *          Once counter reaches threshold, calibration is complete and average
+     *          offset is computed as sum_mm / counter.
+     * 
+     * @note Reset to 0 at start of calibration
+     * @see sum_mm, calibrated
+     */
     uint32_t counter;
+    
+    /**
+     * @brief Calibration completion flag
+     * 
+     * @details Set to true once initial calibration period is complete.
+     *          
+     *          - false: Still collecting calibration samples
+     *          - true: Calibration complete, applying offset to measurements
+     *          
+     *          Calibration typically requires collecting measurements for a short
+     *          period to establish sensor-specific offset correction.
+     * 
+     * @note Initialized to false in init()
+     */
     bool calibrated;
 
+    /**
+     * @brief Read 8-bit value from sensor register
+     * 
+     * @details Performs I2C read transaction with 16-bit register address.
+     *          VL53L1X uses 16-bit register addressing requiring MSB-first addressing.
+     * 
+     * @param[in]  reg   16-bit register address to read from
+     * @param[out] value Reference to store the read 8-bit value
+     * 
+     * @return true if read successful, false on I2C communication error
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Blocking I2C operation - called from timer thread
+     */
     bool read_register(uint16_t reg, uint8_t &value) WARN_IF_UNUSED;
+    
+    /**
+     * @brief Read 16-bit value from sensor register
+     * 
+     * @details Reads two consecutive 8-bit registers and combines them into 16-bit value.
+     *          Data is read in big-endian format (MSB first, then LSB).
+     * 
+     * @param[in]  reg   16-bit register address to read from (MSB register)
+     * @param[out] value Reference to store the read 16-bit value
+     * 
+     * @return true if read successful, false on I2C communication error
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Automatically reads reg and reg+1 and combines them
+     */
     bool read_register16(uint16_t reg, uint16_t &value) WARN_IF_UNUSED;
+    
+    /**
+     * @brief Write 8-bit value to sensor register
+     * 
+     * @details Performs I2C write transaction with 16-bit register address.
+     * 
+     * @param[in] reg   16-bit register address to write to
+     * @param[in] value 8-bit value to write
+     * 
+     * @return true if write successful, false on I2C communication error
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Blocking I2C operation - called from timer thread
+     */
     bool write_register(uint16_t reg, uint8_t value) WARN_IF_UNUSED;
+    
+    /**
+     * @brief Write 16-bit value to sensor register
+     * 
+     * @details Writes 16-bit value as two consecutive 8-bit register writes.
+     *          Data is written in big-endian format (MSB first, then LSB).
+     * 
+     * @param[in] reg   16-bit register address to write to (MSB register)
+     * @param[in] value 16-bit value to write
+     * 
+     * @return true if write successful, false on I2C communication error
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Automatically writes to reg and reg+1
+     */
     bool write_register16(uint16_t reg, uint16_t value) WARN_IF_UNUSED;
+    
+    /**
+     * @brief Write 32-bit value to sensor register
+     * 
+     * @details Writes 32-bit value as four consecutive 8-bit register writes.
+     *          Data is written in big-endian format (MSB first through LSB last).
+     * 
+     * @param[in] reg   16-bit register address to write to (MSB register)
+     * @param[in] value 32-bit value to write
+     * 
+     * @return true if write successful, false on I2C communication error
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Automatically writes to reg, reg+1, reg+2, reg+3
+     */
     bool write_register32(uint16_t reg, uint32_t value) WARN_IF_UNUSED;
+    /**
+     * @brief Check if new measurement data is ready
+     * 
+     * @details Polls RESULT__INTERRUPT_STATUS register to check if a new ranging
+     *          measurement has completed and data is available to read.
+     *          
+     *          In continuous ranging mode, this indicates the sensor has completed
+     *          a ranging cycle and result registers contain fresh data.
+     * 
+     * @return true if new data is ready to read, false if no new data available
+     * 
+     * @note Non-blocking poll operation
+     * @note Does not clear the interrupt status - reading results will clear it
+     */
     bool dataReady(void);
+    
+    /**
+     * @brief Perform software reset of the sensor
+     * 
+     * @details Issues soft reset command via SOFT_RESET register, then waits for
+     *          sensor to complete reset and become ready for configuration.
+     *          
+     *          Reset sequence:
+     *          1. Write 0x00 to SOFT_RESET register (initiate reset)
+     *          2. Write 0x01 to SOFT_RESET register (release reset)
+     *          3. Wait for FIRMWARE__SYSTEM_STATUS to indicate ready
+     *          
+     *          After reset, all sensor registers return to default values and
+     *          sensor must be reconfigured before use.
+     * 
+     * @return true if reset successful, false if reset or ready check failed
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Blocking operation with timeout waiting for sensor ready status
+     * @note Called during init() to ensure known sensor state
+     */
     bool reset(void) WARN_IF_UNUSED;
+    
+    /**
+     * @brief Configure ranging distance mode
+     * 
+     * @details Sets the distance mode which affects maximum range, timing budget,
+     *          and measurement accuracy characteristics.
+     *          
+     *          Distance modes:
+     *          - Short: Up to 1.3m, better ambient immunity, faster measurements
+     *          - Medium: Up to 3m, balanced performance
+     *          - Long: Up to 4m, maximum range but longer timing budget required
+     *          
+     *          Each mode configures different VCSEL pulse periods and timing parameters
+     *          to optimize for the target range. Mode selection affects:
+     *          - RANGE_CONFIG__VCSEL_PERIOD_A/B registers
+     *          - Timeout and timing budget calculations
+     *          - Sigma (noise) threshold values
+     * 
+     * @param[in] distance_mode The desired distance mode (Short, Medium, or Long)
+     * 
+     * @return true if mode set successfully, false on register write failure
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Should be called during init() before starting continuous ranging
+     * @note Changing mode during operation may cause measurement glitches
+     */
     bool setDistanceMode(DistanceMode distance_mode) WARN_IF_UNUSED;
+    /**
+     * @brief Set measurement timing budget
+     * 
+     * @details Configures the maximum time allowed for a single ranging measurement.
+     *          Longer timing budgets allow more signal averaging and improve accuracy
+     *          and maximum range, but reduce update rate.
+     *          
+     *          The timing budget is allocated across multiple ranging phases:
+     *          - Phase A (initial range): MM_CONFIG__TIMEOUT_MACROP_A
+     *          - Phase B (final range): RANGE_CONFIG__TIMEOUT_MACROP_A/B
+     *          - Overhead: TimingGuard (VHV calibration, ranging overhead)
+     *          
+     *          Valid range: Depends on distance mode
+     *          - Minimum: ~20ms (required overhead + minimal ranging time)
+     *          - Maximum: Limited by uint32_t timeout register values
+     *          
+     *          Timing budget affects measurement quality vs speed tradeoff.
+     * 
+     * @param[in] budget_us Desired timing budget in microseconds
+     * 
+     * @return true if timing budget set successfully, false on invalid budget or register write failure
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Must be called after setDistanceMode() as budget calculations depend on mode
+     * @note Actual budget may be slightly adjusted to match hardware constraints
+     * @see TimingGuard, getMeasurementTimingBudget()
+     */
     bool setMeasurementTimingBudget(uint32_t budget_us) WARN_IF_UNUSED;
+    
+    /**
+     * @brief Get current measurement timing budget
+     * 
+     * @details Reads current timing budget configuration from sensor registers and
+     *          calculates total timing budget including all ranging phases and overhead.
+     *          
+     *          Reads timeout values from:
+     *          - MM_CONFIG__TIMEOUT_MACROP_A/B (pre-range phase)
+     *          - RANGE_CONFIG__TIMEOUT_MACROP_A/B (final range phase)
+     *          
+     *          Then adds TimingGuard overhead to compute total budget.
+     * 
+     * @param[out] budget Reference to store calculated timing budget in microseconds
+     * 
+     * @return true if budget read successfully, false on register read failure
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Useful for verifying timing budget after setMeasurementTimingBudget()
+     * @see setMeasurementTimingBudget(), TimingGuard
+     */
     bool getMeasurementTimingBudget(uint32_t &budget) WARN_IF_UNUSED;
+    
+    /**
+     * @brief Start continuous ranging mode with specified intermeasurement period
+     * 
+     * @details Configures sensor for continuous autonomous ranging with specified
+     *          time between measurements. Sensor will continuously perform ranging
+     *          cycles at the specified interval.
+     *          
+     *          Configuration steps:
+     *          1. Set intermeasurement period (SYSTEM__INTERMEASUREMENT_PERIOD)
+     *          2. Configure ranging mode and sequences
+     *          3. Start autonomous ranging mode (SYSTEM__MODE_START)
+     *          
+     *          The intermeasurement period must be >= measurement timing budget.
+     *          If period < budget, measurements will run back-to-back with no gap.
+     *          If period > budget, sensor idles between measurements to save power.
+     * 
+     * @param[in] period_ms Time between measurement starts in milliseconds
+     * 
+     * @return true if continuous mode started successfully, false on configuration failure
+     * 
+     * @note WARN_IF_UNUSED: Compiler will warn if return value is not checked
+     * @note Must be called after setDistanceMode() and setMeasurementTimingBudget()
+     * @note Sensor will continue ranging until reset or power cycled
+     * @note New data available at approximately period_ms intervals (check with dataReady())
+     */
     bool startContinuous(uint32_t period_ms) WARN_IF_UNUSED;
+    /**
+     * @brief Decode timeout value from register format to macro clocks
+     * 
+     * @details VL53L1X timeout registers use a compressed format to represent large
+     *          timeout values in 16 bits. This function decodes the register value
+     *          into actual macro clock counts.
+     *          
+     *          Register format: [15:0] = timeout_encoded
+     *          - Bits [7:0]: LSB (mantissa-like value)
+     *          - Bits [15:8]: MSB (exponent-like value)
+     *          
+     *          Decoding formula per ST API:
+     *          timeout_mclks = (LSB + 1) * 2^MSB
+     *          
+     *          This allows representing timeouts from ~1 to ~16,777,216 macro clocks.
+     * 
+     * @param[in] reg_val 16-bit encoded timeout value from register
+     * 
+     * @return Decoded timeout value in macro clock cycles
+     * 
+     * @note Macro clocks are timing units specific to the sensor's ranging core
+     * @see encodeTimeout(), timeoutMclksToMicroseconds()
+     */
     uint32_t decodeTimeout(uint16_t reg_val);
+    
+    /**
+     * @brief Encode timeout value from macro clocks to register format
+     * 
+     * @details Converts timeout in macro clock cycles to the compressed 16-bit
+     *          register format used by VL53L1X timeout registers.
+     *          
+     *          Encoding process finds MSB (exponent) and LSB (mantissa) such that:
+     *          timeout_mclks ≈ (LSB + 1) * 2^MSB
+     *          
+     *          The algorithm finds the smallest MSB where:
+     *          timeout_mclks / 2^MSB fits in LSB field (≤ 255)
+     *          
+     *          Some precision may be lost for values that don't exactly match the
+     *          compressed format.
+     * 
+     * @param[in] timeout_mclks Timeout value in macro clock cycles
+     * 
+     * @return 16-bit encoded timeout value suitable for writing to timeout registers
+     * 
+     * @note Inverse operation of decodeTimeout()
+     * @see decodeTimeout(), timeoutMicrosecondsToMclks()
+     */
     uint16_t encodeTimeout(uint32_t timeout_mclks);
+    
+    /**
+     * @brief Convert timeout from macro clocks to microseconds
+     * 
+     * @details Converts sensor-specific macro clock timing units to real-world
+     *          microseconds based on the current macro period (which depends on
+     *          VCSEL pulse period and oscillator frequency).
+     *          
+     *          Conversion formula:
+     *          timeout_us = timeout_mclks * macro_period_us
+     *          
+     *          The macro period represents the duration of one macro clock cycle
+     *          in microseconds, calculated from the sensor's oscillator frequency
+     *          and VCSEL configuration.
+     * 
+     * @param[in] timeout_mclks Timeout value in macro clock cycles
+     * @param[in] macro_period_us Duration of one macro clock cycle in microseconds
+     * 
+     * @return Timeout value in microseconds
+     * 
+     * @note macro_period_us should be calculated using calcMacroPeriod()
+     * @see timeoutMicrosecondsToMclks(), calcMacroPeriod()
+     */
     uint32_t timeoutMclksToMicroseconds(uint32_t timeout_mclks, uint32_t macro_period_us);
+    
+    /**
+     * @brief Convert timeout from microseconds to macro clocks
+     * 
+     * @details Converts real-world microseconds to sensor-specific macro clock
+     *          timing units for writing to timeout registers.
+     *          
+     *          Conversion formula:
+     *          timeout_mclks = timeout_us / macro_period_us
+     *          
+     *          This is the inverse operation of timeoutMclksToMicroseconds().
+     * 
+     * @param[in] timeout_us Timeout value in microseconds
+     * @param[in] macro_period_us Duration of one macro clock cycle in microseconds
+     * 
+     * @return Timeout value in macro clock cycles
+     * 
+     * @note Result may be rounded if timeout_us is not an exact multiple of macro_period_us
+     * @note macro_period_us should be calculated using calcMacroPeriod()
+     * @see timeoutMclksToMicroseconds(), calcMacroPeriod()
+     */
     uint32_t timeoutMicrosecondsToMclks(uint32_t timeout_us, uint32_t macro_period_us);
+    
+    /**
+     * @brief Calculate macro period from VCSEL pulse period
+     * 
+     * @details Computes the duration of one macro clock cycle in microseconds based
+     *          on the VCSEL (Vertical Cavity Surface Emitting Laser) pulse period
+     *          and sensor oscillator calibration values.
+     *          
+     *          The macro period determines the timing resolution for ranging operations
+     *          and is used to convert between macro clock cycles and real-world time.
+     *          
+     *          Calculation per ST API:
+     *          macro_period_us = (2304 * vcsel_period * osc_calibrate_val) / fast_osc_frequency
+     *          
+     *          Where:
+     *          - 2304 is a hardware-specific constant
+     *          - vcsel_period is typically 10, 12, 14, or 18 (from VCSEL period registers)
+     *          - osc_calibrate_val and fast_osc_frequency are read during init()
+     * 
+     * @param[in] vcsel_period VCSEL pulse period value from sensor configuration
+     * 
+     * @return Macro period duration in microseconds
+     * 
+     * @note Uses cached osc_calibrate_val and fast_osc_frequency values
+     * @note VCSEL period affects ranging performance (longer = better signal, longer timing)
+     * @see timeoutMclksToMicroseconds(), timeoutMicrosecondsToMclks()
+     */
     uint32_t calcMacroPeriod(uint8_t vcsel_period) const;
+    
+    /**
+     * @brief Setup manual calibration mode
+     * 
+     * @details Configures sensor for manual calibration to establish offset correction.
+     *          Manual calibration allows the driver to collect measurements at a known
+     *          distance and compute an offset to correct for sensor-specific biases.
+     *          
+     *          This function prepares the sensor hardware for calibration by:
+     *          - Disabling automatic calibration features
+     *          - Configuring measurement parameters for calibration
+     *          - Initializing calibration state variables (sum_mm, counter, calibrated)
+     *          
+     *          After calling this function, the driver collects multiple measurements
+     *          in timer() callback, accumulates them, and computes average offset.
+     * 
+     * @return true if calibration setup successful, false on configuration error
+     * 
+     * @note Called during init() or when recalibration is needed
+     * @note Sensor should be aimed at a known target distance during calibration
+     * @note Calibration improves absolute accuracy but is not required for operation
+     * @see sum_mm, counter, calibrated
+     */
     bool setupManualCalibration(void);
 };
 

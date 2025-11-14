@@ -11,28 +11,28 @@
 #include <AP_HAL/utility/Socket.h>
 
 const AP_Param::GroupInfo AP_Networking_IPV4::var_info[] = {
-    // @Param: 0
+    // `@Param`: 0
     // @DisplayName: IPv4 Address 1st byte
     // @Description: IPv4 address. Example: 192.xxx.xxx.xxx
     // @Range: 0 255
     // @RebootRequired: True
     AP_GROUPINFO("0", 1,  AP_Networking_IPV4, addr[0], 0),
 
-    // @Param: 1
+    // `@Param`: 1
     // @DisplayName: IPv4 Address 2nd byte
     // @Description: IPv4 address. Example: xxx.168.xxx.xxx
     // @Range: 0 255
     // @RebootRequired: True
     AP_GROUPINFO("1", 2,  AP_Networking_IPV4, addr[1], 0),
 
-    // @Param: 2
+    // `@Param`: 2
     // @DisplayName: IPv4 Address 3rd byte
     // @Description: IPv4 address. Example: xxx.xxx.144.xxx
     // @Range: 0 255
     // @RebootRequired: True
     AP_GROUPINFO("2", 3,  AP_Networking_IPV4, addr[2], 0),
 
-    // @Param: 3
+    // `@Param`: 3
     // @DisplayName: IPv4 Address 4th byte
     // @Description: IPv4 address. Example: xxx.xxx.xxx.14
     // @Range: 0 255

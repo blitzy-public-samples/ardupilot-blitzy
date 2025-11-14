@@ -36,14 +36,14 @@ extern const AP_HAL::HAL& hal;
 #endif  // defined(MAV_SYSID_DEFAULT)
 
 const AP_Param::GroupInfo GCS::var_info[] {
-    // @Param: _SYSID
+    // `@Param`: _SYSID
     // @DisplayName: MAVLink system ID of this vehicle
     // @Description: Allows setting an individual MAVLink system id for this vehicle to distinguish it from others on the same network
     // @Range: 1 255
     // @User: Advanced
     AP_GROUPINFO("_SYSID",    1,     GCS,  sysid,  MAV_SYSID_DEFAULT),
 
-    // @Param: _GCS_SYSID
+    // `@Param`: _GCS_SYSID
     // @DisplayName: My ground station number
     // @Description: This controls whether packets from other than the expected GCS system ID will be accepted
     // @Range: 1 255
@@ -51,14 +51,14 @@ const AP_Param::GroupInfo GCS::var_info[] {
     // @User: Advanced
     AP_GROUPINFO("_GCS_SYSID",    2,      GCS, mav_gcs_sysid, 255),
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: MAVLink Options
     // @Description: Alters various behaviour of the MAVLink interface
     // @Bitmask: 0:Accept MAVLink only from SYSID_GCS
     // @User: Advanced
     AP_GROUPINFO("_OPTIONS",    3,      GCS, mav_options, 0),
 
-    // @Param: _TELEM_DELAY
+    // `@Param`: _TELEM_DELAY
     // @DisplayName: Telemetry startup delay
     // @Description: The amount of time (in seconds) to delay radio telemetry to prevent an Xbee bricking on power up
     // @User: Advanced
@@ -218,7 +218,7 @@ void GCS::send_named_float(const char *name, float value) const
                                   (const char *)&packet);
 
 #if HAL_LOGGING_ENABLED
-// @LoggerMessage: NVF
+// `@LoggerMessage`: NVF
 // @Description: Named Value Float messages; messages sent to GCS via NAMED_VALUE_FLOAT
 // @Field: TimeUS: Time since system startup
 // @Field: Name: Name of float

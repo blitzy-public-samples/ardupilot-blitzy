@@ -59,31 +59,9 @@ void AP_RCProtocol_DSM::process_pulse(uint32_t width_s0, uint32_t width_s1)
     }
 }
 
-/**
- * Attempt to decode a single channel raw channel datum
- *
- * The DSM* protocol doesn't provide any explicit framing,
- * so we detect dsm frame boundaries by the inter-dsm frame delay.
- *
- * The minimum dsm frame spacing is 11ms; with 16 bytes at 115200bps
- * dsm frame transmission time is ~1.4ms.
- *
- * We expect to only be called when bytes arrive for processing,
- * and if an interval of more than 5ms passes between calls,
- * the first byte we read will be the first byte of a dsm frame.
- *
- * In the case where byte(s) are dropped from a dsm frame, this also
- * provides a degree of protection. Of course, it would be better
- * if we didn't drop bytes...
- *
- * Upon receiving a full dsm frame we attempt to decode it
- *
- * @param[in] raw 16 bit raw channel value from dsm frame
- * @param[in] shift position of channel number in raw data
- * @param[out] channel pointer to returned channel number
- * @param[out] value pointer to returned channel value
- * @return true=raw value successfully decoded
- */
+// Implementation note: The DSM* protocol doesn't provide explicit framing,
+// so we detect dsm frame boundaries by the inter-dsm frame delay.
+// See header file for full documentation.
 bool AP_RCProtocol_DSM::dsm_decode_channel(uint16_t raw, unsigned shift, unsigned *channel, unsigned *value)
 {
 
@@ -101,11 +79,7 @@ bool AP_RCProtocol_DSM::dsm_decode_channel(uint16_t raw, unsigned shift, unsigne
     return true;
 }
 
-/**
- * Attempt to guess if receiving 10 or 11 bit channel values
- *
- * @param[in] reset true=reset the 10/11 bit state to unknown
- */
+// Implementation of format detection. See header file for full documentation.
 void AP_RCProtocol_DSM::dsm_guess_format(bool reset, const uint8_t dsm_frame[16], unsigned frame_channels)
 {
     /* reset the 10/11 bit sniffed channel masks */

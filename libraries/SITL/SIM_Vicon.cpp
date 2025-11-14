@@ -29,21 +29,21 @@ extern const AP_HAL::HAL& hal;
 using namespace SITL;
 
 const AP_Param::GroupInfo SIM::ViconParms::var_info[] = {
-    // @Param: POS_X
+    // `@Param`: POS_X
     // @DisplayName: SITL vicon position on vehicle in Forward direction
     // @Description: SITL vicon position on vehicle in Forward direction
     // @Units: m
     // @Range: 0 10
     // @User: Advanced
 
-    // @Param: POS_Y
+    // `@Param`: POS_Y
     // @DisplayName: SITL vicon position on vehicle in Right direction
     // @Description: SITL vicon position on vehicle in Right direction
     // @Units: m
     // @Range: 0 10
     // @User: Advanced
 
-    // @Param: POS_Z
+    // `@Param`: POS_Z
     // @DisplayName: SITL vicon position on vehicle in Down direction
     // @Description: SITL vicon position on vehicle in Down direction
     // @Units: m
@@ -51,33 +51,33 @@ const AP_Param::GroupInfo SIM::ViconParms::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("POS",     1, ViconParms,  pos_offset, 0),
 
-    // @Param: GLIT_X
+    // `@Param`: GLIT_X
     // @DisplayName: SITL vicon position glitch North
     // @Description: SITL vicon position glitch North
     // @Units: m
     // @User: Advanced
 
-    // @Param: GLIT_Y
+    // `@Param`: GLIT_Y
     // @DisplayName: SITL vicon position glitch East
     // @Description: SITL vicon position glitch East
     // @Units: m
     // @User: Advanced
 
-    // @Param: GLIT_Z
+    // `@Param`: GLIT_Z
     // @DisplayName: SITL vicon position glitch Down
     // @Description: SITL vicon position glitch Down
     // @Units: m
     // @User: Advanced
     AP_GROUPINFO("GLIT",    2, ViconParms,  glitch, 0),
 
-    // @Param: FAIL
+    // `@Param`: FAIL
     // @DisplayName: SITL vicon failure
     // @Description: SITL vicon failure
     // @Values: 0:Vicon Healthy, 1:Vicon Failed
     // @User: Advanced
     AP_GROUPINFO("FAIL",    3, ViconParms,  fail, 0),
 
-    // @Param: YAW
+    // `@Param`: YAW
     // @DisplayName: SITL vicon yaw angle in earth frame
     // @Description: SITL vicon yaw angle in earth frame
     // @Units: deg
@@ -85,7 +85,7 @@ const AP_Param::GroupInfo SIM::ViconParms::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("YAW",     4, ViconParms,  yaw, 0),
 
-    // @Param: YAWERR
+    // `@Param`: YAWERR
     // @DisplayName: SITL vicon yaw error
     // @Description: SITL vicon yaw added to reported yaw sent to vehicle
     // @Units: deg
@@ -93,47 +93,47 @@ const AP_Param::GroupInfo SIM::ViconParms::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("YAWERR",  5, ViconParms,  yaw_error, 0),
 
-    // @Param: TMASK
+    // `@Param`: TMASK
     // @DisplayName: SITL vicon type mask
     // @Description: SITL vicon messages sent
     // @Bitmask: 0:VISION_POSITION_ESTIMATE, 1:VISION_SPEED_ESTIMATE, 2:VICON_POSITION_ESTIMATE, 3:VISION_POSITION_DELTA, 4:ODOMETRY
     // @User: Advanced
     AP_GROUPINFO("TMASK",   6, ViconParms,  type_mask, 3),
 
-    // @Param: VGLI_X
+    // `@Param`: VGLI_X
     // @DisplayName: SITL vicon velocity glitch North
     // @Description: SITL vicon velocity glitch North
     // @Units: m/s
     // @User: Advanced
 
-    // @Param: VGLI_Y
+    // `@Param`: VGLI_Y
     // @DisplayName: SITL vicon velocity glitch East
     // @Description: SITL vicon velocity glitch East
     // @Units: m/s
     // @User: Advanced
 
-    // @Param: VGLI_Z
+    // `@Param`: VGLI_Z
     // @DisplayName: SITL vicon velocity glitch Down
     // @Description: SITL vicon velocity glitch Down
     // @Units: m/s
     // @User: Advanced
     AP_GROUPINFO("VGLI",    7, ViconParms,  vel_glitch, 0),
 
-    // @Param: P_SD
+    // `@Param`: P_SD
     // @DisplayName: SITL vicon position standard deviation for gaussian noise
     // @Description: SITL vicon position standard deviation for gaussian noise
     // @Units: m
     // @User: Advanced
     AP_GROUPINFO("P_SD",  8, ViconParms,  pos_stddev, 0.0f),
 
-    // @Param: V_SD
+    // `@Param`: V_SD
     // @DisplayName: SITL vicon velocity standard deviation for gaussian noise
     // @Description: SITL vicon velocity standard deviation for gaussian noise
     // @Units: m/s
     // @User: Advanced
     AP_GROUPINFO("V_SD",  9, ViconParms,  vel_stddev, 0.0f),
 
-    // @Param: RATE
+    // `@Param`: RATE
     // @DisplayName: SITL vicon rate
     // @Description: SITL vicon rate
     // @Units: Hz

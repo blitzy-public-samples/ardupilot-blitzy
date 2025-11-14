@@ -43,7 +43,7 @@
 
 const AP_Param::GroupInfo AP_OSD::var_info[] = {
 
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: OSD type
     // @Description: OSD type. TXONLY makes the OSD parameter selection available to other modules even if there is no native OSD support on the board, for instance CRSF.
     // @Values: 0:None,1:MAX7456,2:SITL,3:MSP,4:TXONLY,5:MSP_DISPLAYPORT
@@ -52,7 +52,7 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     AP_GROUPINFO_FLAGS("_TYPE", 1, AP_OSD, osd_type, 0, AP_PARAM_FLAG_ENABLE),
 
 #if OSD_ENABLED
-    // @Param: _CHAN
+    // `@Param`: _CHAN
     // @DisplayName: Screen switch transmitter channel
     // @Description: This sets the channel used to switch different OSD screens.
     // @Values: 0:Disable,5:Chan5,6:Chan6,7:Chan7,8:Chan8,9:Chan9,10:Chan10,11:Chan11,12:Chan12,13:Chan13,14:Chan14,15:Chan15,16:Chan16
@@ -75,28 +75,28 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     // @Path: AP_OSD_Screen.cpp
     AP_SUBGROUPINFO(screen[3], "4_", 6, AP_OSD, AP_OSD_Screen),
 
-    // @Param: _SW_METHOD
+    // `@Param`: _SW_METHOD
     // @DisplayName: Screen switch method
     // @Description: This sets the method used to switch different OSD screens.
     // @Values: 0: switch to next screen if channel value was changed, 1: select screen based on pwm ranges specified for each screen, 2: switch to next screen after low to high transition and every 1s while channel value is high
     // @User: Standard
     AP_GROUPINFO("_SW_METHOD", 7, AP_OSD, sw_method, AP_OSD::TOGGLE),
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: OSD Options
     // @Description: This sets options that change the display
     // @Bitmask: 0:UseDecimalPack, 1:InvertedWindArrow, 2:InvertedAHRoll, 3:Convert feet to miles at 5280ft instead of 10000ft, 4:DisableCrosshair, 5:TranslateArrows, 6:AviationStyleAH, 7:Prefix LQ with RF Mode
     // @User: Standard
     AP_GROUPINFO("_OPTIONS", 8, AP_OSD, options, OPTION_DECIMAL_PACK),
 
-    // @Param: _FONT
+    // `@Param`: _FONT
     // @DisplayName: OSD Font
     // @Description: This sets which OSD font to use. It is an integer from 0 to the number of fonts available
     // @User: Standard
     // @RebootRequired: True
     AP_GROUPINFO("_FONT", 9, AP_OSD, font_num, 0),
 
-    // @Param: _V_OFFSET
+    // `@Param`: _V_OFFSET
     // @DisplayName: OSD vertical offset
     // @Description: Sets vertical offset of the osd inside image
     // @Range: 0 31
@@ -104,7 +104,7 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("_V_OFFSET", 10, AP_OSD, v_offset, 16),
 
-    // @Param: _H_OFFSET
+    // `@Param`: _H_OFFSET
     // @DisplayName: OSD horizontal offset
     // @Description: Sets horizontal offset of the osd inside image
     // @Range: 0 63
@@ -112,56 +112,56 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("_H_OFFSET", 11, AP_OSD, h_offset, 32),
 
-    // @Param: _W_RSSI
+    // `@Param`: _W_RSSI
     // @DisplayName: RSSI warn level (in %)
     // @Description: Set level at which RSSI item will flash (in positive % or negative dBm values as applicable). 30% or -100dBm are defaults.
     // @Range: -128 100
     // @User: Standard
     AP_GROUPINFO("_W_RSSI", 12, AP_OSD, warn_rssi, AP_OSD_WARN_RSSI_DEFAULT),
 
-    // @Param: _W_NSAT
+    // `@Param`: _W_NSAT
     // @DisplayName: NSAT warn level
     // @Description: Set level at which NSAT item will flash
     // @Range: 1 30
     // @User: Standard
     AP_GROUPINFO("_W_NSAT", 13, AP_OSD, warn_nsat, 9),
 
-    // @Param: _W_BATVOLT
+    // `@Param`: _W_BATVOLT
     // @DisplayName: BAT_VOLT warn level
     // @Description: Set level at which BAT_VOLT item will flash
     // @Range: 0 100
     // @User: Standard
     AP_GROUPINFO("_W_BATVOLT", 14, AP_OSD, warn_batvolt, 10.0f),
 
-    // @Param: _UNITS
+    // `@Param`: _UNITS
     // @DisplayName: Display Units
     // @Description: Sets the units to use in displaying items
     // @Values: 0:Metric,1:Imperial,2:SI,3:Aviation
     // @User: Standard
     AP_GROUPINFO("_UNITS", 15, AP_OSD, units, 0),
 
-    // @Param: _MSG_TIME
+    // `@Param`: _MSG_TIME
     // @DisplayName: Message display duration in seconds
     // @Description: Sets message duration seconds
     // @Range: 1 20
     // @User: Standard
     AP_GROUPINFO("_MSG_TIME", 16, AP_OSD, msgtime_s, 10),
 
-    // @Param: _ARM_SCR
+    // `@Param`: _ARM_SCR
     // @DisplayName: Arm screen
     // @Description: Screen to be shown on Arm event. Zero to disable the feature.
     // @Range: 0 4
     // @User: Standard
     AP_GROUPINFO("_ARM_SCR", 17, AP_OSD, arm_scr, 0),
 
-    // @Param: _DSARM_SCR
+    // `@Param`: _DSARM_SCR
     // @DisplayName: Disarm screen
     // @Description: Screen to be shown on disarm event. Zero to disable the feature.
     // @Range: 0 4
     // @User: Standard
     AP_GROUPINFO("_DSARM_SCR", 18, AP_OSD, disarm_scr, 0),
 
-    // @Param: _FS_SCR
+    // `@Param`: _FS_SCR
     // @DisplayName: Failsafe screen
     // @Description: Screen to be shown on failsafe event. Zero to disable the feature.
     // @Range: 0 4
@@ -169,7 +169,7 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     AP_GROUPINFO("_FS_SCR", 19, AP_OSD, failsafe_scr, 0),
 
 #if OSD_PARAM_ENABLED
-    // @Param: _BTN_DELAY
+    // `@Param`: _BTN_DELAY
     // @DisplayName: Button delay
     // @Description: Debounce time in ms for stick commanded parameter navigation.
     // @Range: 0 3000
@@ -177,7 +177,7 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     AP_GROUPINFO("_BTN_DELAY", 20, AP_OSD, button_delay_ms, 300),
 #endif
 #if AP_TERRAIN_AVAILABLE
-    // @Param: _W_TERR
+    // `@Param`: _W_TERR
     // @DisplayName: Terrain warn level
     // @Description: Set level below which TER_HGT item will flash. -1 disables.
     // @Range: -1 3000
@@ -186,28 +186,28 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     AP_GROUPINFO("_W_TERR", 23, AP_OSD, warn_terr, -1),
 #endif
 
-    // @Param: _W_AVGCELLV
+    // `@Param`: _W_AVGCELLV
     // @DisplayName: AVGCELLV warn level
     // @Description: Set level at which AVGCELLV item will flash
     // @Range: 0 100
     // @User: Standard
     AP_GROUPINFO("_W_AVGCELLV", 24, AP_OSD, warn_avgcellvolt, 3.6f),
 
-   // @Param: _CELL_COUNT
+   // `@Param`: _CELL_COUNT
     // @DisplayName: Battery cell count
     // @Description: Used for average cell voltage display. -1 disables, 0 uses cell count autodetection for well charged LIPO/LIION batteries at connection, other values manually select cell count used.
     // @Increment: 1
     // @User: Advanced
     AP_GROUPINFO("_CELL_COUNT", 25, AP_OSD, cell_count, -1),
 
-    // @Param: _W_RESTVOLT
+    // `@Param`: _W_RESTVOLT
     // @DisplayName: RESTVOLT warn level
     // @Description: Set level at which RESTVOLT item will flash
     // @Range: 0 100
     // @User: Standard
     AP_GROUPINFO("_W_RESTVOLT", 26, AP_OSD, warn_restvolt, 10.0f),
        
-    // @Param: _W_ACRVOLT
+    // `@Param`: _W_ACRVOLT
     // @DisplayName: Avg Cell Resting Volt warn level
     // @Description: Set level at which ACRVOLT item will flash
     // @Range: 0 100
@@ -215,14 +215,14 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     AP_GROUPINFO("_W_ACRVOLT", 31, AP_OSD, warn_avgcellrestvolt, 3.6f),
 
 #if AP_OSD_EXTENDED_LNK_STATS
-    // @Param: _W_LQ
+    // `@Param`: _W_LQ
     // @DisplayName: RC link quality warn level (in %)
     // @Description: Set level at which RC_LQ item will flash (%)
     // @Range: 0 100
     // @User: Standard
     AP_GROUPINFO("_W_LQ", 33, AP_OSD, warn_lq, 50),
 
-    // @Param: _W_SNR
+    // `@Param`: _W_SNR
     // @DisplayName: RC link SNR warn level (in %)
     // @Description: Set level at which RC_SNR item will flash (in db)
     // @Range: -20 10
@@ -231,14 +231,14 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
 #endif
 
 #if HAL_OSD_SIDEBAR_ENABLE
-    // @Param: _SB_H_OFS
+    // `@Param`: _SB_H_OFS
     // @DisplayName: Sidebar horizontal offset
     // @Description: Extends the spacing between the sidebar elements by this amount of columns. Positive values increases the width to the right of the screen.
     // @Range: 0 20
     // @User: Standard
     AP_GROUPINFO("_SB_H_OFS", 35, AP_OSD, sidebar_h_offset, 0),
 
-    // @Param: _SB_V_EXT
+    // `@Param`: _SB_V_EXT
     // @DisplayName: Sidebar vertical extension
     // @Description: Increase of vertical length of the sidebar itens by this amount of lines. Applied equally both above and below the default setting.
     // @Range: 0 10
@@ -265,7 +265,7 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     AP_SUBGROUPINFO2(screen[3], "4_", 30, AP_OSD, AP_OSD_Screen),
 #endif
 
-    // @Param: _TYPE2
+    // `@Param`: _TYPE2
     // @DisplayName: OSD type 2
     // @Description: OSD type 2. TXONLY makes the OSD parameter selection available to other modules even if there is no native OSD support on the board, for instance CRSF.
     // @Values: 0:None,1:MAX7456,2:SITL,3:MSP,4:TXONLY,5:MSP_DISPLAYPORT

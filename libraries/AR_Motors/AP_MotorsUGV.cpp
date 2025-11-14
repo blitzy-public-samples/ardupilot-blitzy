@@ -27,7 +27,7 @@ AP_MotorsUGV *AP_MotorsUGV::_singleton;
 
 // parameters for the motor class
 const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
-    // @Param: PWM_TYPE
+    // `@Param`: PWM_TYPE
     // @DisplayName: Motor Output PWM type
     // @Description: This selects the output PWM type as regular PWM, OneShot, Brushed motor support using PWM (duty cycle) with separated direction signal, Brushed motor support with separate throttle and direction PWM (duty cycle)
     // @Values: 0:Normal,1:OneShot,2:OneShot125,3:BrushedWithRelay,4:BrushedBiPolar,5:DShot150,6:DShot300,7:DShot600,8:DShot1200
@@ -35,7 +35,7 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("PWM_TYPE", 1, AP_MotorsUGV, _pwm_type, PWMType::NORMAL),
 
-    // @Param: PWM_FREQ
+    // `@Param`: PWM_FREQ
     // @DisplayName: Motor Output PWM freq for brushed motors
     // @Description: Motor Output PWM freq for brushed motors
     // @Units: kHz
@@ -45,14 +45,14 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("PWM_FREQ", 2, AP_MotorsUGV, _pwm_freq, 16),
 
-    // @Param: SAFE_DISARM
+    // `@Param`: SAFE_DISARM
     // @DisplayName: Motor PWM output disabled when disarmed
     // @Description: Disables motor PWM output when disarmed
     // @Values: 0:PWM enabled while disarmed, 1:PWM disabled while disarmed
     // @User: Advanced
     AP_GROUPINFO("SAFE_DISARM", 3, AP_MotorsUGV, _disarm_disable_pwm, 0),
 
-    // @Param: THR_MIN
+    // `@Param`: THR_MIN
     // @DisplayName: Throttle minimum
     // @Description: Throttle minimum percentage the autopilot will apply. This is useful for handling a deadzone around low throttle and for preventing internal combustion motors cutting out during missions.
     // @Units: %
@@ -61,7 +61,7 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("THR_MIN", 5, AP_MotorsUGV, _throttle_min, 0),
 
-    // @Param: THR_MAX
+    // `@Param`: THR_MAX
     // @DisplayName: Throttle maximum
     // @Description: Throttle maximum percentage the autopilot will apply. This can be used to prevent overheating an ESC or motor on an electric rover
     // @Units: %
@@ -70,7 +70,7 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("THR_MAX", 6, AP_MotorsUGV, _throttle_max, 100),
 
-    // @Param: SLEWRATE
+    // `@Param`: SLEWRATE
     // @DisplayName: Throttle slew rate
     // @Description: Throttle slew rate as a percentage of total range per second. A value of 100 allows the motor to change over its full range in one second.  A value of zero disables the limit.  Note some NiMH powered rovers require a lower setting of 40 to reduce current demand to avoid brownouts.
     // @Units: %/s
@@ -79,7 +79,7 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SLEWRATE", 8, AP_MotorsUGV, _slew_rate, 100),
 
-    // @Param: THST_EXPO
+    // `@Param`: THST_EXPO
     // @DisplayName: Thrust Curve Expo
     // @Description: Thrust curve exponent (-1 to +1 with 0 being linear)
     // @Range: -1.0 1.0
@@ -88,7 +88,7 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
 
     // 10 was VEC_THR_BASE
 
-    // @Param: SPD_SCA_BASE
+    // `@Param`: SPD_SCA_BASE
     // @DisplayName: Motor speed scaling base speed
     // @Description: Speed above which steering is scaled down when using regular steering/throttle vehicles.  zero to disable speed scaling
     // @Units: m/s
@@ -96,14 +96,14 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SPD_SCA_BASE", 11, AP_MotorsUGV, _speed_scale_base, 1.0f),
 
-    // @Param: STR_THR_MIX
+    // `@Param`: STR_THR_MIX
     // @DisplayName: Motor steering vs throttle prioritisation
     // @Description: Steering vs Throttle priorisation.  Higher numbers prioritise steering, lower numbers prioritise throttle.  Only valid for Skid Steering vehicles
     // @Range: 0.2 1.0
     // @User: Advanced
     AP_GROUPINFO("STR_THR_MIX", 12, AP_MotorsUGV, _steering_throttle_mix, 0.5f),
 
-    // @Param: VEC_ANGLEMAX
+    // `@Param`: VEC_ANGLEMAX
     // @DisplayName: Vector thrust angle max
     // @Description: The angle between steering's middle position and maximum position when using vectored thrust (boats only)
     // @Units: deg
@@ -111,14 +111,14 @@ const AP_Param::GroupInfo AP_MotorsUGV::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("VEC_ANGLEMAX", 13, AP_MotorsUGV, _vector_angle_max, 0.0f),
 
-    // @Param: THST_ASYM
+    // `@Param`: THST_ASYM
     // @DisplayName: Motor Thrust Asymmetry
     // @Description: Thrust Asymmetry. Used for skid-steering. 2.0 means your motors move twice as fast forward than they do backwards.
     // @Range: 1.0 10.0
     // @User: Advanced
     AP_GROUPINFO("THST_ASYM", 14, AP_MotorsUGV, _thrust_asymmetry, 1.0f),
 
-    // @Param: REV_DELAY
+    // `@Param`: REV_DELAY
     // @DisplayName: Motor reversal delay
     // @Description: For reversible motors that need a delay before they can change direction. When greater than zero the throttle will go to zero for this amount of time before outputting the new throttle when the demanded motor direction changes.
     // @Units: s

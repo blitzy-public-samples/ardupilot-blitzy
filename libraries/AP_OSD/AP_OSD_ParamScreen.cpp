@@ -37,21 +37,21 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_OSD_ParamScreen::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable screen
     // @Description: Enable this screen
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLE", 1, AP_OSD_ParamScreen, enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: CHAN_MIN
+    // `@Param`: CHAN_MIN
     // @DisplayName: Transmitter switch screen minimum pwm
     // @Description: This sets the PWM lower limit for this screen
     // @Range: 900 2100
     // @User: Standard
     AP_GROUPINFO("CHAN_MIN", 2, AP_OSD_ParamScreen, channel_min, 900),
 
-    // @Param: CHAN_MAX
+    // `@Param`: CHAN_MAX
     // @DisplayName: Transmitter switch screen maximum pwm
     // @Description: This sets the PWM upper limit for this screen
     // @Range: 900 2100
@@ -94,14 +94,14 @@ const AP_Param::GroupInfo AP_OSD_ParamScreen::var_info[] = {
     // @Path: AP_OSD_ParamSetting.cpp
     AP_SUBGROUPINFO(params[8], "PARAM9", 12, AP_OSD_ParamScreen, AP_OSD_ParamSetting),
 
-    // @Param: SAVE_X
+    // `@Param`: SAVE_X
     // @DisplayName: SAVE_X
     // @Description: Horizontal position of Save button on screen
     // @Range: 0 25
     // @User: Advanced
     AP_GROUPINFO("SAVE_X", 13, AP_OSD_ParamScreen, save_x, 23),
 
-    // @Param: SAVE_Y
+    // `@Param`: SAVE_Y
     // @DisplayName: SAVE_Y
     // @Description: Vertical position of Save button on screen
     // @Range: 0 15

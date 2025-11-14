@@ -104,7 +104,7 @@ static_assert(ARRAY_SIZE(default_rates) == GCS_MAVLINK::NUM_STREAMS, "enough def
   default stream rates to 1Hz
  */
 const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
-    // @Param: _RAW_SENS
+    // `@Param`: _RAW_SENS
     // @DisplayName: Raw sensor stream rate
     // @Description: MAVLink Stream rate of RAW_IMU, SCALED_IMU2, SCALED_IMU3, SCALED_PRESSURE, SCALED_PRESSURE2, SCALED_PRESSURE3 and AIRSPEED
     // @Units: Hz
@@ -114,7 +114,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_RAW_SENS", 1, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_RAW_SENSORS], DRATE(GCS_MAVLINK::STREAM_RAW_SENSORS)),
 
-    // @Param: _EXT_STAT
+    // `@Param`: _EXT_STAT
     // @DisplayName: Extended status stream rate
     // @Description: MAVLink Stream rate of SYS_STATUS, POWER_STATUS, MCU_STATUS, MEMINFO, CURRENT_WAYPOINT, GPS_RAW_INT, GPS_RTK (if available), GPS2_RAW_INT (if available), GPS2_RTK (if available), NAV_CONTROLLER_OUTPUT, FENCE_STATUS, and GLOBAL_TARGET_POS_INT
     // @Units: Hz
@@ -124,7 +124,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_EXT_STAT", 2, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_EXTENDED_STATUS], DRATE(GCS_MAVLINK::STREAM_EXTENDED_STATUS)),
 
-    // @Param: _RC_CHAN
+    // `@Param`: _RC_CHAN
     // @DisplayName: RC Channel stream rate
     // @Description: MAVLink Stream rate of SERVO_OUTPUT_RAW and RC_CHANNELS
     // @Units: Hz
@@ -134,7 +134,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_RC_CHAN",  3, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_RC_CHANNELS], DRATE(2)),
 
-    // @Param: _RAW_CTRL
+    // `@Param`: _RAW_CTRL
     // @DisplayName: Raw Control stream rate
     // @Description: MAVLink Raw Control stream rate of SERVO_OUT
     // @Units: Hz
@@ -144,7 +144,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_RAW_CTRL", 4, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_RAW_CONTROLLER], DRATE(GCS_MAVLINK::STREAM_RAW_CONTROLLER)),
 
-    // @Param: _POSITION
+    // `@Param`: _POSITION
     // @DisplayName: Position stream rate
     // @Description: MAVLink Stream rate of GLOBAL_POSITION_INT and LOCAL_POSITION_NED
     // @Units: Hz
@@ -154,7 +154,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_POSITION", 5, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_POSITION], DRATE(GCS_MAVLINK::STREAM_POSITION)),
 
-    // @Param: _EXTRA1
+    // `@Param`: _EXTRA1
     // @DisplayName: Extra data type 1 stream rate
     // @Description: MAVLink Stream rate of ATTITUDE, SIMSTATE (SIM only), AHRS2, RPM, AOA_SSA, LANDING,ESC_TELEMETRY,EFI_STATUS, and PID_TUNING
     // @Units: Hz
@@ -164,7 +164,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_EXTRA1",   6, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_EXTRA1], DRATE(GCS_MAVLINK::STREAM_EXTRA1)),
 
-    // @Param: _EXTRA2
+    // `@Param`: _EXTRA2
     // @DisplayName: Extra data type 2 stream rate
     // @Description: MAVLink Stream rate of VFR_HUD
     // @Range: 0 50
@@ -173,7 +173,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_EXTRA2",   7, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_EXTRA2], DRATE(GCS_MAVLINK::STREAM_EXTRA2)),
 
-    // @Param: _EXTRA3
+    // `@Param`: _EXTRA3
     // @DisplayName: Extra data type 3 stream rate
     // @Description: MAVLink Stream rate of AHRS, SYSTEM_TIME, WIND, RANGEFINDER, DISTANCE_SENSOR, TERRAIN_REQUEST, TERRAIN_REPORT, BATTERY2, GIMBAL_DEVICE_ATTITUDE_STATUS, OPTICAL_FLOW, MAG_CAL_REPORT, MAG_CAL_PROGRESS, EKF_STATUS_REPORT, VIBRATION, and BATTERY_STATUS
     // @Units: Hz
@@ -183,7 +183,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_EXTRA3",   8, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_EXTRA3], DRATE(GCS_MAVLINK::STREAM_EXTRA3)),
 
-    // @Param: _PARAMS
+    // `@Param`: _PARAMS
     // @DisplayName: Parameter stream rate
     // @Description: MAVLink Stream rate of PARAM_VALUE
     // @Units: Hz
@@ -193,7 +193,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_PARAMS",   9, GCS_MAVLINK, streamRates[GCS_MAVLINK::STREAM_PARAMS], DRATE(GCS_MAVLINK::STREAM_PARAMS)),
 
-    // @Param: _ADSB
+    // `@Param`: _ADSB
     // @DisplayName: ADSB stream rate
     // @Description: MAVLink ADSB stream rate
     // @Units: Hz
@@ -207,7 +207,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] = {
     // IMPORTANT: Add new stream rates *before* the _OPTIONS parameter.
     // ------------
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: Bitmask for configuring this telemetry channel
     // @Description: Bitmask for configuring this telemetry channel. For having effect on all channels, set the relevant mask in all MAVx_OPTIONS parameters. Keep in mind that part of the flags may require a reboot to take action.
     // @RebootRequired: True

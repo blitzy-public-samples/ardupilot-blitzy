@@ -27,21 +27,21 @@ const AP_Param::GroupInfo AP_MotorsHeli_Dual::var_info[] = {
 
     // Indices 7-8 were used by phase angle params and should not be used
 
-    // @Param: DUAL_MODE
+    // `@Param`: DUAL_MODE
     // @DisplayName: Dual Mode
     // @Description: Sets the dual mode of the heli, either as tandem, transverse, or intermeshing/coaxial.
     // @Values: 0:Longitudinal, 1:Transverse, 2:Intermeshing/Coaxial
     // @User: Standard
     AP_GROUPINFO("DUAL_MODE", 9, AP_MotorsHeli_Dual, _dual_mode, AP_MOTORS_HELI_DUAL_MODE_TANDEM),
 
-    // @Param: DCP_SCALER
+    // `@Param`: DCP_SCALER
     // @DisplayName: Differential-Collective-Pitch Scaler
     // @Description: Scaling factor applied to the differential-collective-pitch
     // @Range: 0 1
     // @User: Standard
     AP_GROUPINFO("DCP_SCALER", 10, AP_MotorsHeli_Dual, _dcp_scaler, AP_MOTORS_HELI_DUAL_DCP_SCALER),
 
-    // @Param: DCP_YAW
+    // `@Param`: DCP_YAW
     // @DisplayName: Differential-Collective-Pitch Yaw Mixing
     // @Description: Feed-forward compensation to automatically add yaw input when differential collective pitch is applied.  Disabled for intermeshing mode.
     // @Range: -10 10
@@ -49,7 +49,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Dual::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("DCP_YAW", 11, AP_MotorsHeli_Dual, _dcp_yaw_effect, 0),
 
-    // @Param: YAW_SCALER
+    // `@Param`: YAW_SCALER
     // @DisplayName: Scaler for yaw mixing
     // @Description: Scaler for mixing yaw into roll or pitch.
     // @Range: -10 10
@@ -59,7 +59,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Dual::var_info[] = {
 
     // Indices 13-15 were used by RSC_PWM_MIN, RSC_PWM_MAX and RSC_PWM_REV and should not be used
 
-    // @Param: COL2_MIN
+    // `@Param`: COL2_MIN
     // @DisplayName: Swash 2 Minimum Collective Pitch
     // @Description: Lowest possible servo position in PWM microseconds for swashplate 2
     // @Range: 1000 2000
@@ -68,7 +68,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Dual::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("COL2_MIN", 16, AP_MotorsHeli_Dual, _collective2_min, AP_MOTORS_HELI_DUAL_COLLECTIVE2_MIN),
 
-    // @Param: COL2_MAX
+    // `@Param`: COL2_MAX
     // @DisplayName: Swash 2 Maximum Collective Pitch
     // @Description: Highest possible servo position in PWM microseconds for swashplate 2
     // @Range: 1000 2000
@@ -81,52 +81,52 @@ const AP_Param::GroupInfo AP_MotorsHeli_Dual::var_info[] = {
 
     // Indice 19 was used by COL_CTRL_DIR and should not be used
 
-    // @Param: SW_TYPE
+    // `@Param`: SW_TYPE
     // @DisplayName: Swash 1 Type
     // @Description: H3 is generic, three-servo only. H3_120/H3_140 plates have Motor1 left side, Motor2 right side, Motor3 elevator in rear. HR3_120/HR3_140 have Motor1 right side, Motor2 left side, Motor3 elevator in front - use H3_120/H3_140 and reverse servo and collective directions as necessary. For all H3_90 swashplates use H4_90 and don't use servo output for the missing servo. For H4-90 Motors1&2 are left/right respectively, Motors3&4 are rear/front respectively. For H4-45 Motors1&2 are LF/RF, Motors3&4 are LR/RR 
     // @Values: 0:H3 Generic,1:H1 non-CPPM,2:H3_140,3:H3_120,4:H4_90,5:H4_45
     // @User: Standard
 
-    // @Param: SW_COL_DIR
+    // `@Param`: SW_COL_DIR
     // @DisplayName: Swash 1 Collective Direction
     // @Description: Direction collective moves for positive pitch. 0 for Normal, 1 for Reversed
     // @Values: 0:Normal,1:Reversed
     // @User: Standard
 
-    // @Param: SW_LIN_SVO
+    // `@Param`: SW_LIN_SVO
     // @DisplayName: Linearize Swash 1 Servos
     // @Description: This linearizes the swashplate 1 servo's mechanical output to account for nonlinear output due to arm rotation.  This requires a specific setup procedure to work properly.  The servo arm must be centered on the mechanical throw at the servo trim position and the servo trim position kept as close to 1500 as possible. Leveling the swashplate can only be done through the pitch links.  See the ardupilot wiki for more details on setup.
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
 
-    // @Param: SW_H3_ENABLE
+    // `@Param`: SW_H3_ENABLE
     // @DisplayName: Swash 1 H3 Generic Enable
     // @Description: Automatically set when H3 generic swash type is selected for swashplate 1. Do not set manually.
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
 
-    // @Param: SW_H3_SV1_POS
+    // `@Param`: SW_H3_SV1_POS
     // @DisplayName: Swash 1 H3 Generic Servo 1 Position
     // @Description: Azimuth position on swashplate for servo 1 with the front of the heli being 0 deg
     // @Range: -180 180
     // @Units: deg
     // @User: Advanced
 
-    // @Param: SW_H3_SV2_POS
+    // `@Param`: SW_H3_SV2_POS
     // @DisplayName: Swash 1 H3 Generic Servo 2 Position
     // @Description: Azimuth position on swashplate 1 for servo 2 with the front of the heli being 0 deg
     // @Range: -180 180
     // @Units: deg
     // @User: Advanced
 
-    // @Param: SW_H3_SV3_POS
+    // `@Param`: SW_H3_SV3_POS
     // @DisplayName: Swash 1 H3 Generic Servo 3 Position
     // @Description: Azimuth position on swashplate 1 for servo 3 with the front of the heli being 0 deg
     // @Range: -180 180
     // @Units: deg
     // @User: Advanced
 
-    // @Param: SW_H3_PHANG
+    // `@Param`: SW_H3_PHANG
     // @DisplayName: Swash 1 H3 Generic Phase Angle Comp
     // @Description: Only for H3 swashplate.  If pitching the swash forward induces a roll, this can be correct the problem
     // @Range: -30 30
@@ -135,52 +135,52 @@ const AP_Param::GroupInfo AP_MotorsHeli_Dual::var_info[] = {
     // @Increment: 1
     AP_SUBGROUPINFO(_swashplate1, "SW_", 20, AP_MotorsHeli_Dual, AP_MotorsHeli_Swash),
 
-    // @Param: SW2_TYPE
+    // `@Param`: SW2_TYPE
     // @DisplayName: Swash 2 Type
     // @Description: H3 is generic, three-servo only. H3_120/H3_140 plates have Motor1 left side, Motor2 right side, Motor3 elevator in rear. HR3_120/HR3_140 have Motor1 right side, Motor2 left side, Motor3 elevator in front - use H3_120/H3_140 and reverse servo and collective directions as necessary. For all H3_90 swashplates use H4_90 and don't use servo output for the missing servo. For H4-90 Motors1&2 are left/right respectively, Motors3&4 are rear/front respectively. For H4-45 Motors1&2 are LF/RF, Motors3&4 are LR/RR 
     // @Values: 0:H3 Generic,1:H1 non-CPPM,2:H3_140,3:H3_120,4:H4_90,5:H4_45
     // @User: Standard
 
-    // @Param: SW2_COL_DIR
+    // `@Param`: SW2_COL_DIR
     // @DisplayName: Swash 2 Collective Direction
     // @Description: Direction collective moves for positive pitch. 0 for Normal, 1 for Reversed
     // @Values: 0:Normal,1:Reversed
     // @User: Standard
 
-    // @Param: SW2_LIN_SVO
+    // `@Param`: SW2_LIN_SVO
     // @DisplayName: Linearize Swash 2 Servos
     // @Description: This linearizes the swashplate 2 servo's mechanical output to account for nonlinear output due to arm rotation.  This requires a specific setup procedure to work properly.  The servo arm must be centered on the mechanical throw at the servo trim position and the servo trim position kept as close to 1500 as possible. Leveling the swashplate can only be done through the pitch links.  See the ardupilot wiki for more details on setup.
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
 
-    // @Param: SW2_H3_ENABLE
+    // `@Param`: SW2_H3_ENABLE
     // @DisplayName: Swash 2 H3 Generic Enable
     // @Description: Automatically set when H3 generic swash type is selected for swashplate 2. Do not set manually.
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
 
-    // @Param: SW2_H3_SV1_POS
+    // `@Param`: SW2_H3_SV1_POS
     // @DisplayName: Swash 2 H3 Generic Servo 1 Position
     // @Description: Azimuth position on swashplate for servo 1 with the front of the heli being 0 deg
     // @Range: -180 180
     // @Units: deg
     // @User: Advanced
 
-    // @Param: SW2_H3_SV2_POS
+    // `@Param`: SW2_H3_SV2_POS
     // @DisplayName: Swash 2 H3 Generic Servo 2 Position
     // @Description: Azimuth position on swashplate 2 for servo 2 with the front of the heli being 0 deg
     // @Range: -180 180
     // @Units: deg
     // @User: Advanced
 
-    // @Param: SW2_H3_SV3_POS
+    // `@Param`: SW2_H3_SV3_POS
     // @DisplayName: Swash 2 H3 Generic Servo 3 Position
     // @Description: Azimuth position on swashplate 2 for servo 3 with the front of the heli being 0 deg
     // @Range: -180 180
     // @Units: deg
     // @User: Advanced
 
-    // @Param: SW2_H3_PHANG
+    // `@Param`: SW2_H3_PHANG
     // @DisplayName: Swash 2 H3 Generic Phase Angle Comp
     // @Description: Only for H3 swashplate.  If pitching the swash forward induces a roll, this can be correct the problem
     // @Range: -30 30
@@ -189,7 +189,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Dual::var_info[] = {
     // @Increment: 1
     AP_SUBGROUPINFO(_swashplate2, "SW2_", 21, AP_MotorsHeli_Dual, AP_MotorsHeli_Swash),
 
-    // @Param: DCP_TRIM
+    // `@Param`: DCP_TRIM
     // @DisplayName: Differential Collective Pitch Trim
     // @Description: Removes I term bias due to center of gravity offsets or discrepancies between rotors in swashplate setup. If DCP axis has I term bias while hovering in calm winds, use value of bias in DCP_TRIM to re-center I term.
     // @Range: -0.2 0.2
@@ -197,7 +197,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Dual::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("DCP_TRIM", 22, AP_MotorsHeli_Dual, _dcp_trim, 0.0f),
 
-    // @Param: YAW_REV_EXPO
+    // `@Param`: YAW_REV_EXPO
     // @DisplayName: Yaw reverser expo
     // @Description: For intermeshing mode only. Yaw revereser smoothing exponent, smoothen transition near zero collective region. Increase this parameter to shink smoothing range. Set to -1 to disable reverser. 
     // @Range: -1 1000

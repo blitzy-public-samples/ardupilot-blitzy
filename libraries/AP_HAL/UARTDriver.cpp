@@ -185,6 +185,7 @@ uint8_t AP_HAL::UARTDriver::get_parity(void)
 }
 
 #if HAL_UART_STATS_ENABLED
+/// @cond NESTED_CLASS_IMPLEMENTATION
 // Take cumulative bytes and return the change since last call
 uint32_t AP_HAL::UARTDriver::StatsTracker::ByteTracker::update(uint32_t bytes)
 {
@@ -192,9 +193,9 @@ uint32_t AP_HAL::UARTDriver::StatsTracker::ByteTracker::update(uint32_t bytes)
     last_bytes = bytes;
     return change;
 }
+/// @endcond
 
 #if HAL_LOGGING_ENABLED
-// Write UART log message
 void AP_HAL::UARTDriver::log_stats(const uint8_t inst, StatsTracker &stats, const uint32_t dt_ms)
 {
     // get totals

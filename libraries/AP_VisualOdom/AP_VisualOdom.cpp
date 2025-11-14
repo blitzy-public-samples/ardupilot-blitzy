@@ -28,7 +28,7 @@ extern const AP_HAL::HAL &hal;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
 
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: Visual odometry camera connection type
     // @Description: Visual odometry camera connection type
     // @Values: 0:None,1:MAVLink,2:IntelT265,3:VOXL(ModalAI)
@@ -36,7 +36,7 @@ const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO_FLAGS("_TYPE", 0, AP_VisualOdom, _type, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _POS_X
+    // `@Param`: _POS_X
     // @DisplayName: Visual odometry camera X position offset
     // @Description: X position of the camera in body frame. Positive X is forward of the origin.
     // @Units: m
@@ -44,7 +44,7 @@ const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS_Y
+    // `@Param`: _POS_Y
     // @DisplayName: Visual odometry camera Y position offset
     // @Description: Y position of the camera in body frame. Positive Y is to the right of the origin.
     // @Units: m
@@ -52,7 +52,7 @@ const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS_Z
+    // `@Param`: _POS_Z
     // @DisplayName: Visual odometry camera Z position offset
     // @Description: Z position of the camera in body frame. Positive Z is down from the origin.
     // @Units: m
@@ -61,20 +61,20 @@ const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_POS", 1, AP_VisualOdom, _pos_offset, 0.0f),
 
-    // @Param: _ORIENT
+    // `@Param`: _ORIENT
     // @DisplayName: Visual odometery camera orientation
     // @Description: Visual odometery camera orientation
     // @Values: 0:Forward, 2:Right, 4:Back, 6:Left, 24:Up, 25:Down
     // @User: Advanced
     AP_GROUPINFO("_ORIENT", 2, AP_VisualOdom, _orientation, ROTATION_NONE),
 
-    // @Param: _SCALE
+    // `@Param`: _SCALE
     // @DisplayName: Visual odometry scaling factor
     // @Description: Visual odometry scaling factor applied to position estimates from sensor
     // @User: Advanced
     AP_GROUPINFO("_SCALE", 3, AP_VisualOdom, _pos_scale, 1.0f),
 
-    // @Param: _DELAY_MS
+    // `@Param`: _DELAY_MS
     // @DisplayName: Visual odometry sensor delay
     // @Description: Visual odometry sensor delay relative to inertial measurements
     // @Units: ms
@@ -82,7 +82,7 @@ const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_DELAY_MS", 4, AP_VisualOdom, _delay_ms, 10),
 
-    // @Param: _VEL_M_NSE
+    // `@Param`: _VEL_M_NSE
     // @DisplayName: Visual odometry velocity measurement noise
     // @Description: Visual odometry velocity measurement noise in m/s
     // @Units: m/s
@@ -90,7 +90,7 @@ const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_VEL_M_NSE", 5, AP_VisualOdom, _vel_noise, 0.1),
 
-    // @Param: _POS_M_NSE
+    // `@Param`: _POS_M_NSE
     // @DisplayName: Visual odometry position measurement noise 
     // @Description: Visual odometry position measurement noise minimum (meters). This value will be used if the sensor provides a lower noise value (or no noise value)
     // @Units: m
@@ -98,7 +98,7 @@ const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_POS_M_NSE", 6, AP_VisualOdom, _pos_noise, 0.2f),
 
-    // @Param: _YAW_M_NSE
+    // `@Param`: _YAW_M_NSE
     // @DisplayName: Visual odometry yaw measurement noise
     // @Description: Visual odometry yaw measurement noise minimum (radians), This value will be used if the sensor provides a lower noise value (or no noise value)
     // @Units: rad
@@ -106,7 +106,7 @@ const AP_Param::GroupInfo AP_VisualOdom::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_YAW_M_NSE", 7, AP_VisualOdom, _yaw_noise, 0.2f),
 
-    // @Param: _QUAL_MIN
+    // `@Param`: _QUAL_MIN
     // @DisplayName: Visual odometry minimum quality
     // @Description: Visual odometry will only be sent to EKF if over this value. -1 to always send (even bad values), 0 to send if good or unknown
     // @Units: %

@@ -19,7 +19,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_BattMonitor_DroneCAN::var_info[] = {
 
-    // @Param: CURR_MULT
+    // `@Param`: CURR_MULT
     // @DisplayName: Scales reported power monitor current
     // @Description: Multiplier applied to all current related reports to allow for adjustment if no UAVCAN param access or current splitting applications
     // @Range: 0.1 10

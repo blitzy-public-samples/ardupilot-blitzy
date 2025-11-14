@@ -55,7 +55,7 @@ bool AP_TemperatureSensor_Backend::healthy(void) const
 #if HAL_LOGGING_ENABLED
 void AP_TemperatureSensor_Backend::Log_Write_TEMP() const
 {
-    // @LoggerMessage: TEMP
+    // `@LoggerMessage`: TEMP
     // @Description: Temperature Sensor Data
     // @Field: TimeUS: Time since system startup
     // @Field: Instance: temperature sensor instance

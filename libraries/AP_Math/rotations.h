@@ -15,71 +15,128 @@
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/**
+ * @file rotations.h
+ * @brief Predefined rotation enumeration for sensor orientation
+ * 
+ * @details This file defines standard 3D rotations used throughout ArduPilot
+ *          for specifying sensor mounting orientations relative to the vehicle
+ *          body frame. These rotations are used for IMU orientation, compass
+ *          mounting, camera gimbal orientation, and other sensor alignments.
+ *          
+ *          The rotation system supports both predefined standard orientations
+ *          and custom user-defined rotation matrices.
+ */
+
 #pragma once
 
-// these rotations form a full set - every rotation in the following
-// list when combined with another in the list forms an entry which is
-// also in the list. This is an important property. Please run the
-// rotations test suite if you add to the list.
-
-// NOTE!! these rotation values are stored to EEPROM, so be careful not to
-// change the numbering of any existing entry when adding a new entry.
+/**
+ * @enum Rotation
+ * @brief Enumeration of standard 3D rotations for sensor mounting orientations
+ * 
+ * @details These rotations form a closed mathematical group: the composition
+ *          of any two rotations in this set yields another rotation that is
+ *          also in the set. This closure property is essential for maintaining
+ *          consistency when chaining multiple coordinate transformations.
+ *          
+ *          Rotation Application:
+ *          These rotations typically transform vectors from the sensor frame
+ *          to the vehicle body frame. The sensor measures in its local frame,
+ *          and this rotation aligns it with the vehicle's reference frame.
+ *          
+ *          Common Use Cases:
+ *          - IMU orientation: Specify how the inertial measurement unit is
+ *            mounted relative to the vehicle body frame
+ *          - Compass mounting: Define magnetometer orientation for proper
+ *            heading calculation
+ *          - Camera gimbal orientation: Align camera coordinate system with
+ *            vehicle frame for proper targeting and stabilization
+ *          - External sensors: Any sensor with a fixed mounting orientation
+ *            (rangefinders, optical flow sensors, etc.)
+ * 
+ * @note Rotation order: Rotations are applied as intrinsic rotations in the
+ *       order roll first, then pitch, then yaw. This means each rotation is
+ *       performed about the axes of the already-rotated coordinate system.
+ * 
+ * @note Angle convention: Positive rotation follows the right-hand rule.
+ *       Point your right thumb along the positive axis direction; your fingers
+ *       curl in the direction of positive rotation.
+ * 
+ * @warning EEPROM persistence: These rotation values are stored to EEPROM
+ *          for configuration persistence across reboots. NEVER change the
+ *          numbering of any existing entry! Always add new rotations at the
+ *          end before ROTATION_MAX. Changing existing values will cause
+ *          incorrect sensor orientation after firmware updates.
+ * 
+ * @warning MAVLink compatibility: This enumeration must match the
+ *          MAV_SENSOR_ORIENTATION enumeration in the MAVLink protocol
+ *          specification. Any new rotation added here must also be added
+ *          to MAVLink messages to maintain ground station compatibility.
+ * 
+ * @note Rotation closure property: The mathematical closure of this rotation
+ *       set is verified in the rotation test suite. Run tests/test_rotations.cpp
+ *       if adding new rotations to verify the closure property is maintained.
+ * 
+ * @see Matrix3::from_rotation() for converting rotation enum to rotation matrix
+ * @see Vector3::rotate() for applying these rotations to vectors
+ */
 enum Rotation : uint8_t {
-    ROTATION_NONE                = 0,
-    ROTATION_YAW_45              = 1,
-    ROTATION_YAW_90              = 2,
-    ROTATION_YAW_135             = 3,
-    ROTATION_YAW_180             = 4,
-    ROTATION_YAW_225             = 5,
-    ROTATION_YAW_270             = 6,
-    ROTATION_YAW_315             = 7,
-    ROTATION_ROLL_180            = 8,
-    ROTATION_ROLL_180_YAW_45     = 9,
-    ROTATION_ROLL_180_YAW_90     = 10,
-    ROTATION_ROLL_180_YAW_135    = 11,
-    ROTATION_PITCH_180           = 12,
-    ROTATION_ROLL_180_YAW_225    = 13,
-    ROTATION_ROLL_180_YAW_270    = 14,
-    ROTATION_ROLL_180_YAW_315    = 15,
-    ROTATION_ROLL_90             = 16,
-    ROTATION_ROLL_90_YAW_45      = 17,
-    ROTATION_ROLL_90_YAW_90      = 18,
-    ROTATION_ROLL_90_YAW_135     = 19,
-    ROTATION_ROLL_270            = 20,
-    ROTATION_ROLL_270_YAW_45     = 21,
-    ROTATION_ROLL_270_YAW_90     = 22,
-    ROTATION_ROLL_270_YAW_135    = 23,
-    ROTATION_PITCH_90            = 24,
-    ROTATION_PITCH_270           = 25,
-    ROTATION_PITCH_180_YAW_90    = 26, // same as ROTATION_ROLL_180_YAW_270
-    ROTATION_PITCH_180_YAW_270   = 27, // same as ROTATION_ROLL_180_YAW_90
-    ROTATION_ROLL_90_PITCH_90    = 28,
-    ROTATION_ROLL_180_PITCH_90   = 29,
-    ROTATION_ROLL_270_PITCH_90   = 30,
-    ROTATION_ROLL_90_PITCH_180   = 31,
-    ROTATION_ROLL_270_PITCH_180  = 32,
-    ROTATION_ROLL_90_PITCH_270   = 33,
-    ROTATION_ROLL_180_PITCH_270  = 34,
-    ROTATION_ROLL_270_PITCH_270  = 35,
-    ROTATION_ROLL_90_PITCH_180_YAW_90 = 36,
-    ROTATION_ROLL_90_YAW_270     = 37,
-    ROTATION_ROLL_90_PITCH_68_YAW_293 = 38, // this is actually, roll 90, pitch 68.8, yaw 293.3
-    ROTATION_PITCH_315           = 39,
-    ROTATION_ROLL_90_PITCH_315   = 40,
-    ROTATION_PITCH_7             = 41,
-    ROTATION_ROLL_45             = 42,
-    ROTATION_ROLL_315            = 43,
+    ROTATION_NONE                = 0,  ///< @brief Identity rotation (no rotation applied)
+    ROTATION_YAW_45              = 1,  ///< @brief 45° yaw rotation (clockwise when looking down)
+    ROTATION_YAW_90              = 2,  ///< @brief 90° yaw rotation (clockwise when looking down)
+    ROTATION_YAW_135             = 3,  ///< @brief 135° yaw rotation (clockwise when looking down)
+    ROTATION_YAW_180             = 4,  ///< @brief 180° yaw rotation (nose points backward)
+    ROTATION_YAW_225             = 5,  ///< @brief 225° yaw rotation (clockwise when looking down)
+    ROTATION_YAW_270             = 6,  ///< @brief 270° yaw rotation (clockwise when looking down)
+    ROTATION_YAW_315             = 7,  ///< @brief 315° yaw rotation (clockwise when looking down)
+    ROTATION_ROLL_180            = 8,  ///< @brief 180° roll rotation (upside down)
+    ROTATION_ROLL_180_YAW_45     = 9,  ///< @brief Compound rotation: roll 180° then yaw 45°
+    ROTATION_ROLL_180_YAW_90     = 10, ///< @brief Compound rotation: roll 180° then yaw 90°
+    ROTATION_ROLL_180_YAW_135    = 11, ///< @brief Compound rotation: roll 180° then yaw 135°
+    ROTATION_PITCH_180           = 12, ///< @brief 180° pitch rotation (nose points down)
+    ROTATION_ROLL_180_YAW_225    = 13, ///< @brief Compound rotation: roll 180° then yaw 225°
+    ROTATION_ROLL_180_YAW_270    = 14, ///< @brief Compound rotation: roll 180° then yaw 270°
+    ROTATION_ROLL_180_YAW_315    = 15, ///< @brief Compound rotation: roll 180° then yaw 315°
+    ROTATION_ROLL_90             = 16, ///< @brief 90° roll rotation (right side down)
+    ROTATION_ROLL_90_YAW_45      = 17, ///< @brief Compound rotation: roll 90° then yaw 45°
+    ROTATION_ROLL_90_YAW_90      = 18, ///< @brief Compound rotation: roll 90° then yaw 90°
+    ROTATION_ROLL_90_YAW_135     = 19, ///< @brief Compound rotation: roll 90° then yaw 135°
+    ROTATION_ROLL_270            = 20, ///< @brief 270° roll rotation (left side down)
+    ROTATION_ROLL_270_YAW_45     = 21, ///< @brief Compound rotation: roll 270° then yaw 45°
+    ROTATION_ROLL_270_YAW_90     = 22, ///< @brief Compound rotation: roll 270° then yaw 90°
+    ROTATION_ROLL_270_YAW_135    = 23, ///< @brief Compound rotation: roll 270° then yaw 135°
+    ROTATION_PITCH_90            = 24, ///< @brief 90° pitch rotation (nose points up)
+    ROTATION_PITCH_270           = 25, ///< @brief 270° pitch rotation (nose points down)
+    ROTATION_PITCH_180_YAW_90    = 26, ///< @brief Compound rotation: pitch 180° then yaw 90° (same as ROTATION_ROLL_180_YAW_270)
+    ROTATION_PITCH_180_YAW_270   = 27, ///< @brief Compound rotation: pitch 180° then yaw 270° (same as ROTATION_ROLL_180_YAW_90)
+    ROTATION_ROLL_90_PITCH_90    = 28, ///< @brief Compound rotation: roll 90° then pitch 90°
+    ROTATION_ROLL_180_PITCH_90   = 29, ///< @brief Compound rotation: roll 180° then pitch 90°
+    ROTATION_ROLL_270_PITCH_90   = 30, ///< @brief Compound rotation: roll 270° then pitch 90°
+    ROTATION_ROLL_90_PITCH_180   = 31, ///< @brief Compound rotation: roll 90° then pitch 180°
+    ROTATION_ROLL_270_PITCH_180  = 32, ///< @brief Compound rotation: roll 270° then pitch 180°
+    ROTATION_ROLL_90_PITCH_270   = 33, ///< @brief Compound rotation: roll 90° then pitch 270°
+    ROTATION_ROLL_180_PITCH_270  = 34, ///< @brief Compound rotation: roll 180° then pitch 270°
+    ROTATION_ROLL_270_PITCH_270  = 35, ///< @brief Compound rotation: roll 270° then pitch 270°
+    ROTATION_ROLL_90_PITCH_180_YAW_90 = 36, ///< @brief Compound rotation: roll 90°, pitch 180°, then yaw 90°
+    ROTATION_ROLL_90_YAW_270     = 37, ///< @brief Compound rotation: roll 90° then yaw 270°
+    ROTATION_ROLL_90_PITCH_68_YAW_293 = 38, ///< @brief Special compound rotation: roll 90°, pitch 68.8°, yaw 293.3° (for specific hardware)
+    ROTATION_PITCH_315           = 39, ///< @brief 315° pitch rotation
+    ROTATION_ROLL_90_PITCH_315   = 40, ///< @brief Compound rotation: roll 90° then pitch 315°
+    ROTATION_PITCH_7             = 41, ///< @brief 7° pitch rotation (small angle correction)
+    ROTATION_ROLL_45             = 42, ///< @brief 45° roll rotation
+    ROTATION_ROLL_315            = 43, ///< @brief 315° roll rotation
     ///////////////////////////////////////////////////////////////////////
     // Do not add more rotations without checking that there is not a conflict
     // with the MAVLink spec. MAV_SENSOR_ORIENTATION is expected to match our
     // list of rotations here. If a new rotation is added it needs to be added
     // to the MAVLink messages as well.
     ///////////////////////////////////////////////////////////////////////
-    ROTATION_MAX,
-    ROTATION_CUSTOM_OLD          = 100,
-    ROTATION_CUSTOM_1            = 101,
-    ROTATION_CUSTOM_2            = 102,
-    ROTATION_CUSTOM_END,
+    ROTATION_MAX,                       ///< @brief Sentinel value marking end of predefined rotations (not a valid rotation)
+    ROTATION_CUSTOM_OLD          = 100, ///< @brief Custom rotation matrix (legacy, used in ArduPilot 4.1 and older)
+    ROTATION_CUSTOM_1            = 101, ///< @brief Custom rotation matrix slot 1 (user-defined rotation)
+    ROTATION_CUSTOM_2            = 102, ///< @brief Custom rotation matrix slot 2 (user-defined rotation)
+    ROTATION_CUSTOM_END,                ///< @brief Sentinel value marking end of custom rotation range
 };
 
 

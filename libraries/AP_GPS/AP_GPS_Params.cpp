@@ -22,7 +22,7 @@
 
 // table of user settable parameters
 const AP_Param::GroupInfo AP_GPS::Params::var_info[] = {
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: GPS type
     // @Description: GPS type
     // @Values: 0:None,1:AUTO,2:uBlox,5:NMEA,6:SiRF,7:HIL,8:SwiftNav,9:DroneCAN,10:Septentrio(SBF),11:Trimble(GSOF),13:ERB,14:MAVLink,15:NOVA,16:HemisphereNMEA,17:uBlox-MovingBaseline-Base,18:uBlox-MovingBaseline-Rover,19:MSP,20:AllyStar,21:ExternalAHRS,22:DroneCAN-MovingBaseline-Base,23:DroneCAN-MovingBaseline-Rover,24:UnicoreNMEA,25:UnicoreMovingBaselineNMEA,26:Septentrio-DualAntenna(SBF)
@@ -30,14 +30,14 @@ const AP_Param::GroupInfo AP_GPS::Params::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO_FLAGS("TYPE",    1, AP_GPS::Params, type, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: GNSS_MODE
+    // `@Param`: GNSS_MODE
     // @DisplayName: GNSS system configuration
     // @Description: Bitmask for what GNSS system to use (all unchecked or zero to leave GPS as configured)
     // @Bitmask: 0:GPS,1:SBAS,2:Galileo,3:Beidou,4:IMES,5:QZSS,6:GLONASS
     // @User: Advanced
     AP_GROUPINFO("GNSS_MODE", 2, AP_GPS::Params, gnss_mode, 0),
 
-    // @Param: RATE_MS
+    // `@Param`: RATE_MS
     // @DisplayName: GPS update rate in milliseconds
     // @Description: Controls how often the GPS should provide a position update. Lowering below 5Hz(default) is not allowed. Raising the rate above 5Hz usually provides little benefit and for some GPS (eg Ublox M9N) can severely impact performance.
     // @Units: ms
@@ -46,7 +46,7 @@ const AP_Param::GroupInfo AP_GPS::Params::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RATE_MS", 3, AP_GPS::Params, rate_ms, 200),
 
-    // @Param: POS_X
+    // `@Param`: POS_X
     // @DisplayName: Antenna X position offset
     // @Description: X position of the first GPS antenna in body frame. Positive X is forward of the origin. Use antenna phase centroid location if provided by the manufacturer.
     // @Units: m
@@ -54,7 +54,7 @@ const AP_Param::GroupInfo AP_GPS::Params::var_info[] = {
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: POS_Y
+    // `@Param`: POS_Y
     // @DisplayName: Antenna Y position offset
     // @Description: Y position of the first GPS antenna in body frame. Positive Y is to the right of the origin. Use antenna phase centroid location if provided by the manufacturer.
     // @Units: m
@@ -62,7 +62,7 @@ const AP_Param::GroupInfo AP_GPS::Params::var_info[] = {
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: POS_Z
+    // `@Param`: POS_Z
     // @DisplayName: Antenna Z position offset
     // @Description: Z position of the first GPS antenna in body frame. Positive Z is down from the origin. Use antenna phase centroid location if provided by the manufacturer.
     // @Units: m
@@ -71,7 +71,7 @@ const AP_Param::GroupInfo AP_GPS::Params::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("POS", 4, AP_GPS::Params, antenna_offset, 0.0f),
 
-    // @Param: DELAY_MS
+    // `@Param`: DELAY_MS
     // @DisplayName: GPS delay in milliseconds
     // @Description: Controls the amount of GPS  measurement delay that the autopilot compensates for. Set to zero to use the default delay for the detected GPS type.
     // @Units: ms
@@ -81,7 +81,7 @@ const AP_Param::GroupInfo AP_GPS::Params::var_info[] = {
     AP_GROUPINFO("DELAY_MS", 5, AP_GPS::Params, delay_ms, 0),
 
 #if AP_GPS_SBF_ENABLED
-    // @Param: COM_PORT
+    // `@Param`: COM_PORT
     // @DisplayName: GPS physical COM port
     // @Description: The physical COM port on the connected device, currently only applies to SBF and GSOF GPS
     // @Range: 0 10
@@ -99,14 +99,14 @@ const AP_Param::GroupInfo AP_GPS::Params::var_info[] = {
 #endif
 
 #if HAL_ENABLE_DRONECAN_DRIVERS
-    // @Param: CAN_NODEID
+    // `@Param`: CAN_NODEID
     // @DisplayName: Detected CAN Node ID for GPS
     // @Description: GPS Node id for GPS.  Detected node unless CAN_OVRIDE is set
     // @ReadOnly: True
     // @User: Advanced
     AP_GROUPINFO("CAN_NODEID", 8, AP_GPS::Params, node_id, 0),
 
-    // @Param: CAN_OVRIDE
+    // `@Param`: CAN_OVRIDE
     // @DisplayName: DroneCAN GPS NODE ID
     // @Description: GPS Node id for GPS. If 0 the gps will be automatically selected on a first-come-first-GPS basis.
     // @User: Advanced

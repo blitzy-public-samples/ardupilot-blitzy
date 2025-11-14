@@ -137,11 +137,14 @@ void Submarine::calculate_buoyancy_torque(Vector3f &torque)
 
 /**
  * @brief Calculate sea floor depth from submarine position
- *          This creates a non planar floor for rangefinder sensor test
- *          TODO: Create a better sea floor with procedural generatation
+ * 
+ * @details This creates a non planar floor for rangefinder sensor test.
+ *          Currently returns a constant depth regardless of position.
+ *          TODO: Create a better sea floor with procedural generation
  *
- * @param position
- * @return float
+ * @return float Sea floor depth in meters (currently constant at 50m)
+ * 
+ * @note The position parameter is currently unused - returns constant depth
  */
 float Submarine::calculate_sea_floor_depth(const Vector3d &/*position*/) const
 {
@@ -177,16 +180,17 @@ void Submarine::calculate_drag_force(const Vector3f &velocity, const Vector3f &d
 /**
  * @brief Calculate angular drag torque using the equivalente sphere area and assuming a laminar external flow.
  *
- *  $F_D = C_D*A*\rho*V^2/2$
+ *  \f$ F_D = C_D*A*\rho*V^2/2 \f$
  * where:
- *      $F_D$ is the drag force
- *      $C_D$ is the drag coefficient
- *      $A$ is the surface area in contact with the fluid
- *      $/rho$ is the fluid density (1000kg/m³ for water)
- *      $V$ is the fluid velocity velocity relative to the surface
+ *      \f$ F_D \f$ is the drag force
+ *      \f$ C_D \f$ is the drag coefficient
+ *      \f$ A \f$ is the surface area in contact with the fluid
+ *      \f$ \rho \f$ is the fluid density (1000kg/m³ for water)
+ *      \f$ V \f$ is the fluid velocity velocity relative to the surface
  *
  * @param angular_velocity Body frame velocity of fluid
  * @param drag_coefficient Rotational drag coefficient of body
+ * @param torque Output torque vector
  */
 void Submarine::calculate_angular_drag_torque(const Vector3f &angular_velocity, const Vector3f &drag_coefficient, Vector3f &torque) const
 {

@@ -10,7 +10,7 @@
     LOG_CANF_MSG,               \
     LOG_CAFD_MSG
 
-// @LoggerMessage: CANF
+// `@LoggerMessage`: CANF
 // @Description: CAN Frame
 // @Field: TimeUS: Time since system startup
 // @Field: Bus: bus number
@@ -33,7 +33,7 @@ struct PACKED log_CANF {
     uint8_t data[8];
 };
 
-// @LoggerMessage: CAFD
+// `@LoggerMessage`: CAFD
 // @Description: CANFD Frame
 // @Field: TimeUS: Time since system startup
 // @Field: Bus: bus number

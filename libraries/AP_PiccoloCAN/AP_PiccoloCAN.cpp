@@ -57,14 +57,14 @@ extern const AP_HAL::HAL& hal;
 // table of user-configurable Piccolo CAN bus parameters
 const AP_Param::GroupInfo AP_PiccoloCAN::var_info[] = {
 
-    // @Param: ESC_BM
+    // `@Param`: ESC_BM
     // @DisplayName: ESC channels
     // @Description: Bitmask defining which ESC (motor) channels are to be transmitted over Piccolo CAN
     // @Bitmask: 0: ESC 1, 1: ESC 2, 2: ESC 3, 3: ESC 4, 4: ESC 5, 5: ESC 6, 6: ESC 7, 7: ESC 8, 8: ESC 9, 9: ESC 10, 10: ESC 11, 11: ESC 12, 12: ESC 13, 13: ESC 14, 14: ESC 15, 15: ESC 16, 16: ESC 17, 17: ESC 18, 18: ESC 19, 19: ESC 20, 20: ESC 21, 21: ESC 22, 22: ESC 23, 23: ESC 24, 24: ESC 25, 25: ESC 26, 26: ESC 27, 27: ESC 28, 28: ESC 29, 29: ESC 30, 30: ESC 31, 31: ESC 32
     // @User: Advanced
     AP_GROUPINFO("ESC_BM", 1, AP_PiccoloCAN, _esc_bm, 0xFFFF),
 
-    // @Param: ESC_RT
+    // `@Param`: ESC_RT
     // @DisplayName: ESC output rate
     // @Description: Output rate of ESC command messages
     // @Units: Hz
@@ -72,14 +72,14 @@ const AP_Param::GroupInfo AP_PiccoloCAN::var_info[] = {
     // @Range: 1 500
     AP_GROUPINFO("ESC_RT", 2, AP_PiccoloCAN, _esc_hz, PICCOLO_MSG_RATE_HZ_DEFAULT),
 
-    // @Param: SRV_BM
+    // `@Param`: SRV_BM
     // @DisplayName: Servo channels
     // @Description: Bitmask defining which servo channels are to be transmitted over Piccolo CAN
     // @Bitmask: 0: Servo 1, 1: Servo 2, 2: Servo 3, 3: Servo 4, 4: Servo 5, 5: Servo 6, 6: Servo 7, 7: Servo 8, 8: Servo 9, 9: Servo 10, 10: Servo 11, 11: Servo 12, 12: Servo 13, 13: Servo 14, 14: Servo 15, 15: Servo 16
     // @User: Advanced
     AP_GROUPINFO("SRV_BM", 3, AP_PiccoloCAN, _srv_bm, 0xFFFF),
 
-    // @Param: SRV_RT
+    // `@Param`: SRV_RT
     // @DisplayName: Servo command output rate
     // @Description: Output rate of servo command messages
     // @Units: Hz
@@ -87,14 +87,14 @@ const AP_Param::GroupInfo AP_PiccoloCAN::var_info[] = {
     // @Range: 1 500
     AP_GROUPINFO("SRV_RT", 4, AP_PiccoloCAN, _srv_hz, PICCOLO_MSG_RATE_HZ_DEFAULT),
 #if AP_EFI_CURRAWONG_ECU_ENABLED
-    // @Param: ECU_ID
+    // `@Param`: ECU_ID
     // @DisplayName: ECU Node ID
     // @Description: Node ID to send ECU throttle messages to. Set to zero to disable ECU throttle messages. Set to 255 to broadcast to all ECUs.
     // @Range: 0 255
     // @User: Advanced
     AP_GROUPINFO("ECU_ID", 5, AP_PiccoloCAN, _ecu_id, PICCOLO_CAN_ECU_ID_DEFAULT),
 
-    // @Param: ECU_RT
+    // `@Param`: ECU_RT
     // @DisplayName: ECU command output rate
     // @Description: Output rate of ECU command messages
     // @Units: Hz

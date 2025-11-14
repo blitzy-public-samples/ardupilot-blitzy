@@ -248,8 +248,8 @@ void AP_SmartAudio::update_vtx_params()
 }
 /**
  * Sends an SmartAudio Command to the vtx, waits response on the update event
- * @param frameBuffer frameBuffer to send over the wire
- * @param size  size of the framebuffer wich needs to be sended
+ * @param requestFrame Frame buffer to send over the wire
+ * @param size  size of the frame buffer which needs to be sent
  */
 void AP_SmartAudio::send_request(const Frame& requestFrame, uint8_t size)
 {

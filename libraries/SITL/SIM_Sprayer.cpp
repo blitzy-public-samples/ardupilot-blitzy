@@ -27,21 +27,21 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo Sprayer::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Sprayer Sim enable/disable
     // @Description: Allows you to enable (1) or disable (0) the Sprayer simulation
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENABLE", 0, Sprayer, sprayer_enable, 0),
 
-    // @Param: PUMP
+    // `@Param`: PUMP
     // @DisplayName: Sprayer pump pin
     // @Description: The pin number that the Sprayer pump is connected to. (start at 1)
     // @Range: 0 15
     // @User: Advanced
     AP_GROUPINFO("PUMP", 1, Sprayer, sprayer_pump_pin, -1),
 
-    // @Param: SPIN
+    // `@Param`: SPIN
     // @DisplayName: Sprayer spinner servo pin
     // @Description: The pin number that the Sprayer spinner servo is connected to. (start at 1)
     // @Range: 0 15

@@ -32,14 +32,14 @@
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_Volz_Protocol::var_info[] = {
-    // @Param: MASK
+    // `@Param`: MASK
     // @DisplayName: Channel Bitmask
     // @Description: Enable of volz servo protocol to specific channels
     // @Bitmask: 0:Channel1,1:Channel2,2:Channel3,3:Channel4,4:Channel5,5:Channel6,6:Channel7,7:Channel8,8:Channel9,9:Channel10,10:Channel11,11:Channel12,12:Channel13,13:Channel14,14:Channel15,15:Channel16,16:Channel17,17:Channel18,18:Channel19,19:Channel20,20:Channel21,21:Channel22,22:Channel23,23:Channel24,24:Channel25,25:Channel26,26:Channel27,28:Channel29,29:Channel30,30:Channel31,31:Channel32
     // @User: Standard
     AP_GROUPINFO("MASK",  1, AP_Volz_Protocol, bitmask, 0),
 
-    // @Param: RANGE
+    // `@Param`: RANGE
     // @DisplayName: Range of travel
     // @Description: Range to map between 1000 and 2000 PWM. Default value of 200 gives full +-100 deg range of extended position command. This results in 0.2 deg movement per US change in PWM. If the full range is not needed it can be reduced to increase resolution. 40 deg range gives 0.04 deg movement per US change in PWM, this is higher resolution than possible with the VOLZ protocol so further reduction in range will not improve resolution. Reduced range does allow PWMs outside the 1000 to 2000 range, with 40 deg range 750 PWM results in a angle of -30 deg, 2250 would be +30 deg. This is still limited by the 200 deg maximum range of the actuator.
     // @Units: deg

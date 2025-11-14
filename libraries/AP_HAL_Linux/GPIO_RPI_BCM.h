@@ -105,7 +105,8 @@ private:
      *  - Linux::GPIO_RPI_BCM::set_gpio_mode_in
      *  - Linux::GPIO_RPI_BCM::set_gpio_mode_out
      *
-     * @param pin
+     * @param pin GPIO pin number to configure
+     * @param alternative Alternative function number (0-5) to assign to the pin
      */
     void set_gpio_mode_alt(int pin, int alternative);
 

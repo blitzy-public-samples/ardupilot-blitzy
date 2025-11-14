@@ -409,7 +409,7 @@ void SoloGimbal::write_logs()
 
     const uint64_t tstamp = AP_HAL::micros64();
 
-    // @LoggerMessage: GMB1
+    // `@LoggerMessage`: GMB1
     // @Vehicles: Copter
     // @Description: Solo Gimbal measurements
     // @Field: TimeUS: Time since system startup
@@ -447,7 +447,7 @@ void SoloGimbal::write_logs()
     Vector3f eulerEst;
     quatEst.to_euler(eulerEst.x, eulerEst.y, eulerEst.z);
 
-    // @LoggerMessage: GMB2
+    // `@LoggerMessage`: GMB2
     // @Vehicles: Copter
     // @Description: Solo Gimbal estimation and demands
     // @Field: TimeUS: Time since system startup

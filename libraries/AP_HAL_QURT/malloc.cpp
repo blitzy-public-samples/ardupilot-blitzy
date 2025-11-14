@@ -6,7 +6,9 @@
 #include <AP_HAL/AP_HAL.h>
 #include <new>
 
+/// @cond NOTHROW_DECLARATION
 const std::nothrow_t std::nothrow;
+/// @endcond
 
 extern "C" {
     void *fc_heap_alloc(size_t size);

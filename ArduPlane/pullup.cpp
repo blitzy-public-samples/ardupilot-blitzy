@@ -1,11 +1,60 @@
 #include "Plane.h"
-/*
-  support for pullup after an alitude wait. Used for high altitude gliders
+
+/**
+ * @file pullup.cpp
+ * @brief Glider pullup maneuver support for high-altitude operations
+ * 
+ * @details This file implements the GliderPullup class which manages the pullup
+ *          maneuver sequence after a NAV_ALTITUDE_WAIT mission command. This is
+ *          specifically designed for high-altitude gliders (e.g., balloon-dropped
+ *          gliders) that need controlled energy management during the transition
+ *          from high-altitude descent to normal flight.
+ *          
+ *          The pullup sequence consists of multiple stages:
+ *          - WAIT_AIRSPEED: Wait for airspeed to build after balloon release
+ *          - WAIT_PITCH: Monitor pitch angle during initial pullup
+ *          - PUSH_NOSE_DOWN: Emergency recovery if roll control is lost
+ *          - WAIT_LEVEL: Wait for aircraft to stabilize before returning to normal flight
+ *          
+ *          Key safety features:
+ *          - Load factor limiting (ng_limit) to prevent structural damage
+ *          - Jerk limiting for smooth load factor transitions
+ *          - Roll angle monitoring with automatic nose-down recovery
+ *          - Airspeed prediction to prevent stall during pitch-up
+ *          
+ *          Energy Management:
+ *          During high-altitude operations, gliders trade altitude for airspeed.
+ *          This code manages the critical pullup phase where the aircraft must
+ *          convert potential energy (altitude) into kinetic energy (airspeed)
+ *          while maintaining safe load factors and preventing stall or loss of control.
+ * 
+ * @note This feature is conditionally compiled with AP_PLANE_GLIDER_PULLUP_ENABLED
+ * @warning Incorrect parameter tuning can result in structural damage (excessive g-loads)
+ *          or loss of control (stall during pullup)
+ * 
+ * @see NAV_ALTITUDE_WAIT mission command
+ * @see GliderPullup class in pullup.h
  */
 
 #if AP_PLANE_GLIDER_PULLUP_ENABLED
 
-// Pullup control parameters
+/**
+ * @brief Parameter table for glider pullup configuration
+ * 
+ * @details This parameter group controls all aspects of the pullup maneuver including:
+ *          - Enable/disable functionality
+ *          - Initial elevator deflection during airspeed buildup
+ *          - Load factor limits for structural safety
+ *          - Load factor rate-of-change (jerk) limiting for smooth transitions
+ *          - Target pitch angles for different phases
+ *          - Airspeed thresholds for phase transitions
+ *          
+ *          Parameters are prefixed with PUP_ in the ground control station.
+ *          All parameters are in the Advanced user category due to safety implications.
+ * 
+ * @note Parameter values must be tuned for specific aircraft and operational conditions
+ * @warning Improper parameter values can lead to structural damage or loss of control
+ */
 const AP_Param::GroupInfo GliderPullup::var_info[] = {
 
     // @Param: ENABLE
@@ -64,15 +113,42 @@ const AP_Param::GroupInfo GliderPullup::var_info[] = {
     AP_GROUPEND
 };
 
-// constructor
+/**
+ * @brief Constructor for GliderPullup class
+ * 
+ * @details Initializes the glider pullup manager with default parameter values
+ *          from the var_info parameter table. The constructor sets up the
+ *          AP_Param system for persistent parameter storage and ground station
+ *          parameter access.
+ *          
+ *          Default values are defined in the var_info array and can be overridden
+ *          by values stored in EEPROM or set via MAVLink parameter protocol.
+ * 
+ * @note Called once during vehicle initialization
+ */
 GliderPullup::GliderPullup(void)
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
 
-/*
-  return true if in a pullup manoeuvre at the end of NAV_ALTITUDE_WAIT
-*/
+/**
+ * @brief Check if vehicle is currently executing a pullup maneuver
+ * 
+ * @details Returns true if the vehicle is in AUTO mode, executing a
+ *          NAV_ALTITUDE_WAIT mission command, and has progressed beyond
+ *          the initial NONE stage into an active pullup sequence.
+ *          
+ *          This status check is used by other flight code to determine
+ *          if special pullup control logic should be active instead of
+ *          normal AUTO mode control.
+ * 
+ * @return true if actively performing pullup maneuver
+ * @return false if not in pullup or pullup not started
+ * 
+ * @note This is a const method safe to call from any context
+ * @see pullup_start() for pullup initiation
+ * @see Stage enum for pullup stage definitions
+ */
 bool GliderPullup::in_pullup(void) const
 {
     return plane.control_mode == &plane.mode_auto &&
@@ -80,10 +156,32 @@ bool GliderPullup::in_pullup(void) const
         stage != Stage::NONE;
 }
 
-/*
-  start a pullup maneouvre, called when NAV_ALTITUDE_WAIT has reached
-  altitude or exceeded descent rate
-*/
+/**
+ * @brief Initiate the glider pullup maneuver sequence
+ * 
+ * @details Called when NAV_ALTITUDE_WAIT mission command has reached the target
+ *          altitude or exceeded the maximum descent rate threshold. This method:
+ *          
+ *          1. Checks if pullup is enabled via PUP_ENABLE parameter
+ *          2. Triggers balloon release servo (k_lift_release) for balloon-dropped gliders
+ *          3. Transitions to WAIT_AIRSPEED stage to begin pullup sequence
+ *          4. Disables idle mode to ensure full throttle/control authority
+ *          5. Logs initial conditions (airspeed and altitude) to GCS
+ *          
+ *          Typical use case:
+ *          High-altitude balloon carries glider to altitude, NAV_ALTITUDE_WAIT
+ *          monitors descent, and when conditions are met, this initiates the
+ *          pullup sequence with balloon release.
+ * 
+ * @return true if pullup successfully started
+ * @return false if pullup is disabled via PUP_ENABLE parameter
+ * 
+ * @note Sends telemetry message to ground control station with initial state
+ * @warning Balloon release servo is activated unconditionally if pullup is enabled
+ * 
+ * @see NAV_ALTITUDE_WAIT mission command documentation
+ * @see SRV_Channel::k_lift_release for balloon release servo function
+ */
 bool GliderPullup::pullup_start(void)
 {
     if (enable != 1) {
@@ -103,8 +201,45 @@ bool GliderPullup::pullup_start(void)
     return true;
 }
 
-/*
-  first stage pullup from balloon release, verify completion
+/**
+ * @brief Monitor and verify pullup maneuver progression through stages
+ * 
+ * @details This method implements the state machine for pullup maneuver execution.
+ *          Called repeatedly during NAV_ALTITUDE_WAIT to check stage completion
+ *          conditions and transition between pullup stages.
+ *          
+ *          Stage Progression:
+ *          
+ *          1. WAIT_AIRSPEED: Monitor airspeed buildup after balloon release
+ *             - Transition when airspeed > PUP_ARSPD_START OR pitch > PUP_PITCH_START
+ *             - Ensures adequate airflow before closed-loop control
+ *          
+ *          2. WAIT_PITCH: Monitor pitch angle during initial pullup
+ *             - Transition when pitch > PUP_PITCH_START AND abs(roll) < 90 degrees
+ *             - Confirms aircraft is pitching up and not inverted
+ *          
+ *          3. PUSH_NOSE_DOWN: Emergency recovery stage (entered from WAIT_LEVEL)
+ *             - Transition when abs(roll) < aparm.roll_limit
+ *             - Used if roll control is lost during final leveling
+ *          
+ *          4. WAIT_LEVEL: Final stabilization before returning to normal AUTO
+ *             - Monitors pitch > pitch_limit_min, airspeed approaching target, roll control OK
+ *             - Uses predictive airspeed calculation to prevent premature handoff
+ *             - Can transition to PUSH_NOSE_DOWN if roll control lost
+ *             - Completes when aircraft is stable and slow enough for speed controller
+ *          
+ *          Safety Logic:
+ *          - Continuous roll angle monitoring with automatic nose-down recovery
+ *          - Predictive airspeed calculation accounts for pitch lag time
+ *          - Separate checks for pitch completion, airspeed, and roll control
+ * 
+ * @return true if pullup sequence is complete and can return to normal AUTO mode
+ * @return false if pullup is still in progress
+ * 
+ * @note Called at main loop rate (typically 50Hz for fixed-wing)
+ * @warning Roll angles exceeding roll_limit during WAIT_LEVEL trigger emergency nose-down
+ * 
+ * @see stabilize_pullup() for control surface commands during each stage
  */
 bool GliderPullup::verify_pullup(void)
 {
@@ -143,11 +278,25 @@ bool GliderPullup::verify_pullup(void)
     case Stage::WAIT_LEVEL: {
         // When pitch has raised past lower limit used by speed controller, wait for airspeed to approach
         // target value before handing over control of pitch demand to speed controller
+        
+        // Check if pitch angle is high enough for speed controller to take over
         bool pitchup_complete = ahrs.get_pitch_deg() > MIN(0, aparm.pitch_limit_min);
+        
+        // Calculate prediction time horizon - scales with air density (EAS2TAS)
+        // At high altitude (low density), aircraft responds more slowly, so use longer prediction horizon
         const float pitch_lag_time = 1.0f * sqrtf(ahrs.get_EAS2TAS());
+        
         float aspeed;
+        // Calculate rate of change of airspeed in body frame
+        // Uses x-axis acceleration plus gravity component in body x-axis
+        // Divided by EAS2TAS to get equivalent airspeed derivative
         const float aspeed_derivative = (ahrs.get_accel().x + GRAVITY_MSS * ahrs.get_DCM_rotation_body_to_ned().c.x) / ahrs.get_EAS2TAS();
+        
+        // Predict future airspeed using current rate of change
+        // This prevents premature handoff to speed controller when airspeed is still decreasing rapidly
         bool airspeed_low = ahrs.airspeed_estimate(aspeed) ? (aspeed + aspeed_derivative * pitch_lag_time) < 0.01f * (float)plane.target_airspeed_cm : true;
+        
+        // Safety check: ensure we still have roll authority
         bool roll_control_lost = fabsf(ahrs.get_roll_deg()) > aparm.roll_limit;
         if (pitchup_complete && airspeed_low && !roll_control_lost) {
                 gcs().send_text(MAV_SEVERITY_INFO, "Pullup level r=%.1f p=%.1f alt %.1fm AMSL",
@@ -171,8 +320,62 @@ bool GliderPullup::verify_pullup(void)
     return true;
 }
 
-/*
-  stabilize during pullup from balloon drop
+/**
+ * @brief Generate control surface commands during pullup maneuver
+ * 
+ * @details Implements stage-specific control logic for the pullup sequence.
+ *          This method is called from the main stabilization loop when in_pullup()
+ *          returns true, replacing the normal AUTO mode stabilization logic.
+ *          
+ *          Control Strategy by Stage:
+ *          
+ *          WAIT_AIRSPEED:
+ *          - Fixed elevator deflection (PUP_ELEV_OFS) to build airspeed
+ *          - Zero rudder, zero aileron rate demand (wings level)
+ *          - Resets pitch and yaw integrators to prevent windup
+ *          - Initializes ng_demand to zero for smooth transition to next stage
+ *          
+ *          WAIT_PITCH:
+ *          - Closed-loop load factor (ng) control for smooth pullup
+ *          - Ramps ng_demand up to PUP_NG_LIM at rate PUP_NG_JERK_LIM
+ *          - Converts ng to pitch rate demand: pitch_rate = (ng * g) / TAS
+ *          - Blends elevator offset with pitch rate controller output
+ *          - Maintains wings level with aileron rate controller
+ *          - Jerk limit scaled by EAS2TAS for altitude compensation
+ *          
+ *          PUSH_NOSE_DOWN:
+ *          - Emergency recovery mode if roll control lost during WAIT_LEVEL
+ *          - Commands pitch_limit_min (most nose-down allowed)
+ *          - Full attitude control (pitch, roll, yaw stabilization)
+ *          - Resets ng_demand to zero
+ *          
+ *          WAIT_LEVEL:
+ *          - Commands gentle positive pitch (pitch_limit_min + 5 or pitch_dem)
+ *          - Full attitude stabilization while waiting for airspeed to stabilize
+ *          - Resets ng_demand to zero
+ *          
+ *          Load Factor Control (WAIT_PITCH stage):
+ *          The load factor (ng) represents how many "g's" the aircraft experiences.
+ *          ng = 1.0 means 1g (straight and level flight)
+ *          ng = 2.0 means 2g (pullup with 2x the weight force)
+ *          
+ *          The demanded pitch rate for a given load factor is:
+ *          pitch_rate [rad/s] = (ng * g) / TAS
+ *          where g = 9.81 m/s^2 and TAS = true airspeed
+ *          
+ *          Jerk limiting (ng_jerk_limit) ensures smooth transitions to prevent:
+ *          - Structural stress from rapid load changes
+ *          - Pilot/payload discomfort
+ *          - Control surface saturation
+ * 
+ * @note Called from main stabilization loop, sets plane.last_stabilize_ms
+ * @note Load factor calculations account for altitude effects via EAS2TAS scaling
+ * 
+ * @warning WAIT_PITCH stage can command high load factors - ensure PUP_NG_LIM is appropriate
+ * @warning Fixed elevator offset in WAIT_AIRSPEED assumes aircraft is in clean configuration
+ * 
+ * @see verify_pullup() for stage transition logic
+ * @see PID controllers in Plane class (pitchController, rollController, yawController)
  */
 void GliderPullup::stabilize_pullup(void)
 {
@@ -198,15 +401,30 @@ void GliderPullup::stabilize_pullup(void)
         float aspeed;
         const auto &ahrs = plane.ahrs;
         if (ahrs.airspeed_estimate(aspeed)) {
-            // apply a rate of change limit to the ng pullup demand
+            // Apply jerk limiting: ramp ng_demand up gradually
+            // Jerk limit is scaled by 1/EAS2TAS to account for reduced dynamic pressure at altitude
+            // Minimum rate of 0.1 g/s prevents excessively slow pullup at very high altitudes
             ng_demand += MAX(ng_jerk_limit / ahrs.get_EAS2TAS(), 0.1f) * plane.scheduler.get_loop_period_s();
             ng_demand = MIN(ng_demand, ng_limit);
+            
+            // Calculate true airspeed from equivalent airspeed
             const float VTAS_ref = ahrs.get_EAS2TAS() * aspeed;
+            
+            // Convert load factor to centripetal acceleration: a = ng * g
             const float pullup_accel = ng_demand * GRAVITY_MSS;
+            
+            // Calculate required pitch rate for desired load factor
+            // For coordinated turn/pullup: pitch_rate = acceleration / velocity
             const float demanded_rate_dps = degrees(pullup_accel / VTAS_ref);
+            
+            // Blend fixed elevator offset with pitch rate control
+            // Offset fades out as ng_demand approaches ng_limit (smooth transition to pure rate control)
             const uint32_t elev_trim_offset_cd = 4500.0f * elev_offset * (1.0f - ng_demand / ng_limit);
+            
+            // Command elevator: fixed offset + pitch rate controller output
             SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elev_trim_offset_cd + plane.pitchController.get_rate_out(demanded_rate_dps, speed_scaler));
         } else {
+            // Fallback if no airspeed: use fixed elevator offset only
             SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elev_offset*4500);
         }
         break;

@@ -24,7 +24,7 @@
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_CANManager::CANDriver_Params::var_info[] = {
 
-    // @Param: PROTOCOL
+    // `@Param`: PROTOCOL
     // @DisplayName: Enable use of specific protocol over virtual driver
     // @Description: Enabling this option starts selected protocol that will use this virtual driver
     // @SortValues: AlphabeticalZeroAtTop
@@ -49,7 +49,7 @@ const AP_Param::GroupInfo AP_CANManager::CANDriver_Params::var_info[] = {
     AP_SUBGROUPPTR(_piccolocan, "PC_", 5, AP_CANManager::CANDriver_Params, AP_PiccoloCAN),
 #endif
 
-    // @Param: PROTOCOL2
+    // `@Param`: PROTOCOL2
     // @DisplayName: Secondary protocol with 11 bit CAN addressing
     // @Description: Secondary protocol with 11 bit CAN addressing
     // @SortValues: AlphabeticalZeroAtTop

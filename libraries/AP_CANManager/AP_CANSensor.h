@@ -15,6 +15,18 @@
 /*
   CANSensor class, for easy creation of CAN sensors using custom CAN protocols
  */
+
+/**
+ * @file AP_CANSensor.h
+ * @brief Base class for CAN sensor drivers using custom protocols
+ * 
+ * @details Provides threaded receive loop, frame transmission, and interface registration
+ *          for protocol drivers. Two classes are provided:
+ *          - CANSensor: Single backend supporting one sensor instance
+ *          - MultiCAN: Multi-backend supporting multiple sensor instances with callback forwarding
+ * 
+ * @author ArduPilot Development Team
+ */
  
 #pragma once
 
@@ -26,26 +38,113 @@
 
 #if HAL_MAX_CAN_PROTOCOL_DRIVERS
 
+/**
+ * @class CANSensor
+ * @brief Base class for CAN protocol drivers implementing custom sensor protocols
+ * 
+ * @details CANSensor provides a framework for implementing CAN-based sensor drivers
+ *          using custom protocols. Key features:
+ *          - Inherits from AP_CANDriver to implement the protocol driver contract
+ *          - Spawns a dedicated thread running loop() at specified stack size
+ *          - Provides write_frame() for transmitting CAN frames with timeout/select
+ *          - Subclasses implement pure virtual handle_frame() to parse received CAN frames
+ *          - Automatically registers with AP_CANManager during init()
+ *          - Thread-safe frame transmission via semaphore
+ *          - Supports both main firmware and AP_Periph builds with conditional compilation
+ * 
+ * @note Subclass must implement handle_frame() to parse protocol-specific frames
+ * @warning Constructor stack_size parameter must be sufficient for subclass needs (default 2048 bytes)
+ * 
+ * @see AP_CANDriver
+ * @see AP_CANManager
+ * @see AP_Proximity_Benewake_CAN
+ * @see AP_RangeFinder_Benewake_CAN
+ */
 class CANSensor : public AP_CANDriver {
 public:
+    /**
+     * @brief Construct CAN sensor driver with specified thread stack size
+     * 
+     * @param[in] driver_name Human-readable name for thread/logging (e.g., 'RangeFinder_Benewake')
+     * @param[in] stack_size Thread stack size in bytes (default 2048), must accommodate subclass processing
+     * 
+     * @note Does not start thread - init() must be called first
+     */
     CANSensor(const char *driver_name, uint16_t stack_size=2048);
 
     /* Do not allow copies */
     CLASS_NO_COPY(CANSensor);
 
+    /**
+     * @brief Initialize driver, register with manager, start receive thread
+     * 
+     * @param[in] driver_index Driver slot index assigned by AP_CANManager
+     * @param[in] enable_filters Enable hardware CAN filtering for this driver
+     * 
+     * @details Registers driver via register_driver(), stores driver_index,
+     *          spawns loop() thread with configured stack_size
+     * 
+     * @note Called by AP_CANManager during system initialization
+     */
     void init(uint8_t driver_index, bool enable_filters) override;
+    
+    /**
+     * @brief Link physical CAN interface to this driver
+     * 
+     * @param[in] can_iface Pointer to HAL CAN interface (must remain valid)
+     * @return true if interface successfully added
+     * 
+     * @details Stores interface pointer for write_frame() transmission, enables receive loop
+     * 
+     * @warning Can be called multiple times to add multiple interfaces
+     */
     bool add_interface(AP_HAL::CANIface* can_iface) override;
 
-    // Return true if this sensor has been successfully registered to a driver and initialized.
+    /**
+     * @brief Check if driver has been successfully initialized and registered
+     * @return true if init() completed successfully and driver is operational
+     * @note Useful for subclass conditional logic during startup
+     */
     bool initialized() const { return _initialized; }
 
-    // handler for incoming frames
+    /**
+     * @brief Pure virtual handler for incoming CAN frames
+     * 
+     * @param[in,out] frame Received CAN frame with ID, DLC, data[] array
+     * 
+     * @details Called by receive loop for each frame matching driver's filter.
+     *          Subclass parses protocol-specific data, updates internal state,
+     *          publishes to frontend
+     * 
+     * @note Runs in dedicated thread context, must be thread-safe if accessing shared data
+     * @warning Long processing delays can cause CAN RX buffer overflow - keep handler fast
+     */
     virtual void handle_frame(AP_HAL::CANFrame &frame) = 0;
 
-    // handler for outgoing frames
+    /**
+     * @brief Transmit CAN frame with timeout
+     * 
+     * @param[in,out] out_frame CAN frame to transmit (may be modified by HAL)
+     * @param[in] timeout_us Transmit timeout in microseconds
+     * @return true if frame transmitted successfully, false on timeout or error
+     * 
+     * @details Uses select() with timeout to avoid blocking indefinitely if bus saturated
+     * 
+     * @note Thread-safe via internal semaphore
+     * @warning High-frequency transmission can saturate CAN bus (max ~8000 frames/sec @ 1Mbps)
+     */
     bool write_frame(AP_HAL::CANFrame &out_frame, const uint32_t timeout_us);
 
 #ifdef HAL_BUILD_AP_PERIPH
+    /**
+     * @brief Configure CAN interface for AP_Periph peripheral firmware
+     * 
+     * @param[in] i Interface index (0-based)
+     * @param[in] protocol Protocol type for this interface
+     * @param[in] iface HAL CAN interface pointer
+     * 
+     * @note AP_Periph uses simplified configuration without full AP_CANManager
+     */
     static void set_periph(const uint8_t i, const AP_CAN::Protocol protocol, AP_HAL::CANIface* iface) {
         if (i < ARRAY_SIZE(_periph)) {
             _periph[i].protocol = protocol;
@@ -53,7 +152,12 @@ public:
         }
     }
 
-    // return driver type index i
+    /**
+     * @brief Retrieve protocol type for driver index in AP_Periph build
+     * 
+     * @param[in] i Driver index
+     * @return AP_CAN::Protocol enum, Protocol::None if invalid
+     */
     static AP_CAN::Protocol get_driver_type(const uint8_t i)
     {
         if (i < ARRAY_SIZE(_periph)) {
@@ -62,13 +166,35 @@ public:
         return AP_CAN::Protocol::None;
     }
 #else
+    /**
+     * @brief Retrieve protocol type via AP_CANManager singleton
+     * 
+     * @param[in] i Driver index
+     * @return AP_CAN::Protocol enum from manager cache
+     */
     static AP_CAN::Protocol get_driver_type(const uint8_t i) { return AP::can().get_driver_type(i); }
 #endif
 
 protected:
+    /**
+     * @brief Register this driver with AP_CANManager (main firmware) or store in _periph array (AP_Periph)
+     * 
+     * @param[in] dtype Protocol type from AP_CAN::Protocol enum
+     * 
+     * @details Called internally by init(), handles build-specific registration
+     */
     void register_driver(AP_CAN::Protocol dtype);
 
 private:
+    /**
+     * @brief Thread main loop: receive frames, call handle_frame(), yield
+     * 
+     * @details Blocking receive from _can_iface, dispatches to handle_frame(),
+     *          runs until thread terminated
+     * 
+     * @note Private method running in dedicated thread context
+     * @warning Must not be called directly - spawned by init()
+     */
     void loop();
 
     const char *const _driver_name;
@@ -84,8 +210,20 @@ private:
     AP_HAL::CANIface* _can_iface;
 
 #ifdef HAL_BUILD_AP_PERIPH
+    /**
+     * @brief AP_Periph-specific driver registration implementation
+     * 
+     * @param[in] dtype Protocol type
+     * 
+     * @note Stores driver info in static _periph array instead of AP_CANManager
+     */
     void register_driver_periph(const AP_CAN::Protocol dtype);
     
+    /**
+     * @brief Per-interface driver configuration for AP_Periph builds
+     * 
+     * @details Stores HAL interface pointer and protocol type without full manager overhead
+     */
     struct CANSensor_Periph {
         AP_HAL::CANIface* iface;
         AP_CAN::Protocol protocol;
@@ -93,20 +231,63 @@ private:
 #endif
 };
 
-// a class to allow for multiple CAN backends with one
-// CANSensor driver. This can be shared among different libraries like rangefinder and proximity
+/**
+ * @class MultiCAN
+ * @brief CAN sensor driver supporting multiple backend consumers via callback forwarding
+ * 
+ * @details MultiCAN extends CANSensor to enable frame multicasting to multiple backends:
+ *          - Single CAN protocol driver forwards frames to multiple registered backends
+ *          - Use case: Multiple rangefinders or proximity sensors on same CAN bus
+ *          - Backends register ForwardCanFrame callbacks via linked list
+ *          - handle_frame() distributes each received frame to all registered callbacks
+ *          - Thread-safe callback list via HAL_Semaphore
+ * 
+ * @note Useful when multiple sensor instances share same CAN protocol
+ * @warning All callbacks must execute quickly to avoid blocking receive thread
+ * 
+ * @see CANSensor
+ * @see AP_Proximity_Benewake_CAN
+ * @see AP_RangeFinder_Benewake_CAN
+ */
 class MultiCAN : public CANSensor {
 public:
-    // callback functor def for forwarding frames
+    /**
+     * @brief Callback function type for forwarding CAN frames to backends
+     * 
+     * @param[in,out] frame CAN frame to process
+     * @return true if backend successfully handled frame
+     */
     FUNCTOR_TYPEDEF(ForwardCanFrame, bool, AP_HAL::CANFrame &);
 
+    /**
+     * @brief Construct multi-backend CAN driver
+     * 
+     * @param[in] cf Callback function to register for this instance
+     * @param[in] can_type Protocol type from AP_CAN::Protocol enum
+     * @param[in] driver_name Human-readable name for driver
+     * 
+     * @details Registers callback in static linked list, enabling frame distribution to multiple backends
+     */
     MultiCAN(ForwardCanFrame cf, AP_CAN::Protocol can_type, const char *driver_name);
 
-    // handle a received frame from the CAN bus
+    /**
+     * @brief Receive frame and distribute to all registered callbacks
+     * 
+     * @param[in,out] frame Received CAN frame
+     * 
+     * @details Iterates through MultiCANLinkedList, calls each registered ForwardCanFrame callback
+     * 
+     * @note Callbacks execute sequentially in receive thread context
+     */
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
 private:
-    // class to allow for multiple callbacks implemented as a linked list
+    /**
+     * @class MultiCANLinkedList
+     * @brief Thread-safe linked list managing MultiCAN frame forwarding callbacks
+     * 
+     * @details Static persistence across MultiCAN instances, semaphore-protected list operations
+     */
     class MultiCANLinkedList {
     public:
         struct CANSensor_Multi {
@@ -114,10 +295,22 @@ private:
             CANSensor_Multi* next = nullptr;
         };
 
-        // register a callback for a CAN frame by adding it to the linked list
+        /**
+         * @brief Add callback to forwarding list
+         * 
+         * @param[in] callback ForwardCanFrame functor to register
+         * 
+         * @details Appends to linked list, protected by semaphore
+         */
         void register_callback(ForwardCanFrame callback);
 
-        // distribute the CAN frame to the registered callbacks
+        /**
+         * @brief Distribute frame to all registered callbacks in list
+         * 
+         * @param[in,out] frame Frame to forward
+         * 
+         * @details Iterates list under semaphore, calls each callback sequentially
+         */
         void handle_frame(AP_HAL::CANFrame &frame);
         HAL_Semaphore sem;
 
@@ -125,7 +318,11 @@ private:
         CANSensor_Multi* head = nullptr;
     };
 
-    // Pointer to static instance of the linked list for persistence across instances
+    /**
+     * @brief Static linked list instance for callback persistence
+     * 
+     * @note Shared across all MultiCAN instances to enable frame multicasting
+     */
     static MultiCANLinkedList* callbacks;
 };
 

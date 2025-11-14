@@ -35,7 +35,7 @@ extern const AP_HAL::HAL& hal;
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_KDECAN::var_info[] = {
 
-    // @Param: NPOLE
+    // `@Param`: NPOLE
     // @DisplayName: Number of motor poles
     // @Description: Sets the number of motor poles to calculate the correct RPM value
     AP_GROUPINFO("NPOLE", 1, AP_KDECAN, _num_poles, DEFAULT_NUM_POLES),

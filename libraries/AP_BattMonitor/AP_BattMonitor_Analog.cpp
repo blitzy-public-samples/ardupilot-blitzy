@@ -13,7 +13,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_BattMonitor_Analog::var_info[] = {
 
-    // @Param: VOLT_PIN
+    // `@Param`: VOLT_PIN
     // @DisplayName: Battery Voltage sensing pin
     // @Description: Sets the analog input pin that should be used for voltage monitoring.
     // @Values: -1:Disabled, 2:Pixhawk/Pixracer/Navio2/Pixhawk2_PM1, 5:Navigator, 13:Pixhawk2_PM2/CubeOrange_PM2, 14:CubeOrange, 16:Durandal, 100:PX4-v1
@@ -21,7 +21,7 @@ const AP_Param::GroupInfo AP_BattMonitor_Analog::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("VOLT_PIN", 1, AP_BattMonitor_Analog, _volt_pin, AP_BATT_VOLT_PIN),
 
-    // @Param: CURR_PIN
+    // `@Param`: CURR_PIN
     // @DisplayName: Battery Current sensing pin
     // @Description: Sets the analog input pin that should be used for current monitoring.
     // @Values: -1:Disabled, 3:Pixhawk/Pixracer/Navio2/Pixhawk2_PM1, 4:CubeOrange_PM2/Navigator, 14:Pixhawk2_PM2, 15:CubeOrange, 17:Durandal, 101:PX4-v1
@@ -29,27 +29,27 @@ const AP_Param::GroupInfo AP_BattMonitor_Analog::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("CURR_PIN", 2, AP_BattMonitor_Analog, _curr_pin, AP_BATT_CURR_PIN),
 
-    // @Param: VOLT_MULT
+    // `@Param`: VOLT_MULT
     // @DisplayName: Voltage Multiplier
     // @Description: Used to convert the voltage of the voltage sensing pin (@PREFIX@VOLT_PIN) to the actual battery's voltage (pin_voltage * VOLT_MULT). For the 3DR Power brick with a Pixhawk, this should be set to 10.1. For the Pixhawk with the 3DR 4in1 ESC this should be 12.02. For the PX using the PX4IO power supply this should be set to 1.
     // @User: Advanced
     AP_GROUPINFO("VOLT_MULT", 3, AP_BattMonitor_Analog, _volt_multiplier, AP_BATT_VOLTDIVIDER_DEFAULT),
 
-    // @Param: AMP_PERVLT
+    // `@Param`: AMP_PERVLT
     // @DisplayName: Amps per volt
     // @Description: Number of amps that a 1V reading on the current sensor corresponds to. With a Pixhawk using the 3DR Power brick this should be set to 17. For the Pixhawk with the 3DR 4in1 ESC this should be 17. For Synthetic Current sensor monitors, this is the maximum, full throttle current draw.
     // @Units: A/V
     // @User: Standard
     AP_GROUPINFO("AMP_PERVLT", 4, AP_BattMonitor_Analog, _curr_amp_per_volt, AP_BATT_CURR_AMP_PERVOLT_DEFAULT),
 
-    // @Param: AMP_OFFSET
+    // `@Param`: AMP_OFFSET
     // @DisplayName: AMP offset
     // @Description: Voltage offset at zero current on current sensor for Analog Sensors. For Synthetic Current sensor, this offset is the zero throttle system current and is added to the calculated throttle base current.
     // @Units: V
     // @User: Standard
     AP_GROUPINFO("AMP_OFFSET", 5, AP_BattMonitor_Analog, _curr_amp_offset, AP_BATT_CURR_AMP_OFFSET_DEFAULT),
 
-    // @Param: VLT_OFFSET
+    // `@Param`: VLT_OFFSET
     // @DisplayName: Voltage offset
     // @Description: Voltage offset on voltage pin. This allows for an offset due to a diode. This voltage is subtracted before the scaling is applied.
     // @Units: V

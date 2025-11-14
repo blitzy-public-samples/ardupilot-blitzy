@@ -130,7 +130,7 @@ extern const AP_HAL::HAL& hal;
 // Define tuning parameters
 const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable EKF2
     // @Description: This enables EKF2. Enabling EKF2 only makes the maths run, it does not mean it will be used for flight control. To use it for flight control set AHRS_EKF_TYPE=2. A reboot or restart will need to be performed after changing the value of EK2_ENABLE for it to take effect.
     // @Values: 0:Disabled, 1:Enabled
@@ -140,14 +140,14 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // GPS measurement parameters
 
-    // @Param: GPS_TYPE
+    // `@Param`: GPS_TYPE
     // @DisplayName: GPS mode control
     // @Description: This controls use of GPS measurements : 0 = use 3D velocity & 2D position, 1 = use 2D velocity and 2D position, 2 = use 2D position, 3 = Inhibit GPS use - this can be useful when flying with an optical flow sensor in an environment where GPS quality is poor and subject to large multipath errors.
     // @Values: 0:GPS 3D Vel and 2D Pos, 1:GPS 2D vel and 2D pos, 2:GPS 2D pos, 3:No GPS
     // @User: Advanced
     AP_GROUPINFO("GPS_TYPE", 1, NavEKF2, _fusionModeGPS, 0),
 
-    // @Param: VELNE_M_NSE
+    // `@Param`: VELNE_M_NSE
     // @DisplayName: GPS horizontal velocity measurement noise (m/s)
     // @Description: This sets a lower limit on the speed accuracy reported by the GPS receiver that is used to set horizontal velocity observation noise. If the model of receiver used does not provide a speed accurcy estimate, then the parameter value will be used. Increasing it reduces the weighting of the GPS horizontal velocity measurements.
     // @Range: 0.05 5.0
@@ -156,7 +156,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m/s
     AP_GROUPINFO("VELNE_M_NSE", 2, NavEKF2, _gpsHorizVelNoise, VELNE_M_NSE_DEFAULT),
 
-    // @Param: VELD_M_NSE
+    // `@Param`: VELD_M_NSE
     // @DisplayName: GPS vertical velocity measurement noise (m/s)
     // @Description: This sets a lower limit on the speed accuracy reported by the GPS receiver that is used to set vertical velocity observation noise. If the model of receiver used does not provide a speed accurcy estimate, then the parameter value will be used. Increasing it reduces the weighting of the GPS vertical velocity measurements.
     // @Range: 0.05 5.0
@@ -165,7 +165,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m/s
     AP_GROUPINFO("VELD_M_NSE", 3, NavEKF2, _gpsVertVelNoise, VELD_M_NSE_DEFAULT),
 
-    // @Param: VEL_I_GATE
+    // `@Param`: VEL_I_GATE
     // @DisplayName: GPS velocity innovation gate size
     // @Description: This sets the percentage number of standard deviations applied to the GPS velocity measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -173,7 +173,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("VEL_I_GATE", 4, NavEKF2, _gpsVelInnovGate, VEL_I_GATE_DEFAULT),
 
-    // @Param: POSNE_M_NSE
+    // `@Param`: POSNE_M_NSE
     // @DisplayName: GPS horizontal position measurement noise (m)
     // @Description: This sets the GPS horizontal position observation noise. Increasing it reduces the weighting of GPS horizontal position measurements.
     // @Range: 0.1 10.0
@@ -182,7 +182,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m
     AP_GROUPINFO("POSNE_M_NSE", 5, NavEKF2, _gpsHorizPosNoise, POSNE_M_NSE_DEFAULT),
 
-    // @Param: POS_I_GATE
+    // `@Param`: POS_I_GATE
     // @DisplayName: GPS position measurement gate size
     // @Description: This sets the percentage number of standard deviations applied to the GPS position measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -190,7 +190,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("POS_I_GATE", 6, NavEKF2, _gpsPosInnovGate, POS_I_GATE_DEFAULT),
 
-    // @Param: GLITCH_RAD
+    // `@Param`: GLITCH_RAD
     // @DisplayName: GPS glitch radius gate size (m)
     // @Description: This controls the maximum radial uncertainty in position between the value predicted by the filter and the value measured by the GPS before the filter position and velocity states are reset to the GPS. Making this value larger allows the filter to ignore larger GPS glitches but also means that non-GPS errors such as IMU and compass can create a larger error in position before the filter is forced back to the GPS position.
     // @Range: 10 100
@@ -203,7 +203,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // Height measurement parameters
 
-    // @Param: ALT_SOURCE
+    // `@Param`: ALT_SOURCE
     // @DisplayName: Primary altitude sensor source
     // @Description: Primary height sensor used by the EKF. If a sensor other than Baro is selected and becomes unavailable, then the Baro sensor will be used as a fallback. NOTE: The EK2_RNG_USE_HGT parameter can be used to switch to range-finder when close to the ground in conjunction with EK2_ALT_SOURCE = 0 or 2 (Baro or GPS).
     // @Values: 0:Use Baro, 1:Use Range Finder, 2:Use GPS, 3:Use Range Beacon
@@ -211,7 +211,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("ALT_SOURCE", 9, NavEKF2, _altSource, 0),
 
-    // @Param: ALT_M_NSE
+    // `@Param`: ALT_M_NSE
     // @DisplayName: Altitude measurement noise (m)
     // @Description: This is the RMS value of noise in the altitude measurement. Increasing it reduces the weighting of the baro measurement and will make the filter respond more slowly to baro measurement errors, but will make it more sensitive to GPS and accelerometer errors.
     // @Range: 0.1 10.0
@@ -220,7 +220,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m
     AP_GROUPINFO("ALT_M_NSE", 10, NavEKF2, _baroAltNoise, ALT_M_NSE_DEFAULT),
 
-    // @Param: HGT_I_GATE
+    // `@Param`: HGT_I_GATE
     // @DisplayName: Height measurement gate size
     // @Description: This sets the percentage number of standard deviations applied to the height measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -228,7 +228,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("HGT_I_GATE", 11, NavEKF2, _hgtInnovGate, HGT_I_GATE_DEFAULT),
 
-    // @Param: HGT_DELAY
+    // `@Param`: HGT_DELAY
     // @DisplayName: Height measurement delay (msec)
     // @Description: This is the number of msec that the Height measurements lag behind the inertial measurements.
     // @Range: 0 250
@@ -240,7 +240,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // Magnetometer measurement parameters
 
-    // @Param: MAG_M_NSE
+    // `@Param`: MAG_M_NSE
     // @DisplayName: Magnetometer measurement noise (Gauss)
     // @Description: This is the RMS value of noise in magnetometer measurements. Increasing it reduces the weighting on these measurements.
     // @Range: 0.01 0.5
@@ -249,14 +249,14 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: Gauss
     AP_GROUPINFO("MAG_M_NSE", 13, NavEKF2, _magNoise, MAG_M_NSE_DEFAULT),
 
-    // @Param: MAG_CAL
+    // `@Param`: MAG_CAL
     // @DisplayName: Magnetometer default fusion mode
     // @Description: This determines when the filter will use the 3-axis magnetometer fusion model that estimates both earth and body fixed magnetic field states, when it will use a simpler magnetic heading fusion model that does not use magnetic field states and when it will use an alternative method of yaw determination to the magnetometer. The 3-axis magnetometer fusion is only suitable for use when the external magnetic field environment is stable. EK2_MAG_CAL = 0 uses heading fusion on ground, 3-axis fusion in-flight, and is the default setting for Plane users. EK2_MAG_CAL = 1 uses 3-axis fusion only when manoeuvring. EK2_MAG_CAL = 2 uses heading fusion at all times, is recommended if the external magnetic field is varying and is the default for rovers. EK2_MAG_CAL = 3 uses heading fusion on the ground and 3-axis fusion after the first in-air field and yaw reset has completed, and is the default for copters. EK2_MAG_CAL = 4 uses 3-axis fusion at all times. NOTE: The fusion mode can be forced to 2 for specific EKF cores using the EK2_MAG_MASK parameter. NOTE: limited operation without a magnetometer or any other yaw sensor is possible by setting all COMPASS_USE, COMPASS_USE2, COMPASS_USE3, etc parameters to 0 with COMPASS_ENABLE set to 1. If this is done, the EK2_GSF_RUN and EK2_GSF_USE masks must be set to the same as EK2_IMU_MASK.
     // @Values: 0:When flying,1:When manoeuvring,2:Never,3:After first climb yaw reset,4:Always
     // @User: Advanced
     AP_GROUPINFO("MAG_CAL", 14, NavEKF2, _magCal, MAG_CAL_DEFAULT),
 
-    // @Param: MAG_I_GATE
+    // `@Param`: MAG_I_GATE
     // @DisplayName: Magnetometer measurement gate size
     // @Description: This sets the percentage number of standard deviations applied to the magnetometer measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -266,7 +266,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // Airspeed measurement parameters
 
-    // @Param: EAS_M_NSE
+    // `@Param`: EAS_M_NSE
     // @DisplayName: Equivalent airspeed measurement noise (m/s)
     // @Description: This is the RMS value of noise in equivalent airspeed measurements used by planes. Increasing it reduces the weighting of airspeed measurements and will make wind speed estimates less noisy and slower to converge. Increasing also increases navigation errors when dead-reckoning without GPS measurements.
     // @Range: 0.5 5.0
@@ -275,7 +275,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m/s
     AP_GROUPINFO("EAS_M_NSE", 16, NavEKF2, _easNoise, 1.4f),
 
-    // @Param: EAS_I_GATE
+    // `@Param`: EAS_I_GATE
     // @DisplayName: Airspeed measurement gate size
     // @Description: This sets the percentage number of standard deviations applied to the airspeed measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -285,7 +285,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // Rangefinder measurement parameters
 
-    // @Param: RNG_M_NSE
+    // `@Param`: RNG_M_NSE
     // @DisplayName: Range finder measurement noise (m)
     // @Description: This is the RMS value of noise in the range finder measurement. Increasing it reduces the weighting on this measurement.
     // @Range: 0.1 10.0
@@ -294,7 +294,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m
     AP_GROUPINFO("RNG_M_NSE", 18, NavEKF2, _rngNoise, 0.5f),
 
-    // @Param: RNG_I_GATE
+    // `@Param`: RNG_I_GATE
     // @DisplayName: Range finder measurement gate size
     // @Description: This sets the percentage number of standard deviations applied to the range finder innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -304,7 +304,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // Optical flow measurement parameters
 
-    // @Param: MAX_FLOW
+    // `@Param`: MAX_FLOW
     // @DisplayName: Maximum valid optical flow rate
     // @Description: This sets the magnitude maximum optical flow rate in rad/sec that will be accepted by the filter
     // @Range: 1.0 4.0
@@ -313,7 +313,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: rad/s
     AP_GROUPINFO("MAX_FLOW", 20, NavEKF2, _maxFlowRate, 2.5f),
 
-    // @Param: FLOW_M_NSE
+    // `@Param`: FLOW_M_NSE
     // @DisplayName: Optical flow measurement noise (rad/s)
     // @Description: This is the RMS value of noise and errors in optical flow measurements. Increasing it reduces the weighting on these measurements.
     // @Range: 0.05 1.0
@@ -322,7 +322,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: rad/s
     AP_GROUPINFO("FLOW_M_NSE", 21, NavEKF2, _flowNoise, FLOW_M_NSE_DEFAULT),
 
-    // @Param: FLOW_I_GATE
+    // `@Param`: FLOW_I_GATE
     // @DisplayName: Optical Flow measurement gate size
     // @Description: This sets the percentage number of standard deviations applied to the optical flow innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -330,7 +330,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("FLOW_I_GATE", 22, NavEKF2, _flowInnovGate, FLOW_I_GATE_DEFAULT),
 
-    // @Param: FLOW_DELAY
+    // `@Param`: FLOW_DELAY
     // @DisplayName: Optical Flow measurement delay (msec)
     // @Description: This is the number of msec that the optical flow measurements lag behind the inertial measurements. It is the time from the end of the optical flow averaging period and does not include the time delay due to the 100msec of averaging within the flow sensor.
     // @Range: 0 127
@@ -342,7 +342,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // State and Covariance Predition Parameters
 
-    // @Param: GYRO_P_NSE
+    // `@Param`: GYRO_P_NSE
     // @DisplayName: Rate gyro noise (rad/s)
     // @Description: This control disturbance noise controls the growth of estimated error due to gyro measurement errors excluding bias. Increasing it makes the flter trust the gyro measurements less and other measurements more.
     // @Range: 0.0001 0.1
@@ -351,7 +351,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: rad/s
     AP_GROUPINFO("GYRO_P_NSE", 24, NavEKF2, _gyrNoise, GYRO_P_NSE_DEFAULT),
 
-    // @Param: ACC_P_NSE
+    // `@Param`: ACC_P_NSE
     // @DisplayName: Accelerometer noise (m/s^2)
     // @Description: This control disturbance noise controls the growth of estimated error due to accelerometer measurement errors excluding bias. Increasing it makes the flter trust the accelerometer measurements less and other measurements more.
     // @Range: 0.01 1.0
@@ -360,7 +360,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m/s/s
     AP_GROUPINFO("ACC_P_NSE", 25, NavEKF2, _accNoise, ACC_P_NSE_DEFAULT),
 
-    // @Param: GBIAS_P_NSE
+    // `@Param`: GBIAS_P_NSE
     // @DisplayName: Rate gyro bias stability (rad/s/s)
     // @Description: This state  process noise controls growth of the gyro delta angle bias state error estimate. Increasing it makes rate gyro bias estimation faster and noisier.
     // @Range: 0.00001 0.001
@@ -368,7 +368,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: rad/s/s
     AP_GROUPINFO("GBIAS_P_NSE", 26, NavEKF2, _gyroBiasProcessNoise, GBIAS_P_NSE_DEFAULT),
 
-    // @Param: GSCL_P_NSE
+    // `@Param`: GSCL_P_NSE
     // @DisplayName: Rate gyro scale factor stability (1/s)
     // @Description: This noise controls the rate of gyro scale factor learning. Increasing it makes rate gyro scale factor estimation faster and noisier.
     // @Range: 0.000001 0.001
@@ -376,7 +376,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: Hz
     AP_GROUPINFO("GSCL_P_NSE", 27, NavEKF2, _gyroScaleProcessNoise, GSCALE_P_NSE_DEFAULT),
 
-    // @Param: ABIAS_P_NSE
+    // `@Param`: ABIAS_P_NSE
     // @DisplayName: Accelerometer bias stability (m/s^3)
     // @Description: This noise controls the growth of the vertical accelerometer delta velocity bias state error estimate. Increasing it makes accelerometer bias estimation faster and noisier.
     // @Range: 0.00001 0.005
@@ -386,7 +386,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // 29 previously used for EK2_MAG_P_NSE parameter that has been replaced with EK2_MAGE_P_NSE and EK2_MAGB_P_NSE
 
-    // @Param: WIND_P_NSE
+    // `@Param`: WIND_P_NSE
     // @DisplayName: Wind velocity process noise (m/s^2)
     // @Description: This state process noise controls the growth of wind state error estimates. Increasing it makes wind estimation faster and noisier.
     // @Range: 0.01 1.0
@@ -395,7 +395,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m/s/s
     AP_GROUPINFO("WIND_P_NSE", 30, NavEKF2, _windVelProcessNoise, 0.1f),
 
-    // @Param: WIND_PSCALE
+    // `@Param`: WIND_PSCALE
     // @DisplayName: Height rate to wind process noise scaler
     // @Description: This controls how much the process noise on the wind states is increased when gaining or losing altitude to take into account changes in wind speed and direction with altitude. Increasing this parameter increases how rapidly the wind states adapt when changing altitude, but does make wind velocity estimation noiser.
     // @Range: 0.0 1.0
@@ -403,14 +403,14 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("WIND_PSCALE", 31, NavEKF2, _wndVarHgtRateScale, 0.5f),
 
-    // @Param: GPS_CHECK
+    // `@Param`: GPS_CHECK
     // @DisplayName: GPS preflight check
     // @Description: This is a 1 byte bitmap controlling which GPS preflight checks are performed. Set to 0 to bypass all checks. Set to 255 perform all checks. Set to 3 to check just the number of satellites and HDoP. Set to 31 for the most rigorous checks that will still allow checks to pass when the copter is moving, eg launch from a boat.
     // @Bitmask: 0:NSats,1:HDoP,2:speed error,3:position error,4:yaw error,5:pos drift,6:vert speed,7:horiz speed
     // @User: Advanced
     AP_GROUPINFO("GPS_CHECK",    32, NavEKF2, _gpsCheck, 31),
 
-    // @Param: IMU_MASK
+    // `@Param`: IMU_MASK
     // @DisplayName: Bitmask of active IMUs
     // @Description: 1 byte bitmap of IMUs to use in EKF2. A separate instance of EKF2 will be started for each IMU selected. Set to 1 to use the first IMU only (default), set to 2 to use the second IMU only, set to 3 to use the first and second IMU. Additional IMU's can be used up to a maximum of 6 if memory and processing resources permit. There may be insufficient memory and processing resources to run multiple instances. If this occurs EKF2 will fail to start.
     // @Bitmask: 0:FirstIMU,1:SecondIMU,2:ThirdIMU,3:FourthIMU,4:FifthIMU,5:SixthIMU
@@ -418,7 +418,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("IMU_MASK",     33, NavEKF2, _imuMask, HAL_EKF_IMU_MASK_DEFAULT),
     
-    // @Param: CHECK_SCALE
+    // `@Param`: CHECK_SCALE
     // @DisplayName: GPS accuracy check scaler (%)
     // @Description: This scales the thresholds that are used to check GPS accuracy before it is used by the EKF. A value of 100 is the default. Values greater than 100 increase and values less than 100 reduce the maximum GPS error the EKF will accept. A value of 200 will double the allowable GPS error.
     // @Range: 50 200
@@ -426,7 +426,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: %
     AP_GROUPINFO("CHECK_SCALE", 34, NavEKF2, _gpsCheckScaler, CHECK_SCALER_DEFAULT),
 
-    // @Param: NOAID_M_NSE
+    // `@Param`: NOAID_M_NSE
     // @DisplayName: Non-GPS operation position uncertainty (m)
     // @Description: This sets the amount of position variation that the EKF allows for when operating without external measurements (eg GPS or optical flow). Increasing this parameter makes the EKF attitude estimate less sensitive to vehicle manoeuvres but more sensitive to IMU errors.
     // @Range: 0.5 50.0
@@ -439,7 +439,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // control of magnetic yaw angle fusion
 
-    // @Param: YAW_M_NSE
+    // `@Param`: YAW_M_NSE
     // @DisplayName: Yaw measurement noise (rad)
     // @Description: This is the RMS value of noise in yaw measurements from the magnetometer. Increasing it reduces the weighting on these measurements.
     // @Range: 0.05 1.0
@@ -448,7 +448,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: rad
     AP_GROUPINFO("YAW_M_NSE", 37, NavEKF2, _yawNoise, 0.5f),
 
-    // @Param: YAW_I_GATE
+    // `@Param`: YAW_I_GATE
     // @DisplayName: Yaw measurement gate size
     // @Description: This sets the percentage number of standard deviations applied to the magnetometer yaw measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -456,7 +456,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("YAW_I_GATE", 38, NavEKF2, _yawInnovGate, 300),
 
-    // @Param: TAU_OUTPUT
+    // `@Param`: TAU_OUTPUT
     // @DisplayName: Output complementary filter time constant (centi-sec)
     // @Description: Sets the time constant of the output complementary filter/predictor in centi-seconds.
     // @Range: 10 50
@@ -465,7 +465,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: cs
     AP_GROUPINFO("TAU_OUTPUT", 39, NavEKF2, _tauVelPosOutput, 25),
 
-    // @Param: MAGE_P_NSE
+    // `@Param`: MAGE_P_NSE
     // @DisplayName: Earth magnetic field process noise (gauss/s)
     // @Description: This state process noise controls the growth of earth magnetic field state error estimates. Increasing it makes earth magnetic field estimation faster and noisier.
     // @Range: 0.00001 0.01
@@ -473,7 +473,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: Gauss/s
     AP_GROUPINFO("MAGE_P_NSE", 40, NavEKF2, _magEarthProcessNoise, MAGE_P_NSE_DEFAULT),
 
-    // @Param: MAGB_P_NSE
+    // `@Param`: MAGB_P_NSE
     // @DisplayName: Body magnetic field process noise (gauss/s)
     // @Description: This state process noise controls the growth of body magnetic field state error estimates. Increasing it makes magnetometer bias error estimation faster and noisier.
     // @Range: 0.00001 0.01
@@ -481,7 +481,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: Gauss/s
     AP_GROUPINFO("MAGB_P_NSE", 41, NavEKF2, _magBodyProcessNoise, MAGB_P_NSE_DEFAULT),
 
-    // @Param: RNG_USE_HGT
+    // `@Param`: RNG_USE_HGT
     // @DisplayName: Range finder switch height percentage
     // @Description: Range finder can be used as the primary height source when below this percentage of its maximum range (see RNGFND*_MAX). This will not work unless Baro or GPS height is selected as the primary height source vis EK2_ALT_SOURCE = 0 or 2 respectively.  This feature should not be used for terrain following as it is designed  for vertical takeoff and landing with climb above  the range finder use height before commencing the mission, and with horizontal position changes below that height being limited to a flat region around the takeoff and landing point.
     // @Range: -1 70
@@ -490,7 +490,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: %
     AP_GROUPINFO("RNG_USE_HGT", 42, NavEKF2, _useRngSwHgt, -1),
 
-    // @Param: TERR_GRAD
+    // `@Param`: TERR_GRAD
     // @DisplayName: Maximum terrain gradient
     // @Description: Specifies the maximum gradient of the terrain below the vehicle assumed when it is fusing range finder or optical flow to estimate terrain height.
     // @Range: 0 0.2
@@ -498,7 +498,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TERR_GRAD", 43, NavEKF2, _terrGradMax, 0.1f),
 
-    // @Param: BCN_M_NSE
+    // `@Param`: BCN_M_NSE
     // @DisplayName: Range beacon measurement noise (m)
     // @Description: This is the RMS value of noise in the range beacon measurement. Increasing it reduces the weighting on this measurement.
     // @Range: 0.1 10.0
@@ -507,7 +507,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m
     AP_GROUPINFO("BCN_M_NSE", 44, NavEKF2, _rngBcnNoise, 1.0f),
 
-    // @Param: BCN_I_GTE
+    // `@Param`: BCN_I_GTE
     // @DisplayName: Range beacon measurement gate size
     // @Description: This sets the percentage number of standard deviations applied to the range beacon measurement innovation consistency check. Decreasing it makes it more likely that good measurements will be rejected. Increasing it makes it more likely that bad measurements will be accepted.
     // @Range: 100 1000
@@ -515,7 +515,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("BCN_I_GTE", 45, NavEKF2, _rngBcnInnovGate, 500),
 
-    // @Param: BCN_DELAY
+    // `@Param`: BCN_DELAY
     // @DisplayName: Range beacon measurement delay (msec)
     // @Description: This is the number of msec that the range beacon measurements lag behind the inertial measurements. It is the time from the end of the optical flow averaging period and does not include the time delay due to the 100msec of averaging within the flow sensor.
     // @Range: 0 127
@@ -525,7 +525,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("BCN_DELAY", 46, NavEKF2, _rngBcnDelay_ms, 50),
 
-    // @Param: RNG_USE_SPD
+    // `@Param`: RNG_USE_SPD
     // @DisplayName: Range finder max ground speed
     // @Description: The range finder will not be used as the primary height source when the horizontal ground speed is greater than this value.
     // @Range: 2.0 6.0
@@ -534,7 +534,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: m/s
     AP_GROUPINFO("RNG_USE_SPD", 47, NavEKF2, _useRngSwSpd, 2.0f),
 
-    // @Param: MAG_MASK
+    // `@Param`: MAG_MASK
     // @DisplayName: Bitmask of active EKF cores that will always use heading fusion
     // @Description: 1 byte bitmap of EKF cores that will disable magnetic field states and use simple magnetic heading fusion at all times. This parameter enables specified cores to be used as a backup for flight into an environment with high levels of external magnetic interference which may degrade the EKF attitude estimate when using 3-axis magnetometer fusion. NOTE : Use of a different magnetometer fusion algorithm on different cores makes unwanted EKF core switches due to magnetometer errors more likely.
     // @Bitmask: 0:FirstEKF,1:SecondEKF,2:ThirdEKF,3:FourthEKF,4:FifthEKF,5:SixthEKF
@@ -542,7 +542,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("MAG_MASK", 48, NavEKF2, _magMask, 0),
 
-    // @Param: OGN_HGT_MASK
+    // `@Param`: OGN_HGT_MASK
     // @DisplayName: Bitmask control of EKF reference height correction
     // @Description: When a height sensor other than GPS is used as the primary height source by the EKF, the position of the zero height datum is defined by that sensor and its frame of reference. If a GPS height measurement is also available, then the height of the WGS-84 height datum used by the EKF can be corrected so that the height returned by the getLLH() function is compensated for primary height sensor drift and change in datum over time. The first two bit positions control when the height datum will be corrected. Correction is performed using a Bayes filter and only operates when GPS quality permits. The third bit position controls where the corrections to the GPS reference datum are applied. Corrections can be applied to the local vertical position or to the reported EKF origin height (default).
     // @Bitmask: 0:Correct when using Baro height,1:Correct when using range finder height,2:Apply corrections to local position
@@ -552,7 +552,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // EXTNAV_DELAY was 50
 
-    // @Param: FLOW_USE
+    // `@Param`: FLOW_USE
     // @DisplayName: Optical flow use bitmask
     // @Description: Controls if the optical flow data is fused into the 24-state navigation estimator OR the 1-state terrain height estimator.
     // @User: Advanced
@@ -560,7 +560,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("FLOW_USE", 51, NavEKF2, _flowUse, FLOW_USE_DEFAULT),
 
-    // @Param: MAG_EF_LIM
+    // `@Param`: MAG_EF_LIM
     // @DisplayName: EarthField error limit
     // @Description: This limits the difference between the learned earth magnetic field and the earth field from the world magnetic model tables. A value of zero means to disable the use of the WMM tables.
     // @User: Advanced
@@ -568,14 +568,14 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Units: mGauss
     AP_GROUPINFO("MAG_EF_LIM", 52, NavEKF2, _mag_ef_limit, 50),
     
-    // @Param: HRT_FILT
+    // `@Param`: HRT_FILT
     // @DisplayName: Height rate filter crossover frequency
     // @Description: Specifies the crossover frequency of the complementary filter used to calculate the output predictor height rate derivative.
     // @Range: 0.1 30.0
     // @Units: Hz
     AP_GROUPINFO("HRT_FILT", 53, NavEKF2, _hrt_filt_freq, 2.0f),
 
-    // @Param: GSF_RUN_MASK
+    // `@Param`: GSF_RUN_MASK
     // @DisplayName: Bitmask of which EKF-GSF yaw estimators run
     // @Description: A bitmask of which EKF2 instances run an independant EKF-GSF yaw estimator to provide a backup yaw estimate that doesn't rely on magnetometer data. This estimator uses IMU, GPS and, if available, airspeed data. EKF-GSF yaw estimator data for the primary EKF2 instance will be logged as GSF0 and GSF1 messages. Use of the yaw estimate generated by this algorithm is controlled by the EK2_GSF_USE_MASK and EK2_GSF_RST_MAX parameters. To run the EKF-GSF yaw estimator in ride-along and logging only, set EK2_GSF_USE_MASK to 0. 
     // @Bitmask: 0:FirstEKF,1:SecondEKF,2:ThirdEKF,3:FourthEKF,4:FifthEKF,5:SixthEKF
@@ -583,7 +583,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("GSF_RUN_MASK", 54, NavEKF2, _gsfRunMask, 3),
 
-    // @Param: GSF_USE_MASK
+    // `@Param`: GSF_USE_MASK
     // @DisplayName: Bitmask of which EKF-GSF yaw estimators are used
     // @Description: 1 byte bitmap of which EKF2 instances will use the output from the EKF-GSF yaw estimator that has been turned on by the EK2_GSF_RUN_MASK parameter. If the inertial navigation calculation stops following the GPS, then the vehicle code can request EKF2 to attempt to resolve the issue, either by performing a yaw reset if enabled by this parameter by switching to another EKF2 instance.
     // @Bitmask: 0:FirstEKF,1:SecondEKF,2:ThirdEKF,3:FourthEKF,4:FifthEKF,5:SixthEKF
@@ -593,7 +593,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
 
     // 56 was GSF_DELAY which was never released in a stable version
 
-    // @Param: GSF_RST_MAX
+    // `@Param`: GSF_RST_MAX
     // @DisplayName: Maximum number of resets to the EKF-GSF yaw estimate allowed
     // @Description: Sets the maximum number of times the EKF2 will be allowed to reset its yaw to the estimate from the EKF-GSF yaw estimator. No resets will be allowed unless the use of the EKF-GSF yaw estimate is enabled via the EK2_GSF_USE_MASK parameter.
     // @Range: 1 10
@@ -602,7 +602,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("GSF_RST_MAX", 57, NavEKF2, _gsfResetMaxCount, 2),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Optional EKF behaviour
     // @Description: optional EKF2 behaviour. Disabling external navigation prevents use of external vision data in the EKF2 solution
     // @Bitmask: 0:DisableExternalNavigation

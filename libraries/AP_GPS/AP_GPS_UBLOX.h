@@ -13,11 +13,32 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//
-//  u-blox UBX GPS driver for ArduPilot and ArduPilotMega.
-//	Code by Michael Smith, Jordi Munoz and Jose Julio, DIYDrones.com
-//
-//  UBlox Lea6H protocol: http://www.u-blox.com/images/downloads/Product_Docs/u-blox6_ReceiverDescriptionProtocolSpec_%28GPS.G6-SW-10018%29.pdf
+/**
+ * @file AP_GPS_UBLOX.h
+ * @brief u-blox GPS receiver UBX binary protocol driver
+ * 
+ * @details Comprehensive driver for u-blox GPS receivers supporting M8, M9, M10, and F9 series.
+ *          Implements UBX binary protocol parser with automatic baud rate detection, configuration
+ *          via legacy CFG messages (M8) and modern VALGET/VALSET commands (F9/M10). Provides full
+ *          RTK support including moving baseline for dual-GPS heading, dual-antenna heading,
+ *          automatic message rate configuration optimized for different vehicle types, and
+ *          advanced features like jamming detection, spoofing detection, and hardware IMU integration
+ *          (F9R/M10).
+ * 
+ * @note This is the most widely used GPS driver in the ArduPilot ecosystem due to u-blox
+ *       receiver popularity and feature completeness.
+ * 
+ * Original implementation by Michael Smith, Jordi Munoz and Jose Julio, DIYDrones.com
+ * 
+ * Protocol references:
+ * - u-blox 6: http://www.u-blox.com/images/downloads/Product_Docs/u-blox6_ReceiverDescriptionProtocolSpec_%28GPS.G6-SW-10018%29.pdf
+ * - u-blox M8: Interface Description available from u-blox
+ * - u-blox F9: Interface Description for F9 High Precision GNSS modules
+ * - u-blox M10: Interface Description for M10 Standard Precision modules
+ * 
+ * Source: libraries/AP_GPS/AP_GPS_UBLOX.h
+ * Source: libraries/AP_GPS/AP_GPS_UBLOX.cpp (implementation)
+ */
 #pragma once
 
 #include "AP_GPS_config.h"
@@ -124,19 +145,167 @@
 
 class RTCM3_Parser;
 
+/**
+ * @class AP_GPS_UBLOX
+ * @brief GPS backend driver for u-blox receivers using UBX binary protocol
+ * 
+ * @details Full-featured u-blox driver supporting multiple hardware generations and advanced features:
+ * 
+ * **Supported Hardware Generations:**
+ * - M8N/M8P/M8T: Standard accuracy GNSS, RTK capable (M8P), timing support (M8T)
+ * - F9P/F9R: Multi-band RTK with centimeter accuracy, moving baseline, hardware IMU (F9R)
+ * - M9N: Standard accuracy with improved jamming resistance
+ * - M10: Latest generation with multi-band GNSS and improved signal tracking
+ * - ZED-F9P: Popular RTK module achieving 1cm accuracy with corrections
+ * 
+ * **Protocol Support:**
+ * - UBX binary protocol with automatic parsing and checksum verification
+ * - Legacy CFG-* message configuration for M8 generation
+ * - Modern VALGET/VALSET configuration interface for F9/M9/M10 generations
+ * - Automatic hardware detection and protocol adaptation
+ * 
+ * **Key Features:**
+ * - **Auto-baud Detection**: Automatically detects receiver baud rate (115200/230400/460800)
+ * - **Message Rate Optimization**: Configures message rates based on vehicle type and CPU load
+ * - **RTK Base Station**: Can output RTCM3 corrections from raw measurements
+ * - **RTK Rover**: Injects RTCM3 corrections for centimeter-level positioning
+ * - **Moving Baseline RTK**: Dual F9P configuration for precise heading (base+rover)
+ * - **Dual-Antenna Heading**: F9/M10 with second antenna for heading without movement
+ * - **Time Pulse (PPS)**: Configurable pulse-per-second output for time synchronization
+ * - **Jamming Detection**: Hardware jamming indicator from MON-HW messages
+ * - **Spoofing Detection**: Available on F9/M10 hardware
+ * - **Multi-GNSS**: GPS, GLONASS, Galileo, BeiDou, QZSS, NavIC, SBAS
+ * 
+ * **State Machine Operation:**
+ * The driver implements a configuration state machine that sequentially:
+ * 1. Detects hardware version via MON-VER
+ * 2. Configures GNSS constellations based on GPS_GNSS_MODE parameter
+ * 3. Sets navigation model (airborne, automotive, etc.)
+ * 4. Configures message output rates
+ * 5. Enables RTK or moving baseline if configured
+ * 6. Saves configuration to non-volatile memory
+ * 
+ * **Message Parsing:**
+ * Primary navigation messages parsed:
+ * - NAV-PVT: Position, velocity, time (F9/M10 primary message)
+ * - NAV-POSLLH: Position lat/lon/height (M8)
+ * - NAV-STATUS: Fix status and flags (M8)
+ * - NAV-VELNED: Velocity in NED frame (M8)
+ * - NAV-SOL: Navigation solution (M8 legacy)
+ * - NAV-DOP: Dilution of precision values
+ * - NAV-RELPOSNED: Relative position for moving baseline
+ * - NAV-TIMEGPS: GPS time for synchronization
+ * 
+ * **RTK Configuration Modes:**
+ * - **Rover**: Receives RTCM3 via inject_data(), achieves cm-level accuracy
+ * - **Base**: Generates RTCM3 via get_RTCMV3() from RXM-RAWX measurements
+ * - **Moving Baseline**: Two F9P modules (base+rover) provide accurate heading
+ * 
+ * **Coordinate Systems:**
+ * - Position: WGS84 latitude/longitude in degrees, height above ellipsoid and MSL in meters
+ * - Velocity: NED (North-East-Down) frame in m/s (internally cm/s in protocol)
+ * - Relative Position: NED frame in millimeters for moving baseline
+ * 
+ * **Unit Conventions:**
+ * - Position: 1e-7 degrees (lat/lon) in protocol, millimeters (height)
+ * - Velocity: cm/s in UBX protocol, converted to m/s for ArduPilot
+ * - Accuracy: millimeters in protocol, converted to meters for ArduPilot
+ * - Time: milliseconds (GPS time of week - iTOW)
+ * 
+ * @warning GPS initialization timing affects EKF convergence. System requires valid GPS fix
+ *          before arming to ensure proper navigation solution initialization.
+ * 
+ * @warning Moving baseline requires two identical F9P modules with matching firmware versions
+ *          and proper separation distance (typically 30cm-2m between antennas).
+ * 
+ * @note This driver is called at the main GPS thread rate (typically 10Hz polling) and must
+ *       process incoming serial data efficiently to avoid buffer overruns.
+ * 
+ * Source: libraries/AP_GPS/AP_GPS_UBLOX.h:127-911
+ * Source: libraries/AP_GPS/AP_GPS_UBLOX.cpp (full implementation)
+ */
 class AP_GPS_UBLOX : public AP_GPS_Backend
 {
 public:
+    /**
+     * @brief Constructor for u-blox GPS driver instance
+     * 
+     * @param[in] _gps Reference to main AP_GPS object
+     * @param[in] _params Reference to GPS parameters for this instance
+     * @param[in] _state Reference to GPS state structure for this instance
+     * @param[in] _port Pointer to HAL UART driver for GPS communication
+     * @param[in] role GPS role (primary, secondary, RTK base, RTK rover, moving baseline base/rover)
+     */
     AP_GPS_UBLOX(AP_GPS &_gps, AP_GPS::Params &_params, AP_GPS::GPS_State &_state, AP_HAL::UARTDriver *_port, AP_GPS::GPS_Role role);
+    
+    /**
+     * @brief Destructor - cleans up RTCM3 parser if allocated
+     */
     ~AP_GPS_UBLOX() override;
 
     // Methods
+    
+    /**
+     * @brief Parse UBX binary messages from serial stream and update GPS state
+     * 
+     * @details Implements state machine parser for UBX protocol:
+     *          1. Sync characters: 0xB5 0x62 (PREAMBLE1, PREAMBLE2)
+     *          2. Header: message class, ID, and payload length (6 bytes total)
+     *          3. Payload: variable length data
+     *          4. Checksum: Fletcher-16 algorithm (2 bytes: ck_a, ck_b)
+     * 
+     *          Called repeatedly at GPS thread rate (typically 10Hz) to process incoming
+     *          serial data. Reads available bytes from UART, feeds to state machine,
+     *          and processes complete messages via _parse_gps().
+     * 
+     * @return true if a complete valid message was received and parsed, false otherwise
+     * 
+     * @note This method must be efficient as it's called frequently. Uses incremental
+     *       parsing to avoid blocking on incomplete messages.
+     * 
+     * @see _parse_gps() for message processing after successful reception
+     * 
+     * Source: libraries/AP_GPS/AP_GPS_UBLOX.cpp
+     */
     bool read() override;
 
+    /**
+     * @brief Returns the highest GPS fix status this driver can provide
+     * 
+     * @return GPS_OK_FIX_3D_RTK_FIXED indicating full RTK fixed solution support with
+     *         heading capability (for moving baseline configurations)
+     * 
+     * @note u-blox F9P/M8P support RTK fixed solutions with centimeter accuracy
+     */
     AP_GPS::GPS_Status highest_supported_status(void) override { return AP_GPS::GPS_OK_FIX_3D_RTK_FIXED; }
 
+    /**
+     * @brief Static detection method to identify u-blox GPS from serial stream
+     * 
+     * @param[in,out] state Detection state machine structure
+     * @param[in] data Single byte from serial stream
+     * 
+     * @return true if u-blox UBX protocol detected (found valid UBX message preamble and structure)
+     * 
+     * @details Called during GPS auto-detection phase. Looks for UBX message preamble
+     *          (0xB5 0x62) followed by valid message structure. Maintains detection state
+     *          across multiple calls to handle byte-by-byte serial input.
+     * 
+     * Source: libraries/AP_GPS/AP_GPS_UBLOX.cpp
+     */
     static bool _detect(struct UBLOX_detect_state &state, uint8_t data);
 
+    /**
+     * @brief Check if GPS has completed initial configuration sequence
+     * 
+     * @return true if all required configuration messages have been sent and acknowledged
+     * 
+     * @details Configuration is considered complete when _unconfigured_messages bitmask is zero,
+     *          indicating all configuration steps (GNSS settings, message rates, nav settings,
+     *          etc.) have been successfully applied. In SITL always returns true.
+     * 
+     * @note Auto-configuration can be disabled via GPS_AUTO_CONFIG parameter
+     */
     bool is_configured(void) const override {
 #if CONFIG_HAL_BOARD != HAL_BOARD_SITL
         if (!gps._auto_config) {
@@ -149,30 +318,122 @@ public:
 #endif // CONFIG_HAL_BOARD != HAL_BOARD_SITL
     }
 
+    /**
+     * @brief Get bitmask of unconfigured message types for debugging
+     * 
+     * @param[out] error_codes Bitmask of CONFIG_* flags for messages not yet configured
+     * 
+     * @return true always (error codes are always available)
+     * 
+     * @details Returns _unconfigured_messages bitmask where each bit represents a
+     *          configuration step. Non-zero indicates incomplete configuration.
+     *          Useful for diagnosing GPS initialization issues.
+     */
     bool get_error_codes(uint32_t &error_codes) const override {
         error_codes = _unconfigured_messages;
         return true;
     };
 
+    /**
+     * @brief Send GCS message explaining why configuration failed
+     * 
+     * @details Broadcasts detailed failure reason via MAVLink STATUSTEXT when configuration
+     *          cannot complete. Helps diagnose hardware or parameter issues.
+     */
     void broadcast_configuration_failure_reason(void) const override;
+    
 #if HAL_LOGGING_ENABLED
+    /**
+     * @brief Write GPS configuration info to dataflash log at startup
+     * 
+     * @details Logs hardware version, firmware version, and configuration status for
+     *          post-flight analysis and debugging.
+     */
     void Write_AP_Logger_Log_Startup_messages() const override;
 #endif
 
-    // get the velocity lag, returns true if the driver is confident in the returned value
+    /**
+     * @brief Get velocity measurement lag compensation value
+     * 
+     * @param[out] lag_sec Velocity lag in seconds
+     * 
+     * @return true if driver is confident in lag value, false otherwise
+     * 
+     * @details u-blox receivers have known velocity measurement delays depending on
+     *          configuration and message rates. This provides lag compensation for
+     *          EKF velocity fusion. Typical lag is 0.22 seconds for 5Hz update rate.
+     * 
+     * @note Accurate lag compensation is important for high-speed vehicles to avoid
+     *       navigation errors during maneuvers.
+     */
     bool get_lag(float &lag_sec) const override;
 
+    /**
+     * @brief Get driver name string
+     * 
+     * @return "u-blox" constant string identifier
+     */
     const char *name() const override { return "u-blox"; }
 
-    // support for retrieving RTCMv3 data from a moving baseline base
+    /**
+     * @brief Retrieve RTCMv3 correction data when operating as moving baseline base station
+     * 
+     * @param[out] bytes Pointer to RTCM3 data buffer (owned by driver, do not free)
+     * @param[out] len Length of RTCM3 data in bytes
+     * 
+     * @return true if RTCM3 data is available, false otherwise
+     * 
+     * @details When configured as moving baseline base (GPS_TYPE=22), this driver generates
+     *          RTCM3 messages from RXM-RAWX/RXM-SFRBX measurements for transmission to the
+     *          rover GPS. The rover uses these corrections to calculate precise relative position.
+     * 
+     * @note Only functional in moving baseline base mode. RTCM data must be transmitted
+     *       to rover GPS within 1 second for optimal performance.
+     * 
+     * @see clear_RTCMV3() to mark data as consumed
+     */
     bool get_RTCMV3(const uint8_t *&bytes, uint16_t &len) override;
+    
+    /**
+     * @brief Clear/acknowledge RTCM3 data has been consumed
+     * 
+     * @details Called after RTCM3 data from get_RTCMV3() has been transmitted to rover.
+     *          Allows driver to free buffer and prepare for next RTCM3 message.
+     * 
+     * @see get_RTCMV3()
+     */
     void clear_RTCMV3(void) override;
 
-    // ublox specific healthy checks
+    /**
+     * @brief u-blox specific health checks beyond standard GPS validation
+     * 
+     * @return true if GPS is healthy, false if issues detected
+     * 
+     * @details Performs u-blox specific checks including:
+     *          - Hardware jamming indicator from MON-HW
+     *          - Antenna status (open, short circuit)
+     *          - Spoofing detection flags (F9/M10)
+     *          - Configuration completeness
+     * 
+     * @note Supplements base class health checking with u-blox hardware monitoring features
+     */
     bool is_healthy(void) const override;
     
 private:
     // u-blox UBX protocol essentials
+    
+    /**
+     * @struct ubx_header
+     * @brief UBX protocol message header structure (6 bytes)
+     * 
+     * @details Every UBX message starts with this fixed header format:
+     *          - Preamble: 0xB5 0x62 (sync characters for message detection)
+     *          - msg_class: Message class (e.g., 0x01=NAV, 0x06=CFG, 0x0A=MON)
+     *          - msg_id: Message ID within class
+     *          - length: Payload length in bytes (little-endian uint16)
+     * 
+     * Header is followed by payload (variable length) and 2-byte checksum.
+     */
     struct PACKED ubx_header {
         uint8_t preamble1;
         uint8_t preamble2;
@@ -255,7 +516,27 @@ private:
         uint8_t scanmode2;
         uint32_t scanmode1;
     };
-    // F9 config keys
+    /**
+     * @enum ConfigKey
+     * @brief Configuration keys for F9/M9/M10 VALGET/VALSET interface
+     * 
+     * @details Modern u-blox receivers (F9 and later) use a key-value configuration system
+     *          accessed via CFG-VALGET and CFG-VALSET messages instead of legacy CFG-* messages.
+     *          Each key is a 32-bit identifier with embedded type information.
+     * 
+     * Key format (bits):
+     * - [31:28]: Reserved
+     * - [27:16]: Group ID
+     * - [15:8]: Item ID within group  
+     * - [7:0]: Reserved/Size
+     * 
+     * Configuration layers:
+     * - RAM: Volatile, active immediately, lost on reboot
+     * - BBR: Battery-backed RAM, survives hot start
+     * - Flash: Non-volatile storage, survives power cycle
+     * 
+     * @note M8 and earlier use different CFG-* message format for configuration
+     */
     enum class ConfigKey : uint32_t {
         TMODE_MODE = 0x20030001,
         CFG_RATE_MEAS                   = 0x30210001,
@@ -349,6 +630,20 @@ private:
         uint8_t reserved[2];
         // variable length data, check buffer length
     };
+    /**
+     * @struct ubx_nav_posllh
+     * @brief NAV-POSLLH: Position solution in geodetic coordinates (M8 primary message)
+     * 
+     * @details Provides position in WGS84 coordinates. Used as primary position message
+     *          on M8 generation receivers. F9/M10 use NAV-PVT instead which combines
+     *          position, velocity, and time in one message.
+     * 
+     * Units:
+     * - itow: GPS time of week in milliseconds
+     * - longitude/latitude: degrees * 1e-7 (int32)
+     * - altitude: millimeters above ellipsoid/MSL (int32)
+     * - accuracy: millimeters (uint32)
+     */
     struct PACKED ubx_nav_posllh {
         uint32_t itow;                                  // GPS msToW
         int32_t longitude;
@@ -358,6 +653,14 @@ private:
         uint32_t horizontal_accuracy;
         uint32_t vertical_accuracy;
     };
+    
+    /**
+     * @struct ubx_nav_status
+     * @brief NAV-STATUS: Receiver navigation status (M8)
+     * 
+     * @details Provides fix type and status flags. Used on M8 receivers; F9/M10
+     *          include this information in NAV-PVT.
+     */
     struct PACKED ubx_nav_status {
         uint32_t itow;                                  // GPS msToW
         uint8_t fix_type;
@@ -396,6 +699,34 @@ private:
         uint8_t satellites;
         uint32_t res2;
     };
+    /**
+     * @struct ubx_nav_pvt
+     * @brief NAV-PVT: Navigation Position Velocity Time solution (F9/M9/M10 primary message)
+     * 
+     * @details Combined position, velocity, and time message. This is the primary navigation
+     *          message for F9 and later receivers, replacing the separate POSLLH/VELNED/SOL
+     *          messages used by M8. More efficient as it provides complete solution in single
+     *          message, reducing serial bandwidth and processing overhead.
+     * 
+     * Contains:
+     * - Complete UTC time (year/month/day/hour/min/sec)
+     * - Position in WGS84 (lat/lon/height)
+     * - Velocity in NED frame
+     * - Ground speed and heading
+     * - Accuracy estimates for position, velocity, heading
+     * - Fix type and validity flags
+     * - Number of satellites used
+     * 
+     * Units:
+     * - itow: milliseconds (GPS time of week)
+     * - lon/lat: degrees * 1e-7 (int32)
+     * - h_ellipsoid/h_msl: millimeters (int32)
+     * - velN/velE/velD/gspeed: mm/s (int32)
+     * - head_mot: degrees * 1e-5 (int32)
+     * - Accuracies: millimeters or mm/s (uint32)
+     * 
+     * @note Preferred message for F9/M10 due to atomicity - all data from same solution epoch
+     */
     struct PACKED ubx_nav_pvt {
         uint32_t itow; 
         uint16_t year; 
@@ -421,6 +752,36 @@ private:
         int16_t magDec;
         uint16_t magAcc;
     };
+    
+    /**
+     * @struct ubx_nav_relposned
+     * @brief NAV-RELPOSNED: Relative positioning information in NED frame
+     * 
+     * @details Provides relative position between two GPS receivers for moving baseline RTK.
+     *          Used when two F9P modules are configured as base+rover to determine precise
+     *          heading from baseline vector. Requires GPS_TYPE2=23 (moving baseline rover)
+     *          and connected base station.
+     * 
+     * Contains:
+     * - Relative position in NED frame (North, East, Down)
+     * - Baseline length and heading
+     * - High-precision components (HP fields add sub-millimeter precision)
+     * - Accuracy estimates
+     * - Status flags (fix type, carrier solution)
+     * 
+     * Units:
+     * - relPosN/E/D: millimeters (int32)
+     * - relPosHPN/E/D: 0.1mm (int8) - adds sub-millimeter precision
+     * - relPosLength: millimeters (int32)
+     * - relPosHeading: degrees * 1e-5 (int32)
+     * - Accuracies: 0.1mm (uint32)
+     * 
+     * @note Requires RTK fixed solution for accurate heading. Typical accuracy is
+     *       1-2cm position, 0.2° heading for 1m baseline at RTK fixed.
+     * 
+     * @warning Baseline length must be accurately known (configured via GPS_POS parameters)
+     *          for correct heading calculation.
+     */
     struct PACKED ubx_nav_relposned {
         uint8_t version;
         uint8_t reserved1;
@@ -651,6 +1012,42 @@ private:
         relPosNormalized   = 1U << 9
     };
 
+    /**
+     * @enum ubs_protocol_bytes
+     * @brief UBX protocol message class and ID constants
+     * 
+     * @details Defines byte values for UBX message identification. Every UBX message
+     *          has a class (category) and ID (specific message within class).
+     * 
+     * Message Classes:
+     * - NAV (0x01): Navigation results (position, velocity, time, DOP, satellites)
+     * - RXM (0x02): Receiver manager (raw measurements for RTK base)
+     * - ACK (0x05): Acknowledgment of configuration messages
+     * - CFG (0x06): Configuration messages (rates, settings, GNSS, ports)
+     * - MON (0x0A): Monitoring messages (hardware status, version info)
+     * - TIM (0x0D): Timing messages (time pulse, external events)
+     * 
+     * Key Navigation Messages (NAV):
+     * - POSLLH (0x02): Position Lat/Lon/Height [M8]
+     * - STATUS (0x03): Fix status [M8]
+     * - DOP (0x04): Dilution of Precision
+     * - SOL (0x06): Navigation solution [M8 legacy]
+     * - PVT (0x07): Position/Velocity/Time [F9/M10 primary]
+     * - VELNED (0x12): Velocity NED [M8]
+     * - TIMEGPS (0x20): GPS time
+     * - RELPOSNED (0x3C): Relative position [moving baseline]
+     * 
+     * Configuration Messages (CFG):
+     * - MSG (0x01): Set message rate
+     * - RATE (0x08): Set navigation rate
+     * - CFG (0x09): Save configuration
+     * - NAV_SETTINGS (0x24): Navigation parameters
+     * - GNSS (0x3E): GNSS constellation config [M8]
+     * - VALGET (0x8B): Get config by key [F9/M10]
+     * - VALSET (0x8A): Set config by key [F9/M10]
+     * 
+     * @note M8 uses CFG-GNSS, F9/M10 use VALGET/VALSET for constellation config
+     */
     enum ubs_protocol_bytes {
         PREAMBLE1 = 0xb5,
         PREAMBLE2 = 0x62,
@@ -688,6 +1085,14 @@ private:
         MSG_RXM_RAWX = 0x15,
         MSG_TIM_TM2 = 0x03
     };
+    
+    /**
+     * @enum ubx_gnss_identifier
+     * @brief GNSS constellation identifiers in CFG-GNSS messages
+     * 
+     * @details Used in CFG-GNSS configuration (M8) to enable/disable GNSS systems.
+     *          F9/M10 use ConfigKey enums instead for constellation configuration.
+     */
     enum ubx_gnss_identifier {
         GNSS_GPS     = 0x00,
         GNSS_SBAS    = 0x01,
@@ -709,6 +1114,24 @@ private:
         NAV_STATUS_FIX_VALID = 1,
         NAV_STATUS_DGPS_USED = 2
     };
+    /**
+     * @enum ubx_hardware_version
+     * @brief u-blox hardware generation detection
+     * 
+     * @details Hardware generation is detected from MON-VER message (hwVersion and
+     *          swVersion strings). Determines which configuration protocol to use:
+     *          - M8 and earlier: Legacy CFG-* messages
+     *          - F9/M9/M10: Modern VALGET/VALSET interface
+     * 
+     * Hardware Capabilities by Generation:
+     * - ANTARIS/5/6/7: Legacy, limited GNSS, basic features
+     * - M8: Multi-GNSS, RTK capable (M8P), good accuracy
+     * - F9: Multi-band GNSS, centimeter RTK, moving baseline, IMU (F9R)
+     * - M9: Improved jamming resistance, modern config interface
+     * - M10: Latest generation, enhanced multi-band, power efficiency
+     * 
+     * @note F9/M9/M10 values (0x80+) are driver-internal, not from u-blox spec
+     */
     enum ubx_hardware_version {
         ANTARIS = 0,
         UBLOX_5,
@@ -722,12 +1145,50 @@ private:
                                                  // flagging state in the driver
     };
 
+    /**
+     * @enum ubx_hardware_variant
+     * @brief Hardware variant within a generation (e.g., F9 ZED vs NEO)
+     * 
+     * @details Parsed from MON-VER extension strings. Variants have different
+     *          feature sets (ZED typically has more features than NEO).
+     */
     enum ubx_hardware_variant {
         UBLOX_F9_ZED, // comes from MON_VER extension strings
         UBLOX_F9_NEO, // comes from MON_VER extension strings
         UBLOX_UNKNOWN_HARDWARE_VARIANT = 0xff
     };
 
+    /**
+     * @enum config_step
+     * @brief Configuration state machine steps
+     * 
+     * @details The driver sequences through these states during initialization to
+     *          configure the GPS receiver. Each step polls or sets specific parameters.
+     *          The order is designed to:
+     *          1. Detect hardware version/capabilities (VERSION, F9, M10)
+     *          2. Configure basic operation (NAV_RATE, PORT)
+     *          3. Enable required messages (PVT/POSLLH/STATUS/VELNED/etc.)
+     *          4. Set navigation parameters (NAV_SETTINGS, GNSS, SBAS)
+     *          5. Configure role-specific features (TMODE, RTK_MOVBASE)
+     *          6. Enable monitoring (MON_HW, MON_HW2, DOP)
+     *          7. Enable advanced features (TIM_TM2, RAW/RAWX for RTK base, L5)
+     * 
+     * Configuration Steps:
+     * - VERSION: Query MON-VER to detect hardware generation
+     * - F9/F9_VALIDATE/M10: Detect and validate F9/M9/M10 receivers
+     * - PVT/SOL/POSLLH/STATUS/VELNED: Enable navigation message outputs
+     * - NAV_RATE: Set navigation solution rate (typically 5Hz)
+     * - NAV_SETTINGS: Configure dynamic model (airborne, automotive, etc.)
+     * - GNSS: Configure constellation usage (GPS, GLONASS, Galileo, BeiDou, etc.)
+     * - SBAS: Configure SBAS (WAAS/EGNOS/MSAS) augmentation
+     * - TMODE: Configure time mode for base station operation
+     * - RTK_MOVBASE: Configure moving baseline base/rover relationship
+     * - RAW/RAWX: Enable raw measurement output for RTK base station
+     * - L5: Enable GPS L5 signal (if supported)
+     * 
+     * @note Configuration continues until STEP_LAST is reached and all
+     *       _unconfigured_messages bits are cleared.
+     */
     enum config_step {
         STEP_PVT = 0,
         STEP_NAV_RATE, // poll NAV rate
@@ -800,7 +1261,26 @@ private:
 
     uint8_t         _disable_counter;
 
-    // Buffer parse & GPS state update
+    /**
+     * @brief Process complete received UBX message and update GPS state
+     * 
+     * @return true if message was successfully parsed and state updated
+     * 
+     * @details Called by read() after complete message received. Dispatches to
+     *          message-specific handlers based on class/ID. Updates position,
+     *          velocity, time, satellite info, and handles configuration responses.
+     * 
+     * Message Processing:
+     * - NAV messages: Update position, velocity, time, satellites
+     * - ACK messages: Track configuration acknowledgments
+     * - MON messages: Hardware status, version info
+     * - CFG messages: Configuration responses (VALGET results)
+     * - RXM messages: Raw measurements for RTK base
+     * 
+     * @note This is where GPS state structure is updated for use by EKF and navigation
+     * 
+     * Source: libraries/AP_GPS/AP_GPS_UBLOX.cpp
+     */
     bool        _parse_gps();
 
     // used to update fix between status and position packets
@@ -812,101 +1292,465 @@ private:
     
     bool havePvtMsg;
 
-    // structure for list of config key/value pairs for
-    // specific configurations
+    /**
+     * @struct config_list
+     * @brief Key-value pair for VALSET configuration (F9/M10)
+     * 
+     * @details Used to batch multiple configuration keys for efficient
+     *          VALSET transactions. Assumes little-endian byte order.
+     */
     struct PACKED config_list {
         ConfigKey key;
         // support up to 4 byte values, assumes little-endian
         uint32_t value;
     };
 
+    /**
+     * @brief Configure output rate for specific UBX message
+     * 
+     * @param[in] msg_class UBX message class (e.g., 0x01 for NAV)
+     * @param[in] msg_id Message ID within class
+     * @param[in] rate Output rate (0=disable, 1=every solution, N=every Nth solution)
+     * 
+     * @return true if rate configuration message sent successfully
+     * 
+     * @details Sends CFG-MSG message to configure message output frequency.
+     *          Rate is relative to navigation solution rate (e.g., if nav rate is
+     *          5Hz and message rate is 1, message outputs at 5Hz).
+     * 
+     * @note Different messages have different recommended rates based on their
+     *       importance and data rate constraints
+     */
     bool        _configure_message_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
+    
+    /**
+     * @brief Set single configuration key via VALSET (F9/M10)
+     * 
+     * @param[in] key Configuration key ID
+     * @param[in] value Pointer to value data (size determined by key type)
+     * @param[in] layers Storage layers to update (RAM/BBR/Flash)
+     * 
+     * @return true if VALSET message sent successfully
+     * 
+     * @details Modern configuration method for F9/M9/M10. More efficient than
+     *          legacy CFG messages. Layers control where configuration is stored.
+     */
     bool        _configure_valset(ConfigKey key, const void *value, uint8_t layers=UBX_VALSET_LAYER_ALL);
+    
+    /**
+     * @brief Set multiple configuration keys via VALSET transaction
+     * 
+     * @param[in] list Array of key-value pairs
+     * @param[in] count Number of items in list
+     * @param[in] layers Storage layers to update
+     * 
+     * @return true if all VALSET messages sent successfully
+     * 
+     * @details Batches multiple configuration keys into single or multiple VALSET
+     *          messages for efficiency. Used for role-specific configurations like
+     *          moving baseline setup.
+     */
     bool        _configure_list_valset(const config_list *list, uint8_t count, uint8_t layers=UBX_VALSET_LAYER_ALL);
+    
+    /**
+     * @brief Query configuration key value via VALGET (F9/M10)
+     * 
+     * @param[in] key Configuration key to query
+     * 
+     * @return true if VALGET request sent successfully
+     * 
+     * @details Requests current value of configuration key. Response comes via
+     *          CFG-VALGET message which is parsed in _parse_gps().
+     */
     bool        _configure_valget(ConfigKey key);
+    
+    /**
+     * @brief Configure navigation solution output rate
+     * 
+     * @details Sets measurement rate (typically 200ms for 5Hz) and navigation rate.
+     *          Sends CFG-RATE message. Higher rates increase CPU load but improve
+     *          navigation responsiveness.
+     */
     void        _configure_rate(void);
+    
+    /**
+     * @brief Configure SBAS (satellite-based augmentation system)
+     * 
+     * @param[in] enable true to enable SBAS (WAAS/EGNOS/MSAS), false to disable
+     * 
+     * @details SBAS can improve accuracy by 1-3 meters in coverage areas but may
+     *          reduce reliability in areas with poor SBAS satellite visibility.
+     */
     void        _configure_sbas(bool enable);
+    
+    /**
+     * @brief Update UBX Fletcher-16 checksum
+     * 
+     * @param[in] data Data bytes to add to checksum
+     * @param[in] len Number of bytes
+     * @param[in,out] ck_a Checksum A accumulator
+     * @param[in,out] ck_b Checksum B accumulator
+     * 
+     * @details UBX uses 8-bit Fletcher algorithm: ck_a += byte, ck_b += ck_a
+     */
     void        _update_checksum(uint8_t *data, uint16_t len, uint8_t &ck_a, uint8_t &ck_b);
+    
+    /**
+     * @brief Send UBX message to GPS receiver
+     * 
+     * @param[in] msg_class UBX message class
+     * @param[in] msg_id Message ID within class
+     * @param[in] msg Pointer to message payload (can be NULL for poll messages)
+     * @param[in] size Payload size in bytes (0 for poll messages)
+     * 
+     * @return true if message sent successfully to UART
+     * 
+     * @details Constructs complete UBX message: preamble + header + payload + checksum.
+     *          Used for both configuration commands and message polls.
+     */
     bool        _send_message(uint8_t msg_class, uint8_t msg_id, const void *msg, uint16_t size);
+    
+    /**
+     * @brief Send next message rate configuration in sequence
+     * 
+     * @details Called iteratively during configuration to enable required navigation
+     *          messages one at a time. Tracks which messages have been configured.
+     */
     void	send_next_rate_update(void);
+    
+    /**
+     * @brief Poll current output rate for specific message
+     * 
+     * @param[in] msg_class UBX message class
+     * @param[in] msg_id Message ID
+     * 
+     * @return true if poll request sent successfully
+     * 
+     * @details Sends CFG-MSG poll (no payload) to query current rate. Used to
+     *          verify configuration was applied correctly.
+     */
     bool        _request_message_rate(uint8_t msg_class, uint8_t msg_id);
+    
+    /**
+     * @brief Request next configuration in state machine sequence
+     * 
+     * @details Implements configuration state machine. Advances through config_step
+     *          enum, sending appropriate configuration or poll messages for each step.
+     *          Tracks progress via _unconfigured_messages bitmask.
+     * 
+     * @note This is the heart of the GPS configuration logic
+     * 
+     * Source: libraries/AP_GPS/AP_GPS_UBLOX.cpp
+     */
     void        _request_next_config(void);
+    
+    /**
+     * @brief Poll port configuration
+     * 
+     * @details Sends CFG-PRT poll to determine which UART port GPS is connected to.
+     *          Needed for configuring port-specific settings.
+     */
     void        _request_port(void);
+    
+    /**
+     * @brief Poll hardware and firmware version
+     * 
+     * @details Sends MON-VER poll to get version strings. Used to detect hardware
+     *          generation (M8/F9/M9/M10) and adapt configuration protocol.
+     */
     void        _request_version(void);
+    
+    /**
+     * @brief Save current configuration to non-volatile memory
+     * 
+     * @details Sends CFG-CFG message to save RAM configuration to Flash. Configuration
+     *          survives power cycle. Saves I/O, message, navigation, and antenna settings.
+     */
     void        _save_cfg(void);
+    
+    /**
+     * @brief Verify message rate matches requested value
+     * 
+     * @param[in] msg_class Message class to verify
+     * @param[in] msg_id Message ID to verify  
+     * @param[in] rate Expected rate value
+     * 
+     * @details Compares received CFG-MSG response against requested rate. Retries
+     *          configuration if mismatch detected.
+     */
     void        _verify_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
+    
+    /**
+     * @brief Check for GPS time rollover and update time tracking
+     * 
+     * @param[in] itow Current GPS time of week in milliseconds
+     * 
+     * @details Monitors iTOW for week rollovers and updates internal time tracking.
+     *          Prevents incorrect time jumps in navigation solution.
+     */
     void        _check_new_itow(uint32_t itow);
 
+    /**
+     * @brief Handle unexpected UBX message reception
+     * 
+     * @details Called when message received that wasn't requested. Logs warning
+     *          and helps diagnose communication or configuration issues.
+     */
     void unexpected_message(void);
+    
+    /**
+     * @brief Log MON-HW hardware status to dataflash
+     * 
+     * @details Records jamming indicator, antenna status, and other hardware
+     *          monitoring data for post-flight analysis.
+     */
     void log_mon_hw(void);
+    
+    /**
+     * @brief Log MON-HW2 extended hardware status
+     * 
+     * @details Records additional RF and oscillator status information.
+     */
     void log_mon_hw2(void);
+    
+    /**
+     * @brief Log TIM-TM2 time mark data
+     * 
+     * @details Records time pulse measurements for precision timing applications.
+     */
     void log_tim_tm2(void);
+    
+    /**
+     * @brief Log RXM-RAW raw measurement data
+     * 
+     * @param[in] raw RXM-RAW message structure with measurements
+     * 
+     * @details Logs carrier phase and pseudorange measurements. Used for RTK base
+     *          station raw data recording (M8 receivers).
+     */
     void log_rxm_raw(const struct ubx_rxm_raw &raw);
+    
+    /**
+     * @brief Log RXM-RAWX extended raw measurement data
+     * 
+     * @param[in] raw RXM-RAWX message structure with measurements
+     * 
+     * @details Logs multi-GNSS raw measurements with extended precision. Used for
+     *          RTK base station (F9/M10 receivers). More capable than RXM-RAW.
+     */
     void log_rxm_rawx(const struct ubx_rxm_rawx &raw);
 
 #if GPS_MOVING_BASELINE
-    // see if we should use uart2 for moving baseline config
+    /**
+     * @brief Check if moving baseline should use UART2 for corrections
+     * 
+     * @return true if GPS_DRV_OPTIONS bit UBX_MBUseUart2 is set
+     * 
+     * @details Some moving baseline configurations output RTCM on UART2 while
+     *          control/telemetry remains on UART1. Controlled by driver option.
+     */
     bool mb_use_uart2(void) const {
         return option_set(AP_GPS::DriverOptions::UBX_MBUseUart2)?true:false;
     }
 #endif
 
-    // return size of a config key payload
+    /**
+     * @brief Get size in bytes of configuration key value
+     * 
+     * @param[in] key Configuration key
+     * 
+     * @return Size of value in bytes (1, 2, 4, or 8)
+     * 
+     * @details Determines value size from key type bits for VALSET/VALGET operations.
+     */
     uint8_t config_key_size(ConfigKey key) const;
 
-    // configure a set of config key/value pairs. The unconfig_bit corresponds to
-    // a bit in _unconfigured_messages
+    /**
+     * @brief Configure set of key/value pairs and track completion
+     * 
+     * @param[in] list Array of configuration key-value pairs
+     * @param[in] count Number of items in list
+     * @param[in] unconfig_bit Bit in _unconfigured_messages to clear when complete
+     * @param[in] layers Storage layers (RAM/BBR/Flash)
+     * 
+     * @return true if configuration initiated successfully
+     * 
+     * @details Uses VALGET to verify current values, then VALSET to update any that
+     *          don't match. Tracks progress and clears unconfig_bit when all keys set.
+     *          Used for role-specific configurations (RTK base, rover, moving baseline).
+     */
     bool _configure_config_set(const config_list *list, uint8_t count, uint32_t unconfig_bit, uint8_t layers=UBX_VALSET_LAYER_ALL);
 
-    // find index in active_config list
+    /**
+     * @brief Find configuration key in active_config list
+     * 
+     * @param[in] key Configuration key to search for
+     * 
+     * @return Index in active_config.list, or -1 if not found
+     * 
+     * @details Used to match VALGET responses to pending configuration items.
+     */
     int8_t find_active_config_index(ConfigKey key) const;
 
-    // return true if GPS is capable of F9 config
+    /**
+     * @brief Check if receiver supports F9-style VALGET/VALSET configuration
+     * 
+     * @return true for F9, M9, M10 hardware generations
+     * 
+     * @details F9/M9/M10 use modern configuration interface. M8 and earlier use
+     *          legacy CFG-* messages.
+     */
     bool supports_F9_config(void) const;
 
-    // is the config key a GNSS key
+    /**
+     * @brief Check if configuration key controls GNSS constellation
+     * 
+     * @param[in] key Configuration key to check
+     * 
+     * @return true if key is in CFG_SIGNAL_* family
+     * 
+     * @details Used to identify constellation enable/disable keys for proper
+     *          configuration sequencing.
+     */
     bool is_gnss_key(ConfigKey key) const;
 
-    // populate config_GNSS for F9P
+    /**
+     * @brief Build GNSS constellation configuration for F9P
+     * 
+     * @return Number of config items in config_GNSS array
+     * 
+     * @details Dynamically builds list of constellation enable/disable keys based
+     *          on GPS_GNSS_MODE parameter. Supports GPS, GLONASS, Galileo, BeiDou,
+     *          QZSS, SBAS, NavIC, and multi-band L5.
+     */
     uint8_t populate_F9_gnss(void);
+    
+    /// @brief Tracks which GNSS configuration was last applied to avoid redundant updates
     uint8_t last_configured_gnss;
 
+    /// @brief Configured PPS (pulse-per-second) output frequency in Hz
     uint8_t _pps_freq = 1;
+    
 #ifdef HAL_GPIO_PPS
+    /**
+     * @brief Interrupt handler for PPS pin transitions
+     * 
+     * @param[in] pin GPIO pin number that triggered interrupt
+     * @param[in] high true if pin went high, false if low
+     * @param[in] timestamp_us Microsecond timestamp of edge
+     * 
+     * @details Records precise timing of PPS pulses for time synchronization.
+     *          Used to align system time with GPS time for precision applications.
+     */
     void pps_interrupt(uint8_t pin, bool high, uint32_t timestamp_us);
+    
+    /**
+     * @brief Set desired PPS output frequency
+     * 
+     * @param[in] freq Desired frequency in Hz (typically 1Hz for standard PPS)
+     * 
+     * @details Configures GPS to output time pulse at specified frequency via
+     *          CFG-TP5 message. Used for external device synchronization.
+     */
     void set_pps_desired_freq(uint8_t freq) override;
 #endif
 
-    // status of active configuration for a role
+    /**
+     * @struct active_config
+     * @brief Tracks progress of multi-step VALSET configuration
+     * 
+     * @details Used when applying role-specific configurations (RTK base, rover,
+     *          moving baseline). Manages iterative VALGET verification and VALSET
+     *          application across multiple keys.
+     */
     struct {
-        const config_list *list;
-        uint8_t count;
-        uint32_t done_mask;
-        uint32_t unconfig_bit;
-        uint8_t layers;
-        int8_t fetch_index;
-        int8_t set_index;
+        const config_list *list;        ///< Pointer to config key-value array
+        uint8_t count;                  ///< Number of items in list
+        uint32_t done_mask;             ///< Bitmask of completed config items
+        uint32_t unconfig_bit;          ///< Bit in _unconfigured_messages to clear
+        uint8_t layers;                 ///< VALSET storage layers (RAM/BBR/Flash)
+        int8_t fetch_index;             ///< Next index to VALGET verify (-1 if done)
+        int8_t set_index;               ///< Next index to VALSET apply (-1 if done)
     } active_config;
+    
+    /// @brief Use individual VALGET for each key vs batched (compatibility mode)
     bool use_single_valget;
 
 #if GPS_MOVING_BASELINE
-    // config for moving baseline base
+    /**
+     * @brief Configuration keys for moving baseline base on UART1
+     * 
+     * @details Configures F9P as RTK base outputting RTCM3 on UART1.
+     *          Enables raw measurements (RAWX/SFRBX) for RTCM generation.
+     */
     static const config_list config_MB_Base_uart1[];
+    
+    /**
+     * @brief Configuration keys for moving baseline base on UART2
+     * 
+     * @details Configures F9P as RTK base outputting RTCM3 on UART2.
+     *          Allows UART1 for telemetry while UART2 provides corrections.
+     */
     static const config_list config_MB_Base_uart2[];
 
-    // config for moving baseline rover
+    /**
+     * @brief Configuration keys for moving baseline rover on UART1
+     * 
+     * @details Configures F9P as RTK rover receiving RTCM3 on UART1.
+     *          Enables RELPOSNED for relative position output.
+     */
     static const config_list config_MB_Rover_uart1[];
+    
+    /**
+     * @brief Configuration keys for moving baseline rover on UART2
+     * 
+     * @details Configures F9P as RTK rover receiving RTCM3 on UART2.
+     *          Allows UART1 for telemetry while UART2 receives corrections.
+     */
     static const config_list config_MB_Rover_uart2[];
 
-    // RTCM3 parser for when in moving baseline base mode
+    /**
+     * @brief RTCM3 parser instance for moving baseline base mode
+     * 
+     * @details Dynamically allocated when operating as moving baseline base.
+     *          Parses raw measurements into RTCM3 messages for rover transmission.
+     *          Freed on destruction.
+     */
     RTCM3_Parser *rtcm3_parser;
 #endif // GPS_MOVING_BASELINE
 
+    /// @brief True if receiver supports L5 band signals (F9/M10 with L5 capability)
     bool supports_l5;
+    
+    /**
+     * @brief Configuration keys specific to M10 hardware
+     * 
+     * @details M10-specific settings for optimal performance and feature enablement.
+     */
     static const config_list config_M10[];
+    
+    /**
+     * @brief L5 signal health override enable configuration
+     * 
+     * @details Enables L5 health status override. Required for L5 usage on some
+     *          receivers when L5 satellite health status is not yet broadcast.
+     */
     static const config_list config_L5_ovrd_ena[];
+    
+    /**
+     * @brief L5 signal health override disable configuration
+     * 
+     * @details Disables L5 health override once L5 constellation is fully operational.
+     */
     static const config_list config_L5_ovrd_dis[];
-    // scratch space for GNSS config
+    
+    /**
+     * @brief Dynamically allocated GNSS constellation configuration
+     * 
+     * @details Scratch space for building constellation enable/disable key-value pairs
+     *          based on GPS_GNSS_MODE parameter. Allocated in populate_F9_gnss(),
+     *          freed on destruction or reconfiguration.
+     */
     config_list* config_GNSS;
 };
 

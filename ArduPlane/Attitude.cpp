@@ -1,9 +1,65 @@
+/**
+ * @file Attitude.cpp
+ * @brief Fixed-wing attitude stabilization control loops for roll, pitch, and yaw axes
+ * 
+ * @details This file implements the core attitude stabilization functions for ArduPlane,
+ *          providing PID-based control of roll, pitch, and yaw axes. Key features include:
+ *          - Airspeed-compensated control gains via speed_scaler
+ *          - Integration with L1 navigation controller for roll/pitch targets
+ *          - TECS (Total Energy Control System) integration for pitch/throttle coordination
+ *          - Stick mixing for pilot override in auto modes
+ *          - Coordinated turn yaw control with rudder mixing
+ *          - Ground steering support during takeoff/landing
+ *          - Inverted flight handling
+ *          - Quadplane integration for hybrid VTOL/fixed-wing flight
+ * 
+ *          The control loops run at the main loop rate (typically 50-400Hz depending on board)
+ *          and are the final stage before servo output, translating desired attitudes from
+ *          navigation/mode logic into actual control surface deflections.
+ * 
+ * @note All angle inputs/outputs use centidegrees (1/100th of a degree) for integer precision
+ * @note Speed scaler adjusts control gains based on airspeed to maintain consistent handling
+ * @warning This is safety-critical flight control code - any modifications require extensive
+ *          flight testing across the full airspeed envelope
+ * 
+ * Source: ArduPlane/Attitude.cpp
+ */
 #include "Plane.h"
 
-/*
-  calculate speed scaling number for control surfaces. This is applied
-  to PIDs to change the scaling of the PID with speed. At high speed
-  we move the surfaces less, and at low speeds we move them more.
+/**
+ * @brief Calculate airspeed-based scaling factor for control surface gains
+ * 
+ * @details This function computes a speed scaling multiplier applied to all PID controllers
+ *          to compensate for varying aerodynamic effectiveness at different airspeeds.
+ *          The scaling ensures consistent handling characteristics across the flight envelope:
+ *          
+ *          At high airspeed: Surfaces are more effective → reduce gains (scale < 1.0)
+ *          At low airspeed: Surfaces are less effective → increase gains (scale > 1.0)
+ *          
+ *          Algorithm:
+ *          1. Get current airspeed estimate from AHRS (or estimate from throttle if unavailable)
+ *          2. Calculate speed_scaler = g.scaling_speed / current_airspeed
+ *          3. Constrain to safe range (typically 0.5 to 2.0)
+ *          4. Special handling for VTOL modes and takeoff
+ * 
+ *          The base scaling_speed parameter (SCALING_SPEED) defines the airspeed at which
+ *          the PID gains are exactly as tuned (scale = 1.0). At twice this speed, gains
+ *          are halved; at half this speed, gains are doubled.
+ * 
+ * @return float Speed scaling multiplier (typically 0.5 to 2.0)
+ *         - 1.0 = nominal tuned airspeed, use configured PID gains as-is
+ *         - < 1.0 = high airspeed, reduce gains
+ *         - > 1.0 = low airspeed, increase gains
+ * 
+ * @note Called frequently (every stabilization loop iteration) so must be computationally efficient
+ * @note When no airspeed sensor available, estimates scaling from throttle output
+ * @note In VTOL modes at very low airspeed, severely limits control surface movement to prevent instability
+ * @note During takeoff without airspeed sensor, scaling may be suppressed if SURPRESS_TKOFF_SCALING enabled
+ * 
+ * @warning Incorrect speed scaling can cause pilot-induced oscillations or loss of control
+ * @warning The integrator decay in VTOL low-speed regime (lines 36-38) prevents integrator windup
+ * 
+ * Source: ArduPlane/Attitude.cpp:8-58
  */
 float Plane::calc_speed_scaler(void)
 {
@@ -103,10 +159,39 @@ bool Plane::stick_mixing_enabled(void)
 }
 
 
-/*
-  this is the main roll stabilization function. It takes the
-  previously set nav_roll calculates roll servo_out to try to
-  stabilize the plane at the given roll
+/**
+ * @brief Execute roll axis stabilization control loop
+ * 
+ * @details This is the main roll stabilization function that converts the desired roll angle
+ *          (nav_roll_cd) into aileron servo output commands. The function implements a complete
+ *          roll control pipeline:
+ *          
+ *          Control Flow:
+ *          1. Check for inverted flight and adjust nav_roll_cd reference if needed
+ *          2. Call stabilize_roll_get_roll_out() to compute PID output
+ *          3. Apply airspeed-based gain scheduling via speed_scaler
+ *          4. Handle quadplane transitions (uses multicopter rate controller when appropriate)
+ *          5. Apply stick mixing if enabled and pilot is providing input
+ *          6. Limit output to configured servo limits (SRV_Channel::k_aileron)
+ *          
+ *          The nav_roll_cd target comes from:
+ *          - Navigation controller (L1 for waypoint tracking)
+ *          - Flight mode logic (e.g., FBWA uses pilot stick input)
+ *          - Autotune system during tuning maneuvers
+ *          
+ *          Inverted Flight Handling:
+ *          When fly_inverted() returns true, adds 180 degrees (18000 centidegrees) to nav_roll_cd
+ *          to maintain proper control authority while flying upside down.
+ * 
+ * @note Called at main loop rate (typically 50-400Hz depending on board configuration)
+ * @note Uses rollController PID object configured via ROLL2SRV_* parameters
+ * @note Speed scaler from get_speed_scaler() adjusts gains for different airspeeds
+ * @note Output range: -4500 to +4500 (corresponding to ±45 degrees servo deflection)
+ * 
+ * @warning Critical flight control function - modifications require extensive flight testing
+ * @warning Inverted flight handling is essential for aerobatic and unusual attitude recovery
+ * 
+ * Source: ArduPlane/Attitude.cpp:111-125
  */
 void Plane::stabilize_roll()
 {
@@ -158,10 +243,50 @@ float Plane::stabilize_roll_get_roll_out()
                                         ground_mode && !(plane.flight_option_enabled(FlightOptions::DISABLE_GROUND_PID_SUPPRESSION)));
 }
 
-/*
-  this is the main pitch stabilization function. It takes the
-  previously set nav_pitch and calculates servo_out values to try to
-  stabilize the plane at the given attitude.
+/**
+ * @brief Execute pitch axis stabilization control loop
+ * 
+ * @details This is the main pitch stabilization function that converts the desired pitch angle
+ *          (nav_pitch_cd) into elevator servo output commands. The pitch control is more complex
+ *          than roll due to integration with the TECS energy management system and special handling
+ *          for takeoff and landing phases.
+ *          
+ *          Control Flow:
+ *          1. Check for takeoff tail hold (special case: holds elevator down during ground roll)
+ *          2. Call stabilize_pitch_get_pitch_out() to compute PID output
+ *          3. Apply airspeed-based gain scheduling via speed_scaler
+ *          4. Handle quadplane transitions (uses multicopter rate controller when appropriate)
+ *          5. Add pitch trim and throttle-to-pitch feedforward (KFF_THRTTOPITCH)
+ *          6. Apply forced landing pitch if flare switch enabled and conditions met
+ *          7. Apply stick mixing if enabled and pilot is providing input
+ *          8. Limit output to configured servo limits (SRV_Channel::k_elevator)
+ *          
+ *          The nav_pitch_cd target comes from:
+ *          - TECS controller (for altitude/airspeed management in auto modes)
+ *          - Navigation controller (for terrain following)
+ *          - Flight mode logic (e.g., FBWA uses pilot stick input)
+ *          - Landing flare logic (forces pitch to LAND_PITCH_DEG during flare)
+ *          
+ *          Takeoff Tail Hold:
+ *          During the ground roll phase of automatic takeoffs, this function can hold the
+ *          tail down by forcing a specific elevator deflection, improving directional control
+ *          and preventing premature liftoff.
+ *          
+ *          Landing Flare:
+ *          When flare conditions are met (flare switch high, throttle at zero, fixed-wing mode),
+ *          overrides nav_pitch_cd with landing.get_pitch_cd() for proper landing attitude.
+ * 
+ * @note Called at main loop rate (typically 50-400Hz depending on board configuration)
+ * @note Uses pitchController PID object configured via PITCH2SRV_* parameters
+ * @note TECS may override pitch target for coordinated altitude/airspeed control
+ * @note Speed scaler adjusts gains to maintain consistent handling across airspeeds
+ * @note Output range: -4500 to +4500 (corresponding to ±45 degrees servo deflection)
+ * 
+ * @warning Critical flight control function - modifications require extensive flight testing
+ * @warning Pitch control directly affects stall margins and must be thoroughly validated
+ * @warning Tail hold timing critical - premature release can cause runway strikes
+ * 
+ * Source: ArduPlane/Attitude.cpp:166-232
  */
 void Plane::stabilize_pitch()
 {
@@ -231,9 +356,41 @@ float Plane::stabilize_pitch_get_pitch_out()
                                          ground_mode && !(plane.flight_option_enabled(FlightOptions::DISABLE_GROUND_PID_SUPPRESSION)));
 }
 
-/*
-  this gives the user control of the aircraft in stabilization modes, only used in Stabilize Mode
-  to be moved to mode_stabilize.cpp in future
+/**
+ * @brief Apply direct stick mixing of pilot inputs with stabilized control outputs
+ * 
+ * @details This function allows pilot stick inputs to directly mix with (override) the
+ *          stabilization controller outputs in STABILIZE mode. This provides the pilot
+ *          with direct control authority while maintaining stabilization assistance.
+ *          
+ *          Mixing Algorithm:
+ *          1. Get current stabilized aileron/elevator outputs from controllers
+ *          2. Call channel_roll->stick_mixing() and channel_pitch->stick_mixing()
+ *             which blend pilot RC input with the stabilized output
+ *          3. Write the mixed output back to servo channels
+ *          
+ *          The mixing is "direct" in that pilot stick position directly influences
+ *          servo position, rather than commanding rates or angles that are then
+ *          processed by outer control loops.
+ *          
+ *          This mode is active only when:
+ *          - stick_mixing_enabled() returns true (valid RC, appropriate mode, etc.)
+ *          - quadplane.allow_stick_mixing() returns true (for hybrid aircraft)
+ *          - Currently in STABILIZE mode
+ *          
+ *          Mixing Amount:
+ *          The actual mixing ratio is determined by the RC channel's stick_mixing()
+ *          method, typically applying full pilot input when stick is moved and
+ *          blending back to stabilized output as stick returns to center.
+ * 
+ * @note Only used in STABILIZE mode - other modes use stabilize_stick_mixing_fbw()
+ * @note Future refactoring will move this to mode_stabilize.cpp for better code organization
+ * @note Provides more direct "feel" compared to FBW-style stick mixing
+ * 
+ * @warning Aggressive stick inputs can override stabilization and lead to loss of control
+ * @warning Mixing disabled automatically if RC signal lost or invalid
+ * 
+ * Source: ArduPlane/Attitude.cpp:238-255
  */
 void ModeStabilize::stabilize_stick_mixing_direct()
 {
@@ -254,9 +411,48 @@ void ModeStabilize::stabilize_stick_mixing_direct()
     SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elevator);
 }
 
-/*
-  this gives the user control of the aircraft in stabilization modes
-  using FBW style controls
+/**
+ * @brief Apply FBW-style (Fly-By-Wire) stick mixing with rate-based control
+ * 
+ * @details This function implements a more sophisticated stick mixing approach used in
+ *          automatic flight modes (AUTO, GUIDED, LOITER, etc.) that allows pilot override
+ *          by modifying the nav_roll_cd and nav_pitch_cd targets rather than directly
+ *          mixing with servo outputs.
+ *          
+ *          Roll Stick Mixing Algorithm:
+ *          - Pilot stick input is treated as a bank angle command added to nav_roll_cd
+ *          - Non-linear scaling: inputs > 50% are scaled 3x to allow full authority
+ *          - Formula: For input > 0.5: roll_input = (3*input - 1)
+ *          - Formula: For input < -0.5: roll_input = (3*input + 1)
+ *          - Allows pilot to command up to 2x roll_limit_cd with full stick deflection
+ *          - Final nav_roll_cd constrained to ±roll_limit_cd
+ *          
+ *          Pitch Stick Mixing Algorithm:
+ *          - Similar non-linear scaling as roll
+ *          - Respects pitch_limit_min and pitch_limit_max asymmetric limits
+ *          - Automatically inverts pitch sense when flying inverted
+ *          - Can be disabled via STICK_MIXING=FBW_NO_PITCH for altitude-only control
+ *          - Disabled in LOITER if ENABLE_LOITER_ALT_CONTROL flight option set
+ *          
+ *          Active Modes:
+ *          This stick mixing is NOT active in:
+ *          - ACRO, FBWA, FBWB, CRUISE, TRAINING (manual/semi-manual modes)
+ *          - QSTABILIZE, QHOVER, QLOITER, QLAND, QACRO, QAUTOTUNE (quadplane modes)
+ *          - Any mode where stick_mixing_enabled() returns false
+ *          
+ *          The FBW-style approach provides smoother, more predictable pilot override
+ *          compared to direct mixing, as the stabilization loops still close around
+ *          the modified targets.
+ * 
+ * @note Called after navigation controller sets nav_roll_cd and nav_pitch_cd
+ * @note Non-linear scaling ensures full control authority with stick deflection > 50%
+ * @note Pitch mixing can be independently disabled via STICK_MIXING parameter
+ * @note LOITER mode may disable pitch mixing if using altitude control feature
+ * 
+ * @warning Stick mixing bypasses navigation limits - pilot can command aggressive maneuvers
+ * @warning Non-linear scaling region (>50% stick) requires pilot familiarity to avoid overcorrection
+ * 
+ * Source: ArduPlane/Attitude.cpp:261-319
  */
 void Plane::stabilize_stick_mixing_fbw()
 {
@@ -319,12 +515,52 @@ void Plane::stabilize_stick_mixing_fbw()
 }
 
 
-/*
-  stabilize the yaw axis. There are 3 modes of operation:
-
-    - hold a specific heading with ground steering
-    - rate controlled with ground steering
-    - yaw control for coordinated flight    
+/**
+ * @brief Execute yaw axis stabilization control loop
+ * 
+ * @details This function manages yaw/rudder control with three distinct operational modes
+ *          depending on flight phase and altitude:
+ *          
+ *          **Mode 1: Coordinated Turn (In-Flight)**
+ *          - Uses calc_nav_yaw_coordinated() for rudder coordination
+ *          - Applies yaw damping and turn coordination
+ *          - Includes rudder mixing from aileron (KFF_RUDD_MIX parameter)
+ *          - Active when above GROUND_STEER_ALT and roll stick has input
+ *          
+ *          **Mode 2: Course Hold Ground Steering**
+ *          - Uses calc_nav_yaw_course() to hold specific ground heading
+ *          - Active during landing flare or when below GROUND_STEER_ALT
+ *          - Tracks navigation bearing error for runway tracking
+ *          - Used for automatic takeoff and landing directional control
+ *          
+ *          **Mode 3: Rate-Based Ground Steering**
+ *          - Uses calc_nav_yaw_ground() for pilot-commanded steering rate
+ *          - Pilot rudder input commands turning rate in deg/s (GROUND_STEER_DPS)
+ *          - Locks course when stick centered to prevent wandering
+ *          - Active when below GROUND_STEER_ALT with no roll input
+ *          
+ *          Mode Selection Logic:
+ *          - landing.is_flaring() → Course hold ground steering
+ *          - Below GROUND_STEER_ALT + no roll input → Ground steering (course or rate)
+ *          - Otherwise → Coordinated turn (airborne yaw control)
+ *          
+ *          Output Routing:
+ *          - If ground steering active and steering channel assigned:
+ *            * k_rudder gets coordinated rudder output
+ *            * k_steering gets ground steering output
+ *          - Otherwise:
+ *            * Both k_rudder and k_steering get the same output
+ * 
+ * @note Called at main loop rate (typically 50-400Hz depending on board configuration)
+ * @note Ground steering uses steerController, airborne uses yawController
+ * @note GROUND_STEER_ALT parameter defines transition altitude (typically 5-10m AGL)
+ * @note Yaw control is less critical than roll/pitch for most fixed-wing aircraft
+ * @note Quadplane spin recovery assistance may override outputs (line 384)
+ * 
+ * @warning Ground steering during landing requires careful tuning to prevent runway departure
+ * @warning Incorrect mode transitions can cause oscillations or loss of directional control
+ * 
+ * Source: ArduPlane/Attitude.cpp:329-386
  */
 void Plane::stabilize_yaw()
 {
@@ -476,8 +712,52 @@ void Plane::calc_throttle()
 * Calculate desired roll/pitch/yaw angles (in medium freq loop)
 *****************************************/
 
-/*
-  calculate yaw control for coordinated flight
+/**
+ * @brief Calculate coordinated turn rudder output for in-flight yaw control
+ * 
+ * @details Computes rudder commands to maintain coordinated flight (minimizing sideslip)
+ *          during turns and to provide yaw damping for stability. This function implements
+ *          several control strategies depending on flight mode and conditions:
+ *          
+ *          **Standard Coordinated Turn Mode:**
+ *          - Uses yawController.get_servo_out() with airspeed compensation
+ *          - Automatically coordinates turns to minimize sideslip angle
+ *          - Applies yaw damping to prevent Dutch roll oscillations
+ *          - Adds rudder mixing from aileron input (g.kff_rudder_mix)
+ *          - Adds direct pilot rudder input for manual trim
+ *          
+ *          **Rate Controller Mode (Autotune):**
+ *          - Active when autotuning with yaw rate control enabled (ACRO_YAW_RATE > 0)
+ *          - Converts pilot rudder stick to yaw rate command
+ *          - Adds coordinated turn rate to ease flying during tuning
+ *          - Uses yawController.get_rate_out() for rate tracking
+ *          
+ *          **Guided Mode Override:**
+ *          - If external guidance command received within last 3 seconds
+ *          - Directly uses commanded rudder from guided_state.forced_rpy_cd.z
+ *          - Allows external controllers (companion computer) to command rudder
+ *          
+ *          Speed Compensation:
+ *          The speed_scaler from get_speed_scaler() adjusts yaw damper and coordination
+ *          gains based on airspeed, maintaining consistent handling across the flight envelope.
+ *          
+ *          Integrator Management:
+ *          - Disabled in STABILIZE mode when pilot provides rudder input
+ *          - Automatically reset when switching between angle and rate control
+ * 
+ * @return int16_t Rudder output command in centidegrees (-4500 to +4500)
+ *         Positive values = right rudder (yaw right)
+ *         Negative values = left rudder (yaw left)
+ * 
+ * @note Called from stabilize_yaw() when in airborne coordinated flight mode
+ * @note Uses yawController PID object configured via YAW2SRV_* parameters
+ * @note Rudder mixing coefficient KFF_RUDD_MIX typically 0.1 to 0.5
+ * @note The coordination algorithm computes required yaw rate from roll angle and airspeed
+ * 
+ * @warning Excessive rudder mixing can cause adverse yaw and departures from coordinated flight
+ * @warning Rate controller must be properly tuned before use in autotune mode
+ * 
+ * Source: ArduPlane/Attitude.cpp:482-524
  */
 int16_t Plane::calc_nav_yaw_coordinated()
 {

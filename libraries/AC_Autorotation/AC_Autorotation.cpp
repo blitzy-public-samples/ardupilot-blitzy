@@ -11,14 +11,14 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable settings for RSC Setpoint
     // @Description: Allows you to enable (1) or disable (0) the autonomous autorotation capability.
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLE", 1, AC_Autorotation, _param_enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: HS_P
+    // `@Param`: HS_P
     // @DisplayName: P gain for head speed controller
     // @Description: Increase value to increase sensitivity of head speed controller during autonomous autorotation.
     // @Range: 0.3 1
@@ -26,7 +26,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_SUBGROUPINFO(_p_hs, "HS_", 2, AC_Autorotation, AC_P),
 
-    // @Param: HS_SET_PT
+    // `@Param`: HS_SET_PT
     // @DisplayName: Target Head Speed
     // @Description: The target head speed in RPM during autorotation. Start by setting to desired hover speed and tune from there as necessary.
     // @Units: RPM
@@ -35,7 +35,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("HS_SET_PT", 3, AC_Autorotation, _param_head_speed_set_point, 1500),
 
-    // @Param: FWD_SP_TARG
+    // `@Param`: FWD_SP_TARG
     // @DisplayName: Target Glide Body Frame Forward Speed
     // @Description: Target ground speed in cm/s for the autorotation controller to try and achieve/ maintain during the glide phase.
     // @Units: m/s
@@ -44,7 +44,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("FWD_SP_TARG", 4, AC_Autorotation, _param_target_speed_ms, 11),
 
-    // @Param: COL_FILT_E
+    // `@Param`: COL_FILT_E
     // @DisplayName: Entry Phase Collective Filter
     // @Description: Cut-off frequency for collective low pass filter. For the entry phase. Acts as a following trim.  Must be higher than AROT_COL_FILT_G.
     // @Units: Hz
@@ -53,7 +53,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("COL_FILT_E", 5, AC_Autorotation, _param_col_entry_cutoff_freq, 0.7),
 
-    // @Param: COL_FILT_G
+    // `@Param`: COL_FILT_G
     // @DisplayName: Glide Phase Collective Filter
     // @Description: Cut-off frequency for collective low pass filter. For the glide phase. Acts as a following trim.  Must be lower than AROT_COL_FILT_E.
     // @Units: Hz
@@ -62,7 +62,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("COL_FILT_G", 6, AC_Autorotation, _param_col_glide_cutoff_freq, 0.1),
 
-    // @Param: XY_ACC_MAX
+    // `@Param`: XY_ACC_MAX
     // @DisplayName: Body Frame XY Acceleration Limit
     // @Description: Maximum body frame acceleration allowed in the in speed controller. This limit defines a circular constraint in accel. Minimum used is 0.5 m/s/s.
     // @Units: m/s/s
@@ -71,7 +71,7 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("XY_ACC_MAX", 7, AC_Autorotation, _param_accel_max_mss, 2.0),
 
-    // @Param: HS_SENSOR
+    // `@Param`: HS_SENSOR
     // @DisplayName: Main Rotor RPM Sensor 
     // @Description: Allocate the RPM sensor instance to use for measuring head speed. RPM1 = 0.  RPM2 = 1.
     // @Units: s
@@ -80,47 +80,47 @@ const AP_Param::GroupInfo AC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("HS_SENSOR", 8, AC_Autorotation, _param_rpm_instance, 0),
 
-    // @Param: FWD_P
+    // `@Param`: FWD_P
     // @DisplayName: Forward Speed Controller P Gain
     // @Description: Converts the difference between desired forward speed and actual speed into an acceleration target that is passed to the pitch angle controller.
     // @Range: 1.000 8.000
     // @User: Standard
 
-    // @Param: FWD_I
+    // `@Param`: FWD_I
     // @DisplayName: Forward Speed Controller I Gain
     // @Description: Corrects long-term difference in desired velocity to a target acceleration.
     // @Range: 0.02 1.00
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: FWD_IMAX
+    // `@Param`: FWD_IMAX
     // @DisplayName: Forward Speed Controller I Gain Maximum
     // @Description: Constrains the target acceleration that the I gain will output.
     // @Range: 1.000 8.000
     // @User: Standard
 
-    // @Param: FWD_D
+    // `@Param`: FWD_D
     // @DisplayName: Forward Speed Controller D Gain
     // @Description: Provides damping to velocity controller.
     // @Range: 0.00 1.00
     // @Increment: 0.001
     // @User: Advanced
 
-    // @Param: FWD_FF
+    // `@Param`: FWD_FF
     // @DisplayName: Forward Speed Controller Feed Forward Gain
     // @Description: Produces an output that is proportional to the magnitude of the target.
     // @Range: 0 1
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: FWD_FLTE
+    // `@Param`: FWD_FLTE
     // @DisplayName: Forward Speed Controller Error Filter
     // @Description: This filter low pass filter is applied to the input for P and I terms.
     // @Range: 0 100
     // @Units: Hz
     // @User: Advanced
 
-    // @Param: FWD_FLTD
+    // `@Param`: FWD_FLTD
     // @DisplayName: Forward Speed Controller input filter for D term
     // @Description: This filter low pass filter is applied to the input for D terms.
     // @Range: 0 100
@@ -252,7 +252,7 @@ void AC_Autorotation::update_headspeed_controller(void)
     _motors_heli->set_throttle(collective_out);
 
 #if HAL_LOGGING_ENABLED
-    // @LoggerMessage: ARHS
+    // `@LoggerMessage`: ARHS
     // @Vehicles: Copter
     // @Description: helicopter AutoRotation Head Speed (ARHS) controller information
     // @Field: TimeUS: Time since system startup
@@ -356,7 +356,7 @@ void AC_Autorotation::update_forward_speed_controller(float pilot_accel_norm)
     _attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw_rad(angle_target_rad.y, angle_target_rad.x, yaw_rate_rads);
 
 #if HAL_LOGGING_ENABLED
-    // @LoggerMessage: ARSC
+    // `@LoggerMessage`: ARSC
     // @Vehicles: Copter
     // @Description: Helicopter AutoRotation Speed Controller (ARSC) information 
     // @Field: TimeUS: Time since system startup
@@ -433,7 +433,7 @@ void AC_Autorotation::log_write_autorotation(void) const
         reason |= uint8_t(AC_Autorotation_Landed_Reason::IS_STILL);
     }
 
-    // @LoggerMessage: AROT
+    // `@LoggerMessage`: AROT
     // @Vehicles: Copter
     // @Description: Helicopter AutoROTation (AROT) information
     // @Field: TimeUS: Time since system startup

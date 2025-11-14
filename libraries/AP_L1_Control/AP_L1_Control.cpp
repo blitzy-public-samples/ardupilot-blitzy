@@ -5,7 +5,7 @@ extern const AP_HAL::HAL& hal;
 
 // table of user settable parameters
 const AP_Param::GroupInfo AP_L1_Control::var_info[] = {
-    // @Param: PERIOD
+    // `@Param`: PERIOD
     // @DisplayName: L1 control period
     // @Description: Period in seconds of L1 tracking loop. This parameter is the primary control for aggressiveness of turns in auto mode. This needs to be larger for less responsive airframes. The default is quite conservative, but for most RC aircraft will lead to reasonable flight. For smaller more agile aircraft a value closer to 15 is appropriate, or even as low as 10 for some very agile aircraft. When tuning, change this value in small increments, as a value that is much too small (say 5 or 10 below the right value) can lead to very radical turns, and a risk of stalling.
     // @Units: s
@@ -14,7 +14,7 @@ const AP_Param::GroupInfo AP_L1_Control::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("PERIOD",    0, AP_L1_Control, _L1_period, 17),
 
-    // @Param: DAMPING
+    // `@Param`: DAMPING
     // @DisplayName: L1 control damping ratio
     // @Description: Damping ratio for L1 control. Increase this in increments of 0.05 if you are getting overshoot in path tracking. You should not need a value below 0.7 or above 0.85.
     // @Range: 0.6 1.0
@@ -22,7 +22,7 @@ const AP_Param::GroupInfo AP_L1_Control::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DAMPING",   1, AP_L1_Control, _L1_damping, 0.75f),
 
-    // @Param: XTRACK_I
+    // `@Param`: XTRACK_I
     // @DisplayName: L1 control crosstrack integrator gain
     // @Description: Crosstrack error integrator gain. This gain is applied to the crosstrack error to ensure it converges to zero. Set to zero to disable. Smaller values converge slower, higher values will cause crosstrack error oscillation.
     // @Range: 0 0.1
@@ -30,7 +30,7 @@ const AP_Param::GroupInfo AP_L1_Control::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("XTRACK_I",   2, AP_L1_Control, _L1_xtrack_i_gain, 0.02),
 
-    // @Param: LIM_BANK
+    // `@Param`: LIM_BANK
     // @DisplayName: Loiter Radius Bank Angle Limit
     // @Description: The sealevel bank angle limit for a continuous loiter. (Used to calculate airframe loading limits at higher altitudes). Setting to 0, will instead just scale the loiter radius directly
     // @Units: deg

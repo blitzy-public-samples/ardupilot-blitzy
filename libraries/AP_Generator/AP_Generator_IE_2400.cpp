@@ -480,7 +480,7 @@ void AP_Generator_IE_2400::log_write()
             return;
 
         case ProtocolVersion::LEGACY:
-            // @LoggerMessage: IE24
+            // `@LoggerMessage`: IE24
             // @Description: Intelligent Energy Fuel Cell generator (legacy protocol)
             // @URL: https://ardupilot.org/copter/docs/common-ie24-fuelcell.html
             // @Field: TimeUS: Time since system startup
@@ -504,7 +504,7 @@ void AP_Generator_IE_2400::log_write()
             break;
 
         case ProtocolVersion::V2:
-            // @LoggerMessage: IEFC
+            // `@LoggerMessage`: IEFC
             // @Description: Intelligent Energy Fuel Cell generator
             // @URL: https://ardupilot.org/copter/docs/common-ie24-fuelcell.html
             // @Field: TimeUS: Time since system startup

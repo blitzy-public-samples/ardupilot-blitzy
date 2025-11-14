@@ -380,7 +380,7 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
         node_logged.set(transfer.source_node_id);
         uint64_t uid[2];
         memcpy(uid, rsp.hardware_version.unique_id, sizeof(rsp.hardware_version.unique_id));
-        // @LoggerMessage: CAND
+        // `@LoggerMessage`: CAND
         // @Description: Info from GetNodeInfo request
         // @Field: TimeUS: Time since system startup
         // @Field: Driver: Driver index

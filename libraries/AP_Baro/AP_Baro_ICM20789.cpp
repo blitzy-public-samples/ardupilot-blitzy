@@ -342,7 +342,7 @@ void AP_Baro_ICM20789::update()
 {
 #if BARO_ICM20789_DEBUG
     // useful for debugging
-// @LoggerMessage: ICMB
+// `@LoggerMessage`: ICMB
 // @Description: ICM20789 diagnostics
 // @Field: TimeUS: Time since system startup
 // @Field: Traw: raw temperature from sensor

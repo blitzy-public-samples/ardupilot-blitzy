@@ -6,7 +6,7 @@
 #define LOG_IDS_FROM_MOUNT \
     LOG_MOUNT_MSG
 
-// @LoggerMessage: MNT
+// `@LoggerMessage`: MNT
 // @Description: Mount's desired and actual roll, pitch and yaw angles
 // @Field: TimeUS: Time since system startup
 // @Field: I: Instance number

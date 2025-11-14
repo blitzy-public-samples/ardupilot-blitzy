@@ -113,7 +113,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_Arming::var_info[] = {
 
-    // @Param{Plane, Rover}: REQUIRE
+    // `@Param`{Plane, Rover}: REQUIRE
     // @DisplayName: Require Arming Motors 
     // @Description{Plane}: Arming disabled until some requirements are met. If 0, there are no requirements (arm immediately).  If 1, sends the minimum throttle PWM value to the throttle channel when disarmed. If 2, send 0 PWM (no signal) to throttle channel when disarmed. On planes with ICE enabled and the throttle while disarmed option set in ICE_OPTIONS, the motor will always get THR_MIN when disarmed. Arming will be blocked until all mandatory and ARMING_CHECK items are satisfied; arming can then be accomplished via (eg.) rudder gesture or GCS command.
     // @Description{Rover}: Arming disabled until some requirements are met. If 0, there are no requirements (arm immediately).  If 1, all checks specified by ARMING_CHECKS must pass before the vehicle can be armed (for example, via rudder stick or GCS command).  If 3, Arm immediately once pre-arm/arm checks are satisfied, but only one time per boot up.  Note that a reboot is NOT required when setting to 0 but IS require when setting to 3.
@@ -126,7 +126,7 @@ const AP_Param::GroupInfo AP_Arming::var_info[] = {
 
     // 2 was the CHECK paramter stored in a AP_Int16
 
-    // @Param: ACCTHRESH
+    // `@Param`: ACCTHRESH
     // @DisplayName: Accelerometer error threshold
     // @Description: Accelerometer error threshold used to determine inconsistent accelerometers. Compares this error range to other accelerometers to detect a hardware or calibration error. Lower value means tighter check and harder to pass arming check. Not all accelerometers are created equal.
     // @Units: m/s/s
@@ -137,7 +137,7 @@ const AP_Param::GroupInfo AP_Arming::var_info[] = {
     // index 4 was VOLT_MIN, moved to AP_BattMonitor
     // index 5 was VOLT2_MIN, moved to AP_BattMonitor
 
-    // @Param{Plane,Rover,Copter,Blimp}: RUDDER
+    // `@Param`{Plane,Rover,Copter,Blimp}: RUDDER
     // @DisplayName: Arming with Rudder enable/disable
     // @Description: Allow arm/disarm by rudder input. When enabled arming can be done with right rudder, disarming with left rudder. Rudder arming only works with throttle at zero +- deadzone (RCx_DZ). Depending on vehicle type, arming in certain modes is prevented. See the wiki for each vehicle. Caution is recommended when arming if it is allowed in an auto-throttle mode!
     // @Values: 0:Disabled,1:ArmingOnly,2:ArmOrDisarm
@@ -149,14 +149,14 @@ const AP_Param::GroupInfo AP_Arming::var_info[] = {
                                                                                            AP_PARAM_FRAME_HELI |
                                                                                            AP_PARAM_FRAME_BLIMP),
 
-    // @Param: MIS_ITEMS
+    // `@Param`: MIS_ITEMS
     // @DisplayName: Required mission items
     // @Description: Bitmask of mission items that are required to be planned in order to arm the aircraft
     // @Bitmask: 0:Land,1:VTOL Land,2:DO_LAND_START,3:Takeoff,4:VTOL Takeoff,5:Rallypoint,6:RTL
     // @User: Advanced
     AP_GROUPINFO("MIS_ITEMS",    7,     AP_Arming, _required_mission_items, 0),
 
-    // @Param: CHECK
+    // `@Param`: CHECK
     // @DisplayName: Arm Checks to Perform (bitmask)
     // @Description: Checks prior to arming motor. This is a bitmask of checks that will be performed before allowing arming. For most users it is recommended to leave this at the default of 1 (all checks enabled). You can select whatever checks you prefer by adding together the values of each check type to set this parameter. For example, to only allow arming when you have GPS lock and no RC failsafe you would set ARMING_CHECK to 72.
     // @Bitmask: 0:All,1:Barometer,2:Compass,3:GPS lock,4:INS,5:Parameters,6:RC Channels,7:Board voltage,8:Battery Level,10:Logging Available,11:Hardware safety switch,12:GPS Configuration,13:System,14:Mission,15:Rangefinder,16:Camera,17:AuxAuth,18:VisualOdometry,19:FFT
@@ -164,14 +164,14 @@ const AP_Param::GroupInfo AP_Arming::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("CHECK",        8,     AP_Arming,  checks_to_perform,       float(Check::ALL)),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Arming options
     // @Description: Options that can be applied to change arming behaviour
     // @Bitmask: 0:Disable prearm display,1:Do not send status text on state change
     // @User: Advanced
     AP_GROUPINFO("OPTIONS", 9,   AP_Arming, _arming_options, 0),
 
-    // @Param: MAGTHRESH
+    // `@Param`: MAGTHRESH
     // @DisplayName: Compass magnetic field strength error threshold vs earth magnetic model
     // @Description: Compass magnetic field strength error threshold vs earth magnetic model.  X and y axis are compared using this threhold, Z axis uses 2x this threshold.  0 to disable check
     // @Units: mGauss
@@ -180,7 +180,7 @@ const AP_Param::GroupInfo AP_Arming::var_info[] = {
     AP_GROUPINFO("MAGTHRESH", 10, AP_Arming, magfield_error_threshold,  AP_ARMING_MAGFIELD_ERROR_THRESHOLD),
 
 #if AP_ARMING_CRASHDUMP_ACK_ENABLED
-    // @Param: CRSDP_IGN
+    // `@Param`: CRSDP_IGN
     // @DisplayName: Disable CrashDump Arming check
     // @Description: Must have value "1" if crashdump data is present on the system, or a prearm failure will be raised.  Do not set this parameter unless the risks of doing so are fully understood.  The presence of a crash dump means that the firmware currently installed has suffered a critical software failure which resulted in the autopilot immediately rebooting.  The crashdump file gives diagnostic information which can help in finding the issue, please contact the ArduPIlot support team.  If this crashdump data is present, the vehicle is likely unsafe to fly.  Check the ArduPilot documentation for more details.
     // @Values: 0:Crash Dump arming check active, 1:Crash Dump arming check deactivated
@@ -189,7 +189,7 @@ const AP_Param::GroupInfo AP_Arming::var_info[] = {
 #endif  // AP_ARMING_CRASHDUMP_ACK_ENABLED
 
 #if AP_ARMING_NEED_LOC_PARAMETER_ENABLED
-    // @Param: NEED_LOC
+    // `@Param`: NEED_LOC
     // @DisplayName: Require vehicle location
     // @Description: Require that the vehicle have an absolute position before it arms.  This can help ensure that the vehicle can Return To Launch.
     // @User: Advanced

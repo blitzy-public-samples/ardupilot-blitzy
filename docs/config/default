@@ -202,7 +202,7 @@ ALIASES                =
 # "class=itcl::class" will allow you to use the command class in the
 # itcl::class meaning.
 
-TCL_SUBST              =
+# TCL_SUBST              =  # Obsolete tag, commented out
 
 # Set the OPTIMIZE_OUTPUT_FOR_C tag to YES if your project consists of C
 # sources only. Doxygen will then generate output that is more tailored for C.
@@ -343,7 +343,7 @@ TYPEDEF_HIDES_STRUCT   = NO
 # 2^(16+SYMBOL_CACHE_SIZE). The valid range is 0..9, the default is 0,
 # corresponding to a cache size of 2^16 = 65536 symbols.
 
-SYMBOL_CACHE_SIZE      = 0
+# SYMBOL_CACHE_SIZE      = 0  # Obsolete tag, commented out
 
 # Similar to the SYMBOL_CACHE_SIZE the size of the symbol lookup cache can be
 # set using LOOKUP_CACHE_SIZE. This cache is used to resolve symbols given
@@ -715,7 +715,10 @@ EXCLUDE_SYMLINKS       = NO
 # against the file with absolute path, so to exclude all test directories
 # for example use the pattern */test/*
 
-EXCLUDE_PATTERNS       =
+EXCLUDE_PATTERNS       = */tests/* \
+                         */AP_ONVIF/soap/* \
+                         */CMSIS_5/* \
+                         */piccolo_protocol/*
 
 # The EXCLUDE_SYMBOLS tag can be used to specify one or more symbol names
 # (namespaces, classes, functions, etc.) that should be excluded from the
@@ -864,7 +867,7 @@ ALPHABETICAL_INDEX     = YES
 # the COLS_IN_ALPHA_INDEX tag can be used to specify the number of columns
 # in which this list will be split (can be a number in the range [1..20])
 
-COLS_IN_ALPHA_INDEX    = 5
+# COLS_IN_ALPHA_INDEX    = 5  # Obsolete tag, commented out
 
 # In case all classes in a project start with a common prefix, all
 # classes will be put under the same header in the alphabetical index.
@@ -970,7 +973,7 @@ HTML_COLORSTYLE_GAMMA  = 80
 # page will contain the date and time when the page was generated. Setting
 # this to NO can help when comparing the output of multiple runs.
 
-HTML_TIMESTAMP         = YES
+# HTML_TIMESTAMP         = YES  # Obsolete tag, commented out
 
 # If the HTML_DYNAMIC_SECTIONS tag is set to YES then the generated HTML
 # documentation will contain sections that can be hidden and shown after the
@@ -1184,7 +1187,7 @@ EXT_LINKS_IN_WINDOW    = NO
 # to manually remove any form_*.png images from the HTML output directory
 # to force them to be regenerated.
 
-FORMULA_FONTSIZE       = 10
+# FORMULA_FONTSIZE       = 10  # Obsolete tag, commented out
 
 # Use the FORMULA_TRANPARENT tag to determine whether or not the images
 # generated for formulas are transparent PNGs. Transparent PNGs are
@@ -1192,7 +1195,7 @@ FORMULA_FONTSIZE       = 10
 # Note that when changing this option you need to delete any form_*.png files
 # in the HTML output before the changes have effect.
 
-FORMULA_TRANSPARENT    = YES
+# FORMULA_TRANSPARENT    = YES  # Obsolete tag, commented out
 
 # Enable the USE_MATHJAX option to render LaTeX formulas using MathJax
 # (see http://www.mathjax.org) which uses client side Javascript for the
@@ -1201,7 +1204,7 @@ FORMULA_TRANSPARENT    = YES
 # output. When enabled you may also need to install MathJax separately and
 # configure the path to it using the MATHJAX_RELPATH option.
 
-USE_MATHJAX            = NO
+# USE_MATHJAX            = NO  # Obsolete tag, commented out
 
 # When MathJax is enabled you can set the default output format to be used for
 # thA MathJax output. Supported types are HTML-CSS, NativeMML (i.e. MathML) and
@@ -1225,7 +1228,7 @@ MATHJAX_RELPATH        = http://cdn.mathjax.org/mathjax/latest
 # The MATHJAX_EXTENSIONS tag can be used to specify one or MathJax extension
 # names that should be enabled during MathJax rendering.
 
-MATHJAX_EXTENSIONS     =
+# MATHJAX_EXTENSIONS     =  # Obsolete tag, commented out
 
 # When the SEARCHENGINE tag is enabled doxygen will generate a search box
 # for the HTML output. The underlying search engine uses javascript
@@ -1371,14 +1374,14 @@ LATEX_BATCHMODE        = NO
 # include the index chapters (such as File Index, Compound Index, etc.)
 # in the output.
 
-LATEX_HIDE_INDICES     = NO
+# LATEX_HIDE_INDICES     = NO  # Obsolete tag, commented out
 
 # If LATEX_SOURCE_CODE is set to YES then doxygen will include
 # source code with syntax highlighting in the LaTeX output.
 # Note that which sources are shown also depends on other settings
 # such as SOURCE_BROWSER.
 
-LATEX_SOURCE_CODE      = NO
+# LATEX_SOURCE_CODE      = NO  # Obsolete tag, commented out
 
 # The LATEX_BIB_STYLE tag can be used to specify the style to use for the
 # bibliography, e.g. plainnat, or ieeetr. The default style is "plain". See
@@ -1415,7 +1418,7 @@ COMPACT_RTF            = NO
 # programs which support those fields.
 # Note: wordpad (write) and others do not support links.
 
-RTF_HYPERLINKS         = NO
+# RTF_HYPERLINKS         = NO  # Obsolete tag, commented out
 
 # Load style sheet definitions from file. Syntax is similar to doxygen's
 # config file, i.e. a series of assignments. You only have to provide
@@ -1476,20 +1479,20 @@ XML_OUTPUT             = xml
 # which can be used by a validating XML parser to check the
 # syntax of the XML files.
 
-XML_SCHEMA             =
+# XML_SCHEMA             =  # Obsolete tag, commented out
 
 # The XML_DTD tag can be used to specify an XML DTD,
 # which can be used by a validating XML parser to check the
 # syntax of the XML files.
 
-XML_DTD                =
+# XML_DTD                =  # Obsolete tag, commented out
 
 # If the XML_PROGRAMLISTING tag is set to YES Doxygen will
 # dump the program listings (including syntax highlighting
 # and cross-referencing information) to the XML output. Note that
 # enabling this will significantly increase the size of the XML output.
 
-XML_PROGRAMLISTING     = YES
+# XML_PROGRAMLISTING     = YES  # Obsolete tag, commented out
 
 #---------------------------------------------------------------------------
 # configuration options for the AutoGen Definitions output
@@ -1553,13 +1556,13 @@ ENABLE_PREPROCESSING   = YES
 # compilation will be performed. Macro expansion can be done in a controlled
 # way by setting EXPAND_ONLY_PREDEF to YES.
 
-MACRO_EXPANSION        = NO
+MACRO_EXPANSION        = YES
 
 # If the EXPAND_ONLY_PREDEF and MACRO_EXPANSION tags are both set to YES
 # then the macro expansion is limited to the macros specified with the
 # PREDEFINED and EXPAND_AS_DEFINED tags.
 
-EXPAND_ONLY_PREDEF     = NO
+EXPAND_ONLY_PREDEF     = YES
 
 # If the SEARCH_INCLUDES tag is set to YES (the default) the includes files
 # pointed to by INCLUDE_PATH will be searched when a #include is found.
@@ -1587,7 +1590,39 @@ INCLUDE_FILE_PATTERNS  =
 # undefined via #undef or recursively expanded use the := operator
 # instead of the = operator.
 
-PREDEFINED             =
+PREDEFINED             = AP_AHRS_ENABLED=1 \
+                         AP_AIRSPEED_ENABLED=1 \
+                         AP_BARO_1976_STANDARD_ATMOSPHERE_ENABLED=1 \
+                         AP_BATTERY_ENABLED=1 \
+                         AP_BEACON_ENABLED=1 \
+                         AP_BEACON_SITL_ENABLED=1 \
+                         AP_DDS_ENABLED=1 \
+                         AP_DDS_TIME_PUB_ENABLED=1 \
+                         AP_EXTERNAL_AHRS_ENABLED=1 \
+                         AP_EXTERNAL_CONTROL_ENABLED=1 \
+                         AP_FENCE_ENABLED=1 \
+                         AP_GPS_ENABLED=1 \
+                         AP_INERTIALSENSOR_ENABLED=1 \
+                         AP_MISSION_ENABLED=1 \
+                         AP_OPTICALFLOW_ENABLED=1 \
+                         AP_OPTICALFLOW_PIXART_ENABLED=1 \
+                         AP_RANGEFINDER_ENABLED=1 \
+                         AP_RC_CHANNEL_ENABLED=1 \
+                         AP_RPM_ENABLED=1 \
+                         AP_SCRIPTING_ENABLED=1 \
+                         AP_SIM_ENABLED=1 \
+                         HAL_GCS_ENABLED=1 \
+                         HAL_LOGGING_ENABLED=1 \
+                         HAL_NAVEKF2_AVAILABLE=1 \
+                         HAL_NAVEKF3_AVAILABLE=1 \
+                         HAL_WITH_IO_MCU=1 \
+                         HAL_UART_STATS_ENABLED=1 \
+                         CONFIG_HAL_BOARD=3 \
+                         HAL_BOARD_SITL=3 \
+                         HAL_BOARD_QURT=13 \
+                         __INITFUNC__= \
+                         __EXTFLASHFUNC__= \
+                         __DOXYGEN__=1
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then
 # this tag can be used to specify a list of macro names that should be expanded.
@@ -1643,7 +1678,7 @@ EXTERNAL_GROUPS        = YES
 # The PERL_PATH should be the absolute path and name of the perl script
 # interpreter (i.e. the result of `which perl').
 
-PERL_PATH              = /usr/bin/perl
+# PERL_PATH              = /usr/bin/perl  # Obsolete tag, commented out
 
 #---------------------------------------------------------------------------
 # Configuration options related to the dot tool
@@ -1655,7 +1690,7 @@ PERL_PATH              = /usr/bin/perl
 # this option also works with HAVE_DOT disabled, but it is recommended to
 # install and use dot, since it yields more powerful graphs.
 
-CLASS_DIAGRAMS         = YES
+# CLASS_DIAGRAMS         = YES  # Obsolete tag, commented out
 
 # You can define message sequence charts within doxygen comments using the \msc
 # command. Doxygen will then run the mscgen tool (see
@@ -1664,7 +1699,7 @@ CLASS_DIAGRAMS         = YES
 # the mscgen tool resides. If left empty the tool is assumed to be found in the
 # default search path.
 
-MSCGEN_PATH            =
+# MSCGEN_PATH            =  # Obsolete tag, commented out
 
 # If set to YES, the inheritance and collaboration graphs will hide
 # inheritance and usage relations if the target is undocumented
@@ -1694,12 +1729,12 @@ DOT_NUM_THREADS        = 0
 # the DOTFONTPATH environment variable or by setting DOT_FONTPATH to the
 # directory containing the font.
 
-DOT_FONTNAME           = Helvetica
+# DOT_FONTNAME           = Helvetica  # Obsolete tag, commented out
 
 # The DOT_FONTSIZE tag can be used to set the size of the font of dot graphs.
 # The default size is 10pt.
 
-DOT_FONTSIZE           = 10
+# DOT_FONTSIZE           = 10  # Obsolete tag, commented out
 
 # By default doxygen will tell dot to use the Helvetica font.
 # If you specify a different font using DOT_FONTNAME you can use DOT_FONTPATH to
@@ -1848,7 +1883,7 @@ MAX_DOT_GRAPH_DEPTH    = 0
 # enabling this option may lead to badly anti-aliased labels on the edges of
 # a graph (i.e. they become hard to read).
 
-DOT_TRANSPARENT        = NO
+# DOT_TRANSPARENT        = NO  # Obsolete tag, commented out
 
 # Set the DOT_MULTI_TARGETS tag to YES allow dot to generate multiple output
 # files in one run (i.e. multiple -o and -T options on the command line). This

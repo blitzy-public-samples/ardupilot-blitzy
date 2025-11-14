@@ -1,18 +1,80 @@
+/**
+ * @file failsafe.cpp
+ * @brief Main loop watchdog failsafe system for ArduPlane
+ * 
+ * @details This file implements the main loop watchdog failsafe system that detects 
+ *          scheduler lockup and provides RC pass-through recovery. This is a critical
+ *          last-resort safety mechanism that operates independently of the main scheduler
+ *          to ensure RC control is maintained even during complete software failures.
+ * 
+ * @author Andrew Tridgell, December 2011
+ * @copyright Copyright (c) 2011-2025 ArduPilot.org
+ * 
+ * @warning This is a critical safety system - modifications require extensive testing
+ * @warning This code runs in interrupt context and must not perform blocking operations
+ */
+
 #include "Plane.h"
 
-/*
- *  failsafe support
- *  Andrew Tridgell, December 2011
+/**
+ * @brief Main loop watchdog failsafe implementation
+ * 
+ * @details Monitors scheduler health and provides emergency RC pass-through if main loop fails.
+ *          This failsafe strategy detects main loop lockup by monitoring scheduler tick counts
+ *          and switches to passing inputs straight from the RC inputs to RC outputs when a
+ *          lockup is detected (>200ms without scheduler progress).
+ * 
+ *          This is the absolute last line of defense for maintaining vehicle control when
+ *          the main flight control software has failed or become unresponsive.
  */
 
-/*
- *  our failsafe strategy is to detect main loop lockup and switch to
- *  passing inputs straight from the RC inputs to RC outputs.
- */
-
-/*
- *  this failsafe_check function is called from the core timer interrupt
- *  at 1kHz.
+/**
+ * @brief Emergency failsafe check called from timer interrupt to detect main loop lockup
+ * 
+ * @details Implements critical last-resort failsafe with the following behavior:
+ * 
+ *          **Normal Operation**:
+ *          - Called at 1kHz from core timer interrupt
+ *          - Monitors scheduler.ticks() to verify main loop is executing
+ *          - If main loop running: Updates timestamp and exits
+ * 
+ *          **Lockup Detection**:
+ *          - If >200ms elapsed without scheduler tick: Enters failsafe state
+ *          - Possible causes: Main loop deadlock, log erase, initialization routine, infinite loop
+ * 
+ *          **Recovery Action** (executed every 20ms while in failsafe):
+ *          1. Read latest RC inputs
+ *          2. Apply expo curves to pilot inputs (roll, pitch, yaw, throttle)
+ *          3. If disarmed: Force throttle to zero
+ *          4. Pass RC inputs directly to servo outputs, bypassing all flight control
+ *          5. Clear any RC overrides
+ *          6. Update flaperons
+ *          7. Output servos immediately
+ * 
+ *          **Advanced Failsafe Integration** (AP_ADVANCEDFAILSAFE_ENABLED):
+ *          - Sends heartbeat during sensor calibration to prevent false trigger
+ *          - Checks should_crash_vehicle() for OBC (Outback Challenge) rules compliance
+ *          - Can deliberately terminate vehicle if extreme safety violation detected
+ * 
+ *          **SITL Support**:
+ *          - Sends SERVO_OUTPUT_RAW MAVLink message for verification in simulation
+ * 
+ * @warning This is the absolute last line of defense - runs even if main loop is completely locked
+ * @warning Only basic RC pass-through provided - no stabilization, no navigation, no safety checks
+ * @warning 200ms threshold chosen to avoid false triggers during normal operations (log writes, param saves)
+ * 
+ * @note Requires at least 5 valid RC channels to provide pass-through
+ * @note All secondary functions (flaps, auto functions) are disabled in failsafe
+ * @note This function is interrupt-safe and must not call blocking operations
+ * @note Called from timer ISR, not from main scheduler thread
+ * 
+ * @see Plane::roll_in_expo() For RC input expo curve application
+ * @see Plane::pitch_in_expo() For RC input expo curve application
+ * @see Plane::rudder_in_expo() For RC input expo curve application
+ * @see Plane::get_throttle_input() For throttle processing
+ * @see Plane::servos_output() For servo output handling
+ * 
+ * Source: ArduPlane/failsafe.cpp:17-115
  */
 void Plane::failsafe_check(void)
 {

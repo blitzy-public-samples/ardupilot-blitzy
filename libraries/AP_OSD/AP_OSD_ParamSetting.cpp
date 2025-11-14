@@ -31,21 +31,21 @@
 #if OSD_PARAM_ENABLED
 
 const AP_Param::GroupInfo AP_OSD_ParamSetting::var_info[] = {
-    // @Param: _EN
+    // `@Param`: _EN
     // @DisplayName: Enable
     // @Description: Enable setting
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("_EN", 1, AP_OSD_ParamSetting, enabled, default_enabled),
 
-    // @Param: _X
+    // `@Param`: _X
     // @DisplayName: X position
     // @Description: Horizontal position on screen
     // @Range: 0 29
     // @User: Standard
     AP_GROUPINFO("_X", 2, AP_OSD_ParamSetting, xpos, 2),
 
-    // @Param: _Y
+    // `@Param`: _Y
     // @DisplayName: Y position
     // @Description: Vertical position on screen
     // @Range: 0 15
@@ -55,43 +55,43 @@ const AP_Param::GroupInfo AP_OSD_ParamSetting::var_info[] = {
     // Parameter access keys. These default to -1 too allow user overrides
     // to work properly
 
-    // @Param: _KEY
+    // `@Param`: _KEY
     // @DisplayName: Parameter key
     // @Description: Key of the parameter to be displayed and modified
     // @User: Standard
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("_KEY", 4, AP_OSD_ParamSetting, _param_key, default_param_key),
 
-    // @Param: _IDX
+    // `@Param`: _IDX
     // @DisplayName: Parameter index
     // @Description: Index of the parameter to be displayed and modified
     // @User: Standard
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("_IDX", 5, AP_OSD_ParamSetting, _param_idx, default_param_idx),
 
-    // @Param: _GRP
+    // `@Param`: _GRP
     // @DisplayName: Parameter group
     // @Description: Group of the parameter to be displayed and modified
     // @User: Standard
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("_GRP", 6, AP_OSD_ParamSetting, _param_group, default_param_group),
 
-    // @Param: _MIN
+    // `@Param`: _MIN
     // @DisplayName: Parameter minimum
     // @Description: Minimum value of the parameter to be displayed and modified
     // @User: Standard
     AP_GROUPINFO("_MIN", 7, AP_OSD_ParamSetting, _param_min, 0.0f),
 
-    // @Param: _MAX
+    // `@Param`: _MAX
     // @DisplayName: Parameter maximum
     // @Description: Maximum of the parameter to be displayed and modified
     // @User: Standard
     AP_GROUPINFO("_MAX", 8, AP_OSD_ParamSetting, _param_max, 1.0f),
 
-    // @Param: _INCR
+    // `@Param`: _INCR
     // @DisplayName: Parameter increment
     // @Description: Increment of the parameter to be displayed and modified
     // @User: Standard
     AP_GROUPINFO("_INCR", 9, AP_OSD_ParamSetting, _param_incr, 0.001f),
 
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: Parameter type
     // @Description: Type of the parameter to be displayed and modified
     // @User: Standard

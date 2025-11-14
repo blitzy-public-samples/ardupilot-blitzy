@@ -47,7 +47,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_NMEA_Output::var_info[] = {
 
-    // @Param: RATE_MS
+    // `@Param`: RATE_MS
     // @DisplayName: NMEA Output rate
     // @Description: NMEA Output rate. This controls the interval at which all the enabled NMEA messages are sent. Most NMEA systems expect 100ms (10Hz) or slower.
     // @Range: 20 2000
@@ -56,7 +56,7 @@ const AP_Param::GroupInfo AP_NMEA_Output::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RATE_MS", 1, AP_NMEA_Output, _interval_ms, 100),
 
-    // @Param: MSG_EN
+    // `@Param`: MSG_EN
     // @DisplayName: Messages Enable bitmask
     // @Description: This is a bitmask of enabled NMEA messages. All messages will be sent consecutively at the same rate interval
     // @Bitmask: 0:GPGGA,1:GPRMC,2:PASHR

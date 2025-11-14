@@ -440,7 +440,13 @@ bool GCS_MAVLINK::send_battery_status()
 #endif  // AP_BATTERY_ENABLED
 
 #if AP_RANGEFINDER_ENABLED
-void GCS_MAVLINK::send_distance_sensor(const AP_RangeFinder_Backend *sensor, const uint8_t instance) const
+/**
+ * @brief Send DISTANCE_SENSOR MAVLink message for a specific rangefinder instance
+ * 
+ * @param[in] sensor Pointer to the rangefinder backend sensor to report
+ * @param[in] instance Rangefinder instance number (0-based index)
+ */
+void GCS_MAVLINK::send_distance_sensor(const class AP_RangeFinder_Backend *sensor, const uint8_t instance) const
 {
     if (!sensor->has_data()) {
         return;

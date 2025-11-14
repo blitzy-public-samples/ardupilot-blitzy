@@ -61,7 +61,7 @@ extern const AP_HAL::HAL& hal;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable
     // @Description: Enable Gyro FFT analyser
     // @Values: 0:Disabled,1:Enabled
@@ -69,7 +69,7 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO_FLAGS("ENABLE", 1, AP_GyroFFT, _enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: MINHZ
+    // `@Param`: MINHZ
     // @DisplayName: Minimum Frequency
     // @Description: Lower bound of FFT frequency detection in Hz. On larger vehicles the minimum motor frequency is likely to be significantly lower than for smaller vehicles.
     // @Range: 20 400
@@ -77,7 +77,7 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MINHZ", 2, AP_GyroFFT, _fft_min_hz, 50),
 
-    // @Param: MAXHZ
+    // `@Param`: MAXHZ
     // @DisplayName: Maximum Frequency
     // @Description: Upper bound of FFT frequency detection in Hz. On smaller vehicles the maximum motor frequency is likely to be significantly higher than for larger vehicles.
     // @Range: 20 495
@@ -85,7 +85,7 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAXHZ", 3, AP_GyroFFT, _fft_max_hz, 450),
 
-    // @Param: SAMPLE_MODE
+    // `@Param`: SAMPLE_MODE
     // @DisplayName: Sample Mode
     // @Description: Sampling mode (and therefore rate). 0: Gyro rate sampling, 1: Fast loop rate sampling, 2: Fast loop rate / 2 sampling, 3: Fast loop rate / 3 sampling. Takes effect on reboot.
     // @Range: 0 4
@@ -93,7 +93,7 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("SAMPLE_MODE", 4, AP_GyroFFT, _sample_mode, 0),
 
-    // @Param: WINDOW_SIZE
+    // `@Param`: WINDOW_SIZE
     // @DisplayName: FFT window size
     // @Description: Size of window to be used in FFT calculations. Takes effect on reboot. Must be a power of 2 and between 32 and 512. Larger windows give greater frequency resolution but poorer time resolution, consume more CPU time and may not be appropriate for all vehicles. Time and frequency resolution are given by the sample-rate / window-size. Windows of 256 are only really recommended for F7 class boards, windows of 512 or more H7 class.
     // @Range: 32 1024
@@ -101,7 +101,7 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("WINDOW_SIZE", 5, AP_GyroFFT, _window_size, FFT_DEFAULT_WINDOW_SIZE),
 
-    // @Param: WINDOW_OLAP
+    // `@Param`: WINDOW_OLAP
     // @DisplayName: FFT window overlap
     // @Description: Percentage of window to be overlapped before another frame is process. Takes effect on reboot. A good default is 50% overlap. Higher overlap results in more processed frames but not necessarily more temporal resolution. Lower overlap results in lost information at the frame edges.
     // @Range: 0 0.9
@@ -109,42 +109,42 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("WINDOW_OLAP", 6, AP_GyroFFT, _window_overlap, FFT_DEFAULT_WINDOW_OVERLAP),
 
-    // @Param: FREQ_HOVER
+    // `@Param`: FREQ_HOVER
     // @DisplayName: FFT learned hover frequency
     // @Description: The learned hover noise frequency
     // @Range: 0 250
     // @User: Advanced
     AP_GROUPINFO("FREQ_HOVER", 7, AP_GyroFFT, _freq_hover_hz, 80.0f),
 
-    // @Param: THR_REF
+    // `@Param`: THR_REF
     // @DisplayName: FFT learned thrust reference
     // @Description: FFT learned thrust reference for the hover frequency and FFT minimum frequency.
     // @Range: 0.01 0.9
     // @User: Advanced
     AP_GROUPINFO("THR_REF", 8, AP_GyroFFT, _throttle_ref, FFT_THR_REF_DEFAULT),
 
-    // @Param: SNR_REF
+    // `@Param`: SNR_REF
     // @DisplayName: FFT SNR reference threshold
     // @Description: FFT SNR reference threshold in dB at which a signal is determined to be present.
     // @Range: 0.0 100.0
     // @User: Advanced
     AP_GROUPINFO("SNR_REF", 9, AP_GyroFFT, _snr_threshold_db, FFT_SNR_DEFAULT),
 
-    // @Param: ATT_REF
+    // `@Param`: ATT_REF
     // @DisplayName: FFT attenuation for bandwidth calculation
     // @Description: FFT attenuation level in dB for bandwidth calculation and peak detection. The bandwidth is calculated by comparing peak power output with the attenuated version. The default of 15 has shown to be a good compromise in both simulations and real flight.
     // @Range: 0 100
     // @User: Advanced
     AP_GROUPINFO("ATT_REF", 10, AP_GyroFFT, _attenuation_power_db, 15),
 
-    // @Param: BW_HOVER
+    // `@Param`: BW_HOVER
     // @DisplayName: FFT learned bandwidth at hover
     // @Description: FFT learned bandwidth at hover for the attenuation frequencies.
     // @Range: 0 200
     // @User: Advanced
     AP_GROUPINFO("BW_HOVER", 11, AP_GyroFFT, _bandwidth_hover_hz, 20),
 
-    // @Param: HMNC_FIT
+    // `@Param`: HMNC_FIT
     // @DisplayName: FFT harmonic fit frequency threshold
     // @Description: FFT harmonic fit frequency threshold percentage at which a signal of the appropriate frequency is determined to be the harmonic of another. Signals that have a harmonic relationship that varies at most by this percentage are considered harmonics of each other for the purpose of selecting the harmonic notch frequency. If a match is found then the lower frequency harmonic is always used as the basis for the dynamic harmonic notch. A value of zero completely disables harmonic matching.
     // @Range: 0 100
@@ -152,14 +152,14 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("HMNC_FIT", 12, AP_GyroFFT, _harmonic_fit, FFT_HARMONIC_FIT_DEFAULT),
 
-    // @Param: HMNC_PEAK
+    // `@Param`: HMNC_PEAK
     // @DisplayName: FFT harmonic peak target
     // @Description: The FFT harmonic peak target that should be returned by FTN1.PkAvg. The resulting value will be used by the harmonic notch if configured to track the FFT frequency. By default the appropriate peak is auto-detected based on the harmonic fit between peaks and the energy-weighted average frequency on roll on pitch is used. Setting this to 1 will always target the highest energy peak. Setting this to 2 will target the highest energy peak that is lower in frequency than the highest energy peak. Setting this to 3 will target the highest energy peak that is higher in frequency than the highest energy peak. Setting this to 4 will target the highest energy peak on the roll axis only and only the roll frequency will be used (some vehicles have a much more pronounced peak on roll). Setting this to 5 will target the highest energy peak on the pitch axis only and only the pitch frequency will be used (some vehicles have a much more pronounced peak on roll).
     // @Values: 0:Auto,1:Center Frequency,2:Lower-Shoulder Frequency,3:Upper-Shoulder Frequency,4:Roll-Axis,5:Pitch-Axis
     // @User: Advanced
     AP_GROUPINFO("HMNC_PEAK", 13, AP_GyroFFT, _harmonic_peak, 0),
 
-    // @Param: NUM_FRAMES
+    // `@Param`: NUM_FRAMES
     // @DisplayName: FFT output frames to retain and average
     // @Description: Number of output frequency frames to retain and average in order to calculate final frequencies. Averaging output frames can drastically reduce noise and jitter at the cost of latency as long as the input is stable. The default is to perform no averaging. For rapidly changing frequencies (e.g. smaller aircraft) fewer frames should be averaged.
     // @Range: 0 8
@@ -167,7 +167,7 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("NUM_FRAMES", 14, AP_GyroFFT, _num_frames, 0),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: FFT options
     // @Description: FFT configuration options. Values: 1:Apply the FFT *after* the filter bank,2:Check noise at the motor frequencies using ESC data as a reference
     // @Bitmask: 0:Enable post-filter FFT,1:Check motor noise
@@ -477,7 +477,7 @@ uint16_t AP_GyroFFT::run_cycle()
 
 #if AP_SIM_ENABLED && HAL_LOGGING_ENABLED
     // extra logging when running simulations
-    // @LoggerMessage: FTN3
+    // `@LoggerMessage`: FTN3
     // @Description: Additional FFT Noise Frequency Peak
     // @Field: TimeUS: microseconds since system startup
     // @Field: Id: update axis
@@ -973,7 +973,7 @@ float AP_GyroFFT::calculate_weighted_freq_hz(const Vector3f& energy, const Vecto
     }
 }
 
-// @LoggerMessage: FTN1
+// `@LoggerMessage`: FTN1
 // @Description: FFT Filter Tuning
 // @Field: TimeUS: microseconds since system startup
 // @Field: PkAvg: peak noise frequency as an energy-weighted average of roll and pitch peak frequencies
@@ -1036,7 +1036,7 @@ void AP_GyroFFT::write_log_messages()
 #endif
 }
 
-// @LoggerMessage: FTN2
+// `@LoggerMessage`: FTN2
 // @Description: FFT Noise Frequency Peak
 // @Field: TimeUS: microseconds since system startup
 // @Field: Id: peak id where 0 is the centre peak, 1 is the lower shoulder and 2 is the upper shoulder

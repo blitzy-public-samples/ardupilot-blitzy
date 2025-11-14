@@ -4,7 +4,7 @@
 
 const AP_Param::GroupInfo AP_LeakDetector::var_info[] = {
 
-    // @Param: 1_PIN
+    // `@Param`: 1_PIN
     // @DisplayName: Pin that leak detector is connected to
     // @Description: Pin that the leak detector is connected to
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6,13:Pixhawk 3.3ADC1,14:Pixhawk 3.3ADC2,15:Pixhawk 6.6ADC,27:Navigator Built-In
@@ -12,14 +12,14 @@ const AP_Param::GroupInfo AP_LeakDetector::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("1_PIN", 1, AP_LeakDetector, _pin[0], -1),
 
-    // @Param: 1_LOGIC
+    // `@Param`: 1_LOGIC
     // @DisplayName: Default reading of leak detector when dry
     // @Description: Default reading of leak detector when dry
     // @Values: 0:Low,1:High
     // @User: Standard
     AP_GROUPINFO("1_LOGIC", 2, AP_LeakDetector, _default_reading[0], 0),
 
-    // @Param: 1_TYPE
+    // `@Param`: 1_TYPE
     // @DisplayName: Leak detector pin type (analog/digital)
     // @Description: Enables leak detector 1. Use this parameter to indicate the signal type (0:analog, 1:digital) of an appropriately configured input pin, then specify its pin number using the LEAK1_PIN parameter. NOT FOR USE by default with Pixhawk, Pixhawk 4 or Navigator flight controllers.
     // @Values: -1:Disabled,0:Analog,1:Digital
@@ -28,7 +28,7 @@ const AP_Param::GroupInfo AP_LeakDetector::var_info[] = {
     AP_GROUPINFO("1_TYPE", 7, AP_LeakDetector, _type[0], DISABLED), 
 
 #if LEAKDETECTOR_MAX_INSTANCES > 1
-    // @Param: 2_PIN
+    // `@Param`: 2_PIN
     // @DisplayName: Pin that leak detector is connected to
     // @Description: Pin that the leak detector is connected to
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6,13:Pixhawk 3.3ADC1,14:Pixhawk 3.3ADC2,15:Pixhawk 6.6ADC,27:Navigator Leak1
@@ -36,14 +36,14 @@ const AP_Param::GroupInfo AP_LeakDetector::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("2_PIN", 3, AP_LeakDetector, _pin[1], -1),
 
-    // @Param: 2_LOGIC
+    // `@Param`: 2_LOGIC
     // @DisplayName: Default reading of leak detector when dry
     // @Description: Default reading of leak detector when dry
     // @Values: 0:Low,1:High
     // @User: Standard
     AP_GROUPINFO("2_LOGIC", 4, AP_LeakDetector, _default_reading[1], 0),
 
-    // @Param: 2_TYPE
+    // `@Param`: 2_TYPE
     // @DisplayName: Leak detector pin type (analog/digital)
     // @Description: Enables leak detector 2. Use this parameter to indicate the signal type (0:analog, 1:digital) of an appropriately configured input pin, then specify its pin number using the LEAK2_PIN parameter. NOT FOR USE by default with Pixhawk, Pixhawk 4 or Navigator flight controllers.
     // @Values: -1:Disabled,0:Analog,1:Digital
@@ -53,7 +53,7 @@ const AP_Param::GroupInfo AP_LeakDetector::var_info[] = {
 #endif
 
 #if LEAKDETECTOR_MAX_INSTANCES > 2
-    // @Param: 3_PIN
+    // `@Param`: 3_PIN
     // @DisplayName: Pin that leak detector is connected to
     // @Description: Pin that the leak detector is connected to
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6,13:Pixhawk 3.3ADC1,14:Pixhawk 3.3ADC2,15:Pixhawk 6.6ADC,27:Navigator Leak1
@@ -61,14 +61,14 @@ const AP_Param::GroupInfo AP_LeakDetector::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("3_PIN", 5, AP_LeakDetector, _pin[2], -1),
 
-    // @Param: 3_LOGIC
+    // `@Param`: 3_LOGIC
     // @DisplayName: Default reading of leak detector when dry
     // @Description: Default reading of leak detector when dry
     // @Values: 0:Low,1:High
     // @User: Standard
     AP_GROUPINFO("3_LOGIC", 6, AP_LeakDetector, _default_reading[2], 0),
 
-    // @Param: 3_TYPE
+    // `@Param`: 3_TYPE
     // @DisplayName: Leak detector pin type (analog/digital)
     // @Description: Enables leak detector 3. Use this parameter to indicate the signal type (0:analog, 1:digital) of an appropriately configured input pin, then specify its pin number using the LEAK3_PIN parameter. NOT FOR USE by default with Pixhawk, Pixhawk 4 or Navigator flight controllers.
     // @Values: -1:Disabled,0:Analog,1:Digital

@@ -202,7 +202,7 @@ void AP_Compass_DroneCAN::handle_magnetic_field_2(AP_DroneCAN *ap_dronecan, cons
 void AP_Compass_DroneCAN::handle_magnetic_field_hires(AP_DroneCAN *ap_dronecan, const CanardRxTransfer& transfer,
                                                       const dronecan_sensors_magnetometer_MagneticFieldStrengthHiRes &msg)
 {
-// @LoggerMessage: MAGH
+// `@LoggerMessage`: MAGH
 // @Description: Magnetometer high resolution data
 // @Field: TimeUS: Time since system startup
 // @Field: Node: CAN node

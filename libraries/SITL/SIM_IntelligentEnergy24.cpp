@@ -34,20 +34,20 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo IntelligentEnergy24::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: IntelligentEnergy 2.4kWh FuelCell sim enable/disable
     // @Description: Allows you to enable (1) or disable (0) the FuelCell simulator
     // @Values: 0:Disabled,1:V1 Protocol,2:V2 Protocol
     // @User: Advanced
     AP_GROUPINFO("ENABLE", 1, IntelligentEnergy24, enabled, 0),
 
-    // @Param: STATE
+    // `@Param`: STATE
     // @DisplayName: Explicitly set state
     // @Description: Explicitly specify a state for the generator to be in
     // @User: Advanced
     AP_GROUPINFO("STATE", 2, IntelligentEnergy24, set_state, -1),
 
-    // @Param: ERROR
+    // `@Param`: ERROR
     // @DisplayName: Explicitly set error code
     // @Description: Explicitly specify an error code to send to the generator
     // @User: Advanced

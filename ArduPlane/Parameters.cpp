@@ -1,12 +1,117 @@
+/**
+ * @file Parameters.cpp
+ * @brief ArduPlane parameter storage and management implementation
+ * 
+ * @details This file implements the parameter storage system for ArduPlane, defining
+ *          all configurable parameters that are persisted to EEPROM/flash memory. The
+ *          parameter system uses the AP_Param library to provide:
+ *          
+ *          - Persistent storage of configuration values across power cycles
+ *          - Ground control station (GCS) access via MAVLink parameter protocol
+ *          - Parameter grouping for organization and namespace management
+ *          - Automatic type conversion and validation
+ *          - Parameter versioning and migration between firmware versions
+ *          
+ *          The file contains two main parameter groups:
+ *          1. Parameters (var_info[]) - Primary parameter table for the Plane class
+ *          2. ParametersG2 (var_info[]) - Second-generation parameters added later
+ *          
+ *          Parameter Storage Format:
+ *          Parameters are stored in EEPROM with metadata including name, type, default
+ *          value, valid ranges, and display information. Each parameter entry uses the
+ *          AP_Param macros:
+ *          - GSCALAR: Global scalar parameter (stored in Parameters struct)
+ *          - ASCALAR: Auto-throttle scalar parameter (stored in AP_Vehicle::aparm)
+ *          - GOBJECT: Parameter group (sub-object with its own var_info table)
+ *          - AP_GROUPINFO: Parameter within a sub-group
+ *          
+ *          Parameter Naming Convention:
+ *          - Top-level parameters use names like "FORMAT_VERSION", "AUTOTUNE_LEVEL"
+ *          - Group parameters use prefix notation: "BARO", "GPS", "COMPASS_"
+ *          - Sub-group parameters combine prefixes: "Q_A_" for quadplane attitude control
+ *          
+ *          Parameter Migration:
+ *          The load_parameters() function handles migration of parameters from old
+ *          firmware versions to new names/types using conversion tables. This ensures
+ *          user configurations are preserved across firmware updates.
+ *          
+ *          Safety Considerations:
+ *          Many parameters directly affect flight safety and vehicle behavior. Changes
+ *          to parameters like throttle limits, flight modes, and failsafe settings can
+ *          have significant impacts on vehicle operation. The @User tags indicate
+ *          appropriate user skill levels (Standard vs Advanced).
+ *          
+ * @note This file should only contain parameter definitions and loading logic.
+ *       No flight control algorithms or runtime behavior should be implemented here.
+ * 
+ * @warning Modifying parameter names, types, or keys will break compatibility with
+ *          existing configurations unless proper conversion entries are added.
+ * 
+ * @copyright Copyright (c) 2010-2025 ArduPilot.org
+ */
+
 #include "Plane.h"
 
 #include <AP_Gripper/AP_Gripper.h>
 
-/*
- *  ArduPlane parameter definitions
- *
+/**
+ * @brief Primary parameter table for ArduPlane
+ * 
+ * @details This table defines all parameters that can be configured for ArduPlane
+ *          fixed-wing flight control. Each entry specifies:
+ *          
+ *          - Parameter name (e.g., "FORMAT_VERSION", "AUTOTUNE_LEVEL")
+ *          - Storage location (GSCALAR, ASCALAR, or GOBJECT)
+ *          - Default value
+ *          - Metadata tags (@Param, @DisplayName, @Description, @Range, @Units, @User)
+ *          
+ *          Parameter Storage Macros:
+ *          - GSCALAR(var, name, default): Scalar parameter stored in Parameters (g) struct
+ *          - ASCALAR(var, name, default): Scalar parameter stored in AP_Vehicle::aparm struct
+ *          - GOBJECT(var, name, type): Parameter group (object) with its own var_info table
+ *          
+ *          Parameter Metadata Tags:
+ *          - @Param: Parameter name as exposed to ground control stations
+ *          - @DisplayName: Human-readable short name shown in GCS
+ *          - @Description: Detailed explanation of parameter purpose and behavior
+ *          - @Range: Valid value range (min max)
+ *          - @Units: Physical units (m, m/s, deg, %, etc.)
+ *          - @Increment: Recommended adjustment step size
+ *          - @Values: Enumerated options for discrete parameters
+ *          - @Bitmask: Bit field definitions for bitmask parameters
+ *          - @User: Recommended user skill level (Standard or Advanced)
+ *          
+ *          Parameter Categories:
+ *          1. Flight Control: AUTOTUNE_*, STAB_*, STICK_MIXING, LEVEL_ROLL_LIMIT
+ *          2. Navigation: WP_*, RTL_*, ALT_*, TERRAIN_*
+ *          3. Takeoff/Landing: TKOFF_*, LAND_*, FLAP_*
+ *          4. Throttle Management: THR_*, TRIM_THROTTLE, AIRSPEED_*
+ *          5. Failsafe: THR_FAILSAFE, FS_*, CRASH_*
+ *          6. Flight Modes: FLTMODE*, INITIAL_MODE
+ *          7. Control Limits: ROLL_LIMIT_DEG, PTCH_LIM_*, ACRO_*
+ *          8. Sensor Configuration: BARO, GPS, COMPASS_, INS
+ *          9. Advanced Systems: Quadplane (Q_), Soaring, Landing Gear
+ *          
+ *          EEPROM Storage:
+ *          Parameters are stored in EEPROM with a format version number (FORMAT_VERSION).
+ *          When the format version changes, parameter migration occurs via conversion_table.
+ *          
+ *          Parameter Access:
+ *          Parameters can be accessed via:
+ *          - Ground control station (MAVLink parameter protocol)
+ *          - Code access: g.parameter_name or aparm.parameter_name
+ *          - Parameter editor in mission planner/QGroundControl
+ *          
+ * @note The order and keys of parameters must remain stable to maintain EEPROM compatibility.
+ *       New parameters should be added at the end or use available slots marked in comments.
+ * 
+ * @warning Changing parameter names, types, or removing parameters requires adding entries
+ *          to conversion_table[] to preserve user configurations.
+ * 
+ * @see ParametersG2::var_info[] for second-generation parameters added in later versions
+ * @see Parameters.h for parameter structure definitions
+ * @see AP_Param library for parameter storage implementation
  */
-
 const AP_Param::Info Plane::var_info[] = {
     // @Param: FORMAT_VERSION
     // @DisplayName: Eeprom format version number
@@ -1005,8 +1110,55 @@ const AP_Param::Info Plane::var_info[] = {
     AP_VAREND
 };
 
-/*
-  2nd group of parameters
+/**
+ * @brief Second-generation parameter group for ArduPlane
+ * 
+ * @details ParametersG2 provides a second parameter namespace for parameters added
+ *          after the initial var_info[] table was established. This separate group
+ *          allows adding new parameters without disrupting the EEPROM layout of
+ *          existing parameters.
+ *          
+ *          Purpose of ParametersG2:
+ *          The original Parameters (g) struct has limited EEPROM key space. When that
+ *          space is exhausted, new parameters are added to ParametersG2 (g2). This
+ *          maintains backward compatibility while allowing expansion.
+ *          
+ *          Parameter Storage in G2:
+ *          - AP_SUBGROUPINFO: Sub-object parameter group (e.g., buttons, servos, RC)
+ *          - AP_SUBGROUPPTR: Pointer to sub-object (used for optional features)
+ *          - AP_GROUPINFO: Direct parameter in ParametersG2 struct
+ *          
+ *          G2 Parameter Categories:
+ *          1. Advanced Flight Options: FLIGHT_OPTIONS, MANUAL_RCMASK, HOME_RESET_ALT
+ *          2. Differential Spoilers: DSPOILER_* parameters for crow flaps
+ *          3. Battery Compensation: FWD_BAT_* parameters for voltage compensation
+ *          4. Manual Control Expo: MAN_EXPO_* for stick input shaping
+ *          5. Hardware Configuration: ONESHOT_MASK, SERVO channels
+ *          6. Advanced Systems: Soaring, scripting, follow mode, precision landing
+ *          
+ *          Access Pattern:
+ *          G2 parameters are accessed via: g2.parameter_name
+ *          For example: g2.rudd_dt_gain, g2.flight_options, g2.servo_channels
+ *          
+ *          Slot Management:
+ *          Some slots are marked as unused (e.g., "3 was used by prototype for servo_channels").
+ *          These slots should not be reused to maintain parameter compatibility across
+ *          firmware versions, as users may have saved values in those slots.
+ *          
+ *          Adding New Parameters:
+ *          When adding new parameters to G2:
+ *          1. Use the next available slot number in AP_GROUPINFO/AP_SUBGROUPINFO
+ *          2. Document the parameter purpose and valid ranges
+ *          3. Set appropriate default values
+ *          4. Consider whether it should be Standard or Advanced user level
+ *          
+ * @note This parameter group is accessed via plane.g2 in the code
+ * 
+ * @warning Do not reuse slots marked as previously used, as this will cause parameter
+ *          corruption for users upgrading from older firmware versions.
+ * 
+ * @see ParametersG2 class definition in Parameters.h
+ * @see Plane::var_info[] for primary parameter group
  */
 const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
@@ -1276,6 +1428,32 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_GROUPEND
 };
 
+/**
+ * @brief ParametersG2 constructor - initializes second-generation parameter group
+ * 
+ * @details Constructs the ParametersG2 object and initializes member objects with
+ *          their required references. This constructor uses member initializer list
+ *          to set up:
+ *          
+ *          - unused_integer: Placeholder for alignment/compatibility
+ *          - button_ptr: Pointer to button handler (if HAL_BUTTON_ENABLED)
+ *          - soaring_controller: Soaring/thermal detection system initialization
+ *          
+ *          The constructor performs conditional compilation based on hardware
+ *          abstraction layer (HAL) feature flags, ensuring only enabled features
+ *          are initialized.
+ *          
+ *          AP_Param::setup_object_defaults():
+ *          This call initializes all parameters in the ParametersG2 group to their
+ *          default values as specified in var_info[]. This ensures that even if
+ *          parameters have never been saved to EEPROM, they have valid default values.
+ *          
+ * @note This constructor is called during Plane object initialization before
+ *       parameters are loaded from EEPROM.
+ * 
+ * @see ParametersG2::var_info[] for parameter definitions
+ * @see AP_Param::setup_object_defaults() for default value initialization
+ */
 ParametersG2::ParametersG2(void) :
     unused_integer{1}
 #if HAL_BUTTON_ENABLED
@@ -1288,18 +1466,64 @@ ParametersG2::ParametersG2(void) :
     AP_Param::setup_object_defaults(this, var_info);
 }
 
-/*
-  This is a conversion table from old parameter values to new
-  parameter names. The startup code looks for saved values of the old
-  parameters and will copy them across to the new parameters if the
-  new parameter does not yet have a saved value. It then saves the new
-  value.
-  
-  Note that this works even if the old parameter has been removed. It
-  relies on the old k_param index not being removed
-  
-  The second column below is the index in the var_info[] table for the
-  old object. This should be zero for top level parameters.
+/**
+ * @brief Parameter conversion table for firmware upgrade migration
+ * 
+ * @details This table defines mappings from old parameter names/keys to new parameter
+ *          names, enabling automatic migration of user configurations when firmware
+ *          is updated. The conversion system ensures that users do not lose their
+ *          parameter settings when upgrading to new firmware versions.
+ *          
+ *          How Parameter Conversion Works:
+ *          1. During startup, load_parameters() processes this conversion table
+ *          2. For each entry, the system checks if the old parameter exists in EEPROM
+ *          3. If old parameter exists AND new parameter has no saved value:
+ *             - Copy old parameter value to new parameter location
+ *             - Save new parameter to EEPROM
+ *             - Old parameter remains in EEPROM but is no longer accessed
+ *          4. If new parameter already has a value, no conversion occurs (user already
+ *             configured the new parameter manually)
+ *          
+ *          Conversion Entry Format:
+ *          Each entry in the table contains:
+ *          - old_key: k_param_* constant identifying the old parameter's key
+ *          - old_group_element: Index in old var_info[] table (0 for top-level params)
+ *          - type: AP_PARAM_INT8, AP_PARAM_INT16, AP_PARAM_FLOAT, etc.
+ *          - new_name: String name of the new parameter (e.g., "FENCE_ALT_MIN")
+ *          
+ *          Example Conversion:
+ *          Old parameter: Parameters::k_param_fence_minalt (stored in EEPROM)
+ *          New parameter: "FENCE_ALT_MIN" (fence object's ALT_MIN sub-parameter)
+ *          Type: AP_PARAM_INT16
+ *          
+ *          Why Old Parameters Can Be Removed From Code:
+ *          The conversion system works even if the old parameter definition has been
+ *          completely removed from Parameters.h and var_info[]. It relies only on the
+ *          k_param_* enum value, which must be preserved in Parameters.h to maintain
+ *          EEPROM key stability. This allows code cleanup without breaking migrations.
+ *          
+ *          Adding New Conversions:
+ *          When renaming or restructuring parameters:
+ *          1. Keep the old k_param_* enum value in Parameters.h (do NOT remove)
+ *          2. Add conversion entry mapping old key to new parameter name
+ *          3. Test upgrade path by loading firmware with old parameters in EEPROM
+ *          4. Verify new parameter receives old parameter's value
+ *          
+ *          Multiple Firmware Version Span:
+ *          This table can contain conversions spanning multiple firmware versions.
+ *          A user upgrading from very old firmware (e.g., 3.x to 4.5) will have all
+ *          intermediate conversions applied automatically.
+ *          
+ * @note The old k_param_* constants must never be reused for new parameters to
+ *       prevent EEPROM corruption during upgrades.
+ * 
+ * @warning Removing entries from this table will break upgrade paths for users
+ *          running older firmware. Only remove conversions that are 2+ years old
+ *          and unlikely to still be in use.
+ * 
+ * @see AP_Param::convert_old_parameters() for conversion implementation
+ * @see Plane::load_parameters() for where this table is processed
+ * @see Parameters.h for k_param_* enum definitions
  */
 static const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_fence_minalt,       0,     AP_PARAM_INT16, "FENCE_ALT_MIN"},
@@ -1309,12 +1533,49 @@ static const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_fence_autoenable,   0,      AP_PARAM_INT8, "FENCE_AUTOENABLE"},
 };
 
+/**
+ * @brief Structure defining RC channel option conversion for firmware upgrades
+ * 
+ * @details This structure maps old RC channel assignment parameters to the new
+ *          unified RCx_OPTION parameter system introduced in ArduPilot 4.x.
+ */
 struct RCConversionInfo {
-    uint16_t old_key; // k_param_*
-    uint32_t old_group_element; // index in old object
-    RC_Channel::AUX_FUNC fun; // new function
+    uint16_t old_key;           ///< Old parameter key (k_param_* constant)
+    uint32_t old_group_element; ///< Index in old parameter group (0 for top-level)
+    RC_Channel::AUX_FUNC fun;   ///< New auxiliary function assignment
 };
 
+/**
+ * @brief RC channel parameter conversion table
+ * 
+ * @details Converts old dedicated channel assignment parameters to the new RCx_OPTION
+ *          system. In older firmware versions, auxiliary functions (flaps, fence enable,
+ *          parachute, etc.) were assigned via dedicated parameters that specified which
+ *          RC channel controlled each function. The new system uses RCx_OPTION parameters
+ *          where each RC channel has an option field that specifies its function.
+ *          
+ *          Old System Example:
+ *          FLAPIN_CHANNEL = 5  (channel 5 controls flaps)
+ *          
+ *          New System Example:
+ *          RC5_OPTION = 3  (channel 5 function is FLAP, as defined by AUX_FUNC enum)
+ *          
+ *          Conversion Process:
+ *          1. Check if old channel assignment parameter exists (e.g., FLAPIN_CHANNEL)
+ *          2. If it exists and is set to a valid channel (>0)
+ *          3. Find the corresponding RC channel object
+ *          4. If that channel's RCx_OPTION is not already configured
+ *          5. Set and save RCx_OPTION to the appropriate AUX_FUNC value
+ *          
+ *          This allows users upgrading from 3.x firmware to 4.x+ to retain their
+ *          RC channel assignments without manual reconfiguration.
+ *          
+ * @note This conversion is processed in Plane::load_parameters() before other
+ *       parameter loading to ensure RC channels are properly configured.
+ * 
+ * @see RC_Channel::AUX_FUNC enum for function definitions
+ * @see Plane::load_parameters() for conversion implementation
+ */
 static const RCConversionInfo rc_option_conversion[] = {
     { Parameters::k_param_flapin_channel_old, 0, RC_Channel::AUX_FUNC::FLAP},
     { Parameters::k_param_g2, 968, RC_Channel::AUX_FUNC::SOARING},
@@ -1331,6 +1592,71 @@ static const RCConversionInfo rc_option_conversion[] = {
     { Parameters::k_param_reset_switch_chan, 0, RC_Channel::AUX_FUNC::MODE_SWITCH_RESET},
 };
 
+/**
+ * @brief Load and migrate parameters from EEPROM/flash storage
+ * 
+ * @details This function is called during vehicle initialization to load all parameters
+ *          from persistent storage (EEPROM or flash). It performs several critical tasks:
+ *          
+ *          1. Parameter Loading:
+ *             - Loads all parameters defined in var_info[] and ParametersG2::var_info[]
+ *             - Validates format version to detect firmware changes
+ *             - Applies default values for any parameters not found in storage
+ *          
+ *          2. Parameter Migration/Conversion:
+ *             - Processes conversion_table[] for renamed parameters
+ *             - Converts RC channel assignments to new RCx_OPTION system
+ *             - Migrates fence parameters to new structure
+ *             - Converts class-based parameters (airspeed, logger, etc.)
+ *             - Handles G2 object conversions for parameters moved to ParametersG2
+ *             
+ *          3. Default Configuration:
+ *             - Sets servo channel default functions (aileron, elevator, throttle, rudder)
+ *             - Configures quadplane-specific defaults (higher loop rate if enabled)
+ *             - Sets frame type flags for parameter filtering
+ *             
+ *          4. Parameter Unit Conversions:
+ *             - Converts legacy centimeter parameters to meters
+ *             - Converts legacy centidegree parameters to degrees
+ *             - Handles width conversions for parameters that changed storage size
+ *             
+ *          5. Feature-Specific Migrations:
+ *             - Fence action and type conversions (FENCE_ACTION → new enum values)
+ *             - Harmonic notch filter parameter migrations
+ *             - Serial manager parameter conversions
+ *             - GCS/MAVLink parameter namespace updates
+ *             
+ *          Conversion Safety:
+ *          All conversions check if the new parameter has already been configured
+ *          before applying conversions. This prevents overwriting user-configured
+ *          values and allows for manual parameter updates during upgrade testing.
+ *          
+ *          Format Version Management:
+ *          The FORMAT_VERSION parameter tracks the EEPROM layout version. When this
+ *          changes, it indicates that parameter structure has been modified. The
+ *          k_format_version constant defines the current expected version.
+ *          
+ *          Upgrade Path:
+ *          This function supports multi-version upgrades. A user jumping from very
+ *          old firmware (e.g., 3.5) to current (4.6+) will have all intermediate
+ *          conversions applied in sequence automatically.
+ *          
+ *          Conditional Compilation:
+ *          Parameter migrations for optional features are wrapped in #if directives
+ *          (HAL_QUADPLANE_ENABLED, AP_FENCE_ENABLED, etc.) to avoid including unused
+ *          code when features are disabled at compile time.
+ *          
+ * @note This function must be called before any parameter values are accessed in
+ *       flight code, typically during Plane::init() in the startup sequence.
+ * 
+ * @warning Adding or modifying conversions must be tested with EEPROM data from
+ *          previous firmware versions to ensure upgrade paths work correctly.
+ * 
+ * @see AP_Vehicle::load_parameters() for base parameter loading implementation
+ * @see AP_Param::convert_old_parameters() for conversion mechanism
+ * @see conversion_table[] for parameter name migrations
+ * @see rc_option_conversion[] for RC channel assignment migrations
+ */
 void Plane::load_parameters(void)
 {
     AP_Vehicle::load_parameters(g.format_version, Parameters::k_format_version);

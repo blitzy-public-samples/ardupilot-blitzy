@@ -24,21 +24,21 @@
 #include "AP_OSD.h"
 
 const AP_Param::GroupInfo AP_OSD_Setting::var_info[] = {
-    // @Param: _EN
+    // `@Param`: _EN
     // @DisplayName: Enable
     // @Description: Enable setting
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("_EN", 1, AP_OSD_Setting, enabled, default_enabled),
 
-    // @Param: _X
+    // `@Param`: _X
     // @DisplayName: X position
     // @Description: Horizontal position on screen
     // @Range: 0 29
     // @User: Standard
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("_X", 2, AP_OSD_Setting, xpos, default_xpos),
 
-    // @Param: _Y
+    // `@Param`: _Y
     // @DisplayName: Y position
     // @Description: Vertical position on screen
     // @Range: 0 15

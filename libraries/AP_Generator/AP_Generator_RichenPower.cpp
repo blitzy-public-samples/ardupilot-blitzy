@@ -329,7 +329,7 @@ void AP_Generator_RichenPower::Log_Write()
     }
     last_logged_reading_ms = last_reading_ms;
 
-// @LoggerMessage: RICH
+// `@LoggerMessage`: RICH
 // @Description: Richenpower generator telemetry
 // @Field: TimeUS: Time since system startup
 // @Field: runTime: total generator runtime

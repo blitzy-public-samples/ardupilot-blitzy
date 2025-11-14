@@ -10,7 +10,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_BattMonitor_SMBus::var_info[] = {
 
-    // @Param: I2C_BUS
+    // `@Param`: I2C_BUS
     // @DisplayName: Battery monitor I2C bus number
     // @Description: Battery monitor I2C bus number
     // @Range: 0 3
@@ -18,7 +18,7 @@ const AP_Param::GroupInfo AP_BattMonitor_SMBus::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("I2C_BUS", 10, AP_BattMonitor_SMBus, _bus, 0),
 
-    // @Param: I2C_ADDR
+    // `@Param`: I2C_ADDR
     // @DisplayName: Battery monitor I2C address
     // @Description: Battery monitor I2C address
     // @Range: 0 127

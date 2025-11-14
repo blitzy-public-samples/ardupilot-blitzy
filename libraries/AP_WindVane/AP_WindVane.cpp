@@ -37,7 +37,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_WindVane::var_info[] = {
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Wind Vane Type
     // @Description: Wind Vane type
     // @Values: 0:None,1:Heading when armed,2:RC input offset heading when armed,3:Analog,4:NMEA,10:SITL true,11:SITL apparent
@@ -47,14 +47,14 @@ const AP_Param::GroupInfo AP_WindVane::var_info[] = {
 
     // 2 was RC_IN_NO
 
-    // @Param: DIR_PIN
+    // `@Param`: DIR_PIN
     // @DisplayName: Wind vane analog voltage pin for direction
     // @Description: Analog input pin to read as wind vane direction
     // @Values: 11:Pixracer,13:Pixhawk ADC4,14:Pixhawk ADC3,15:Pixhawk ADC6/Pixhawk2 ADC,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6,103:Pixhawk SBUS
     // @User: Standard
     AP_GROUPINFO("DIR_PIN", 3, AP_WindVane, _dir_analog_pin, WINDVANE_DEFAULT_PIN),
 
-    // @Param: DIR_V_MIN
+    // `@Param`: DIR_V_MIN
     // @DisplayName: Wind vane voltage minimum
     // @Description: Minimum voltage supplied by analog wind vane. When using pin 103, the maximum value of the parameter is 3.3V.
     // @Units: V
@@ -63,7 +63,7 @@ const AP_Param::GroupInfo AP_WindVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("DIR_V_MIN", 4, AP_WindVane, _dir_analog_volt_min, 0.0f),
 
-    // @Param: DIR_V_MAX
+    // `@Param`: DIR_V_MAX
     // @DisplayName: Wind vane voltage maximum
     // @Description: Maximum voltage supplied by analog wind vane. When using pin 103, the maximum value of the parameter is 3.3V.
     // @Units: V
@@ -72,7 +72,7 @@ const AP_Param::GroupInfo AP_WindVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("DIR_V_MAX", 5, AP_WindVane, _dir_analog_volt_max, 3.3f),
 
-    // @Param: DIR_OFS
+    // `@Param`: DIR_OFS
     // @DisplayName: Wind vane headwind offset
     // @Description: Angle offset when analog windvane is indicating a headwind, ie 0 degress relative to vehicle
     // @Units: deg
@@ -81,21 +81,21 @@ const AP_Param::GroupInfo AP_WindVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("DIR_OFS", 6, AP_WindVane, _dir_analog_bearing_offset, 0.0f),
 
-    // @Param: DIR_FILT
+    // `@Param`: DIR_FILT
     // @DisplayName: apparent Wind vane direction low pass filter frequency
     // @Description: apparent Wind vane direction low pass filter frequency, a value of -1 disables filter
     // @Units: Hz
     // @User: Standard
     AP_GROUPINFO("DIR_FILT", 7, AP_WindVane, _dir_filt_hz, 0.5f),
 
-    // @Param: CAL
+    // `@Param`: CAL
     // @DisplayName: Wind vane calibration start
     // @Description: Start wind vane calibration by setting this to 1 or 2
     // @Values: 0:None, 1:Calibrate direction, 2:Calibrate speed
     // @User: Standard
     AP_GROUPINFO("CAL", 8, AP_WindVane, _calibration, 0),
 
-    // @Param: DIR_DZ
+    // `@Param`: DIR_DZ
     // @DisplayName: Wind vane deadzone when using analog sensor
     // @Description: Wind vane deadzone when using analog sensor
     // @Units: deg
@@ -104,7 +104,7 @@ const AP_Param::GroupInfo AP_WindVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("DIR_DZ", 9, AP_WindVane, _dir_analog_deadzone, 0),
 
-    // @Param: SPEED_MIN
+    // `@Param`: SPEED_MIN
     // @DisplayName: Wind vane cut off wind speed
     // @Description: Wind vane direction will be ignored when apparent wind speeds are below this value (if wind speed sensor is present).  If the apparent wind is consistently below this value the vane will not work
     // @Units: m/s
@@ -113,7 +113,7 @@ const AP_Param::GroupInfo AP_WindVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPEED_MIN", 10, AP_WindVane, _dir_speed_cutoff, 0),
 
-    // @Param: SPEED_TYPE
+    // `@Param`: SPEED_TYPE
     // @DisplayName: Wind speed sensor Type
     // @Description: Wind speed sensor type
     // @Values: 0:None,1:Airspeed library,2:Modern Devices Wind Sensor,3:RPM library,4:NMEA,10:SITL true,11:SITL apparent
@@ -121,21 +121,21 @@ const AP_Param::GroupInfo AP_WindVane::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("SPEED_TYPE", 11, AP_WindVane, _speed_sensor_type,  0),
 
-    // @Param: SPEED_PIN
+    // `@Param`: SPEED_PIN
     // @DisplayName: Wind vane speed sensor analog pin
     // @Description: Wind speed analog speed input pin for Modern Devices Wind Sensor rev. p
     // @Values: 11:Pixracer,13:Pixhawk ADC4,14:Pixhawk ADC3,15:Pixhawk ADC6/Pixhawk2 ADC,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6,103:Pixhawk SBUS
     // @User: Standard
     AP_GROUPINFO("SPEED_PIN", 12, AP_WindVane, _speed_sensor_speed_pin,  WINDSPEED_DEFAULT_SPEED_PIN),
 
-    // @Param: TEMP_PIN
+    // `@Param`: TEMP_PIN
     // @DisplayName: Wind vane speed sensor analog temp pin
     // @Description: Wind speed sensor analog temp input pin for Modern Devices Wind Sensor rev. p, set to -1 to diasble temp readings
     // @Values: 11:Pixracer,13:Pixhawk ADC4,14:Pixhawk ADC3,15:Pixhawk ADC6/Pixhawk2 ADC,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6,103:Pixhawk SBUS
     // @User: Standard
     AP_GROUPINFO("TEMP_PIN", 13, AP_WindVane, _speed_sensor_temp_pin,  WINDSPEED_DEFAULT_TEMP_PIN),
 
-    // @Param: SPEED_OFS
+    // `@Param`: SPEED_OFS
     // @DisplayName: Wind speed sensor analog voltage offset
     // @Description: Wind sensor analog voltage offset at zero wind speed
     // @Units: V
@@ -144,14 +144,14 @@ const AP_Param::GroupInfo AP_WindVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPEED_OFS", 14, AP_WindVane, _speed_sensor_voltage_offset, WINDSPEED_DEFAULT_VOLT_OFFSET),
 
-    // @Param: SPEED_FILT
+    // `@Param`: SPEED_FILT
     // @DisplayName: apparent wind speed low pass filter frequency
     // @Description: apparent Wind speed low pass filter frequency, a value of -1 disables filter
     // @Units: Hz
     // @User: Standard
     AP_GROUPINFO("SPEED_FILT", 15, AP_WindVane, _speed_filt_hz, 0.5f),
 
-    // @Param: TRUE_FILT
+    // `@Param`: TRUE_FILT
     // @DisplayName: True speed and direction low pass filter frequency
     // @Description: True speed and direction low pass filter frequency, a value of -1 disables filter
     // @Units: Hz
@@ -373,7 +373,7 @@ void AP_WindVane::update()
     }
 
 #if HAL_LOGGING_ENABLED
-// @LoggerMessage: WIND
+// `@LoggerMessage`: WIND
 // @Description: Windvane readings
 // @Field: TimeUS: Time since system startup
 // @Field: DrRaw: raw apparent wind direction direct from sensor, in body-frame

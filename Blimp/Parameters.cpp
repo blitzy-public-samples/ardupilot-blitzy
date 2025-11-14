@@ -1,3 +1,63 @@
+/**
+ * @file Parameters.cpp
+ * @brief Blimp vehicle parameter definitions and management
+ * 
+ * @details This file defines all configurable parameters for the Blimp (lighter-than-air) vehicle.
+ *          Parameters are organized using the AP_Param system which provides:
+ *          - Persistent storage in EEPROM/flash memory
+ *          - Ground station access via MAVLink parameter protocol
+ *          - Type-safe parameter definitions with metadata
+ *          - Parameter migration/conversion between firmware versions
+ *          
+ *          The parameter system uses two main structures:
+ *          1. var_info[] - Primary parameter table for the Blimp class
+ *          2. ParametersG2::var_info[] - Secondary parameter group for newer parameters
+ *          
+ *          Parameter Organization:
+ *          - GSCALAR: Single scalar parameters stored in Parameters.g
+ *          - GOBJECT: Sub-object parameters (sensors, libraries)
+ *          - GOBJECTN: Named sub-objects with custom names
+ *          - GOBJECTPTR: Pointer to sub-objects
+ *          
+ *          Parameter Groups Include:
+ *          - Flight control parameters (velocity/position limits, control modes)
+ *          - Fin control parameters (motor/servo outputs for blimp fins)
+ *          - PID controllers (velocity and position control for X, Y, Z, Yaw axes)
+ *          - Failsafe parameters (GCS, throttle, EKF, crash detection)
+ *          - Sensor configuration (GPS, compass, barometer, IMU)
+ *          - Flight modes and RC input mapping
+ *          - Logging and diagnostics configuration
+ *          
+ *          Blimp-Specific Parameters:
+ *          - MAX_VEL_XY/Z/YAW: Maximum velocity limits for lighter-than-air dynamics
+ *          - MAX_POS_XY/Z/YAW: Maximum position change rates
+ *          - SIMPLE_MODE: Simplified position control for operator ease
+ *          - DIS_MASK: Axis disable mask for testing/troubleshooting
+ *          - PILOT_SPEED_DN: Descent rate limits for buoyant vehicles
+ *          
+ *          Parameter Persistence:
+ *          - Parameters stored in non-volatile memory using AP_Param backend
+ *          - EEPROM layout managed automatically with format versioning
+ *          - FORMAT_VERSION tracks parameter table structure changes
+ *          - load_parameters() handles migration from older firmware versions
+ *          
+ *          Parameter Naming Conventions:
+ *          - Prefix indicates subsystem (e.g., VELXY_, POSZ_, FS_)
+ *          - Suffixes indicate PID components (_P, _I, _D, _IMAX, _FF)
+ *          - Filter parameters use _FLT* suffix (_FLTE, _FLTD, _FLTT)
+ *          
+ * @note This file should only contain parameter definitions and loading logic.
+ *       No flight control logic should be implemented here.
+ *       
+ * @warning Modifying parameter names, types, or storage locations can break
+ *          compatibility with saved configurations. Use parameter conversion
+ *          logic in load_parameters() when making structural changes.
+ * 
+ * Source: Blimp/Parameters.cpp
+ * 
+ * @copyright Copyright (c) 2010-2025 ArduPilot.org
+ */
+
 #include "Blimp.h"
 
 /*
@@ -15,13 +75,117 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*
- *  Blimp parameter definitions
- *
- */
-
 #define DEFAULT_FRAME_CLASS 0
 
+/**
+ * @brief Primary parameter table for Blimp vehicle
+ * 
+ * @details This var_info[] array defines all parameters for the Blimp class using the AP_Param system.
+ *          Each parameter entry specifies:
+ *          - Storage location (GSCALAR, GOBJECT, GOBJECTN, GOBJECTPTR)
+ *          - Parameter name (string used in GCS and MAVLink)
+ *          - Default value
+ *          - Metadata (@Param, @DisplayName, @Description, @Units, @Range, etc.)
+ *          
+ *          Parameter Table Organization:
+ *          
+ *          1. System Configuration (lines 26-30):
+ *             - FORMAT_VERSION: EEPROM format version for parameter migration
+ *          
+ *          2. Pilot Input Configuration (lines 36-98):
+ *             - PILOT_THR_FILT: Throttle input filtering for smoother control
+ *             - PILOT_THR_BHV: Throttle stick behavior options
+ *             - THR_DZ: Throttle deadzone for altitude hold modes
+ *          
+ *          3. Failsafe Parameters (lines 54-189):
+ *             - FS_GCS_ENABLE: Ground station communication loss handling
+ *             - FS_THR_ENABLE/VALUE: RC transmitter failsafe configuration
+ *             - FS_EKF_ACTION/THRESH: Navigation system failure handling
+ *             - FS_CRASH_CHECK: Automatic crash detection and disarm
+ *          
+ *          4. Flight Mode Configuration (lines 100-149):
+ *             - FLTMODE1-6: Flight modes assigned to RC channel positions
+ *             - FLTMODE_CH: RC channel for flight mode selection (default: Channel 5)
+ *             - INITIAL_MODE: Mode to start in on boot
+ *          
+ *          5. Vehicle Dynamics Limits (lines 191-231):
+ *             - MAX_VEL_XY/Z/YAW: Maximum velocity limits (m/s, rad/s)
+ *             - MAX_POS_XY/Z/YAW: Maximum position change rates (m/s, rad/s)
+ *             - These limits are critical for lighter-than-air vehicle safety
+ *          
+ *          6. Control Configuration (lines 233-253):
+ *             - SIMPLE_MODE: Simplified world-frame position control
+ *             - DIS_MASK: Axis disable mask for testing
+ *             - PID_DZ: Position controller deadzone
+ *          
+ *          7. Hardware Configuration (lines 255-262):
+ *             - RC_SPEED: ESC/servo update rate (Hz)
+ *          
+ *          8. Sensor Objects (lines 266-309):
+ *             - COMPASS_: Magnetometer configuration
+ *             - INS: Inertial measurement unit configuration
+ *             - AHRS_: Attitude and heading reference system
+ *             - BARO: Barometer configuration
+ *             - GPS: GPS receiver configuration
+ *          
+ *          9. Navigation Objects (lines 315-325):
+ *             - EK2_: Extended Kalman Filter 2 (if available)
+ *             - EK3_: Extended Kalman Filter 3 (if available)
+ *          
+ *          10. System Objects (lines 280-343):
+ *              - BATT: Battery monitoring
+ *              - BRD_: Board-specific configuration
+ *              - CAN_: CAN bus manager
+ *              - SCHED_: Task scheduler
+ *              - NTF_: Notification system (LEDs, buzzers)
+ *          
+ *          11. Fin Control Object (lines 341-343):
+ *              - FINS_: Motor and fin control for blimp propulsion
+ *          
+ *          12. Velocity PID Controllers (lines 345-489):
+ *              - VELXY_: Horizontal (XY) velocity controller (AC_PID_2D)
+ *              - VELZ_: Vertical (Z) velocity controller (AC_PID_Basic)
+ *              - VELYAW_: Yaw velocity controller (AC_PID_Basic)
+ *              Each controller includes: P, I, D, IMAX, FF, FLTE, FLTD parameters
+ *          
+ *          13. Position PID Controllers (lines 491-687):
+ *              - POSXY_: Horizontal (XY) position controller (AC_PID_2D)
+ *              - POSZ_: Vertical (Z) position controller (AC_PID_Basic)
+ *              - POSYAW_: Yaw position controller (AC_PID with advanced features)
+ *              Each controller converts position error to target velocity
+ *          
+ *          14. Communication and Logging (lines 151-156, 694-696):
+ *              - LOG_BITMASK: Selects which data to log
+ *              - GCS_PID_MASK: PIDs to send to ground station for tuning
+ *              - MAV: Ground control station MAVLink configuration
+ *          
+ *          15. Secondary Parameter Group (lines 337-339):
+ *              - g2: ParametersG2 object for newer parameters (see below)
+ *          
+ *          Parameter Storage and Access:
+ *          - GSCALAR parameters stored directly in Parameters.g structure
+ *          - GOBJECT parameters are separate objects with their own var_info tables
+ *          - Parameters accessed via g.parameter_name or AP::library().parameter_name()
+ *          - Nested parameter groups use dot notation in GCS (e.g., "COMPASS_DEV_ID")
+ *          
+ *          Adding New Parameters:
+ *          1. Add to Parameters.h structure definition
+ *          2. Add entry to this var_info[] table with metadata
+ *          3. Use unique parameter name (check all vehicles for conflicts)
+ *          4. Choose appropriate storage location (usually ParametersG2 for new params)
+ *          5. Test parameter save/load and GCS access
+ *          
+ * @note The order of parameters in this table is critical for EEPROM compatibility.
+ *       Inserting parameters in the middle breaks saved configurations. Add new
+ *       parameters to ParametersG2::var_info[] instead.
+ *       
+ * @warning Never remove or reorder existing parameters without providing conversion
+ *          logic in load_parameters(). Users will lose their configurations.
+ *          
+ * @see ParametersG2::var_info[] for secondary parameter group
+ * @see Blimp::load_parameters() for parameter loading and migration logic
+ * @see libraries/AP_Param/AP_Param.h for parameter system documentation
+ */
 const AP_Param::Info Blimp::var_info[] = {
     // @Param: FORMAT_VERSION
     // @DisplayName: Eeprom format version number
@@ -699,8 +863,88 @@ const AP_Param::Info Blimp::var_info[] = {
     AP_VAREND
 };
 
-/*
-  2nd group of parameters
+/**
+ * @brief Secondary parameter group for Blimp vehicle
+ * 
+ * @details ParametersG2 provides an extension mechanism for adding new parameters
+ *          without breaking EEPROM compatibility with existing saved configurations.
+ *          This "g2" parameter group was introduced to allow parameter additions
+ *          after the primary var_info[] table was established.
+ *          
+ *          Purpose of ParametersG2:
+ *          - Add new parameters without altering primary parameter table order
+ *          - Maintain backward compatibility with saved configurations
+ *          - Group related newer features together
+ *          - Allow future expansion without EEPROM layout conflicts
+ *          
+ *          Parameter Slots in G2:
+ *          Some slot numbers are used, others reserved or repurposed:
+ *          - Slot 7: DEV_OPTIONS - Developer/debugging options bitmask
+ *          - Slot 11: (was SYSID_ENFORCE - migrated to MAV_OPTIONS)
+ *          - Slot 12: (was AP_Stats - moved to separate object)
+ *          - Slot 15: FRAME_CLASS - Blimp frame configuration
+ *          - Slot 16: SERVO - Servo channel configuration (SRV_Channels)
+ *          - Slot 17: RC - RC input channel configuration (RC_Channels_Blimp)
+ *          - Slot 24: PILOT_SPEED_DN - Descent rate limit
+ *          - Slot 30: (was AP_Scripting - moved to separate object)
+ *          - Slot 35: FS_VIBE_ENABLE - Vibration failsafe
+ *          - Slot 36: FS_OPTIONS - Additional failsafe option flags
+ *          - Slot 42: FS_GCS_TIMEOUT - GCS communication timeout
+ *          
+ *          G2 Parameters Defined Here:
+ *          
+ *          1. Development Options (DEV_OPTIONS):
+ *             - Bitmask for experimental features and debugging
+ *             - Meanings may change between versions
+ *             - For developer use only
+ *          
+ *          2. Frame Configuration (FRAME_CLASS):
+ *             - Defines blimp frame type (currently only Finnedblimp supported)
+ *             - Requires reboot after change
+ *             - Affects motor/fin mixing and control allocation
+ *          
+ *          3. Servo Configuration (SERVO):
+ *             - Sub-group for SRV_Channel library parameters
+ *             - Maps servo outputs to functions
+ *             - Configures servo min/max/trim/reverse
+ *          
+ *          4. RC Channel Configuration (RC):
+ *             - Sub-group for RC_Channels library parameters
+ *             - Configures RC input channels and their functions
+ *             - Includes expo, deadzone, and channel mapping
+ *          
+ *          5. Pilot Speed Controls (PILOT_SPEED_DN):
+ *             - Descent rate limit for pilot control
+ *             - Important for lighter-than-air vehicles due to buoyancy
+ *             - Prevents over-rapid descents
+ *          
+ *          6. Failsafe Extensions (FS_VIBE_ENABLE, FS_OPTIONS, FS_GCS_TIMEOUT):
+ *             - FS_VIBE_ENABLE: Vibration-based altitude estimation fallback
+ *             - FS_OPTIONS: Bitmask for additional failsafe behaviors
+ *             - FS_GCS_TIMEOUT: Customizable GCS communication timeout
+ *          
+ *          Parameter Slot Management:
+ *          - Empty slots (commented out) reserve space for future use
+ *          - Never reuse slots for different purposes (breaks compatibility)
+ *          - Commented slots show migration history
+ *          
+ *          Adding Parameters to G2:
+ *          1. Choose unused slot number
+ *          2. Add to ParametersG2 class definition in Parameters.h
+ *          3. Use AP_GROUPINFO or AP_SUBGROUPINFO macro
+ *          4. Document slot number and parameter purpose
+ *          5. If migrating from g, add conversion in load_parameters()
+ *          
+ * @note ParametersG2 is accessed via g2.parameter_name in code
+ * @note When g2 slots are exhausted, create ParametersG3 following same pattern
+ * 
+ * @warning Never change slot numbers - this breaks saved parameter configurations
+ * @warning Slot number comments (e.g., "11 was SYSID_ENFORCE") must be preserved
+ *          to prevent accidental reuse
+ * 
+ * @see Blimp::var_info[] for primary parameter table
+ * @see ParametersG2 class definition in Parameters.h
+ * @see libraries/AP_Param/AP_Param.h for AP_GROUPINFO macro documentation
  */
 const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
@@ -768,55 +1012,199 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_GROUPEND
 };
 
-/*
-  constructor for g2 object
+/**
+ * @brief Constructor for ParametersG2 secondary parameter group
+ * 
+ * @details Initializes the ParametersG2 object by setting up default values
+ *          for all parameters defined in the var_info[] table. This is called
+ *          during Blimp object construction before parameters are loaded from
+ *          persistent storage.
+ *          
+ *          Constructor Responsibilities:
+ *          1. Calls AP_Param::setup_object_defaults() to initialize defaults
+ *          2. Ensures all parameters have valid values before load
+ *          3. Provides fallback values if EEPROM/flash is uninitialized
+ *          
+ *          Initialization Sequence:
+ *          - Constructor sets defaults from var_info[] table
+ *          - load_parameters() loads saved values from storage
+ *          - Saved values override defaults if valid
+ *          - Invalid/corrupted parameters revert to defaults
+ *          
+ * @note This constructor is called once during system initialization
+ * @note Default values are specified in var_info[] parameter definitions
+ * 
+ * @see ParametersG2::var_info[] for parameter definitions and defaults
+ * @see AP_Param::setup_object_defaults() for default value initialization
+ * @see Blimp::load_parameters() for parameter loading from storage
  */
 ParametersG2::ParametersG2(void)
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
 
+/**
+ * @brief Load parameters from persistent storage and perform version migration
+ * 
+ * @details This function loads all vehicle parameters from non-volatile storage
+ *          (EEPROM or flash) and handles migration of parameters between firmware
+ *          versions. It is called once during vehicle initialization.
+ *          
+ *          Loading Process:
+ *          1. Load parameters using base class AP_Vehicle::load_parameters()
+ *          2. Check format version (g.format_version vs k_format_version)
+ *          3. Perform parameter conversions if format version changed
+ *          4. Migrate parameters to new storage locations
+ *          5. Set frame type flags for parameter system
+ *          
+ *          Parameter Conversion Types:
+ *          
+ *          1. G2 Object Conversions (g2_conversions[]):
+ *             - Migrates parameters from g2 slots to separate top-level objects
+ *             - Example: stats (slot 12) and scripting (slot 30) moved out of g2
+ *             - Maintains parameter values during structural reorganization
+ *             - Conditional compilation handles optional features
+ *          
+ *          2. Top-Level Object Conversions (toplevel_conversions[]):
+ *             - Migrates entire parameter objects to new storage locations
+ *             - Example: logger and serial_manager moved to top-level
+ *             - Uses old parameter slot numbers (k_param_*) for lookup
+ *             - Preserves all sub-parameters during migration
+ *          
+ *          3. Individual Parameter Conversions (gcs_conversion_info[]):
+ *             - Renames individual parameters with new naming scheme
+ *             - Example: SYSID_THIS_MAV → MAV_SYSID (Mar-2025, v4.7)
+ *             - Maps old parameter names to new MAV_ namespace
+ *             - Maintains parameter values across naming changes
+ *          
+ *          Parameter Migration Examples:
+ *          
+ *          Stats Library Migration (Jan-2024, Copter-4.6):
+ *          - Moved from g2 slot 12 to separate top-level object
+ *          - All STAT_* parameters preserved
+ *          - Only executed if AP_STATS_ENABLED is defined
+ *          
+ *          Scripting Library Migration (Jan-2024, Copter-4.6):
+ *          - Moved from g2 slot 30 to separate top-level object
+ *          - All SCR_* parameters preserved
+ *          - Only executed if AP_SCRIPTING_ENABLED is defined
+ *          
+ *          Logger Migration (Feb-2024):
+ *          - Moved from Parameters::k_param_logger to top-level
+ *          - All LOG_* parameters preserved
+ *          - Only executed if HAL_LOGGING_ENABLED is defined
+ *          
+ *          Serial Manager Migration (Feb-2024):
+ *          - Moved from k_param_serial_manager_old to top-level
+ *          - All SERIAL* parameters preserved
+ *          - Only executed if AP_SERIALMANAGER_ENABLED is defined
+ *          
+ *          MAVLink Parameter Namespace Migration (Mar-2025, v4.7):
+ *          - SYSID_THIS_MAV → MAV_SYSID
+ *          - SYSID_MY_GCS → MAV_GCS_SYSID
+ *          - (unnamed g2.11) → MAV_OPTIONS
+ *          - TELEM_DELAY → MAV_TELEM_DELAY
+ *          - Consolidates GCS-related parameters under MAV_ prefix
+ *          
+ *          Frame Type Flags:
+ *          - Sets AP_PARAM_FRAME_BLIMP flag for parameter system
+ *          - Allows parameters to be vehicle-specific
+ *          - Enables proper parameter filtering in ground stations
+ *          
+ *          Version Management:
+ *          - g.format_version: Saved format version from EEPROM
+ *          - k_format_version: Current firmware format version (Parameters.h)
+ *          - If versions differ, conversions are applied
+ *          - Format version updated after successful migration
+ *          
+ *          Error Handling:
+ *          - Invalid parameters revert to defaults
+ *          - Corrupted EEPROM triggers full reinitialization
+ *          - Failed conversions logged but don't prevent boot
+ *          - Missing parameters use default values from var_info[]
+ *          
+ * @note This function must be called after all subsystems are constructed
+ *       but before they are initialized, as they depend on parameter values
+ *       
+ * @note Adding new parameter conversions requires:
+ *       1. Increment k_format_version in Parameters.h
+ *       2. Add conversion entry to appropriate array
+ *       3. Document conversion with date and version comment
+ *       4. Test migration with saved parameters from previous version
+ *       
+ * @warning Never remove parameter conversions - users may upgrade from old versions
+ *          Keep conversion code indefinitely to support multi-version upgrades
+ *          
+ * @warning Incorrect conversion logic can cause loss of user configurations
+ *          Always test parameter migration thoroughly before release
+ * 
+ * @see AP_Vehicle::load_parameters() for base loading functionality
+ * @see AP_Param::convert_g2_objects() for g2 slot migration
+ * @see AP_Param::convert_class() for library parameter migration  
+ * @see AP_Param::convert_toplevel_objects() for top-level object migration
+ * @see AP_Param::convert_old_parameters() for individual parameter renaming
+ * @see Parameters.h for k_format_version and parameter structure definitions
+ */
 void Blimp::load_parameters(void)
 {
     AP_Vehicle::load_parameters(g.format_version, Parameters::k_format_version);
 
+    // Convert parameters that were moved from g2 secondary parameter group to separate objects
+    // This maintains parameter values when reorganizing the parameter structure
     static const AP_Param::G2ObjectConversion g2_conversions[] {
 #if AP_STATS_ENABLED
     // PARAMETER_CONVERSION - Added: Jan-2024 for Copter-4.6
+    // Migrates stats parameters from g2 slot 12 to top-level stats object
+    // Converts: g2.stats.* → stats.* (preserves all STAT_* parameter values)
         { &stats, stats.var_info, 12 },
 #endif
 #if AP_SCRIPTING_ENABLED
     // PARAMETER_CONVERSION - Added: Jan-2024 for Copter-4.6
+    // Migrates scripting parameters from g2 slot 30 to top-level scripting object
+    // Converts: g2.scripting.* → scripting.* (preserves all SCR_* parameter values)
         { &scripting, scripting.var_info, 30 },
 #endif
     };
     AP_Param::convert_g2_objects(&g2, g2_conversions, ARRAY_SIZE(g2_conversions));
 
     // PARAMETER_CONVERSION - Added: Feb-2024
+    // Migrates logger parameters from old storage location to top-level object
+    // Converts: g.k_param_logger.* → logger.* (preserves all LOG_* parameters)
 #if HAL_LOGGING_ENABLED
     AP_Param::convert_class(g.k_param_logger, &logger, logger.var_info, 0, true);
 #endif
 
+    // Convert entire parameter objects that were moved to top-level storage
+    // This handles library parameters that were reorganized in the parameter table
     static const AP_Param::TopLevelObjectConversion toplevel_conversions[] {
 #if AP_SERIALMANAGER_ENABLED
         // PARAMETER_CONVERSION - Added: Feb-2024
+        // Migrates serial manager from old parameter slot to top-level object
+        // Converts: k_param_serial_manager_old.* → serial_manager.* (preserves all SERIAL* parameters)
         { &serial_manager, serial_manager.var_info, Parameters::k_param_serial_manager_old },
 #endif
     };
 
     AP_Param::convert_toplevel_objects(toplevel_conversions, ARRAY_SIZE(toplevel_conversions));
 
-    // setup AP_Param frame type flags
+    // Setup AP_Param frame type flags to identify this as a Blimp vehicle
+    // This allows parameters to be vehicle-specific and enables proper filtering
+    // in ground control stations when displaying available parameters
     AP_Param::set_frame_type_flags(AP_PARAM_FRAME_BLIMP);
 
 #if HAL_GCS_ENABLED
     // Move parameters into new MAV_ parameter namespace
     // PARAMETER_CONVERSION - Added: Mar-2025 for ArduPilot-4.7
+    // This consolidates ground station and MAVLink-related parameters under a consistent prefix
     {
         static const AP_Param::ConversionInfo gcs_conversion_info[] {
+            // Convert: SYSID_THIS_MAV → MAV_SYSID (vehicle's MAVLink system ID)
             { Parameters::k_param_sysid_this_mav_old, 0, AP_PARAM_INT16,  "MAV_SYSID" },
+            // Convert: SYSID_MY_GCS → MAV_GCS_SYSID (ground station's MAVLink system ID)
             { Parameters::k_param_sysid_my_gcs_old, 0, AP_PARAM_INT16, "MAV_GCS_SYSID" },
+            // Convert: g2 slot 11 → MAV_OPTIONS (MAVLink behavior options bitmask)
             { Parameters::k_param_g2,  11, AP_PARAM_INT8, "MAV_OPTIONS" },
+            // Convert: TELEM_DELAY → MAV_TELEM_DELAY (telemetry startup delay)
             { Parameters::k_param_telem_delay_old,  0, AP_PARAM_INT8, "MAV_TELEM_DELAY" },
         };
         AP_Param::convert_old_parameters(&gcs_conversion_info[0], ARRAY_SIZE(gcs_conversion_info));

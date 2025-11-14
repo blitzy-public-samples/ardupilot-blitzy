@@ -22,6 +22,64 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+/**
+ * @file spm_srxl.h
+ * @brief Spektrum SRXL2 Protocol Engine with Bidirectional Communication
+ * 
+ * @details This file defines the complete SRXL2 (Spektrum Remote Receiver eXpress Link version 2)
+ *          protocol stack supporting bidirectional communication between RC receivers, flight
+ *          controllers, ESCs, servos, and other peripherals.
+ * 
+ *          SRXL2 Protocol Overview:
+ *          - Device discovery and handshake negotiation
+ *          - RC channel data transmission (up to 32 channels)
+ *          - Telemetry data transmission from sensors to receiver
+ *          - VTX (video transmitter) control and configuration
+ *          - Bind mode entry and configuration
+ *          - Forward programming support
+ *          - Signal quality (RSSI) reporting
+ *          - Configurable baud rates: 115200 bps or 400000 bps
+ * 
+ *          Protocol Phases:
+ *          1. Discovery/Handshake: Devices negotiate capabilities, baud rates, and priorities
+ *          2. Channel Data Reception: Receiver sends RC channel values (typically 11-22ms intervals)
+ *          3. Telemetry Transmission: Devices send sensor data when polled by receiver
+ *          4. Bind/VTX Control: Special commands for configuration and video TX control
+ * 
+ *          Integrator Requirements:
+ *          Applications using this library MUST implement the following callback functions:
+ *          - srxlChangeBaudRate(): Change UART baud rate (typically 115200 or 400000 bps)
+ *          - srxlSendOnUart(): Transmit data buffer on UART
+ *          - srxlFillTelemetry(): Populate telemetry packet with sensor data
+ *          - srxlReceivedChannelData(): Process received RC channel values (in microseconds)
+ *          - srxlOnBind(): Handle bind mode entry/exit
+ *          - srxlOnVtx(): Handle VTX control commands
+ * 
+ * @warning TIMING-CRITICAL IMPLEMENTATION REQUIRED
+ *          The SRXL2 handshake phase requires precise UART timing and immediate callback execution.
+ *          Delays in responding to handshake packets (>50ms) will cause initialization failure.
+ *          Callback functions must execute quickly without blocking operations.
+ *          Baud rate changes must complete within the protocol timeout window.
+ * 
+ * @note CRC Configuration:
+ *       CRC computation mode is selected in spm_srxl_config.h via SRXL_CRC_OPTIMIZE_MODE:
+ *       - SRXL_CRC_OPTIMIZE_EXTERNAL: Use external CRC function
+ *       - SRXL_CRC_OPTIMIZE_SPEED: Table lookup (fast, uses 512 bytes)
+ *       - SRXL_CRC_OPTIMIZE_SIZE: Bitwise operations (slow, minimal memory)
+ *       - SRXL_CRC_OPTIMIZE_STM_HW: STM32F30x hardware acceleration
+ *       - SRXL_CRC_OPTIMIZE_STM_HAL: STM32 HAL driver acceleration
+ * 
+ * @note VTX Control Parameters:
+ *       - Band: 0=Fatshark, 1=Raceband, 2=E-Band, 3=B-Band, 4=A-Band
+ *       - Channel: 0-7 (8 channels per band)
+ *       - Power: 0=Off, 1=1-14mW, 2=15-25mW, 3=26-99mW, 4=100-299mW, 5=300-600mW, 6=601+mW, 7=Manual
+ *       - Pit Mode: 0=Race (normal power), 1=Pit (reduced power)
+ * 
+ * @see Spektrum SRXL2 Protocol Specification
+ * @author Horizon Hobby, LLC
+ * @copyright MIT License (c) 2019 Horizon Hobby, LLC
+ */
+
 #ifndef __SRXL_H__
 #define __SRXL_H__
 
@@ -36,80 +94,206 @@ extern "C"
 #include <stdlib.h>
 
 
-//      7.1 General Overview
+/**
+ * @defgroup SRXL_Protocol_Constants SRXL2 Protocol Constants
+ * @{
+ */
+
+/** @brief SRXL2 protocol identifier - always 0xA6 for SRXL version 2 packets */
 #define SPEKTRUM_SRXL_ID        (0xA6)
+
+/** @brief Maximum size of SRXL packet buffer in bytes */
 #define SRXL_MAX_BUFFER_SIZE    (80)
+
+/** @brief Maximum number of SRXL devices that can be discovered on a single bus */
 #define SRXL_MAX_DEVICES        (16)
 
-// Supported SRXL device types (upper nibble of device ID)
+/** @} */ // end of SRXL_Protocol_Constants
+
+/**
+ * @enum SrxlDevType
+ * @brief SRXL2 Device Type Identifiers
+ * 
+ * @details Device type is encoded in the upper nibble of the SRXL device ID.
+ *          Each device on the bus must have a unique device ID combining type and instance.
+ *          The device type determines the device's role in the SRXL network and affects
+ *          telemetry priority and message routing.
+ */
 typedef enum
 {
-    SrxlDevType_None                = 0,
-    SrxlDevType_RemoteReceiver      = 1,
-    SrxlDevType_Receiver            = 2,
-    SrxlDevType_FlightController    = 3,
-    SrxlDevType_ESC                 = 4,
-    SrxlDevType_SRXLServo1          = 6,
-    SrxlDevType_SRXLServo2          = 7,
-    SrxlDevType_VTX                 = 8,
-    SrxlDevType_Broadcast           = 15
+    SrxlDevType_None                = 0,    /**< No device / uninitialized */
+    SrxlDevType_RemoteReceiver      = 1,    /**< Remote receiver (satellite/secondary receiver) */
+    SrxlDevType_Receiver            = 2,    /**< Primary RF receiver */
+    SrxlDevType_FlightController    = 3,    /**< Flight controller / autopilot */
+    SrxlDevType_ESC                 = 4,    /**< Electronic Speed Controller */
+    SrxlDevType_SRXLServo1          = 6,    /**< SRXL-enabled servo (type 1) */
+    SrxlDevType_SRXLServo2          = 7,    /**< SRXL-enabled servo (type 2) */
+    SrxlDevType_VTX                 = 8,    /**< Video transmitter */
+    SrxlDevType_Broadcast           = 15    /**< Broadcast address (all devices) */
 } SrxlDevType;
 
-// Set SRXL_CRC_OPTIMIZE_MODE in spm_srxl_config.h to one of the following values
-#define SRXL_CRC_OPTIMIZE_EXTERNAL  (0)  // Uses an external function defined by SRXL_CRC_EXTERNAL_FN for CRC
-#define SRXL_CRC_OPTIMIZE_SPEED     (1)  // Uses table lookup for CRC computation (requires 512 const bytes for CRC table)
-#define SRXL_CRC_OPTIMIZE_SIZE      (2)  // Uses bitwise operations
-#define SRXL_CRC_OPTIMIZE_STM_HW    (3)  // Uses STM32 register-level hardware acceleration (only available on STM32F30x devices for now)
-#define SRXL_CRC_OPTIMIZE_STM_HAL   (4)  // Uses STM32Cube HAL driver for hardware acceleration (only available on STM32F3/F7) -- see srxlCrc16() for details on HAL config
+/**
+ * @defgroup SRXL_CRC_Modes CRC Computation Optimization Modes
+ * @brief Configurable CRC-16 computation methods for SRXL2 packets
+ * 
+ * @details Set SRXL_CRC_OPTIMIZE_MODE in spm_srxl_config.h to select the CRC computation method.
+ *          Trade-offs between speed, code size, and hardware requirements:
+ *          - EXTERNAL: Integrator provides CRC function (most flexible)
+ *          - SPEED: Fast table lookup (best performance, uses 512 bytes constant data)
+ *          - SIZE: Bitwise computation (minimal memory, slower execution)
+ *          - STM_HW: Hardware CRC unit (STM32F30x only, fastest)
+ *          - STM_HAL: STM32 HAL hardware CRC (STM32F3/F7, requires HAL configuration)
+ * @{
+ */
 
-// Set SRXL_STM_TARGET_FAMILY in spm_srxl_config.h to one of the following values when using one of the STM HW-optimized modes
+/** @brief Use external CRC function defined by SRXL_CRC_EXTERNAL_FN macro */
+#define SRXL_CRC_OPTIMIZE_EXTERNAL  (0)
+
+/** @brief Use table lookup for CRC (fast, requires 512 bytes for CRC table) */
+#define SRXL_CRC_OPTIMIZE_SPEED     (1)
+
+/** @brief Use bitwise operations for CRC (slow, minimal memory footprint) */
+#define SRXL_CRC_OPTIMIZE_SIZE      (2)
+
+/** @brief Use STM32 register-level hardware CRC acceleration (STM32F30x only) */
+#define SRXL_CRC_OPTIMIZE_STM_HW    (3)
+
+/** @brief Use STM32Cube HAL driver for hardware CRC (STM32F3/F7, requires HAL setup) */
+#define SRXL_CRC_OPTIMIZE_STM_HAL   (4)
+
+/** @} */ // end of SRXL_CRC_Modes
+
+/**
+ * @defgroup SRXL_STM_Targets STM32 Target Family Identifiers
+ * @brief Set SRXL_STM_TARGET_FAMILY when using STM hardware-accelerated CRC modes
+ * @{
+ */
+
+/** @brief STM32F3 family target identifier */
 #define SRXL_STM_TARGET_F3          (3)
+
+/** @brief STM32F7 family target identifier */
 #define SRXL_STM_TARGET_F7          (7)
 
-//      7.2 Handshake Packet
+/** @} */ // end of SRXL_STM_Targets
+
+/**
+ * @defgroup SRXL_Handshake Handshake Protocol Definitions
+ * @brief Handshake packet identifiers and baud rate negotiation
+ * 
+ * @details During initialization, devices exchange handshake packets to:
+ *          - Discover other devices on the bus
+ *          - Negotiate optimal baud rate (115200 or 400000 bps)
+ *          - Exchange device capabilities and telemetry priority
+ *          - Assign unique device IDs to prevent conflicts
+ * 
+ * @warning Handshake timing is critical - responses must occur within 50ms
+ * @{
+ */
+
+/** @brief Handshake packet type identifier */
 #define SRXL_HANDSHAKE_ID       (0x21)
 
-// Supported additional baud rates besides default 115200
-// NOTE: Treated as bitmask, ANDed with baud rates from slaves
+/** @brief Default baud rate: 115200 bps (bitmask value 0x00) */
 #define SRXL_BAUD_115200        (0x00)
+
+/** @brief High-speed baud rate: 400000 bps (bitmask value 0x01) */
 #define SRXL_BAUD_400000        (0x01)
-//#define SRXL_BAUD_NEXT_RATE   (0x02)
-//#define SRXL_BAUD_ANOTHER     (0x04)
 
-// Bit masks for Device Info byte sent via Handshake
-#define SRXL_DEVINFO_NO_RF              (0x00)  // This is the base for non-RF devices
-#define SRXL_DEVINFO_TELEM_TX_ENABLED   (0x01)  // This bit is set if the device is actively configured to transmit telemetry over RF
-#define SRXL_DEVINFO_TELEM_FULL_RANGE   (0x02)  // This bit is set if the device can send full-range telemetry over RF
-#define SRXL_DEVINFO_FWD_PROG_SUPPORT   (0x04)  // This bit is set if the device supports Forward Programming via RF or SRXL
+/** @} */ // end of SRXL_Handshake
 
-//      7.3 Bind Info Packet
+/**
+ * @defgroup SRXL_DeviceInfo Device Information Capability Flags
+ * @brief Capability flags sent in handshake packet info field
+ * 
+ * @details These bit flags indicate device capabilities and configuration.
+ *          Multiple flags can be combined using bitwise OR.
+ * @{
+ */
+
+/** @brief Non-RF device (no wireless telemetry capability) */
+#define SRXL_DEVINFO_NO_RF              (0x00)
+
+/** @brief Device is configured to transmit telemetry over RF link */
+#define SRXL_DEVINFO_TELEM_TX_ENABLED   (0x01)
+
+/** @brief Device can send full-range telemetry over RF (extended distance) */
+#define SRXL_DEVINFO_TELEM_FULL_RANGE   (0x02)
+
+/** @brief Device supports Forward Programming via RF or SRXL bus */
+#define SRXL_DEVINFO_FWD_PROG_SUPPORT   (0x04)
+
+/** @} */ // end of SRXL_DeviceInfo
+
+/**
+ * @defgroup SRXL_Bind Bind Mode Protocol Definitions
+ * @brief Bind procedure control and status reporting
+ * 
+ * @details Binding establishes the RF link between transmitter and receiver.
+ *          The bind process involves:
+ *          1. Flight controller sends SRXL_BIND_REQ_ENTER to receiver
+ *          2. Receiver enters bind mode and awaits RF signal from transmitter
+ *          3. User initiates bind on transmitter (typically via button press)
+ *          4. Receiver captures transmitter GUID and reports via SRXL_BIND_REQ_BOUND_DATA
+ *          5. Flight controller confirms with SRXL_BIND_REQ_SET_BIND
+ * 
+ * @note Bind procedure timing: Allow 10-60 seconds for user to initiate transmitter bind.
+ *       UI should provide clear feedback when receiver is in bind mode.
+ * @{
+ */
+
+/** @brief Bind packet type identifier */
 #define SRXL_BIND_ID                    (0x41)
+
+/** @brief Request receiver to enter bind mode */
 #define SRXL_BIND_REQ_ENTER             (0xEB)
+
+/** @brief Request current bind status from receiver */
 #define SRXL_BIND_REQ_STATUS            (0xB5)
+
+/** @brief Request bound data (GUID) from receiver after successful bind */
 #define SRXL_BIND_REQ_BOUND_DATA        (0xDB)
+
+/** @brief Set bind information (confirm bind with GUID) */
 #define SRXL_BIND_REQ_SET_BIND          (0x5B)
 
-// Bit masks for Options byte
+/** @brief No bind options selected */
 #define SRXL_BIND_OPT_NONE              (0x00)
-#define SRXL_BIND_OPT_TELEM_TX_ENABLE   (0x01)  // Set if this device should be enabled as the current telemetry device to tx over RF
-#define SRXL_BIND_OPT_BIND_TX_ENABLE    (0x02)  // Set if this device should reply to a bind request with a Discover packet over RF
-#define SRXL_BIND_OPT_US_POWER          (0x04)  // Set if this device should request US transmit power levels instead of EU
 
-// Current Bind Status
+/** @brief Enable this device to transmit telemetry over RF */
+#define SRXL_BIND_OPT_TELEM_TX_ENABLE   (0x01)
+
+/** @brief Enable this device to respond to bind requests with RF discovery packet */
+#define SRXL_BIND_OPT_BIND_TX_ENABLE    (0x02)
+
+/** @brief Request US transmit power levels instead of EU power limits */
+#define SRXL_BIND_OPT_US_POWER          (0x04)
+
+/** @} */ // end of SRXL_Bind
+
+/**
+ * @enum BIND_STATUS
+ * @brief Spektrum DSM/DSMX Bind Status and Protocol Types
+ * 
+ * @details Indicates current bind status and the specific DSM protocol variant in use.
+ *          DSM2 and DSMX are 2.4GHz protocols with different channel hopping strategies.
+ *          Air types are for aircraft, surface types are for ground vehicles.
+ *          Frame rates: 22ms (45Hz), 11ms (90Hz), 5.5ms (180Hz) affect latency and smoothness.
+ */
 typedef enum
 {
-    NOT_BOUND           = 0x00,
-    // Air types
-    DSM2_1024_22MS      = 0x01,
-    DSM2_1024_MC24      = 0x02,
-    DSM2_2048_11MS      = 0x12,
-    DSMX_22MS           = 0xA2,
-    DSMX_11MS           = 0xB2,
-    // Surface types (corresponding Air type bitwise OR'd with 0x40)
-    SURFACE_DSM1        = 0x40,
-    SURFACE_DSM2_16p5MS = 0x63,
-    DSMR_11MS_22MS      = 0xE2,
-    DSMR_5p5MS          = 0xE4,
+    NOT_BOUND           = 0x00,     /**< Receiver not bound to any transmitter */
+    // Air protocol types (for aircraft)
+    DSM2_1024_22MS      = 0x01,     /**< DSM2 protocol, 1024 resolution, 22ms frame rate */
+    DSM2_1024_MC24      = 0x02,     /**< DSM2 protocol, 1024 resolution, MC24 mode */
+    DSM2_2048_11MS      = 0x12,     /**< DSM2 protocol, 2048 resolution, 11ms frame rate */
+    DSMX_22MS           = 0xA2,     /**< DSMX protocol, 22ms frame rate (standard latency) */
+    DSMX_11MS           = 0xB2,     /**< DSMX protocol, 11ms frame rate (low latency) */
+    // Surface protocol types (for ground vehicles)
+    SURFACE_DSM1        = 0x40,     /**< Surface DSM1 protocol */
+    SURFACE_DSM2_16p5MS = 0x63,     /**< Surface DSM2 protocol, 16.5ms frame rate */
+    DSMR_11MS_22MS      = 0xE2,     /**< DSMR protocol, dual rate 11/22ms */
+    DSMR_5p5MS          = 0xE4,     /**< DSMR protocol, 5.5ms frame rate (ultra-low latency) */
 } BIND_STATUS;
 
 //      7.4 Parameter Configuration
@@ -133,46 +317,98 @@ typedef enum
 #define SRXL_CTRL_CMD_VTX           (0x02)
 #define SRXL_CTRL_CMD_FWDPGM        (0x03)
 
+/**
+ * @enum SRXL_CMD
+ * @brief SRXL2 Command Types
+ * 
+ * @details Command identifiers used throughout the SRXL protocol for different
+ *          packet types and operations. These are used internally by the protocol
+ *          engine to route and process different message types.
+ */
 typedef enum
 {
-    SRXL_CMD_NONE,
-    SRXL_CMD_CHANNEL,
-    SRXL_CMD_CHANNEL_FS,
-    SRXL_CMD_VTX,
-    SRXL_CMD_FWDPGM,
-    SRXL_CMD_RSSI,
-    SRXL_CMD_HANDSHAKE,
-    SRXL_CMD_TELEMETRY,
-    SRXL_CMD_ENTER_BIND,
-    SRXL_CMD_REQ_BIND,
-    SRXL_CMD_SET_BIND,
-    SRXL_CMD_BIND_INFO,
+    SRXL_CMD_NONE,          /**< No command / idle state */
+    SRXL_CMD_CHANNEL,       /**< RC channel data packet */
+    SRXL_CMD_CHANNEL_FS,    /**< Failsafe channel data packet */
+    SRXL_CMD_VTX,           /**< Video transmitter control command */
+    SRXL_CMD_FWDPGM,        /**< Forward programming data */
+    SRXL_CMD_RSSI,          /**< Signal quality / RSSI report */
+    SRXL_CMD_HANDSHAKE,     /**< Device handshake / discovery */
+    SRXL_CMD_TELEMETRY,     /**< Telemetry data packet */
+    SRXL_CMD_ENTER_BIND,    /**< Enter bind mode command */
+    SRXL_CMD_REQ_BIND,      /**< Request bind status */
+    SRXL_CMD_SET_BIND,      /**< Set bind configuration */
+    SRXL_CMD_BIND_INFO,     /**< Bind information report */
 } SRXL_CMD;
 
-// VTX Band
+/**
+ * @defgroup SRXL_VTX Video Transmitter Control Parameters
+ * @brief VTX configuration values for frequency, power, and operating mode
+ * 
+ * @details Video transmitter control allows the flight controller to configure
+ *          FPV video TX settings via the RC receiver. Parameters include:
+ *          - Band and channel selection (determines RF frequency)
+ *          - Power level (from off to 600mW+)
+ *          - Pit mode (reduced power for bench testing)
+ *          - Regional power limits (US vs EU regulations)
+ * 
+ * @note VTX commands are sent when srxlSetVtxData() is called and processed
+ *       by the receiver, which forwards them to the VTX device.
+ * @{
+ */
+
+/** @brief Fatshark band (5740-5905 MHz in 8 channels) */
 #define VTX_BAND_FATSHARK   (0)
+
+/** @brief Raceband (5658-5917 MHz in 8 channels, popular for racing) */
 #define VTX_BAND_RACEBAND   (1)
+
+/** @brief E-Band (5705-5885 MHz in 8 channels) */
 #define VTX_BAND_E_BAND     (2)
+
+/** @brief B-Band (Boscam B, 5733-5885 MHz in 8 channels) */
 #define VTX_BAND_B_BAND     (3)
+
+/** @brief A-Band (Boscam A, 5865-5905 MHz in 8 channels) */
 #define VTX_BAND_A_BAND     (4)
 
-// VTX Pit Mode
+/** @brief Race mode - normal transmit power */
 #define VTX_MODE_RACE   (0)
+
+/** @brief Pit mode - reduced power for bench testing (typically <25mW) */
 #define VTX_MODE_PIT    (1)
 
-// VTX Power
+/** @brief VTX off (no transmission) */
 #define VTX_POWER_OFF           (0)
+
+/** @brief Power range: 1mW to 14mW */
 #define VTX_POWER_1MW_14MW      (1)
+
+/** @brief Power range: 15mW to 25mW */
 #define VTX_POWER_15MW_25MW     (2)
+
+/** @brief Power range: 26mW to 99mW */
 #define VTX_POWER_26MW_99MW     (3)
+
+/** @brief Power range: 100mW to 299mW */
 #define VTX_POWER_100MW_299MW   (4)
+
+/** @brief Power range: 300mW to 600mW */
 #define VTX_POWER_300MW_600MW   (5)
+
+/** @brief Power: 601mW and above (high power, check local regulations) */
 #define VTX_POWER_601_PLUS      (6)
+
+/** @brief Manual power control (VTX-specific) */
 #define VTX_POWER_MANUAL        (7)
 
-// VTX Region
+/** @brief US region power limits (typically higher power allowed) */
 #define VTX_REGION_US   (0)
+
+/** @brief EU region power limits (typically 25mW limit) */
 #define VTX_REGION_EU   (1)
+
+/** @} */ // end of SRXL_VTX
 
 // Forward Programming Pass-Thru
 #define FWD_PGM_MAX_DATA_SIZE   (64)
@@ -188,71 +424,132 @@ typedef enum
 #define PACKED
 #endif
 
-// Spektrum SRXL header
+/**
+ * @struct SrxlHeader
+ * @brief SRXL2 Packet Header
+ * 
+ * @details Every SRXL2 packet begins with this 3-byte header identifying
+ *          the protocol version, packet type, and total packet length.
+ */
 typedef struct SrxlHeader
 {
-    uint8_t srxlID;     // Always 0xA6 for SRXL2
-    uint8_t packetType;
-    uint8_t length;
+    uint8_t srxlID;         /**< Protocol ID - always 0xA6 for SRXL version 2 */
+    uint8_t packetType;     /**< Packet type identifier (handshake, control, telemetry, etc.) */
+    uint8_t length;         /**< Total packet length in bytes including header and CRC */
 } PACKED SrxlHeader;
 
-// Handshake
+/**
+ * @struct SrxlHandshakeData
+ * @brief Handshake Packet Payload
+ * 
+ * @details Exchanged during device discovery phase. Devices negotiate baud rates,
+ *          exchange capabilities, and establish telemetry priorities.
+ * 
+ * @note The uid field should be randomly generated or derived from device serial number
+ *       to enable detection of address conflicts (two devices with same deviceID).
+ */
 typedef struct SrxlHandshakeData
 {
-    uint8_t     srcDevID;
-    uint8_t     destDevID;
-    uint8_t     priority;
-    uint8_t     baudSupported;  // 0 = 115200, 1 = 400000 (See SRXL_BAUD_xxx definitions above)
-    uint8_t     info;           // See SRXL_DEVINFO_xxx definitions above for defined bits
-    uint32_t    uid;            // Unique/random id to allow detection of two devices on bus with same deviceID
+    uint8_t     srcDevID;       /**< Source device ID (type in upper nibble, instance in lower) */
+    uint8_t     destDevID;      /**< Destination device ID (0xFF for broadcast during discovery) */
+    uint8_t     priority;       /**< Telemetry priority (0-99, lower is higher priority) */
+    uint8_t     baudSupported;  /**< Supported baud rates bitmask: 0x00=115200 bps, 0x01=400000 bps */
+    uint8_t     info;           /**< Capability flags - see SRXL_DEVINFO_xxx definitions */
+    uint32_t    uid;            /**< Unique device identifier for conflict detection */
 } PACKED SrxlHandshakeData;
 
+/**
+ * @struct SrxlHandshakePacket
+ * @brief Complete Handshake Packet
+ * 
+ * @details Full handshake packet including header, payload, and CRC-16.
+ *          Sent during initialization to discover devices and negotiate bus parameters.
+ * 
+ * @warning Must be sent within 50ms of bus initialization or brown-out recovery.
+ *          Delays will cause handshake timeout and initialization failure.
+ */
 typedef struct SrxlHandshakePacket
 {
-    SrxlHeader          hdr;
-    SrxlHandshakeData   payload;
-    uint16_t            crc;
+    SrxlHeader          hdr;        /**< Packet header with SRXL_HANDSHAKE_ID */
+    SrxlHandshakeData   payload;    /**< Handshake data payload */
+    uint16_t            crc;        /**< CRC-16 checksum of packet (header + payload) */
 } PACKED SrxlHandshakePacket;
 
-// Bind
+/**
+ * @struct SrxlBindData
+ * @brief Bind Configuration Data
+ * 
+ * @details Contains bind type (DSM protocol variant), options, transmitter GUID,
+ *          and receiver UID for establishing RF link between TX and RX.
+ */
 typedef struct SrxlBindData
 {
-    uint8_t     type;
-    uint8_t     options;
-    uint64_t    guid;
-    uint32_t    uid;
+    uint8_t     type;       /**< Bind type - see BIND_STATUS enum for protocol types */
+    uint8_t     options;    /**< Bind options - see SRXL_BIND_OPT_xxx flags */
+    uint64_t    guid;       /**< Transmitter GUID (globally unique identifier) */
+    uint32_t    uid;        /**< Receiver UID for identification */
 } PACKED SrxlBindData;
 
+/**
+ * @struct SrxlBindPacket
+ * @brief Complete Bind Packet
+ * 
+ * @details Used for bind mode entry, status requests, and bind configuration.
+ *          Flight controller sends bind requests, receiver responds with status.
+ * 
+ * @note Bind procedure requires user interaction (button press on transmitter).
+ *       Allow 10-60 seconds for bind completion and provide UI feedback.
+ */
 typedef struct SrxlBindPacket
 {
-    SrxlHeader      hdr;
-    uint8_t         request;
-    uint8_t         deviceID;
-    SrxlBindData    data;
-    uint16_t        crc;
+    SrxlHeader      hdr;        /**< Packet header with SRXL_BIND_ID */
+    uint8_t         request;    /**< Request type - see SRXL_BIND_REQ_xxx definitions */
+    uint8_t         deviceID;   /**< Target device ID for bind command */
+    SrxlBindData    data;       /**< Bind configuration data */
+    uint16_t        crc;        /**< CRC-16 checksum */
 } PACKED SrxlBindPacket;
 
-// Telemetry
+/**
+ * @struct SrxlTelemetryData
+ * @brief Telemetry Sensor Data Payload
+ * 
+ * @details Contains sensor data in Spektrum telemetry format. The 16-byte payload
+ *          includes sensor ID, secondary ID, and 14 bytes of sensor-specific data.
+ *          Sensor data format varies by sensor type (GPS, voltage, current, etc.).
+ * 
+ * @note Integrators must implement srxlFillTelemetry() callback to populate this
+ *       structure with sensor data when telemetry is requested by the receiver.
+ */
 typedef struct SrxlTelemetryData
 {
     union
     {
         struct
         {
-            uint8_t sensorID;
-            uint8_t secondaryID;
-            uint8_t data[14];
+            uint8_t sensorID;       /**< Spektrum sensor ID (determines data format) */
+            uint8_t secondaryID;    /**< Secondary sensor identifier (instance number) */
+            uint8_t data[14];       /**< Sensor-specific data payload (14 bytes) */
         };
-        uint8_t raw[16];
+        uint8_t raw[16];            /**< Raw 16-byte telemetry payload */
     };
 } PACKED SrxlTelemetryData;
 
+/**
+ * @struct SrxlTelemetryPacket
+ * @brief Complete Telemetry Packet
+ * 
+ * @details Flight controller or other device sends telemetry when polled by receiver.
+ *          Telemetry is transmitted back to the transmitter over the RF link.
+ * 
+ * @note Telemetry packets are sent in response to receiver polling based on
+ *       the telemetry priority negotiated during handshake.
+ */
 typedef struct SrxlTelemetryPacket
 {
-    SrxlHeader          hdr;
-    uint8_t             destDevID;
-    SrxlTelemetryData   payload;
-    uint16_t            crc;
+    SrxlHeader          hdr;        /**< Packet header with SRXL_TELEM_ID */
+    uint8_t             destDevID;  /**< Destination device ID (typically receiver) */
+    SrxlTelemetryData   payload;    /**< Telemetry sensor data */
+    uint16_t            crc;        /**< CRC-16 checksum */
 } PACKED SrxlTelemetryPacket;
 
 // Signal Quality
@@ -278,32 +575,63 @@ typedef struct SrxlParamPacket
     uint16_t    crc;
 } PACKED SrxlParamPacket;
 
-// VTX Data
+/**
+ * @struct SrxlVtxData
+ * @brief Video Transmitter Configuration Data
+ * 
+ * @details Complete VTX configuration including frequency band/channel, power level,
+ *          pit mode, and regional power limits. Sent to receiver which forwards to VTX.
+ * 
+ * @note Band and channel determine RF frequency: freq_MHz = base_freq + (channel * spacing)
+ *       Power level affects range and battery consumption. Pit mode is for bench testing.
+ * 
+ * @warning Check local regulations for maximum allowed transmit power in your region.
+ *          EU typically limits to 25mW, US allows higher power levels.
+ */
 typedef struct SrxlVtxData
 {
-    uint8_t band;       // VTX Band (0 = Fatshark, 1 = Raceband, 2 = E, 3 = B, 4 = A)
-    uint8_t channel;    // VTX Channel (0-7)
-    uint8_t pit;        // Pit/Race mode (0 = Race, 1 = Pit). Race = normal power, Pit = reduced power
-    uint8_t power;      // VTX Power (0 = Off, 1 = 1mw to 14mW, 2 = 15mW to 25mW, 3 = 26mW to 99mW,
-                        // 4 = 100mW to 299mW, 5 = 300mW to 600mW, 6 = 601mW+, 7 = manual control)
-    uint16_t powerDec;  // VTX Power as a decimal 1mw/unit
-    uint8_t region;     // Region (0 = USA, 1 = EU)
+    uint8_t band;           /**< VTX band: 0-4 (Fatshark/Raceband/E/B/A) */
+    uint8_t channel;        /**< VTX channel: 0-7 (8 channels per band) */
+    uint8_t pit;            /**< Pit mode: 0=Race (normal power), 1=Pit (reduced power <25mW) */
+    uint8_t power;          /**< Power level: 0-7 (see VTX_POWER_xxx definitions) */
+    uint16_t powerDec;      /**< Power in milliwatts (1mW units, for precise control) */
+    uint8_t region;         /**< Region: 0=US (higher power), 1=EU (25mW limit) */
 } PACKED SrxlVtxData;
 
-// Forward Programming Data
+/**
+ * @struct SrxlFwdPgmData
+ * @brief Forward Programming Passthrough Data
+ * 
+ * @details Used to pass configuration data through the SRXL bus to a device,
+ *          typically for firmware updates or parameter configuration.
+ */
 typedef struct SrxlFwdPgmData
 {
-    uint8_t rfu[3];     // 0 for now -- used to word-align data
-    uint8_t data[FWD_PGM_MAX_DATA_SIZE];
+    uint8_t rfu[3];                         /**< Reserved for future use (padding for alignment) */
+    uint8_t data[FWD_PGM_MAX_DATA_SIZE];    /**< Forward programming data payload (64 bytes max) */
 } PACKED SrxlFwdPgmData;
 
-// Channel Data
+/**
+ * @struct SrxlChannelData
+ * @brief RC Channel Data Packet Payload
+ * 
+ * @details Contains up to 32 RC channel values with signal quality information.
+ *          Channel values are 16-bit with 32768 as center position.
+ *          The mask field indicates which channels are present in the packet.
+ * 
+ * @note Channel values are in 16-bit range: 0-65535, center=32768
+ *       To convert to microseconds: us = 988 + (value >> 1) / 1.6384
+ *       Typical range: 1000-2000 microseconds with 1500 as center
+ * 
+ * @warning Integrators must implement srxlReceivedChannelData() callback to
+ *          process channel values when received from receiver.
+ */
 typedef struct SrxlChannelData
 {
-    int8_t    rssi;         // Best RSSI when sending channel data, or dropout RSSI when sending failsafe data
-    uint16_t  frameLosses;  // Total lost frames (or fade count when sent from Remote Rx to main Receiver)
-    uint32_t  mask;         // Set bits indicate that channel data with the corresponding index is present
-    uint16_t  values[32];   // Channel values, shifted to full 16-bit range (32768 = mid-scale); lowest 2 bits RFU
+    int8_t    rssi;             /**< Signal strength: RSSI in dBm (negative value) or percentage */
+    uint16_t  frameLosses;      /**< Total frame losses since power-on or fade count */
+    uint32_t  mask;             /**< Channel presence bitmask: bit N set = channel N present */
+    uint16_t  values[32];       /**< Channel values 0-65535 (32768=center, lower 2 bits reserved) */
 } PACKED SrxlChannelData;
 
 // Control Data
@@ -388,19 +716,32 @@ extern SrxlVtxData srxlVtxData;
 #define RSSI_RCVD_PCT   (2)
 #define RSSI_RCVD_BOTH  (3)
 
-// Internal types
+/**
+ * @enum SrxlState
+ * @brief SRXL2 Protocol State Machine States
+ * 
+ * @details The SRXL protocol engine operates as a state machine progressing through
+ *          initialization, discovery, and operational states. States control timing
+ *          of handshake exchanges, telemetry polling, and special operations.
+ * 
+ * @note State transitions are driven by srxlRun() which must be called periodically
+ *       (typically every 1ms) to advance the protocol state machine.
+ * 
+ * @warning Timing of state transitions is critical for proper handshake completion.
+ *          Handshake phase must complete within 200ms of bus initialization.
+ */
 typedef enum
 {
-    SrxlState_Disabled,             // Default state before initialized or if bus is subsequently disabled
-    SrxlState_ListenOnStartup,      // Wait 50ms to see if anything is already talking (i.e. we probably browned out)
-    SrxlState_SendHandshake,        // Call when handshake should be sent every 50ms
-    SrxlState_ListenForHandshake,   // Wait at least 150ms more for handshake request
-    SrxlState_Running,              // Normal run state
-    SrxlState_SendTelemetry,        // Send telemetry reply when requested
-    SrxlState_SendVTX,              // Send VTX packet when needed
-    SrxlState_SendEnterBind,
-    SrxlState_SendBoundDataReport,
-    SrxlState_SendSetBindInfo,
+    SrxlState_Disabled,             /**< Bus disabled (before init or after shutdown) */
+    SrxlState_ListenOnStartup,      /**< Listen 50ms to detect existing traffic (brown-out recovery) */
+    SrxlState_SendHandshake,        /**< Send handshake packets every 50ms during discovery */
+    SrxlState_ListenForHandshake,   /**< Listen 150ms for handshake responses from other devices */
+    SrxlState_Running,              /**< Normal operational state (processing channel/telemetry data) */
+    SrxlState_SendTelemetry,        /**< Transmit telemetry response when polled by receiver */
+    SrxlState_SendVTX,              /**< Transmit VTX configuration packet */
+    SrxlState_SendEnterBind,        /**< Transmit bind entry command */
+    SrxlState_SendBoundDataReport,  /**< Transmit bound data report after successful bind */
+    SrxlState_SendSetBindInfo,      /**< Transmit bind confirmation with GUID */
 } SrxlState;
 
 //#ifdef SRXL_IS_HUB
@@ -493,23 +834,413 @@ typedef struct SrxlDevice
 } SrxlDevice;
 
 
-// Function prototypes
+/**
+ * @defgroup SRXL_API SRXL2 Library API Functions
+ * @brief Public API for SRXL2 protocol initialization and operation
+ * @{
+ */
+
+/**
+ * @brief Initialize SRXL device parameters
+ * 
+ * @details Sets device type, telemetry priority, capabilities, and unique ID.
+ *          Must be called once before initializing any buses.
+ * 
+ * @param[in] deviceID Device ID combining type (upper nibble) and instance (lower nibble)
+ * @param[in] priority Telemetry priority 0-99 (lower value = higher priority, 0 = highest)
+ * @param[in] info Device capability flags - see SRXL_DEVINFO_xxx definitions
+ * @param[in] uid Unique device identifier (random or hash of serial number)
+ * 
+ * @return true if initialization successful, false on error
+ * 
+ * @note Call this before srxlInitBus(). Device parameters are shared across all buses.
+ */
 bool srxlInitDevice(uint8_t deviceID, uint8_t priority, uint8_t info, uint32_t uid);
+
+/**
+ * @brief Initialize an SRXL bus
+ * 
+ * @details Initializes state machine, assigns UART, and sets supported baud rates.
+ *          After initialization, call srxlRun() periodically to advance the protocol.
+ * 
+ * @param[in] busIndex Bus index 0 to SRXL_NUM_OF_BUSES-1
+ * @param[in] uart UART hardware index for this bus (platform-specific)
+ * @param[in] baudSupported Bitmask of supported baud rates (SRXL_BAUD_115200 | SRXL_BAUD_400000)
+ * 
+ * @return true if initialization successful, false on error
+ * 
+ * @warning After calling, immediately start calling srxlRun() at 1ms intervals.
+ *          Handshake phase begins and timing is critical for discovery.
+ * 
+ * @note Must call srxlInitDevice() first to set device parameters.
+ */
 bool srxlInitBus(uint8_t busIndex, uint8_t uart, uint8_t baudSupported);
+
+/**
+ * @brief Check if this device is the bus master on specified bus
+ * 
+ * @param[in] busIndex Bus index to query
+ * @return true if this device is bus master, false otherwise
+ * 
+ * @note Bus master is determined during handshake based on device priorities.
+ */
 bool srxlIsBusMaster(uint8_t busIndex);
+
+/**
+ * @brief Get time since last valid SRXL packet received
+ * 
+ * @param[in] busIndex Bus index to query
+ * @return Timeout count in milliseconds
+ * 
+ * @note Use to detect loss of communication with receiver. Typical frame interval is 11-22ms.
+ */
 uint16_t srxlGetTimeoutCount_ms(uint8_t busIndex);
+
+/**
+ * @brief Get device ID for this device on specified bus
+ * 
+ * @param[in] busIndex Bus index to query
+ * @return Device ID (type in upper nibble, instance in lower nibble)
+ */
 uint8_t srxlGetDeviceID(uint8_t busIndex);
+
+/**
+ * @brief Parse received SRXL packet
+ * 
+ * @details Call this function when bytes are received on UART. Parses packet,
+ *          validates CRC, and triggers appropriate callbacks (channel data, VTX, bind, etc.).
+ * 
+ * @param[in] busIndex Bus index receiving the packet
+ * @param[in] packet Pointer to received packet buffer
+ * @param[in] length Length of received packet in bytes
+ * 
+ * @return true if packet valid and processed, false if CRC error or invalid packet
+ * 
+ * @warning Must be called promptly when UART data is received to maintain timing.
+ *          Delays in packet processing can cause handshake or telemetry failures.
+ * 
+ * @note This function will invoke integrator callbacks:
+ *       - srxlReceivedChannelData() for channel data packets
+ *       - srxlOnVtx() for VTX control packets
+ *       - srxlOnBind() for bind-related packets
+ */
 bool srxlParsePacket(uint8_t busIndex, uint8_t *packet, uint8_t length);
+
+/**
+ * @brief Run SRXL protocol state machine
+ * 
+ * @details Advances protocol state machine, handles timing, sends periodic packets.
+ *          MUST be called periodically (every 1ms recommended) to maintain protocol timing.
+ * 
+ * @param[in] busIndex Bus index to service
+ * @param[in] timeoutDelta_ms Milliseconds elapsed since last call (typically 1)
+ * 
+ * @warning TIMING-CRITICAL: Must be called at regular intervals without large gaps.
+ *          Irregular calling or delays >50ms during handshake will cause init failure.
+ *          During normal operation, delays affect telemetry timing and failsafe detection.
+ * 
+ * @note This function may invoke srxlSendOnUart() callback to transmit packets.
+ */
 void srxlRun(uint8_t busIndex, int16_t timeoutDelta_ms);
+
+/**
+ * @brief Request receiver to enter bind mode
+ * 
+ * @details Sends bind entry command to receiver. User must then initiate bind on transmitter.
+ * 
+ * @param[in] bindType Desired bind type (see BIND_STATUS enum for protocol options)
+ * @param[in] broadcast true to broadcast to all receivers, false for specific receiver
+ * 
+ * @return true if bind request sent successfully, false on error
+ * 
+ * @note After calling, allow 10-60 seconds for user to initiate transmitter bind.
+ *       Provide clear UI feedback indicating bind mode is active.
+ *       Monitor for srxlOnBind() callback indicating bind completion or failure.
+ */
 bool srxlEnterBind(uint8_t bindType, bool broadcast);
+
+/**
+ * @brief Set bind information after successful bind
+ * 
+ * @details Confirms bind with transmitter GUID and receiver UID.
+ * 
+ * @param[in] bindType Bind type (DSM protocol variant)
+ * @param[in] guid Transmitter GUID from bind process
+ * @param[in] uid Receiver UID
+ * 
+ * @return true if bind info set successfully, false on error
+ */
 bool srxlSetBindInfo(uint8_t bindType, uint64_t guid, uint32_t uid);
+
+/**
+ * @brief Notify protocol of frame error or loss
+ * 
+ * @param[in] busIndex Bus index experiencing frame error
+ * 
+ * @note Call when expected frame is not received within timeout period.
+ *       Used for failsafe detection and signal quality tracking.
+ */
 void srxlOnFrameError(uint8_t busIndex);
+
+/**
+ * @brief Get current telemetry endpoint (receiver requesting telemetry)
+ * 
+ * @return Full device ID of telemetry endpoint (device ID + bus index)
+ * 
+ * @note Use to determine which receiver is currently polling for telemetry.
+ */
 SrxlFullID srxlGetTelemetryEndpoint(void);
+
+/**
+ * @brief Set VTX configuration data to be transmitted
+ * 
+ * @details Queues VTX configuration for transmission to receiver/VTX.
+ *          Packet will be sent on next protocol cycle via srxlRun().
+ * 
+ * @param[in] pVtxData Pointer to VTX configuration data
+ * 
+ * @return true if VTX data queued successfully, false on error
+ * 
+ * @note VTX parameters: band (0-4), channel (0-7), power (0-7), pit mode (0-1)
+ *       See VTX_BAND_xxx, VTX_POWER_xxx, VTX_MODE_xxx definitions for valid values.
+ * 
+ * @warning Check local regulations for maximum transmit power limits before setting power level.
+ */
 bool srxlSetVtxData(SrxlVtxData *pVtxData);
+
+/**
+ * @brief Pass forward programming data through SRXL bus
+ * 
+ * @param[in] pData Pointer to forward programming data
+ * @param[in] length Length of data in bytes (max FWD_PGM_MAX_DATA_SIZE = 64)
+ * 
+ * @return true if data queued successfully, false on error
+ */
 bool srxlPassThruFwdPgm(uint8_t *pData, uint8_t length);
+
+/**
+ * @brief Set frame loss threshold for hold detection
+ * 
+ * @param[in] countdownReset Number of consecutive frame losses required for hold state
+ * 
+ * @note Default is typically 45 consecutive frames (1 second at 22ms frame rate).
+ */
 void srxlSetHoldThreshold(uint8_t countdownReset);
+
+/**
+ * @brief Clear communication statistics (frame losses, holds, RSSI)
+ */
 void srxlClearCommStats(void);
+
+/**
+ * @brief Update communication statistics with current frame status
+ * 
+ * @param[in] isFade true if current frame is lost/faded, false if received OK
+ * @return true if statistics updated, false on error
+ */
 bool srxlUpdateCommStats(bool isFade);
+
+/** @} */ // end of SRXL_API
+
+/**
+ * @defgroup SRXL_Integrator_Callbacks Required Integrator Callback Functions
+ * @brief Functions that MUST be implemented by the integrator application
+ * 
+ * @details These callback functions are invoked by the SRXL library and must be provided
+ *          by the integrator to handle platform-specific operations and application logic.
+ * 
+ * @warning ALL callback functions listed here MUST be implemented. Missing callbacks
+ *          will cause link errors. Callbacks must execute quickly without blocking.
+ * 
+ * @{
+ */
+
+/**
+ * @brief Change UART baud rate (REQUIRED CALLBACK)
+ * 
+ * @details Integrator must implement this function to change the UART baud rate.
+ *          Called during handshake negotiation when higher baud rate is available.
+ * 
+ * @param[in] busIndex SRXL bus index (maps to UART instance)
+ * @param[in] baudRate Baud rate: 0=115200 bps, 1=400000 bps
+ * 
+ * @return true if baud rate change successful, false on error
+ * 
+ * @warning TIMING-CRITICAL: Baud rate change must complete within 50ms.
+ *          During baud rate transition, no packets should be sent/received.
+ *          Flush UART buffers before and after baud rate change.
+ * 
+ * @note Typical implementation:
+ *       1. Wait for TX buffer to empty
+ *       2. Change UART baud rate
+ *       3. Flush RX buffer
+ *       4. Return true if successful
+ * 
+ * @code
+ * bool srxlChangeBaudRate(uint8_t busIndex, uint8_t baudRate) {
+ *     uint32_t baud = (baudRate == SRXL_BAUD_400000) ? 400000 : 115200;
+ *     uart_set_baudrate(busIndex, baud);
+ *     uart_flush_rx(busIndex);
+ *     return true;
+ * }
+ * @endcode
+ */
+// bool srxlChangeBaudRate(uint8_t busIndex, uint8_t baudRate);
+
+/**
+ * @brief Transmit data on UART (REQUIRED CALLBACK)
+ * 
+ * @details Integrator must implement this function to send SRXL packets on UART.
+ *          Called by protocol engine when packets need to be transmitted.
+ * 
+ * @param[in] busIndex SRXL bus index (maps to UART instance)
+ * @param[in] pBuffer Pointer to data buffer to transmit
+ * @param[in] length Number of bytes to transmit
+ * 
+ * @return true if transmission initiated successfully, false on error
+ * 
+ * @warning Must execute quickly without blocking. Use interrupt-driven or DMA transmission.
+ *          Ensure previous transmission is complete before starting new transmission.
+ * 
+ * @note Typical implementation uses UART TX interrupt or DMA:
+ * 
+ * @code
+ * bool srxlSendOnUart(uint8_t busIndex, uint8_t *pBuffer, uint8_t length) {
+ *     return uart_transmit_dma(busIndex, pBuffer, length);
+ * }
+ * @endcode
+ */
+// bool srxlSendOnUart(uint8_t busIndex, uint8_t *pBuffer, uint8_t length);
+
+/**
+ * @brief Fill telemetry packet with sensor data (REQUIRED CALLBACK)
+ * 
+ * @details Integrator must implement this function to populate telemetry packet with
+ *          current sensor data. Called when receiver polls for telemetry.
+ * 
+ * @param[in]  destDevID Destination device ID (receiver requesting telemetry)
+ * @param[out] pTelemetryData Pointer to telemetry data structure to fill
+ * 
+ * @return true if telemetry data provided, false if no data available
+ * 
+ * @note Telemetry data format follows Spektrum telemetry specification.
+ *       Common sensor IDs: GPS, voltage, current, altitude, temperature, etc.
+ *       Fill sensorID, secondaryID, and 14-byte data payload.
+ * 
+ * @warning Must execute quickly (<1ms). Do not perform sensor reads in this callback;
+ *          use cached sensor data that is updated in background tasks.
+ * 
+ * @code
+ * bool srxlFillTelemetry(uint8_t destDevID, SrxlTelemetryData *pTelemetryData) {
+ *     pTelemetryData->sensorID = TELEM_SENSOR_VOLTAGE;
+ *     pTelemetryData->secondaryID = 0;
+ *     // Fill data[0-13] with sensor-specific format
+ *     uint16_t voltage_mv = get_cached_battery_voltage();
+ *     pTelemetryData->data[0] = voltage_mv >> 8;
+ *     pTelemetryData->data[1] = voltage_mv & 0xFF;
+ *     return true;
+ * }
+ * @endcode
+ */
+// bool srxlFillTelemetry(uint8_t destDevID, SrxlTelemetryData *pTelemetryData);
+
+/**
+ * @brief Process received RC channel data (REQUIRED CALLBACK)
+ * 
+ * @details Integrator must implement this function to handle RC channel values.
+ *          Called when channel data packet is received from receiver.
+ * 
+ * @param[in] pChannelData Pointer to channel data structure with values and metadata
+ * @param[in] isFailsafe true if this is failsafe channel data, false for normal data
+ * 
+ * @return true if channel data processed, false on error
+ * 
+ * @note Channel values are 16-bit: 0-65535, with 32768 as center position.
+ *       Convert to microseconds: us = 988 + (value / 1.6384) or use right-shift approximation.
+ *       Typical servo range: 1000-2000 µs with 1500 µs center.
+ * 
+ * @warning Must execute quickly (<1ms). Pass channel data to flight control tasks;
+ *          do not perform heavy processing in this callback.
+ * 
+ * @code
+ * bool srxlReceivedChannelData(SrxlChannelData *pChannelData, bool isFailsafe) {
+ *     for (int i = 0; i < 16; i++) {
+ *         if (pChannelData->mask & (1 << i)) {
+ *             uint16_t value_us = 988 + (pChannelData->values[i] >> 1) / 1.6384;
+ *             rc_channel_update(i, value_us);
+ *         }
+ *     }
+ *     return true;
+ * }
+ * @endcode
+ */
+// bool srxlReceivedChannelData(SrxlChannelData *pChannelData, bool isFailsafe);
+
+/**
+ * @brief Handle bind mode events (REQUIRED CALLBACK)
+ * 
+ * @details Integrator must implement this function to handle bind-related events.
+ *          Called when bind mode is entered, bind completes, or bind info is received.
+ * 
+ * @param[in] cmd Bind command type (SRXL_CMD_ENTER_BIND, SRXL_CMD_SET_BIND, etc.)
+ * @param[in] pBindData Pointer to bind data (may be NULL for some commands)
+ * 
+ * @return true if bind event handled, false on error
+ * 
+ * @note Provide user feedback when entering bind mode (LED blinking, UI message, etc.).
+ *       Bind process typically takes 10-60 seconds for user to activate transmitter bind.
+ * 
+ * @code
+ * bool srxlOnBind(SRXL_CMD cmd, SrxlBindData *pBindData) {
+ *     switch (cmd) {
+ *         case SRXL_CMD_ENTER_BIND:
+ *             led_blink_fast();  // Visual feedback
+ *             ui_display_message("Bind Mode Active");
+ *             break;
+ *         case SRXL_CMD_SET_BIND:
+ *             led_solid();
+ *             ui_display_message("Bind Complete");
+ *             save_bind_data(pBindData);
+ *             break;
+ *     }
+ *     return true;
+ * }
+ * @endcode
+ */
+// bool srxlOnBind(SRXL_CMD cmd, SrxlBindData *pBindData);
+
+/**
+ * @brief Handle VTX control commands (REQUIRED CALLBACK)
+ * 
+ * @details Integrator must implement this function to handle VTX configuration commands.
+ *          Called when VTX control packet is received (typically forwarded by receiver).
+ * 
+ * @param[in] pVtxData Pointer to VTX configuration data
+ * 
+ * @return true if VTX command processed, false on error
+ * 
+ * @note If device is VTX proxy (vtxProxy flag set), forward command to actual VTX hardware.
+ *       VTX configuration includes band, channel, power, pit mode, and region.
+ * 
+ * @warning Verify power level complies with local regulations before applying.
+ *          EU typically limits to 25mW, US allows higher power.
+ * 
+ * @code
+ * bool srxlOnVtx(SrxlVtxData *pVtxData) {
+ *     if (device_is_vtx_proxy) {
+ *         vtx_set_band(pVtxData->band);
+ *         vtx_set_channel(pVtxData->channel);
+ *         vtx_set_power(pVtxData->powerDec);
+ *         vtx_set_pit_mode(pVtxData->pit);
+ *         return true;
+ *     }
+ *     return false;
+ * }
+ * @endcode
+ */
+// bool srxlOnVtx(SrxlVtxData *pVtxData);
+
+/** @} */ // end of SRXL_Integrator_Callbacks
 
 #ifdef __cplusplus
 } // extern "C"

@@ -34,114 +34,114 @@ namespace SITL {
 // user settable parameters for GNSS sensors
 const AP_Param::GroupInfo SIM::GPSParms::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: GPS enable
     // @Description: Enable simulated GPS
     // @Values: 0:Disable, 1:Enable
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE",    1, GPSParms, enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: LAG_MS
+    // `@Param`: LAG_MS
     // @DisplayName: GPS Lag
     // @Description: GPS lag
     // @Units: ms
     // @User: Advanced
     AP_GROUPINFO("LAG_MS",     2, GPSParms, delay_ms, 100),
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: GPS type
     // @Description: Sets the type of simulation used for GPS
     // @Values: 0:None, 1:UBlox, 5:NMEA, 6:SBP, 7:File, 8:Nova, 9:SBP2, 11:Trimble, 19:MSP
     // @User: Advanced
     AP_GROUPINFO("TYPE",       3, GPSParms, type,  GPS::Type::UBLOX),
 
-    // @Param: BYTELOS
+    // `@Param`: BYTELOS
     // @DisplayName: GPS Byteloss
     // @Description: Percent of bytes lost from GPS
     // @Units: %
     // @User: Advanced
     AP_GROUPINFO("BYTELOS",   4, GPSParms, byteloss,  0),
 
-    // @Param: NUMSATS
+    // `@Param`: NUMSATS
     // @DisplayName: GPS Num Satellites
     // @Description: Number of satellites GPS has in view
     AP_GROUPINFO("NUMSATS",    5, GPSParms, numsats,   10),
 
-    // @Param: GLTCH
+    // `@Param`: GLTCH
     // @DisplayName: GPS Glitch
     // @Description: Glitch offsets of simulated GPS sensor
     // @Vector3Parameter: 1
     // @User: Advanced
     AP_GROUPINFO("GLTCH",     6, GPSParms, glitch,  0),
 
-    // @Param: HZ
+    // `@Param`: HZ
     // @DisplayName: GPS Hz
     // @Description: GPS Update rate
     // @Units: Hz
     AP_GROUPINFO("HZ",         7, GPSParms, hertz,  5),
 
-    // @Param: DRFTALT
+    // `@Param`: DRFTALT
     // @DisplayName: GPS Altitude Drift
     // @Description: GPS altitude drift error
     // @Units: m
     // @User: Advanced
     AP_GROUPINFO("DRFTALT",   8, GPSParms, drift_alt, 0),
 
-    // @Param: POS
+    // `@Param`: POS
     // @DisplayName: GPS Position
     // @Description: GPS antenna phase center position relative to the body frame origin
     // @Units: m
     // @Vector3Parameter: 1
     AP_GROUPINFO("POS",        9, GPSParms, pos_offset, 0),
 
-    // @Param: NOISE
+    // `@Param`: NOISE
     // @DisplayName: GPS Noise
     // @Description: Amplitude of the GPS altitude error
     // @Units: m
     // @User: Advanced
     AP_GROUPINFO("NOISE",     10, GPSParms, noise, 0),
 
-    // @Param: LCKTIME
+    // `@Param`: LCKTIME
     // @DisplayName: GPS Lock Time
     // @Description: Delay in seconds before GPS acquires lock
     // @Units: s
     // @User: Advanced
     AP_GROUPINFO("LCKTIME",  11, GPSParms, lock_time, 0),
 
-    // @Param: ALT_OFS
+    // `@Param`: ALT_OFS
     // @DisplayName: GPS Altitude Offset
     // @Description: GPS Altitude Error
     // @Units: m
     AP_GROUPINFO("ALT_OFS",   12, GPSParms, alt_offset, 0),
 
-    // @Param: HDG
+    // `@Param`: HDG
     // @DisplayName: GPS Heading
     // @Description: Enable GPS output of NMEA heading HDT sentence or UBLOX_RELPOSNED
     // @Values: 0:Disabled, 1:Emit HDT, 2:Emit THS, 3:KSXT, 4:Be Moving Baseline Base
     // @User: Advanced
     AP_GROUPINFO("HDG",       13, GPSParms, hdg_enabled, SIM::GPS_HEADING_NONE),
 
-    // @Param: ACC
+    // `@Param`: ACC
     // @DisplayName: GPS Accuracy
     // @Description: GPS Accuracy
     // @User: Advanced
     AP_GROUPINFO("ACC",       14, GPSParms, accuracy, 0.3),
 
-    // @Param: VERR
+    // `@Param`: VERR
     // @DisplayName: GPS Velocity Error
     // @Description: GPS Velocity Error Offsets in NED
     // @Vector3Parameter: 1
     // @User: Advanced
     AP_GROUPINFO("VERR",      15, GPSParms, vel_err, 0),
 
-    // @Param: JAM
+    // `@Param`: JAM
     // @DisplayName: GPS jamming enable
     // @Description: Enable simulated GPS jamming
     // @User: Advanced
     // @Values: 0:Disabled, 1:Enabled
     AP_GROUPINFO("JAM",       16, GPSParms, jam, 0),
 
-    // @Param: HDG_OFS
+    // `@Param`: HDG_OFS
     // @DisplayName: GPS heading offset
     // @Description: GPS heading offset in degrees. how off the simulated GPS heading is from the actual heading
     // @User: Advanced

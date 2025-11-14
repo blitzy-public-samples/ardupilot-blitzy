@@ -93,14 +93,14 @@ static constexpr uint16_t MAX_LOG_FILES = 500;
 static constexpr uint16_t MIN_LOG_FILES = 2;
 
 const AP_Param::GroupInfo AP_Logger::var_info[] = {
-    // @Param: _BACKEND_TYPE
+    // `@Param`: _BACKEND_TYPE
     // @DisplayName: AP_Logger Backend Storage type
     // @Description: Bitmap of what Logger backend types to enable. Block-based logging is available on SITL and boards with dataflash chips. Multiple backends can be selected.
     // @Bitmask: 0:File,1:MAVLink,2:Block
     // @User: Standard
     AP_GROUPINFO("_BACKEND_TYPE",  0, AP_Logger, _params.backend_types,       uint8_t(HAL_LOGGING_BACKENDS_DEFAULT)),
 
-    // @Param: _FILE_BUFSIZE
+    // `@Param`: _FILE_BUFSIZE
     // @DisplayName: Logging File and Block Backend buffer size max (in kibibytes)
     // @Description: The File and Block backends use a buffer to store data before writing to the block device.  Raising this value may reduce "gaps" in your SD card logging but increases memory usage.  This buffer size may be reduced to free up available memory
     // @Units: KiB
@@ -108,21 +108,21 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_FILE_BUFSIZE",  1, AP_Logger, _params.file_bufsize,       HAL_LOGGING_FILE_BUFSIZE),
 
-    // @Param: _DISARMED
+    // `@Param`: _DISARMED
     // @DisplayName: Enable logging while disarmed
     // @Description: If LOG_DISARMED is set to 1 then logging will be enabled at all times including when disarmed. Logging before arming can make for very large logfiles but can help a lot when tracking down startup issues and is necessary if logging of EKF replay data is selected via the LOG_REPLAY parameter. If LOG_DISARMED is set to 2, then logging will be enabled when disarmed, but not if a USB connection is detected. This can be used to prevent unwanted data logs being generated when the vehicle is connected via USB for log downloading or parameter changes. If LOG_DISARMED is set to 3 then logging will happen while disarmed, but if the vehicle never arms then the logs using the filesystem backend will be discarded on the next boot.
     // @Values: 0:Disabled,1:Enabled,2:Disabled on USB connection,3:Discard log on reboot if never armed
     // @User: Standard
     AP_GROUPINFO("_DISARMED",  2, AP_Logger, _params.log_disarmed,       0),
 
-    // @Param: _REPLAY
+    // `@Param`: _REPLAY
     // @DisplayName: Enable logging of information needed for Replay
     // @Description: If LOG_REPLAY is set to 1 then the EKF2 and EKF3 state estimators will log detailed information needed for diagnosing problems with the Kalman filter. LOG_DISARMED must be set to 1 or 2 or else the log will not contain the pre-flight data required for replay testing of the EKF's. It is suggested that you also raise LOG_FILE_BUFSIZE to give more buffer space for logging and use a high quality microSD card to ensure no sensor data is lost.
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO("_REPLAY",  3, AP_Logger, _params.log_replay,       0),
 
-    // @Param: _FILE_DSRMROT
+    // `@Param`: _FILE_DSRMROT
     // @DisplayName: Stop logging to current file on disarm
     // @Description: When set, the current log file is closed when the vehicle is disarmed.  If LOG_DISARMED is set then a fresh log will be opened. Applies to the File and Block logging backends.
     // @Values: 0:Disabled,1:Enabled
@@ -130,7 +130,7 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     AP_GROUPINFO("_FILE_DSRMROT",  4, AP_Logger, _params.file_disarm_rot,       0),
 
 #if HAL_LOGGING_MAVLINK_ENABLED
-    // @Param: _MAV_BUFSIZE
+    // `@Param`: _MAV_BUFSIZE
     // @DisplayName: Maximum AP_Logger MAVLink Backend buffer size
     // @Description: Maximum amount of memory to allocate to AP_Logger-over-mavlink
     // @User: Advanced
@@ -138,14 +138,14 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     AP_GROUPINFO("_MAV_BUFSIZE",  5, AP_Logger, _params.mav_bufsize,       HAL_LOGGING_MAV_BUFSIZE),
 #endif
 
-    // @Param: _FILE_TIMEOUT
+    // `@Param`: _FILE_TIMEOUT
     // @DisplayName: Timeout before giving up on file writes
     // @Description: This controls the amount of time before failing writes to a log file cause the file to be closed and logging stopped.
     // @User: Standard
     // @Units: s
     AP_GROUPINFO("_FILE_TIMEOUT",  6, AP_Logger, _params.file_timeout,     HAL_LOGGING_FILE_TIMEOUT),
 
-    // @Param: _FILE_MB_FREE
+    // `@Param`: _FILE_MB_FREE
     // @DisplayName: Old logs on the SD card will be deleted to maintain this amount of free space
     // @Description: Set this such that the free space is larger than your largest typical flight log
     // @Units: MB
@@ -153,7 +153,7 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_FILE_MB_FREE",  7, AP_Logger, _params.min_MB_free, HAL_LOGGER_MIN_MB_FREE),
 
-    // @Param: _FILE_RATEMAX
+    // `@Param`: _FILE_RATEMAX
     // @DisplayName: Maximum logging rate for file backend
     // @Description: This sets the maximum rate that streaming log messages will be logged to the file backend. A value of zero means that rate limiting is disabled.
     // @Units: Hz
@@ -163,7 +163,7 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     AP_GROUPINFO("_FILE_RATEMAX",  8, AP_Logger, _params.file_ratemax, 0),
 
 #if HAL_LOGGING_MAVLINK_ENABLED
-    // @Param: _MAV_RATEMAX
+    // `@Param`: _MAV_RATEMAX
     // @DisplayName: Maximum logging rate for mavlink backend
     // @Description: This sets the maximum rate that streaming log messages will be logged to the mavlink backend. A value of zero means that rate limiting is disabled.
     // @Units: Hz
@@ -174,7 +174,7 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
 #endif
 
 #if HAL_LOGGING_BLOCK_ENABLED
-    // @Param: _BLK_RATEMAX
+    // `@Param`: _BLK_RATEMAX
     // @DisplayName: Maximum logging rate for block backend
     // @Description: This sets the maximum rate that streaming log messages will be logged to the block backend. A value of zero means that rate limiting is disabled.
     // @Units: Hz
@@ -184,7 +184,7 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     AP_GROUPINFO("_BLK_RATEMAX", 10, AP_Logger, _params.blk_ratemax, 0),
 #endif
 
-    // @Param: _DARM_RATEMAX
+    // `@Param`: _DARM_RATEMAX
     // @DisplayName: Maximum logging rate when disarmed
     // @Description: This sets the maximum rate that streaming log messages will be logged to any backend when disarmed. A value of zero means that the normal backend rate limit is applied.
     // @Units: Hz
@@ -193,7 +193,7 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_DARM_RATEMAX",  11, AP_Logger, _params.disarm_ratemax, 0),
 
-    // @Param: _MAX_FILES
+    // `@Param`: _MAX_FILES
     // @DisplayName: Maximum number of log files
     // @Description: This sets the maximum number of log file that will be written on dataflash or sd card before starting to rotate log number. Limit is capped at 500 logs.
     // @Range: 2 500

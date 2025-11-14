@@ -9,8 +9,8 @@
  *      EPM docs:    https://docs.zubax.com/opengrab_epm_v3
  */
 
-/// @file   AP_EPM.h
-/// @brief  AP_EPM control class
+/// @file   AP_Gripper_EPM.h
+/// @brief  AP_Gripper EPM (Electro-Permanent Magnet) control class
 #pragma once
 
 #include "AP_Gripper.h"

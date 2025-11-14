@@ -8,7 +8,7 @@
 
 const AP_Param::GroupInfo AP_Filter_params::var_info[] = {
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Filter Type
     // @Values: 0:Disable, 1:Notch Filter
     // @Description: Filter Type

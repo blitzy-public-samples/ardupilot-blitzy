@@ -1,7 +1,32 @@
+/**
+ * @file quadplane.h
+ * @brief QuadPlane VTOL and hybrid flight control subsystem for ArduPlane
+ * 
+ * @details This file defines the QuadPlane class which implements VTOL (Vertical Takeoff and Landing)
+ *          and hybrid fixed-wing + multicopter flight capabilities for ArduPlane. The QuadPlane
+ *          subsystem enables aircraft to combine the efficiency of fixed-wing flight with the
+ *          versatility of multicopter VTOL operations.
+ *          
+ *          The QuadPlane class manages:
+ *          - VTOL flight modes (QSTABILIZE, QHOVER, QLOITER, QLAND, QRTL, QACRO, QAUTOTUNE)
+ *          - Transitions between fixed-wing and VTOL flight
+ *          - Motor control for multicopter operations
+ *          - Attitude and position control in VTOL modes
+ *          - VTOL assist for fixed-wing flight stability
+ *          - Support for multiple aircraft configurations (standard quadplane, tilt-rotor, tailsitter)
+ * 
+ * @note Requires Q_ENABLE parameter set to 1 to activate QuadPlane functionality
+ * @note This subsystem is only compiled if HAL_QUADPLANE_ENABLED is defined
+ * 
+ * Source: ArduPlane/quadplane.h:1-749
+ */
+
 #pragma once
 
 #include <AP_HAL/AP_HAL_Boards.h>
 
+// HAL_QUADPLANE_ENABLED guards the entire QuadPlane subsystem compilation
+// When disabled, this reduces firmware size for pure fixed-wing configurations
 #ifndef HAL_QUADPLANE_ENABLED
 #define HAL_QUADPLANE_ENABLED 1
 #endif
@@ -28,8 +53,134 @@
 #include "transition.h"
 #include "VTOL_Assist.h"
 
-/*
-  QuadPlane specific functionality
+/**
+ * @class QuadPlane
+ * @brief VTOL and hybrid flight control subsystem for fixed-wing aircraft with multicopter capabilities
+ * 
+ * @details The QuadPlane class provides comprehensive VTOL (Vertical Takeoff and Landing) functionality
+ *          for ArduPlane, enabling aircraft to operate as both fixed-wing planes and multicopters.
+ *          This hybrid capability combines the flight efficiency of fixed-wing with the operational
+ *          flexibility of VTOL.
+ * 
+ * **VTOL Flight Capabilities**:
+ * - **Q-Modes**: Dedicated VTOL flight modes including:
+ *   - QSTABILIZE: Manual VTOL flight with attitude stabilization
+ *   - QHOVER: Position hold using multicopter motors
+ *   - QLOITER: GPS position hold with altitude control
+ *   - QLAND: Autonomous VTOL landing
+ *   - QRTL: VTOL Return-To-Launch
+ *   - QACRO: Acrobatic VTOL mode with rate control
+ *   - QAUTOTUNE: Automatic PID tuning for VTOL flight
+ * - Vertical takeoff and landing using multicopter motors
+ * - Hover and precision position hold capabilities
+ * - Waypoint navigation in VTOL mode
+ * - Precision landing support
+ * 
+ * **Transition Management** (Safety-Critical):
+ * - **Forward Transition**: Smooth transition from VTOL to fixed-wing flight
+ *   - Airspeed-based transition initiation
+ *   - Gradual throttle transfer from VTOL motors to forward motor
+ *   - Tilt-rotor servo coordination (if applicable)
+ *   - Pitch attitude control during acceleration
+ * - **Back Transition**: Transition from fixed-wing to VTOL mode
+ *   - Deceleration to safe VTOL speed
+ *   - Motor spool-up and control authority transfer
+ *   - Altitude hold during transition
+ * - Configurable transition timing and behavior via Q_TRANSITION_MS parameter
+ * - Transition failure detection and recovery (Q_TRANS_FAIL_* parameters)
+ * 
+ * **Aircraft Configuration Support**:
+ * - **Standard QuadPlane** (ThrustType::SLT): 
+ *   Fixed multicopter motors + separate forward thrust motor
+ *   Independent VTOL lift and forward flight propulsion
+ * - **Tilt-Rotor** (ThrustType::TILTROTOR):
+ *   Motors tilt between vertical and horizontal positions
+ *   Provides both lift and forward thrust with same motors
+ *   Requires tilt servo configuration
+ * - **Tailsitter** (ThrustType::TAILSITTER):
+ *   Entire aircraft rotates between vertical and horizontal flight
+ *   Motors fixed to airframe, aircraft attitude changes for flight mode
+ *   Requires special control algorithms for attitude transitions
+ * - Frame class selection via Q_FRAME_CLASS (quad, hexa, octa, etc.)
+ * - Frame type selection via Q_FRAME_TYPE (X, +, H, V, etc.)
+ * 
+ * **VTOL Assisted Flight**:
+ * - **Assistance Functions**:
+ *   - Angle limit enforcement to prevent stalls in fixed-wing flight
+ *   - Altitude loss recovery using VTOL motors
+ *   - Attitude upset and spin recovery assistance
+ *   - Automatic engagement when fixed-wing flight stability threatened
+ * - Configurable via Q_ASSIST_SPEED, Q_ASSIST_ANGLE, Q_ASSIST_ALT parameters
+ * - Can be force-enabled or disabled via Q_OPTIONS bitmask
+ * 
+ * **Motor Control and Mixing**:
+ * - Integration with AP_Motors library for multicopter motor control
+ * - Support for various frame configurations (quad, hexa, octa, Y6, etc.)
+ * - Motor output allocation and mixing
+ * - ESC calibration support (Q_ESC_CAL parameter)
+ * - ESC telemetry integration
+ * - Tilt servo coordination for tilt-rotor configurations
+ * - Motor output limiting and thrust scaling
+ * 
+ * **Position and Attitude Control**:
+ * - **AC_PosControl**: 3D position controller for VTOL modes
+ *   - XY position hold and waypoint navigation
+ *   - Altitude hold with configurable climb/descend rates
+ *   - Velocity control and acceleration limiting
+ * - **AC_AttitudeControl_Multi**: Multicopter attitude stabilization
+ *   - Rate controllers for roll, pitch, yaw
+ *   - Angle controllers for attitude hold
+ *   - Input shaping and rate limiting
+ * - **AC_WPNav**: Waypoint navigation for VTOL autonomous modes
+ * - **AC_Loiter**: Loiter position hold implementation
+ * - Uses multicopter PID controllers (AC_PID) for rate control
+ * 
+ * **Safety-Critical Features**:
+ * - Pre-arm checks for VTOL configuration validity
+ * - Failsafe behavior in VTOL modes (Q_RTL_MODE, Q_OPTIONS:FS_QRTL)
+ * - Motor arming/disarming interlocks
+ * - Transition failure detection and recovery
+ * - Land detection algorithms
+ * - Throttle failsafe handling in VTOL modes
+ * - Geofencing support in VTOL flight
+ * 
+ * **Integration with Plane**:
+ * - Coordinates with main Plane class for hybrid control
+ * - Shares AHRS, GPS, battery, and sensor data with fixed-wing systems
+ * - Mode switching between fixed-wing and VTOL modes
+ * - Parameter storage and management via AP_Param
+ * - MAVLink integration for ground station communication
+ * 
+ * **Configuration Parameters**:
+ * Key parameters controlling QuadPlane behavior:
+ * - Q_ENABLE: Master enable (must be 1 to activate QuadPlane)
+ * - Q_FRAME_CLASS: Motor frame configuration (quad, hexa, octa, etc.)
+ * - Q_FRAME_TYPE: Motor layout (X, +, H, etc.)
+ * - Q_TRANSITION_MS: Transition duration in milliseconds
+ * - Q_ASSIST_SPEED: Airspeed below which VTOL assist engages
+ * - Q_ASSIST_ANGLE: Attitude angle limit for assist activation
+ * - Q_RTL_MODE: VTOL RTL behavior configuration
+ * - Q_OPTIONS: Bitmask for various behavioral options
+ * - Q_THR_MIN_PWM, Q_THR_MAX_PWM: Motor output ranges
+ * 
+ * @note QuadPlane requires Q_ENABLE=1 parameter to activate. All Q_* parameters are ignored if disabled.
+ * @note Uses multicopter control libraries (AC_AttitudeControl, AC_PosControl, AP_Motors)
+ * @note Coordinates with Plane class for hybrid fixed-wing + VTOL control
+ * @note Motor configuration must match Q_FRAME_CLASS and Q_FRAME_TYPE parameters exactly
+ * 
+ * @warning VTOL transitions are safety-critical operations requiring careful parameter tuning
+ * @warning Incorrect motor configuration can lead to loss of control during VTOL flight
+ * @warning Transition parameters must be validated in SITL before flight testing
+ * @warning Always test VTOL assist functions at safe altitude before relying on them
+ * 
+ * @see Plane Main fixed-wing flight control class
+ * @see AP_Motors Multicopter motor control library
+ * @see AC_AttitudeControl_Multi Multicopter attitude controller
+ * @see AC_PosControl Position controller for VTOL modes
+ * @see Transition Transition state machine implementation
+ * @see Tailsitter Tailsitter-specific control logic
+ * @see Tiltrotor Tilt-rotor mechanism control
+ * @see VTOL_Assist VTOL assistance system for fixed-wing flight
  */
 class QuadPlane
 {
@@ -75,14 +226,50 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
     static const struct AP_Param::GroupInfo var_info2[];
 
+    /**
+     * @brief Run AUTO mode flight control for QuadPlane
+     * 
+     * @details Handles waypoint navigation and mission commands in AUTO mode when
+     *          QuadPlane is active, including VTOL takeoffs, landings, and transitions.
+     */
     void control_auto(void);
+    
+    /**
+     * @brief Initialize QuadPlane subsystem, motors, and controllers
+     * 
+     * @details Performs one-time initialization of the QuadPlane subsystem including:
+     *          - Motor library instantiation based on Q_FRAME_CLASS
+     *          - Attitude controller setup (AC_AttitudeControl_Multi)
+     *          - Position controller setup (AC_PosControl)
+     *          - Waypoint navigation setup (AC_WPNav)
+     *          - Tailsitter/tiltrotor initialization if applicable
+     *          - Parameter validation and default setup
+     * 
+     * @return true if initialization successful, false if QuadPlane cannot be activated
+     * 
+     * @note Called during Plane::setup() if Q_ENABLE=1
+     * @note Failure typically indicates invalid Q_FRAME_CLASS or missing parameters
+     */
     bool setup(void);
 
+    /**
+     * @enum ThrustType
+     * @brief QuadPlane aircraft configuration types defining motor thrust orientation
+     * 
+     * @details Defines the fundamental mechanical configuration of the QuadPlane aircraft,
+     *          determining how motors provide lift and forward thrust. This affects
+     *          transition behavior, control algorithms, and motor mixing.
+     */
     enum class ThrustType : uint8_t {
-        SLT=0, // Traditional quadplane, with a pusher motor and independent multicopter lift.
-        TAILSITTER,
-        TILTROTOR,
+        SLT=0,        ///< Standard Lift + Thrust: Traditional quadplane with separate vertical lift motors and forward pusher/puller motor
+        TAILSITTER,   ///< Tailsitter: Aircraft sits on tail for takeoff, entire vehicle rotates between vertical and horizontal flight
+        TILTROTOR,    ///< Tilt-Rotor: Motors tilt from vertical to horizontal orientation, providing both lift and forward thrust
     };
+    
+    /**
+     * @brief Get the current thrust type configuration
+     * @return Current ThrustType (SLT, TAILSITTER, or TILTROTOR)
+     */
     ThrustType get_thrust_type(void) {return thrust_type;}
 
     void vtol_position_controller(void);
@@ -93,18 +280,55 @@ public:
 
     void update_throttle_mix(void);
     
-    // update transition handling
+    /**
+     * @brief Main QuadPlane update called from scheduler
+     * 
+     * @details Primary update function called at regular intervals from the main scheduler.
+     *          Handles transition state machine updates, VTOL assist logic, motor outputs,
+     *          and coordination between fixed-wing and VTOL control systems.
+     * 
+     * @note Called at main loop rate (typically 400Hz) from Plane::update()
+     * @note Timing-critical function - must complete within scheduler time budget
+     */
     void update(void);
 
-    // set motor arming
+    /**
+     * @brief Set motor arming state for VTOL motors
+     * 
+     * @details Arms or disarms the multicopter motors, enabling or preventing motor output.
+     *          Coordinates with main Plane arming state and applies QuadPlane-specific
+     *          arming interlocks and safety checks.
+     * 
+     * @param[in] armed true to arm motors, false to disarm
+     * 
+     * @note Does not arm if pre-arm checks fail
+     * @note Respects Q_OPTIONS:DELAY_ARMING if configured
+     */
     void set_armed(bool armed);
 
-    // is VTOL available?
+    /**
+     * @brief Check if VTOL subsystem is available and initialized
+     * 
+     * @return true if QuadPlane initialized successfully and ready for use
+     * 
+     * @note Returns false if Q_ENABLE=0 or setup() failed
+     */
     bool available(void) const {
         return initialised;
     }
 
-    // is quadplane assisting?
+    /**
+     * @brief Check if VTOL motors are currently assisting fixed-wing flight
+     * 
+     * @details VTOL assist engages multicopter motors during fixed-wing flight when:
+     *          - Airspeed drops below Q_ASSIST_SPEED threshold
+     *          - Attitude error exceeds Q_ASSIST_ANGLE limit
+     *          - Altitude loss exceeds configured threshold
+     * 
+     * @return true if VTOL assist is currently active
+     * 
+     * @see VTOL_Assist for assist logic implementation
+     */
     bool in_assisted_flight(void) const {
         return available() && assisted_flight;
     }
@@ -120,9 +344,35 @@ public:
     bool do_vtol_land(const AP_Mission::Mission_Command& cmd);
     bool verify_vtol_takeoff(const AP_Mission::Mission_Command &cmd);
     bool verify_vtol_land(void);
+    /**
+     * @brief Check if currently in AUTO mode with VTOL operations
+     * @return true if in AUTO mode executing VTOL mission items
+     */
     bool in_vtol_auto(void) const;
+    
+    /**
+     * @brief Check if currently in a VTOL flight mode
+     * 
+     * @details Returns true for Q-modes: QSTABILIZE, QHOVER, QLOITER, QLAND, QRTL, QACRO, QAUTOTUNE
+     * 
+     * @return true if in any VTOL mode (Q-mode)
+     * @return false if in fixed-wing mode or transitioning
+     */
     bool in_vtol_mode(void) const;
+    
+    /**
+     * @brief Check if executing VTOL takeoff
+     * @return true if performing vertical takeoff using VTOL motors
+     */
     bool in_vtol_takeoff(void) const;
+    
+    /**
+     * @brief Check if in a VTOL mode requiring position/velocity control
+     * 
+     * @details Returns true for modes that use AC_PosControl (QHOVER, QLOITER, QLAND, etc.)
+     * 
+     * @return true if position/velocity controller should be active
+     */
     bool in_vtol_posvel_mode(void) const;
     void update_throttle_hover();
     bool show_vtol_view() const;
@@ -151,21 +401,32 @@ public:
 
     uint16_t get_pilot_velocity_z_max_dn() const;
     
+    /**
+     * @struct log_QControl_Tuning
+     * @brief Binary log message structure for QuadPlane control tuning data (QTUN)
+     * 
+     * @details Records key VTOL control parameters for analysis and tuning.
+     *          Logged periodically during VTOL operations to track controller
+     *          performance and diagnose issues.
+     * 
+     * @note Log message name: QTUN
+     * @note Logging rate typically 25Hz during VTOL flight
+     */
     struct PACKED log_QControl_Tuning {
         LOG_PACKET_HEADER;
-        uint64_t time_us;
-        float    throttle_in;
-        float    angle_boost;
-        float    throttle_out;
-        float    throttle_hover;
-        float    desired_alt;
-        float    inav_alt;
-        int32_t  baro_alt;
-        int16_t  target_climb_rate;
-        int16_t  climb_rate;
-        float    throttle_mix;
-        uint8_t  transition_state;
-        uint8_t  assist;
+        uint64_t time_us;               ///< Timestamp in microseconds
+        float    throttle_in;           ///< Input throttle (0.0 to 1.0)
+        float    angle_boost;           ///< Angle boost throttle compensation
+        float    throttle_out;          ///< Output throttle to motors (0.0 to 1.0)
+        float    throttle_hover;        ///< Hover throttle estimate (0.0 to 1.0)
+        float    desired_alt;           ///< Desired altitude in meters
+        float    inav_alt;              ///< Inertial navigation altitude estimate in meters
+        int32_t  baro_alt;              ///< Barometric altitude in centimeters
+        int16_t  target_climb_rate;     ///< Target climb rate in cm/s
+        int16_t  climb_rate;            ///< Actual climb rate in cm/s
+        float    throttle_mix;          ///< Throttle mix value for attitude/altitude blending
+        uint8_t  transition_state;      ///< Current transition state
+        uint8_t  assist;                ///< VTOL assist active flag
     };
 
     MAV_TYPE get_mav_type(void) const;
@@ -209,13 +470,62 @@ private:
     // Types of different "quadplane" configurations.
     ThrustType thrust_type;
 
-    // Initialise motors to allow passing it to tailsitter in its constructor
+    /**
+     * @brief AP_Motors instance for multicopter motor control and mixing
+     * 
+     * @details Dynamically allocated pointer to motor controller, type determined by Q_FRAME_CLASS:
+     *          - AP_MotorsMatrix for standard multicopter frames (quad, hexa, octa)
+     *          - AP_MotorsTri for tricopter with tail servo
+     *          - AP_MotorsSingle for single rotor helicopters
+     *          - AP_MotorsCoax for coaxial helicopters
+     * 
+     * @note Allocated during setup() based on frame class
+     * @note nullptr if QuadPlane not initialized or Q_ENABLE=0
+     */
     AP_MotorsMulticopter *motors = nullptr;
+    
+    /// Parameter group info for motors configuration
     const struct AP_Param::GroupInfo *motors_var_info;
 
+    /**
+     * @brief Multicopter attitude controller for VTOL stabilization
+     * 
+     * @details Provides rate and angle control for VTOL flight modes:
+     *          - Rate controllers (roll_rate, pitch_rate, yaw_rate)
+     *          - Angle controllers (roll_angle, pitch_angle)
+     *          - Input shaping and feedforward
+     *          - PID loop management
+     * 
+     * @note Dynamically allocated during setup()
+     * @see AC_AttitudeControl_Multi for implementation
+     */
     AC_AttitudeControl_Multi *attitude_control;
+    
+    /**
+     * @brief 3D position controller for VTOL position hold and navigation
+     * 
+     * @details Implements position and velocity control for VTOL modes:
+     *          - XY position hold (lateral positioning)
+     *          - Z position/altitude control
+     *          - Velocity control in all axes
+     *          - Acceleration limiting
+     *          - Jerk limiting for smooth motion
+     * 
+     * @note Used by QHOVER, QLOITER, QLAND, and waypoint navigation
+     * @see AC_PosControl for implementation
+     */
     AC_PosControl *pos_control;
+    
+    /**
+     * @brief Waypoint navigation controller for AUTO mode VTOL operations
+     * @see AC_WPNav for implementation
+     */
     AC_WPNav *wp_nav;
+    
+    /**
+     * @brief Loiter position hold implementation
+     * @see AC_Loiter for implementation
+     */
     AC_Loiter *loiter_nav;
     
     // maximum vertical velocity the pilot may request
@@ -265,7 +575,16 @@ private:
     // get pilot throttle in for landing code. Return value on scale of 0 to 1
     float get_pilot_land_throttle(void) const;
 
-    // initialise throttle_wait when entering mode
+    /**
+     * @brief Initialize throttle wait state for safe motor startup
+     * 
+     * @details Sets the throttle_wait flag which prevents motors from spinning up until
+     *          the pilot moves the throttle stick to a safe position. This safety feature
+     *          prevents unexpected motor startup when switching into VTOL modes.
+     * 
+     * @note Called when entering VTOL modes that require pilot throttle control
+     * @note Motor output is suppressed until throttle stick moved to low position
+     */
     void init_throttle_wait();
 
     // use multicopter rate controller
@@ -339,7 +658,18 @@ private:
 
     AP_Int16 rc_speed;
 
-    // VTOL assistance in a forward flight mode
+    /**
+     * @brief VTOL assistance system for fixed-wing flight stability
+     * 
+     * @details Manages automatic engagement of VTOL motors to assist fixed-wing flight when:
+     *          - Airspeed drops below safe threshold (Q_ASSIST_SPEED)
+     *          - Attitude error exceeds limits (Q_ASSIST_ANGLE)
+     *          - Excessive altitude loss detected
+     *          - Spin recovery needed
+     * 
+     * @see VTOL_Assist for implementation details
+     * @see in_assisted_flight() to check if assist currently active
+     */
     VTOL_Assist assist {*this};
 
     // landing speed in m/s
@@ -356,13 +686,23 @@ private:
     AP_Int8 enable;
     AP_Int8 transition_pitch_max;
 
-    // control if a VTOL RTL will be used
+    /**
+     * @brief Q_RTL_MODE parameter: Controls when VTOL RTL is used instead of fixed-wing RTL
+     * 
+     * @details Determines under what conditions Return-To-Launch uses VTOL mode (QRTL)
+     *          instead of fixed-wing approach and landing.
+     */
     AP_Int8 rtl_mode;
+    
+    /**
+     * @enum RTL_MODE
+     * @brief Options for Q_RTL_MODE parameter controlling VTOL vs fixed-wing RTL behavior
+     */
     enum RTL_MODE{
-        NONE,
-        SWITCH_QRTL,
-        VTOL_APPROACH_QRTL,
-        QRTL_ALWAYS,
+        NONE,                   ///< Always use fixed-wing RTL, never switch to QRTL
+        SWITCH_QRTL,            ///< Switch to QRTL when close to home (within Q_RTL_MODE distance)
+        VTOL_APPROACH_QRTL,     ///< Use fixed-wing approach, then QRTL for final landing
+        QRTL_ALWAYS,            ///< Always use QRTL (pure VTOL return and landing)
     };
 
     // control if a VTOL GUIDED will be used
@@ -399,21 +739,41 @@ private:
     // limit applied to back pitch to prevent wing producing excessive lift
     AP_Float q_bck_pitch_lim;
 
-    // which fwd throttle handling method is active
+    /**
+     * @enum ActiveFwdThr
+     * @brief Active forward throttle handling method for VTOL modes
+     * 
+     * @details Determines which algorithm is used for forward throttle control
+     *          when using forward motor assistance in VTOL modes.
+     */
     enum class ActiveFwdThr : uint8_t {
-        NONE = 0,
-        OLD  = 1,
-        NEW  = 2,
+        NONE = 0,   ///< No forward throttle in VTOL mode
+        OLD  = 1,   ///< Legacy forward throttle algorithm
+        NEW  = 2,   ///< New forward throttle algorithm with improved control
     };
-    // override with AUX function
+    
+    /**
+     * @brief Auxiliary function override for forward throttle enable
+     * 
+     * @details Can be toggled via RC auxiliary function to enable/disable
+     *          forward throttle in VTOL modes dynamically.
+     */
     bool vfwd_enable_active;
     
-    // specifies when the feature controlled by q_fwd_thr_gain and q_fwd_pitch_lim is used
+    /**
+     * @enum FwdThrUse
+     * @brief Q_FWD_THR_USE parameter: When to use forward throttle in VTOL modes
+     * 
+     * @details Controls when forward throttle (from pusher/puller motor) is used
+     *          during VTOL flight, controlled by Q_FWD_THR_GAIN parameter.
+     */
     enum class FwdThrUse : uint8_t {
-        OFF     = 0,
-        POSCTRL = 1,
-        ALL     = 2,
+        OFF     = 0,    ///< Forward throttle disabled in VTOL modes
+        POSCTRL = 1,    ///< Use forward throttle only in position control modes (QHOVER, QLOITER)
+        ALL     = 2,    ///< Use forward throttle in all VTOL modes
     };
+    
+    /// Storage for Q_FWD_THR_USE parameter value
     AP_Enum<FwdThrUse> q_fwd_thr_use;
 
     // return which vfwd method to use
@@ -443,7 +803,24 @@ private:
     // when did we last run the attitude controller?
     uint32_t last_att_control_ms;
 
-    // transition logic
+    /**
+     * @brief Forward/back transition state machine controller
+     * 
+     * @details Manages the transition between fixed-wing and VTOL flight modes.
+     *          Implements state machine for:
+     *          - Forward transition: VTOL → Fixed-wing
+     *          - Back transition: Fixed-wing → VTOL
+     *          - Transition timing and airspeed monitoring
+     *          - Motor and control surface blending during transitions
+     *          - Transition failure detection
+     * 
+     * @note Dynamically allocated as either SLT_Transition or Tailsitter_Transition
+     *       based on thrust_type configuration
+     * 
+     * @see Transition for base transition logic
+     * @see SLT_Transition for standard quadplane transitions
+     * @see Tailsitter_Transition for tailsitter-specific transitions
+     */
     Transition *transition = nullptr;
 
     // true when waiting for pilot throttle
@@ -495,16 +872,23 @@ private:
     // time we last set the loiter target
     uint32_t last_loiter_ms;
 
+    /**
+     * @enum position_control_state
+     * @brief State machine phases for VTOL landing sequence
+     * 
+     * @details Defines the progression of states during a VTOL landing operation.
+     *          Each state represents a distinct phase with specific control objectives.
+     */
     enum position_control_state {
-        QPOS_NONE = 0,
-        QPOS_APPROACH,
-        QPOS_AIRBRAKE,
-        QPOS_POSITION1,
-        QPOS_POSITION2,
-        QPOS_LAND_DESCEND,
-        QPOS_LAND_ABORT,
-        QPOS_LAND_FINAL,
-        QPOS_LAND_COMPLETE
+        QPOS_NONE = 0,          ///< Not in position control (normal flight)
+        QPOS_APPROACH,          ///< Approach phase: Navigate to landing position, decelerate to VTOL speed
+        QPOS_AIRBRAKE,          ///< Airbrake phase: Rapid deceleration using VTOL drag and back-transition
+        QPOS_POSITION1,         ///< Position hold phase 1: Stabilize at landing position, prepare for descent
+        QPOS_POSITION2,         ///< Position hold phase 2: Final position refinement before descent
+        QPOS_LAND_DESCEND,      ///< Landing descent: Controlled descent to ground with position hold
+        QPOS_LAND_ABORT,        ///< Landing abort: Abort landing and climb to safe altitude
+        QPOS_LAND_FINAL,        ///< Final landing phase: Ground contact detection and motor disarm
+        QPOS_LAND_COMPLETE      ///< Landing complete: On ground, motors disarmed
     };
     class PosControlState {
     public:
@@ -557,10 +941,30 @@ private:
     // time of last QTUN log message
     uint32_t last_qtun_log_ms;
 
-    // Tiltrotor control
+    /**
+     * @brief Tilt-rotor mechanism control subsystem
+     * 
+     * @details Manages tilt servo control for tilt-rotor QuadPlane configurations.
+     *          Controls the transition of motor orientation from vertical (VTOL)
+     *          to horizontal (forward flight) positions.
+     * 
+     * @note Only active when thrust_type == ThrustType::TILTROTOR
+     * @see Tiltrotor for tilt mechanism implementation
+     */
     Tiltrotor tiltrotor{*this, motors};
 
-    // tailsitter control
+    /**
+     * @brief Tailsitter-specific configuration and control
+     * 
+     * @details Manages tailsitter aircraft behavior including:
+     *          - Transition between vertical and horizontal flight attitudes
+     *          - Control surface mixing for both orientations
+     *          - Hover attitude control
+     *          - Transition gain scheduling
+     * 
+     * @note Only active when thrust_type == ThrustType::TAILSITTER
+     * @see Tailsitter for tailsitter-specific control logic
+     */
     Tailsitter tailsitter{*this, motors};
 
     // the attitude view of the VTOL attitude controller
@@ -582,33 +986,57 @@ private:
     // set altitude target to current altitude
     void set_alt_target_current(void);
 
-    // additional options
+    /**
+     * @brief Q_OPTIONS parameter bitmask value storage
+     * 
+     * @details Stores the Q_OPTIONS parameter which controls various QuadPlane behavioral options
+     *          through a bitmask. Each bit enables/disables a specific feature or behavior.
+     */
     AP_Int32 options;
+    
+    /**
+     * @enum OPTION
+     * @brief Bitmask options for Q_OPTIONS parameter controlling QuadPlane behavior
+     * 
+     * @details Each enum value represents a bit in the Q_OPTIONS parameter bitmask.
+     *          Multiple options can be combined by setting multiple bits.
+     *          Use option_is_set() to check if a specific option is enabled.
+     */
     enum class OPTION {
-        LEVEL_TRANSITION=(1<<0),
-        ALLOW_FW_TAKEOFF=(1<<1),
-        ALLOW_FW_LAND=(1<<2),
-        RESPECT_TAKEOFF_FRAME=(1<<3),
-        MISSION_LAND_FW_APPROACH=(1<<4),
-        FS_QRTL=(1<<5),
-        IDLE_GOV_MANUAL=(1<<6),
-        Q_ASSIST_FORCE_ENABLE=(1<<7),
-        TAILSIT_Q_ASSIST_MOTORS_ONLY=(1<<8),
-        AIRMODE_UNUSED=(1<<9),
-        DISARMED_TILT=(1<<10),
-        DELAY_ARMING=(1<<11),
-        DISABLE_SYNTHETIC_AIRSPEED_ASSIST=(1<<12),
-        DISABLE_GROUND_EFFECT_COMP=(1<<13),
-        INGORE_FW_ANGLE_LIMITS_IN_Q_MODES=(1<<14),
-        THR_LANDING_CONTROL=(1<<15),
-        DISABLE_APPROACH=(1<<16),
-        REPOSITION_LANDING=(1<<17),
-        ONLY_ARM_IN_QMODE_OR_AUTO=(1<<18),
-        TRANS_FAIL_TO_FW=(1<<19),
-        FS_RTL=(1<<20),
-        DISARMED_TILT_UP=(1<<21),
-        SCALE_FF_ANGLE_P=(1<<22),
+        LEVEL_TRANSITION=(1<<0),                    ///< Force level attitude during transitions instead of climbing attitude
+        ALLOW_FW_TAKEOFF=(1<<1),                    ///< Allow fixed-wing takeoff instead of requiring VTOL takeoff
+        ALLOW_FW_LAND=(1<<2),                       ///< Allow fixed-wing landing instead of requiring VTOL landing
+        RESPECT_TAKEOFF_FRAME=(1<<3),               ///< Respect takeoff command frame type (MAVLink DO_VTOL_TRANSITION)
+        MISSION_LAND_FW_APPROACH=(1<<4),            ///< Use fixed-wing approach for mission landings
+        FS_QRTL=(1<<5),                             ///< Use QRTL instead of RTL for failsafe
+        IDLE_GOV_MANUAL=(1<<6),                     ///< Use manual throttle governor in VTOL idle
+        Q_ASSIST_FORCE_ENABLE=(1<<7),               ///< Force-enable VTOL assist (always active)
+        TAILSIT_Q_ASSIST_MOTORS_ONLY=(1<<8),        ///< For tailsitters, only use motors for Q_ASSIST (not control surfaces)
+        AIRMODE_UNUSED=(1<<9),                      ///< Unused bit (previously AIRMODE option, now deprecated)
+        DISARMED_TILT=(1<<10),                      ///< Allow tilt servos to move when disarmed
+        DELAY_ARMING=(1<<11),                       ///< Delay motor spin-up after arming for safety
+        DISABLE_SYNTHETIC_AIRSPEED_ASSIST=(1<<12),  ///< Disable synthetic airspeed for Q_ASSIST decisions
+        DISABLE_GROUND_EFFECT_COMP=(1<<13),         ///< Disable ground effect compensation during landing
+        INGORE_FW_ANGLE_LIMITS_IN_Q_MODES=(1<<14),  ///< Ignore fixed-wing angle limits when in Q-modes
+        THR_LANDING_CONTROL=(1<<15),                ///< Use throttle for landing descent control
+        DISABLE_APPROACH=(1<<16),                   ///< Disable approach phase of VTOL landing
+        REPOSITION_LANDING=(1<<17),                 ///< Allow repositioning during VTOL landing descent
+        ONLY_ARM_IN_QMODE_OR_AUTO=(1<<18),          ///< Restrict arming to Q-modes or AUTO mode only
+        TRANS_FAIL_TO_FW=(1<<19),                   ///< On transition timeout, continue in fixed-wing instead of QLAND/QRTL
+        FS_RTL=(1<<20),                             ///< Use standard RTL instead of QRTL for failsafe
+        DISARMED_TILT_UP=(1<<21),                   ///< Tilt motors up when disarmed (for tilt-rotors)
+        SCALE_FF_ANGLE_P=(1<<22),                   ///< Scale angle P gain with feedforward for improved attitude response
     };
+    
+    /**
+     * @brief Check if a specific Q_OPTIONS bit is set
+     * 
+     * @param[in] option The OPTION enum value to check
+     * @return true if the specified option bit is set in Q_OPTIONS parameter
+     * @return false if the option bit is not set
+     * 
+     * @note This is the recommended way to check Q_OPTIONS flags throughout the codebase
+     */
     bool option_is_set(OPTION option) const {
         return (options.get() & int32_t(option)) != 0;
     }
@@ -666,8 +1094,22 @@ private:
      */
     bool in_vtol_land_final(void) const;
 
-    /*
-      are we in any of the phases of a VTOL landing?
+    /**
+     * @brief Check if executing VTOL landing sequence
+     * 
+     * @details Returns true during any phase of a VTOL landing including:
+     *          - Approach phase (deceleration to landing position)
+     *          - Airbrake phase (rapid deceleration using VTOL drag)
+     *          - Position hold phases (POSITION1, POSITION2)
+     *          - Descent phase (controlled descent to ground)
+     *          - Final landing phase (ground contact detection)
+     * 
+     * @return true if in any VTOL landing phase
+     * @return false if not landing or in fixed-wing flight
+     * 
+     * @see in_vtol_land_approach() for approach phase check
+     * @see in_vtol_land_descent() for descent phase check
+     * @see in_vtol_land_final() for final landing phase check
      */
     bool in_vtol_land_sequence(void) const;
 

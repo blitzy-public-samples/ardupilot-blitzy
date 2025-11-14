@@ -875,7 +875,7 @@ void SCurve::calculate_path(float Sm, float Jm, float V0, float Am, float Vm, fl
         INTERNAL_ERROR(AP_InternalError::error_t::invalid_arg_or_result);
 
 #if APM_BUILD_COPTER_OR_HELI
-        // @LoggerMessage: SCVE
+        // `@LoggerMessage`: SCVE
         // @Description: Debug message for SCurve internal error
         // @Field: TimeUS: Time since system startup
         // @Field: Sm: duration of the raised cosine jerk profile

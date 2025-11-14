@@ -153,7 +153,7 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
 #endif
 
 #ifndef  HAL_BUILD_AP_PERIPH
-    // @Param{Plane}: _AUTO_TRIM
+    // `@Param`{Plane}: _AUTO_TRIM
     // @DisplayName: Automatic servo trim
     // @Description: This enables automatic servo trim in flight. Servos will be trimed in stabilized flight modes when the aircraft is close to level. Changes to servo trim will be saved every 10 seconds and will persist between flights. The automatic trim won't go more than 20% away from a centered trim.
     // @Values: 0:Disable,1:Enable
@@ -161,7 +161,7 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
     AP_GROUPINFO_FRAME("_AUTO_TRIM",  17, SRV_Channels, auto_trim, 0, AP_PARAM_FRAME_PLANE),
 #endif
 
-    // @Param: _RATE
+    // `@Param`: _RATE
     // @DisplayName: Servo default output rate
     // @Description: Default output rate in Hz for all PWM outputs.
     // @Range: 25 400
@@ -199,21 +199,21 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
     AP_SUBGROUPINFO(fetteconwire, "_FTW_",  25, SRV_Channels, AP_FETtecOneWire),
 #endif
 
-    // @Param: _DSHOT_RATE
+    // `@Param`: _DSHOT_RATE
     // @DisplayName: Servo DShot output rate
     // @Description: DShot output rate for all outputs as a multiple of the loop rate. 0 sets the output rate to be fixed at 1Khz for low loop rates. This value should never be set below 500Hz.
     // @Values: 0:1Khz,1:loop-rate,2:double loop-rate,3:triple loop-rate,4:quadruple loop rate
     // @User: Advanced
     AP_GROUPINFO("_DSHOT_RATE",  23, SRV_Channels, dshot_rate, 0),
 
-    // @Param: _DSHOT_ESC
+    // `@Param`: _DSHOT_ESC
     // @DisplayName: Servo DShot ESC type
     // @Description: DShot ESC type for all outputs. The ESC type affects the range of DShot commands available and the bit widths used. None means that no dshot commands will be executed. Some ESC types support Extended DShot Telemetry (EDT) which allows telemetry other than RPM data to be returned when using bi-directional dshot. If you enable EDT you must install EDT capable firmware for correct operation.
     // @Values: 0:None,1:BLHeli32/Kiss/AM32,2:BLHeli_S/BlueJay,3:BLHeli32/AM32/Kiss+EDT,4:BLHeli_S/BlueJay+EDT
     // @User: Advanced
     AP_GROUPINFO("_DSHOT_ESC",  24, SRV_Channels, dshot_esc_type, 0),
 
-    // @Param: _GPIO_MASK
+    // `@Param`: _GPIO_MASK
     // @DisplayName: Servo GPIO mask
     // @Description: Bitmask of outputs which will be available as GPIOs. Any output with either the function set to -1 or with the corresponding bit set in this mask will be available for use as a GPIO pin
     // @Bitmask: 0:Servo 1, 1:Servo 2, 2:Servo 3, 3:Servo 4, 4:Servo 5, 5:Servo 6, 6:Servo 7, 7:Servo 8, 8:Servo 9, 9:Servo 10, 10:Servo 11, 11:Servo 12, 12:Servo 13, 13:Servo 14, 14:Servo 15, 15:Servo 16, 16:Servo 17, 17:Servo 18, 18:Servo 19, 19:Servo 20, 20:Servo 21, 21:Servo 22, 22:Servo 23, 23:Servo 24, 24:Servo 25, 25:Servo 26, 26:Servo 27, 27:Servo 28, 28:Servo 29, 29:Servo 30, 30:Servo 31, 31:Servo 32
@@ -223,7 +223,7 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
 
     // indexes 27-43 used by SERVO_32_ENABLEd group of params
  
-    // @Param: _RC_FS_MSK
+    // `@Param`: _RC_FS_MSK
     // @DisplayName: Servo RC Failsafe Mask
     // @Description: Bitmask of scaled passthru output channels which will be set to their trim value during rc failsafe instead of holding their last position before failsafe.
     // @Bitmask: 0:RCIN1Scaled, 1:RCIN2Scaled, 2:RCIN3Scaled, 3:RCIN4Scaled, 4:RCIN5Scaled, 5:RCIN6Scaled, 6:RCIN7Scaled, 7:RCIN8Scaled, 8:RCIN9Scaled, 9:RCIN10Scaled, 10:RCIN11Scaled, 11:SRCIN12Scaled, 12:RCIN13Scaled, 13:RCIN14Scaled, 14:RCIN15Scaled, 15:RCIN16Scaled
@@ -231,7 +231,7 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
     AP_GROUPINFO("_RC_FS_MSK", 44, SRV_Channels, rc_fs_mask, 0),
  
 #if (NUM_SERVO_CHANNELS >= 17)
-    // @Param: _32_ENABLE
+    // `@Param`: _32_ENABLE
     // @DisplayName: Enable outputs 17 to 31
     // @Description: This allows for up to 32 outputs, enabling parameters for outputs above 16
     // @User: Advanced

@@ -22,21 +22,21 @@ const AP_Param::GroupInfo AP_LandingGear::var_info[] = {
 
     // 0 and 1 used by previous retract and deploy pwm, now replaced with SERVOn_MIN/MAX/REVERSED
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable landing gear
     // @Description: Enable landing gear control
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLE", 10, AP_LandingGear, _enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: STARTUP
+    // `@Param`: STARTUP
     // @DisplayName: Landing Gear Startup position
     // @Description: Landing Gear Startup behaviour control
     // @Values: 0:WaitForPilotInput, 1:Retract, 2:Deploy
     // @User: Standard
     AP_GROUPINFO("STARTUP", 2, AP_LandingGear, _startup_behaviour, (uint8_t)AP_LandingGear::LandingGear_Startup_WaitForPilotInput),
 
-    // @Param: DEPLOY_PIN
+    // `@Param`: DEPLOY_PIN
     // @DisplayName: Chassis deployment feedback pin
     // @Description: Pin number to use for detection of gear deployment. If set to -1 feedback is disabled. Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6
@@ -44,14 +44,14 @@ const AP_Param::GroupInfo AP_LandingGear::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("DEPLOY_PIN", 3, AP_LandingGear, _pin_deployed, -1),
 
-    // @Param: DEPLOY_POL
+    // `@Param`: DEPLOY_POL
     // @DisplayName: Chassis deployment feedback pin polarity
     // @Description: Polarity for feedback pin. If this is 1 then the pin should be high when gear are deployed. If set to 0 then then deployed gear level is low.
     // @Values: 0:Low,1:High
     // @User: Standard
     AP_GROUPINFO("DEPLOY_POL", 4, AP_LandingGear, _pin_deployed_polarity, 0),
 
-    // @Param: WOW_PIN
+    // `@Param`: WOW_PIN
     // @DisplayName: Weight on wheels feedback pin
     // @Description: Pin number to use for feedback of weight on wheels condition. If set to -1 feedback is disabled. Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6
@@ -59,14 +59,14 @@ const AP_Param::GroupInfo AP_LandingGear::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("WOW_PIN", 5, AP_LandingGear, _pin_weight_on_wheels, -1),
 
-    // @Param: WOW_POL
+    // `@Param`: WOW_POL
     // @DisplayName: Weight on wheels feedback pin polarity
     // @Description: Polarity for feedback pin. If this is 1 then the pin should be high when there is weight on wheels. If set to 0 then then weight on wheels level is low.
     // @Values: 0:Low,1:High
     // @User: Standard
     AP_GROUPINFO("WOW_POL", 6, AP_LandingGear, _pin_weight_on_wheels_polarity, 0),
 
-    // @Param: DEPLOY_ALT
+    // `@Param`: DEPLOY_ALT
     // @DisplayName: Landing gear deployment altitude
     // @Description: Altitude where the landing gear will be deployed. This should be lower than the RETRACT_ALT. If zero then altitude is not used for deploying landing gear. Only applies when vehicle is armed.
     // @Units: m
@@ -75,7 +75,7 @@ const AP_Param::GroupInfo AP_LandingGear::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("DEPLOY_ALT", 7, AP_LandingGear, _deploy_alt, 0),
 
-    // @Param: RETRACT_ALT
+    // `@Param`: RETRACT_ALT
     // @DisplayName: Landing gear retract altitude
     // @Description: Altitude where the landing gear will be retracted. This should be higher than the DEPLOY_ALT. If zero then altitude is not used for retracting landing gear. Only applies when vehicle is armed.
     // @Units: m
@@ -84,7 +84,7 @@ const AP_Param::GroupInfo AP_LandingGear::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RETRACT_ALT", 8, AP_LandingGear, _retract_alt, 0),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Landing gear auto retract/deploy options
     // @Description{Copter}: Options to retract or deploy landing gear in Auto or Guided mode
     // @Description{Plane}: Options to retract or deploy landing gear in Auto, Takeoff and Autoland modes

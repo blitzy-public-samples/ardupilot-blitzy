@@ -29,6 +29,26 @@
    Please contribute your ideas! See https://ardupilot.org/dev for details
 */
 
+/**
+ * @file Rover.cpp
+ * @brief Implementation of the Rover class constructor and main vehicle singleton instantiation
+ * 
+ * @details This file contains the core implementation of the ArduRover vehicle class including:
+ * - Rover class constructor with initialization of base classes and member variables
+ * - Scheduler task table defining all periodic tasks and their execution rates
+ * - Global rover singleton instance that provides vehicle-wide access
+ * - Main HAL entry point callback registration for vehicle lifecycle management
+ * - External control and scripting interface methods for guided mode operations
+ * 
+ * The scheduler tasks array defines the execution frequency, expected duration, and
+ * priority for all regular vehicle operations from sensor reads to control updates.
+ * 
+ * @note This is vehicle-specific implementation for ground vehicles (rovers)
+ * @see Rover.h for class declaration and member documentation
+ * 
+ * Source: Rover/Rover.cpp
+ */
+
 #include "Rover.h"
 
 #define FORCE_VERSION_H_INCLUDE
@@ -39,32 +59,40 @@ const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 #define SCHED_TASK(func, rate_hz, _max_time_micros, _priority) SCHED_TASK_CLASS(Rover, &rover, func, rate_hz, _max_time_micros, _priority)
 
-/*
-  scheduler table - all regular tasks should be listed here.
-
-  All entries in this table must be ordered by priority.
-
-  This table is interleaved with the table in AP_Vehicle to determine
-  the order in which tasks are run.  Convenience methods SCHED_TASK
-  and SCHED_TASK_CLASS are provided to build entries in this structure:
-
-SCHED_TASK arguments:
- - name of static function to call
- - rate (in Hertz) at which the function should be called
- - expected time (in MicroSeconds) that the function should take to run
- - priority (0 through 255, lower number meaning higher priority)
-
-SCHED_TASK_CLASS arguments:
- - class name of method to be called
- - instance on which to call the method
- - method to call on that instance
- - rate (in Hertz) at which the method should be called
- - expected time (in MicroSeconds) that the method should take to run
- - priority (0 through 255, lower number meaning higher priority)
-
-  scheduler table - all regular tasks are listed here, along with how
-  often they should be called (in Hz) and the maximum time
-  they are expected to take (in microseconds)
+/**
+ * @brief Scheduler task table defining all regular periodic tasks for Rover vehicle
+ * 
+ * @details This table defines every periodic task that runs in the main vehicle loop.
+ * All entries MUST be ordered by priority (lower priority number = higher priority).
+ * This table is interleaved with AP_Vehicle::scheduler_tasks to determine final
+ * execution order across vehicle-specific and common tasks.
+ * 
+ * Task Definition Macros:
+ * 
+ * SCHED_TASK arguments (for static member functions):
+ *  - function name: Static Rover member function to call
+ *  - rate_hz: Execution frequency in Hertz (e.g., 50 = every 20ms, 400 = every 2.5ms)
+ *  - max_time_micros: Expected execution time in microseconds (used for performance monitoring)
+ *  - priority: Task priority 0-255 (lower number = higher priority, affects scheduling order)
+ * 
+ * SCHED_TASK_CLASS arguments (for external class methods):
+ *  - class_name: Class type of the object whose method to call
+ *  - instance_ptr: Pointer to the object instance (typically &rover.member)
+ *  - method_name: Method name to call on that instance
+ *  - rate_hz: Execution frequency in Hertz
+ *  - max_time_micros: Expected execution time in microseconds
+ *  - priority: Task priority 0-255 (lower = higher priority)
+ * 
+ * Scheduling Notes:
+ * - Higher frequency tasks (e.g., 400Hz control loops) run more often than low frequency tasks (e.g., 1Hz)
+ * - Priority determines order when multiple tasks are ready in the same time slice
+ * - Expected time is used for loop time budget management and overrun detection
+ * - Tasks wrapped in #if directives are conditionally compiled based on feature flags
+ * 
+ * @warning Modifying task rates or priorities can significantly affect vehicle behavior and stability.
+ *          Changes should be tested thoroughly in SITL before flight testing.
+ * 
+ * Source: Rover/Rover.cpp:69-141
  */
 const AP_Scheduler::Task Rover::scheduler_tasks[] = {
     //         Function name,          Hz,     us,
@@ -152,12 +180,40 @@ void Rover::get_scheduler_tasks(const AP_Scheduler::Task *&tasks,
 
 constexpr int8_t Rover::_failsafe_priorities[7];
 
+/**
+ * @brief Rover vehicle class constructor
+ * 
+ * @details Initializes the Rover vehicle object with default values and sets up base class
+ * initialization. This constructor is called once at program startup before setup() executes.
+ * 
+ * Constructor Initialization List:
+ * - AP_Vehicle(): Calls base vehicle class constructor to initialize common vehicle infrastructure
+ *                 including scheduler, AHRS, parameter system base, and HAL interfaces
+ * - param_loader(var_info): Initializes parameter loader with the vehicle's var_info table,
+ *                           which defines all configurable parameters for ground vehicles
+ * - modes(&g.mode1): Initializes the mode switch array starting with the first mode switch parameter,
+ *                    allowing pilot to select between flight modes via RC transmitter switches
+ * - control_mode(&mode_initializing): Sets initial control mode to the initialization mode,
+ *                                     which is the vehicle state during startup before arming
+ * 
+ * The actual initialization of vehicle subsystems (sensors, controllers, etc.) occurs in the
+ * init_ardupilot() function called from the main HAL setup sequence, not in this constructor.
+ * 
+ * @note This constructor must complete quickly as it runs before HAL is fully initialized.
+ *       No hardware access or time-consuming operations should occur here.
+ * 
+ * @see init_ardupilot() for the main vehicle initialization sequence
+ * @see AP_Vehicle for base class initialization details
+ * 
+ * Source: Rover/Rover.cpp:155-161
+ */
 Rover::Rover(void) :
-    AP_Vehicle(),
-    param_loader(var_info),
-    modes(&g.mode1),
-    control_mode(&mode_initializing)
+    AP_Vehicle(),                          // Initialize base vehicle class with common infrastructure
+    param_loader(var_info),                // Initialize parameter system with Rover-specific parameters
+    modes(&g.mode1),                       // Initialize mode selection array starting with first mode switch
+    control_mode(&mode_initializing)       // Set initial control mode to initialization state
 {
+    // Constructor body intentionally empty - initialization occurs in init_ardupilot()
 }
 
 #if AP_SCRIPTING_ENABLED || AP_EXTERNAL_CONTROL_ENABLED
@@ -561,7 +617,68 @@ bool Rover::get_wp_crosstrack_error_m(float &xtrack_error) const
 }
 
 
+/**
+ * @brief Global Rover vehicle singleton instance
+ * 
+ * @details This is the single global instance of the Rover class that represents the vehicle.
+ * It is instantiated here at global scope and provides vehicle-wide access through the 'rover'
+ * identifier. The singleton pattern ensures only one vehicle instance exists throughout the
+ * program lifetime.
+ * 
+ * Access Pattern:
+ * - Direct access: Functions in Rover files can directly use 'rover.member'
+ * - Through AP namespace: Libraries use AP::vehicle() which returns vehicle reference
+ * - External linkage: Declared as 'extern Rover rover;' in Rover.h for cross-file access
+ * 
+ * Lifecycle:
+ * 1. Global construction occurs before main() entry
+ * 2. HAL initialization completes
+ * 3. init_ardupilot() sets up all vehicle subsystems
+ * 4. Main loop begins executing scheduler tasks
+ * 
+ * @note Global variables are generally discouraged, but vehicle singleton is necessary for
+ *       HAL callback integration and provides convenient access across the vehicle codebase.
+ * 
+ * Source: Rover/Rover.cpp:564
+ */
 Rover rover;
+
+/**
+ * @brief Generic vehicle reference pointing to the Rover singleton
+ * 
+ * @details Provides a generic AP_Vehicle& reference to the Rover instance, allowing
+ * common vehicle code to access the vehicle through the base class interface without
+ * knowing the specific vehicle type. Used by libraries that work across all vehicle types.
+ * 
+ * Source: Rover/Rover.cpp:565
+ */
 AP_Vehicle& vehicle = rover;
 
+/**
+ * @brief Register Rover callbacks with the Hardware Abstraction Layer (HAL)
+ * 
+ * @details This macro registers the Rover vehicle instance with the HAL, establishing the
+ * connection between hardware platform and vehicle-specific code. It sets up the following
+ * callback functions that the HAL will invoke at appropriate times:
+ * 
+ * - setup(): Called once at startup to initialize the vehicle (calls init_ardupilot())
+ * - loop(): Called repeatedly to run the main vehicle scheduler loop
+ * - help(): Provides help text for command-line interfaces (used on Linux platforms)
+ * 
+ * Platform Integration:
+ * - On embedded platforms (ChibiOS, ESP32): Integrates with RTOS task system
+ * - On Linux: Creates main program entry point with command-line argument support
+ * - On SITL: Provides simulation integration and debugging support
+ * 
+ * This macro must be called exactly once per vehicle firmware and is typically the last
+ * line in the vehicle's main implementation file.
+ * 
+ * @note The HAL_MAIN_CALLBACKS macro is defined in AP_HAL/AP_HAL_Main.h and varies by platform.
+ *       It generates platform-specific entry points (main() on Linux, FreeRTOS tasks on ChibiOS, etc.)
+ * 
+ * @see AP_HAL/AP_HAL_Main.h for macro implementation details
+ * @see init_ardupilot() for vehicle setup callback implementation
+ * 
+ * Source: Rover/Rover.cpp:567
+ */
 AP_HAL_MAIN_CALLBACKS(&rover);

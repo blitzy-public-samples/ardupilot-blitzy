@@ -80,8 +80,10 @@ Flow_PX4::Flow_PX4(uint32_t width, uint32_t bytesperline,
  *        steps
  *
  * @param image ...
- * @param offX x coordinate of upper left corner of 8x8 pattern in image
- * @param offY y coordinate of upper left corner of 8x8 pattern in image
+ * @param offx x coordinate of upper left corner of 8x8 pattern in image
+ * @param offy y coordinate of upper left corner of 8x8 pattern in image
+ * @param row_size ...
+ * @param window_size ...
  */
 static inline uint32_t compute_diff(uint8_t *image, uint16_t offx, uint16_t offy,
                                     uint16_t row_size, uint8_t window_size)
@@ -119,10 +121,12 @@ static inline uint32_t compute_diff(uint8_t *image, uint16_t offx, uint16_t offy
  *
  * @param image1 ...
  * @param image2 ...
- * @param off1X x coordinate of upper left corner of pattern in image1
- * @param off1Y y coordinate of upper left corner of pattern in image1
- * @param off2X x coordinate of upper left corner of pattern in image2
- * @param off2Y y coordinate of upper left corner of pattern in image2
+ * @param off1x x coordinate of upper left corner of pattern in image1
+ * @param off1y y coordinate of upper left corner of pattern in image1
+ * @param off2x x coordinate of upper left corner of pattern in image2
+ * @param off2y y coordinate of upper left corner of pattern in image2
+ * @param row_size ...
+ * @param window_size ...
  */
 static inline uint32_t compute_sad(uint8_t *image1, uint8_t *image2,
                                    uint16_t off1x, uint16_t off1y,
@@ -151,11 +155,13 @@ static inline uint32_t compute_sad(uint8_t *image1, uint8_t *image2,
  *
  * @param image1 ...
  * @param image2 ...
- * @param off1X x coordinate of upper left corner of pattern in image1
- * @param off1Y y coordinate of upper left corner of pattern in image1
- * @param off2X x coordinate of upper left corner of pattern in image2
- * @param off2Y y coordinate of upper left corner of pattern in image2
+ * @param off1x x coordinate of upper left corner of pattern in image1
+ * @param off1y y coordinate of upper left corner of pattern in image1
+ * @param off2x x coordinate of upper left corner of pattern in image2
+ * @param off2y y coordinate of upper left corner of pattern in image2
  * @param acc array to store SAD distances for shift in every direction
+ * @param row_size ...
+ * @param window_size ...
  */
 static inline uint32_t compute_subpixel(uint8_t *image1, uint8_t *image2,
                                         uint16_t off1x, uint16_t off1y,

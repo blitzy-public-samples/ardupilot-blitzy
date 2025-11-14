@@ -7,7 +7,7 @@
     LOG_ESC_MSG,                                \
     LOG_EDT2_MSG
 
-// @LoggerMessage: ESC
+// `@LoggerMessage`: ESC
 // @Description: Feedback received from ESCs
 // @Field: TimeUS: microseconds since system startup
 // @Field: Instance: ESC instance number
@@ -42,7 +42,7 @@ enum class log_Edt2_Status : uint8_t {
 };
 
 
-// @LoggerMessage: EDT2
+// `@LoggerMessage`: EDT2
 // @Description: Status received from ESCs via Extended DShot telemetry v2
 // @Field: TimeUS: microseconds since system startup
 // @Field: Instance: ESC instance number

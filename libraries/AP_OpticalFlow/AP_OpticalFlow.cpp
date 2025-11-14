@@ -23,7 +23,7 @@ extern const AP_HAL::HAL& hal;
 #endif
 
 const AP_Param::GroupInfo AP_OpticalFlow::var_info[] = {
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: Optical flow sensor type
     // @Description: Optical flow sensor type
     // @SortValues: AlphabeticalZeroAtTop
@@ -32,7 +32,7 @@ const AP_Param::GroupInfo AP_OpticalFlow::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO_FLAGS("_TYPE", 0,  AP_OpticalFlow,    _type,   (float)OPTICAL_FLOW_TYPE_DEFAULT, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _FXSCALER
+    // `@Param`: _FXSCALER
     // @DisplayName: X axis optical flow scale factor correction
     // @Description: This sets the parts per thousand scale factor correction applied to the flow sensor X axis optical rate. It can be used to correct for variations in effective focal length. Each positive increment of 1 increases the scale factor applied to the X axis optical flow reading by 0.1%. Negative values reduce the scale factor.
     // @Range: -800 +800
@@ -40,7 +40,7 @@ const AP_Param::GroupInfo AP_OpticalFlow::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_FXSCALER", 1,  AP_OpticalFlow,    _flowScalerX,   0),
 
-    // @Param: _FYSCALER
+    // `@Param`: _FYSCALER
     // @DisplayName: Y axis optical flow scale factor correction
     // @Description: This sets the parts per thousand scale factor correction applied to the flow sensor Y axis optical rate. It can be used to correct for variations in effective focal length. Each positive increment of 1 increases the scale factor applied to the Y axis optical flow reading by 0.1%. Negative values reduce the scale factor.
     // @Range: -800 +800
@@ -48,7 +48,7 @@ const AP_Param::GroupInfo AP_OpticalFlow::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_FYSCALER", 2,  AP_OpticalFlow,    _flowScalerY,   0),
 
-    // @Param: _ORIENT_YAW
+    // `@Param`: _ORIENT_YAW
     // @DisplayName: Flow sensor yaw alignment
     // @Description: Specifies the number of centi-degrees that the flow sensor is yawed relative to the vehicle. A sensor with its X-axis pointing to the right of the vehicle X axis has a positive yaw angle.
     // @Units: cdeg
@@ -57,7 +57,7 @@ const AP_Param::GroupInfo AP_OpticalFlow::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_ORIENT_YAW", 3,  AP_OpticalFlow,    _yawAngle_cd,   0),
 
-    // @Param: _POS_X
+    // `@Param`: _POS_X
     // @DisplayName:  X position offset
     // @Description: X position of the optical flow sensor focal point in body frame. Positive X is forward of the origin.
     // @Units: m
@@ -65,7 +65,7 @@ const AP_Param::GroupInfo AP_OpticalFlow::var_info[] = {
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS_Y
+    // `@Param`: _POS_Y
     // @DisplayName: Y position offset
     // @Description: Y position of the optical flow sensor focal point in body frame. Positive Y is to the right of the origin.
     // @Units: m
@@ -73,7 +73,7 @@ const AP_Param::GroupInfo AP_OpticalFlow::var_info[] = {
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS_Z
+    // `@Param`: _POS_Z
     // @DisplayName: Z position offset
     // @Description: Z position of the optical flow sensor focal point in body frame. Positive Z is down from the origin.
     // @Units: m
@@ -82,14 +82,14 @@ const AP_Param::GroupInfo AP_OpticalFlow::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_POS", 4, AP_OpticalFlow, _pos_offset, 0.0f),
 
-    // @Param: _ADDR
+    // `@Param`: _ADDR
     // @DisplayName: Address on the bus
     // @Description: This is used to select between multiple possible I2C addresses for some sensor types. For PX4Flow you can choose 0 to 7 for the 8 possible addresses on the I2C bus.
     // @Range: 0 127
     // @User: Advanced
     AP_GROUPINFO("_ADDR", 5,  AP_OpticalFlow, _address,   0),
 
-    // @Param: _HGT_OVR
+    // `@Param`: _HGT_OVR
     // @DisplayName: Height override of sensor above ground
     // @Description: This is used in rover vehicles, where the sensor is a fixed height above the ground
     // @Units: m

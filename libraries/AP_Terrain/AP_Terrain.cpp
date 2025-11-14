@@ -40,14 +40,14 @@ AP_Terrain *AP_Terrain::singleton;
 
 // table of user settable parameters
 const AP_Param::GroupInfo AP_Terrain::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Terrain data enable
     // @Description: enable terrain data. This enables the vehicle storing a database of terrain data on the SD card. The terrain data is requested from the ground station as needed, and stored for later use on the SD card. To be useful the ground station must support TERRAIN_REQUEST messages and have access to a terrain database, such as the SRTM database.
     // @Values: 0:Disable,1:Enable
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE", 0, AP_Terrain, enable, TERRAIN_ENABLE_DEFAULT, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: SPACING
+    // `@Param`: SPACING
     // @DisplayName: Terrain grid spacing
     // @Description: Distance between terrain grid points in meters. This controls the horizontal resolution of the terrain data that is stored on te SD card and requested from the ground station. If your GCS is using the ArduPilot SRTM database like Mission Planner or MAVProxy, then a resolution of 100 meters is appropriate. Grid spacings lower than 100 meters waste SD card space if the GCS cannot provide that resolution. The grid spacing also controls how much data is kept in memory during flight. A larger grid spacing will allow for a larger amount of data in memory. A grid spacing of 100 meters results in the vehicle keeping 12 grid squares in memory with each grid square having a size of 2.7 kilometers by 3.2 kilometers. Any additional grid squares are stored on the SD once they are fetched from the GCS and will be loaded as needed.
     // @Units: m
@@ -55,14 +55,14 @@ const AP_Param::GroupInfo AP_Terrain::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SPACING",   1, AP_Terrain, grid_spacing, 100),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Terrain options
     // @Description: Options to change behaviour of terrain system
     // @Bitmask: 0:Disable Download
     // @User: Advanced
     AP_GROUPINFO("OPTIONS",   2, AP_Terrain, options, 0),
 
-    // @Param: MARGIN
+    // `@Param`: MARGIN
     // @DisplayName: Acceptance margin
     // @Description: Margin in centi-meters to accept terrain data from the GCS. This can be used to allow older terrain data generated with less accurate latitude/longitude scaling to be used
     // @Units: m
@@ -70,7 +70,7 @@ const AP_Param::GroupInfo AP_Terrain::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MARGIN",   3, AP_Terrain, margin, 0.05),
 
-    // @Param: OFS_MAX
+    // `@Param`: OFS_MAX
     // @DisplayName: Terrain reference offset maximum
     // @Description: The maximum adjustment of terrain altitude based on the assumption that the vehicle is on the ground when it is armed. When the vehicle is armed the location of the vehicle is recorded, and when terrain data is available for that location a height adjustment for terrain data is calculated that aligns the terrain height at that location with the altitude recorded at arming. This height adjustment is applied to all terrain data. This parameter clamps the amount of adjustment. A value of zero disables the use of terrain height adjustment.
     // @Units: m
@@ -78,7 +78,7 @@ const AP_Param::GroupInfo AP_Terrain::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("OFS_MAX",  4, AP_Terrain, offset_max, 30),
 
-    // @Param: CACHE_SZ
+    // `@Param`: CACHE_SZ
     // @DisplayName: Terrain cache size
     // @Description: The number of 32x28 cache blocks to keep in memory. Each block uses about 1800 bytes of memory
     // @Range: 0 128

@@ -91,7 +91,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // ground temperature and pressure
 
 #ifndef HAL_BUILD_AP_PERIPH
-    // @Param: 1_GND_PRESS
+    // `@Param`: 1_GND_PRESS
     // @DisplayName: Ground Pressure
     // @Description: calibrated ground pressure in Pascals
     // @Units: Pa
@@ -101,7 +101,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO_FLAGS("1_GND_PRESS", 2, AP_Baro, sensors[0].ground_pressure, 0, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
-    // @Param: _GND_TEMP
+    // `@Param`: _GND_TEMP
     // @DisplayName: ground temperature
     // @Description: User provided ambient ground temperature in degrees Celsius. This is used to improve the calculation of the altitude the vehicle is at. This parameter is not persistent and will be reset to 0 every time the vehicle is rebooted. A value of 0 means use the internal measurement ambient temperature.
     // @Units: degC
@@ -113,7 +113,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // index 4 reserved for old AP_Int8 version in legacy FRAM
     //AP_GROUPINFO("ALT_OFFSET", 4, AP_Baro, _alt_offset, 0),
 
-    // @Param: _ALT_OFFSET
+    // `@Param`: _ALT_OFFSET
     // @DisplayName: altitude offset
     // @Description: altitude offset in meters added to barometric altitude. This is used to allow for automatic adjustment of the base barometric altitude by a ground station equipped with a barometer. The value is added to the barometric altitude read by the aircraft. It is automatically reset to 0 when the barometer is calibrated on each reboot or when a preflight calibration is performed.
     // @Units: m
@@ -121,7 +121,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_ALT_OFFSET", 5, AP_Baro, _alt_offset, 0),
 
-    // @Param: _PRIMARY
+    // `@Param`: _PRIMARY
     // @DisplayName: Primary barometer
     // @Description: This selects which barometer will be the primary if multiple barometers are found
     // @Values: 0:FirstBaro,1:2ndBaro,2:3rdBaro
@@ -129,21 +129,21 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     AP_GROUPINFO("_PRIMARY", 6, AP_Baro, _primary_baro, 0),
 #endif // HAL_BUILD_AP_PERIPH
 
-    // @Param: _EXT_BUS
+    // `@Param`: _EXT_BUS
     // @DisplayName: External baro bus
     // @Description: This selects the bus number for looking for an I2C barometer. When set to -1 it will probe all external i2c buses based on the BARO_PROBE_EXT parameter.
     // @Values: -1:Disabled,0:Bus0,1:Bus1,6:Bus6
     // @User: Advanced
     AP_GROUPINFO("_EXT_BUS", 7, AP_Baro, _ext_bus, HAL_BARO_EXTERNAL_BUS_DEFAULT),
 
-    // @Param{Sub}: _SPEC_GRAV
+    // `@Param`{Sub}: _SPEC_GRAV
     // @DisplayName: Specific Gravity (For water depth measurement)
     // @Description: This sets the specific gravity of the fluid when flying an underwater ROV.
     // @Values: 1.0:Freshwater,1.024:Saltwater
     AP_GROUPINFO_FRAME("_SPEC_GRAV", 8, AP_Baro, _specific_gravity, 1.0, AP_PARAM_FRAME_SUB),
 
 #if BARO_MAX_INSTANCES > 1
-    // @Param: 2_GND_PRESS
+    // `@Param`: 2_GND_PRESS
     // @DisplayName: Ground Pressure
     // @Description: calibrated ground pressure in Pascals
     // @Units: Pa
@@ -157,7 +157,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
 #endif
 
 #if BARO_MAX_INSTANCES > 2
-    // @Param: 3_GND_PRESS
+    // `@Param`: 3_GND_PRESS
     // @DisplayName: Absolute Pressure
     // @Description: calibrated ground pressure in Pascals
     // @Units: Pa
@@ -170,7 +170,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // Slot 12 used to be TEMP3
 #endif
 
-    // @Param: _FLTR_RNG
+    // `@Param`: _FLTR_RNG
     // @DisplayName: Range in which sample is accepted
     // @Description: This sets the range around the average value that new samples must be within to be accepted. This can help reduce the impact of noise on sensors that are on long I2C cables. The value is a percentage from the average value. A value of zero disables this filter.
     // @Units: %
@@ -179,7 +179,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     AP_GROUPINFO("_FLTR_RNG", 13, AP_Baro, _filter_range, HAL_BARO_FILTER_DEFAULT),
 
 #if AP_BARO_PROBE_EXT_PARAMETER_ENABLED
-    // @Param: _PROBE_EXT
+    // `@Param`: _PROBE_EXT
     // @DisplayName: External barometers to probe
     // @Description: This sets which types of external i2c barometer to look for. It is a bitmask of barometer types. The I2C buses to probe is based on BARO_EXT_BUS. If BARO_EXT_BUS is -1 then it will probe all external buses, otherwise it will probe just the bus number given in BARO_EXT_BUS.
     // @Bitmask: 0:BMP085,1:BMP280,2:MS5611,3:MS5607,4:MS5637,5:FBM320,6:DPS280,7:LPS25H,8:Keller,9:MS5837,10:BMP388,11:SPL06,12:MSP,13:BMP581,14:AUAV
@@ -187,7 +187,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     AP_GROUPINFO("_PROBE_EXT", 14, AP_Baro, _baro_probe_ext, HAL_BARO_PROBE_EXT_DEFAULT),
 #endif
 
-    // @Param: 1_DEVID
+    // `@Param`: 1_DEVID
     // @DisplayName: Baro ID
     // @Description: Barometer sensor ID, taking into account its type, bus and instance
     // @ReadOnly: True
@@ -195,7 +195,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     AP_GROUPINFO_FLAGS("1_DEVID", 15, AP_Baro, sensors[0].bus_id, 0, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
 #if BARO_MAX_INSTANCES > 1
-    // @Param: 2_DEVID
+    // `@Param`: 2_DEVID
     // @DisplayName: Baro ID2
     // @Description: Barometer2 sensor ID, taking into account its type, bus and instance
     // @ReadOnly: True
@@ -204,7 +204,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
 #endif
 
 #if BARO_MAX_INSTANCES > 2
-    // @Param: 3_DEVID
+    // `@Param`: 3_DEVID
     // @DisplayName: Baro ID3
     // @Description: Barometer3 sensor ID, taking into account its type, bus and instance
     // @ReadOnly: True
@@ -230,7 +230,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
 #endif  // HAL_BARO_WIND_COMP_ENABLED
 
 #if AP_FIELD_ELEVATION_ENABLED
-    // @Param: _FIELD_ELV
+    // `@Param`: _FIELD_ELV
     // @DisplayName: field elevation
     // @Description: User provided field elevation in meters. This is used to improve the calculation of the altitude the vehicle is at. This parameter is not persistent and will be reset to 0 every time the vehicle is rebooted. Changes to this parameter will only be used when disarmed. A value of 0 means the EKF origin height is used for takeoff height above sea level.
     // @Units: m
@@ -241,7 +241,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
 #endif
 
 #if APM_BUILD_COPTER_OR_HELI || APM_BUILD_TYPE(APM_BUILD_ArduPlane)
-    // @Param: _ALTERR_MAX
+    // `@Param`: _ALTERR_MAX
     // @DisplayName: Altitude error maximum
     // @Description: This is the maximum acceptable altitude discrepancy between GPS altitude and barometric presssure altitude calculated against a standard atmosphere for arming checks to pass. If you are getting an arming error due to this parameter then you may have a faulty or substituted barometer. A common issue is vendors replacing a MS5611 in a "Pixhawk" with a MS5607. If you have that issue then please see BARO_OPTIONS parameter to force the MS5611 to be treated as a MS5607. This check is disabled if the value is zero.
     // @Units: m
@@ -250,7 +250,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_ALTERR_MAX", 23, AP_Baro, _alt_error_max, 2000),
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: Barometer options
     // @Description: Barometer options
     // @Bitmask: 0:Treat MS5611 as MS5607
@@ -259,7 +259,7 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
 #endif
 
 #if AP_BARO_THST_COMP_ENABLED
-    // @Param: 1_THST_SCALE
+    // `@Param`: 1_THST_SCALE
     // @DisplayName: Thrust compensation
     // @Description: Thrust scaling in Pascals. This value scaled by the normalized thrust is subtracted from the barometer pressure. This is used to adjust linearly based on the thrust output for local pressure difference induced by the props.
     // @Range: -300 300

@@ -40,14 +40,14 @@
 
 const AP_Param::GroupInfo AC_Avoid::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Avoidance control enable/disable
     // @Description: Enabled/disable avoidance input sources
     // @Bitmask: 0:UseFence,1:UseProximitySensor,2:UseBeaconFence
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLE", 1,  AC_Avoid, _enabled, AC_AVOID_DEFAULT, AP_PARAM_FLAG_ENABLE),
 
-    // @Param{Copter}: ANGLE_MAX
+    // `@Param`{Copter}: ANGLE_MAX
     // @DisplayName: Avoidance max lean angle in non-GPS flight modes
     // @Description: Max lean angle used to avoid obstacles while in non-GPS modes
     // @Units: cdeg
@@ -56,7 +56,7 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO_FRAME("ANGLE_MAX", 2,  AC_Avoid, _angle_max_cd, 1000, AP_PARAM_FRAME_COPTER | AP_PARAM_FRAME_HELI | AP_PARAM_FRAME_TRICOPTER),
 
-    // @Param{Copter}: DIST_MAX
+    // `@Param`{Copter}: DIST_MAX
     // @DisplayName: Avoidance distance maximum in non-GPS flight modes
     // @Description: Distance from object at which obstacle avoidance will begin in non-GPS modes
     // @Units: m
@@ -64,7 +64,7 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO_FRAME("DIST_MAX", 3,  AC_Avoid, _dist_max, AC_AVOID_NONGPS_DIST_MAX_DEFAULT, AP_PARAM_FRAME_COPTER | AP_PARAM_FRAME_HELI | AP_PARAM_FRAME_TRICOPTER),
 
-    // @Param: MARGIN
+    // `@Param`: MARGIN
     // @DisplayName: Avoidance distance margin in GPS modes
     // @Description: Vehicle will attempt to stay at least this distance (in meters) from objects while in GPS modes
     // @Units: m
@@ -72,14 +72,14 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("MARGIN", 4, AC_Avoid, _margin, 2.0f),
 
-    // @Param{Copter, Rover}: BEHAVE
+    // `@Param`{Copter, Rover}: BEHAVE
     // @DisplayName: Avoidance behaviour
     // @Description: Avoidance behaviour (slide or stop)
     // @Values: 0:Slide,1:Stop
     // @User: Standard
     AP_GROUPINFO_FRAME("BEHAVE", 5, AC_Avoid, _behavior, AP_AVOID_BEHAVE_DEFAULT, AP_PARAM_FRAME_COPTER | AP_PARAM_FRAME_HELI | AP_PARAM_FRAME_TRICOPTER | AP_PARAM_FRAME_ROVER),
 
-    // @Param: BACKUP_SPD
+    // `@Param`: BACKUP_SPD
     // @DisplayName: Avoidance maximum horizontal backup speed
     // @Description: Maximum speed that will be used to back away from obstacles horizontally in position control modes (m/s). Set zero to disable horizontal backup.
     // @Units: m/s
@@ -87,7 +87,7 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("BACKUP_SPD", 6, AC_Avoid, _backup_speed_xy_max, 0.75f),
 
-    // @Param{Copter}: ALT_MIN
+    // `@Param`{Copter}: ALT_MIN
     // @DisplayName: Avoidance minimum altitude
     // @Description: Minimum altitude above which proximity based avoidance will start working. This requires a valid downward facing rangefinder reading to work. Set zero to disable
     // @Units: m
@@ -95,7 +95,7 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO_FRAME("ALT_MIN", 7, AC_Avoid, _alt_min, 0.0f, AP_PARAM_FRAME_COPTER | AP_PARAM_FRAME_HELI | AP_PARAM_FRAME_TRICOPTER),
 
-    // @Param: ACCEL_MAX
+    // `@Param`: ACCEL_MAX
     // @DisplayName: Avoidance maximum acceleration
     // @Description: Maximum acceleration with which obstacles will be avoided with. Set zero to disable acceleration limits
     // @Units: m/s/s
@@ -103,7 +103,7 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ACCEL_MAX", 8, AC_Avoid, _accel_max, 3.0f),
 
-    // @Param: BACKUP_DZ
+    // `@Param`: BACKUP_DZ
     // @DisplayName: Avoidance deadzone between stopping and backing away from obstacle
     // @Description: Distance beyond AVOID_MARGIN parameter, after which vehicle will backaway from obstacles. Increase this parameter if you see vehicle going back and forth in front of obstacle.
     // @Units: m
@@ -111,7 +111,7 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("BACKUP_DZ", 9, AC_Avoid, _backup_deadzone, 0.10f),
 
-    // @Param: BACKZ_SPD
+    // `@Param`: BACKZ_SPD
     // @DisplayName: Avoidance maximum vertical backup speed
     // @Description: Maximum speed that will be used to back away from obstacles vertically in height control modes (m/s). Set zero to disable vertical backup.
     // @Units: m/s

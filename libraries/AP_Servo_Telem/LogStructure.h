@@ -6,7 +6,7 @@
 #define LOG_IDS_FROM_SERVO_TELEM \
     LOG_CSRV_MSG
 
-// @LoggerMessage: CSRV
+// `@LoggerMessage`: CSRV
 // @Description: Servo feedback data
 // @Field: TimeUS: Time since system startup
 // @Field: Id: Servo number this data relates to

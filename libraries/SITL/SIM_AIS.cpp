@@ -51,12 +51,12 @@ using namespace SITL;
 
 const AP_Param::GroupInfo AIS::var_info[] = {
 
-    // @Param: COUNT
+    // `@Param`: COUNT
     // @DisplayName: Number of AIS vessels
     // @Description: Total number of AIS simulated vessels
     AP_GROUPINFO("COUNT", 1, AIS, vessel_count, -1),
 
-    // @Param: RADIUS
+    // `@Param`: RADIUS
     // @DisplayName: AIS radius stddev of vessels
     // @Description: Simulated standard deviation of radius in AIS of a vessel
     // @Units: m

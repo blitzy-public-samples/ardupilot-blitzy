@@ -26,7 +26,7 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo ToneAlarm::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: ToneAlarm enable/disable
     // @Description: Allows you to enable (1) or disable (0) the simulated tonealarm
     // @Values: 0:Disabled,1:Enabled

@@ -35,7 +35,7 @@
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo SLCAN::CANIface::var_info[] = {
-    // @Param: CPORT
+    // `@Param`: CPORT
     // @DisplayName: SLCAN Route
     // @Description: CAN Interface ID to be routed to SLCAN, 0 means no routing
     // @Values: 0:Disabled,1:First interface,2:Second interface
@@ -43,21 +43,21 @@ const AP_Param::GroupInfo SLCAN::CANIface::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("CPORT", 1, SLCAN::CANIface, _slcan_can_port, 0),
 
-    // @Param: SERNUM
+    // `@Param`: SERNUM
     // @DisplayName: SLCAN Serial Port
     // @Description: Serial Port ID to be used for temporary SLCAN iface, -1 means no temporary serial. This parameter is automatically reset on reboot or on timeout. See CAN_SLCAN_TIMOUT for timeout details
     // @Values: -1:Disabled,0:Serial0,1:Serial1,2:Serial2,3:Serial3,4:Serial4,5:Serial5,6:Serial6
     // @User: Standard
     AP_GROUPINFO("SERNUM", 2, SLCAN::CANIface, _slcan_ser_port, -1),
 
-    // @Param: TIMOUT
+    // `@Param`: TIMOUT
     // @DisplayName: SLCAN Timeout
     // @Description: Duration of inactivity after which SLCAN is switched back to original driver in seconds.
     // @Range: 0 127
     // @User: Standard
     AP_GROUPINFO("TIMOUT", 3, SLCAN::CANIface, _slcan_timeout, 0),
 
-    // @Param: SDELAY
+    // `@Param`: SDELAY
     // @DisplayName: SLCAN Start Delay
     // @Description: Duration after which slcan starts after setting SERNUM in seconds.
     // @Range: 0 127

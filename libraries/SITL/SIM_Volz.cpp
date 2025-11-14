@@ -44,20 +44,20 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo Volz::var_info[] = {
 
-    // @Param: ENA
+    // `@Param`: ENA
     // @DisplayName: Volz simulator enable/disable
     // @Description: Allows you to enable (1) or disable (0) the Volz simulator
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENA", 1, Volz, _enabled, 0),
 
-    // @Param: MASK
+    // `@Param`: MASK
     // @DisplayName: Volz override mask
     // @Description: mask of servo output channels to override with values from Volz protocol.  Note these are indexed from 0 - so channel 3 (usually throttle) has value 4 in this bitmask (1<<2).
     // @User: Advanced
     AP_GROUPINFO("MASK", 2, Volz, _output_mask, (1U<<0)|(1U<<1)|(1U<<3)),
 
-    // @Param: FMASK
+    // `@Param`: FMASK
     // @DisplayName: Volz fail mask
     // @Description: fail servo at current position.  Channel 1 is bit 0.
     // @User: Advanced
@@ -251,7 +251,7 @@ void Volz::update_sitl_input_pwm(struct sitl_input &input)
 #if HAL_LOGGING_ENABLED
 void Volz::log_Servo(const Volz::Servo &servo, const uint32_t now_us)
 {
-    // @LoggerMessage: SMVZ
+    // `@LoggerMessage`: SMVZ
     // @Description: Simulated Volz servo information
     // @Field: TimeUS: Time since system startup
     // @Field: Id: Volz servo ID

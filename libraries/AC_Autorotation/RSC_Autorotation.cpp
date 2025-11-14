@@ -9,14 +9,14 @@ extern const AP_HAL::HAL& hal;
 // RSC autorotation state specific parameters
 const AP_Param::GroupInfo RSC_Autorotation::var_info[] = {
 
-    // @Param: ENBL
+    // `@Param`: ENBL
     // @DisplayName: Enable autorotation handling in RSC
     // @Description: Allows you to enable (1) or disable (0) the autorotation functionality within the Rotor Speed Controller.
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENBL", 1, RSC_Autorotation, enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: RAMP
+    // `@Param`: RAMP
     // @DisplayName: Time for in-flight power re-engagement when exiting autorotations
     // @Description: When exiting an autorotation in a bailout manoeuvre, this is the time in seconds for the throttle output (HeliRSC servo) to ramp from idle (H_RSC_AROT_IDLE) to flight throttle setting when motor interlock is re-enabled. When using an ESC with an autorotation bailout function, this parameter should be set to 0.1 (minimum value).
     // @Range: 0.1 10
@@ -25,7 +25,7 @@ const AP_Param::GroupInfo RSC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RAMP", 2, RSC_Autorotation, bailout_throttle_time, RSC_AROT_RAMP_TIME_DEFAULT),
 
-    // @Param: IDLE
+    // `@Param`: IDLE
     // @DisplayName: Idle throttle percentage during autorotation
     // @Description: Idle throttle used for during autotoration. For external governors, this would be set to a value that is within the autorotation window of the governer/ESC to enable fast spool-up, when bailing out of an autorotation.  Set 0 to disable.
     // @Range: 0 40
@@ -34,7 +34,7 @@ const AP_Param::GroupInfo RSC_Autorotation::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("IDLE", 3, RSC_Autorotation, idle_output, 0.0),
 
-    // @Param: RUNUP
+    // `@Param`: RUNUP
     // @DisplayName: Time allowed for in-flight power re-engagement
     // @Description: When exiting an autorotation in a bailout manoeuvre, this is the expected time in seconds for the main rotor to reach full speed after motor interlock is enabled. Must be at least one second longer than the H_RSC_AROT_RAMP time that is set. This timer should be set for at least the amount of time it takes to get your helicopter to full flight power. Failure to heed this warning could result in early entry into autonomously controlled collective modes (e.g. alt hold, loiter, etc), whereby the collective could be raised before the engine has reached full power, with a subsequently dangerous slowing of head speed.
     // @Range: 1 10

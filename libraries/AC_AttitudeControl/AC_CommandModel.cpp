@@ -9,7 +9,7 @@ extern const AP_HAL::HAL& hal;
 // table of user settable parameters
 const AP_Param::GroupInfo AC_CommandModel::var_info[] = {
 
-    // @Param: RATE
+    // `@Param`: RATE
     // @DisplayName: Maximum Controlled Rate
     // @Description: Sets the maximum rate commanded. 
     // @Units: deg/s
@@ -17,7 +17,7 @@ const AP_Param::GroupInfo AC_CommandModel::var_info[] = {
     // @User: Standard
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("RATE", 1, AC_CommandModel, rate, default_rate),
 
-    // @Param: EXPO
+    // `@Param`: EXPO
     // @DisplayName: Controlled Expo
     // @Description: Controlled expo to allow faster rotation when stick at edges
     // @Values: 0:Disabled,0.1:Very Low,0.2:Low,0.3:Medium,0.4:High,0.5:Very High
@@ -25,7 +25,7 @@ const AP_Param::GroupInfo AC_CommandModel::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("EXPO", 2, AC_CommandModel, expo, default_expo),
 
-    // @Param: RATE_TC
+    // `@Param`: RATE_TC
     // @DisplayName: Rate control input time constant
     // @Description: Rate control input time constant.  Low numbers lead to sharper response, higher numbers to softer response
     // @Units: s

@@ -96,14 +96,14 @@ extern const AP_HAL::HAL& hal;
 
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
-    // @Param: NODE
+    // `@Param`: NODE
     // @DisplayName: Own node ID
     // @Description: DroneCAN node ID used by the driver itself on this network
     // @Range: 1 125
     // @User: Advanced
     AP_GROUPINFO("NODE", 1, AP_DroneCAN, _dronecan_node, AP_DRONECAN_DEFAULT_NODE),
 
-    // @Param: SRV_BM
+    // `@Param`: SRV_BM
     // @DisplayName: Output channels to be transmitted as servo over DroneCAN
     // @Description: Bitmask with one set for channel to be transmitted as a servo command over DroneCAN
     // @Bitmask: 0: Servo 1, 1: Servo 2, 2: Servo 3, 3: Servo 4, 4: Servo 5, 5: Servo 6, 6: Servo 7, 7: Servo 8, 8: Servo 9, 9: Servo 10, 10: Servo 11, 11: Servo 12, 12: Servo 13, 13: Servo 14, 14: Servo 15, 15: Servo 16, 16: Servo 17, 17: Servo 18, 18: Servo 19, 19: Servo 20, 20: Servo 21, 21: Servo 22, 22: Servo 23, 23: Servo 24, 24: Servo 25, 25: Servo 26, 26: Servo 27, 27: Servo 28, 28: Servo 29, 29: Servo 30, 30: Servo 31, 31: Servo 32
@@ -111,14 +111,14 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SRV_BM", 2, AP_DroneCAN, _servo_bm, 0),
 
-    // @Param: ESC_BM
+    // `@Param`: ESC_BM
     // @DisplayName: Output channels to be transmitted as ESC over DroneCAN
     // @Description: Bitmask with one set for channel to be transmitted as a ESC command over DroneCAN
     // @Bitmask: 0: ESC 1, 1: ESC 2, 2: ESC 3, 3: ESC 4, 4: ESC 5, 5: ESC 6, 6: ESC 7, 7: ESC 8, 8: ESC 9, 9: ESC 10, 10: ESC 11, 11: ESC 12, 12: ESC 13, 13: ESC 14, 14: ESC 15, 15: ESC 16, 16: ESC 17, 17: ESC 18, 18: ESC 19, 19: ESC 20, 20: ESC 21, 21: ESC 22, 22: ESC 23, 23: ESC 24, 24: ESC 25, 25: ESC 26, 26: ESC 27, 27: ESC 28, 28: ESC 29, 29: ESC 30, 30: ESC 31, 31: ESC 32
     // @User: Advanced
     AP_GROUPINFO("ESC_BM", 3, AP_DroneCAN, _esc_bm, 0),
 
-    // @Param: SRV_RT
+    // `@Param`: SRV_RT
     // @DisplayName: Servo output rate
     // @Description: Maximum transmit rate for servo outputs
     // @Range: 1 200
@@ -126,14 +126,14 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SRV_RT", 4, AP_DroneCAN, _servo_rate_hz, 50),
 
-    // @Param: OPTION
+    // `@Param`: OPTION
     // @DisplayName: DroneCAN options
     // @Description: Option flags
     // @Bitmask: 0:ClearDNADatabase,1:IgnoreDNANodeConflicts,2:EnableCanfd,3:IgnoreDNANodeUnhealthy,4:SendServoAsPWM,5:SendGNSS,6:UseHimarkServo,7:HobbyWingESC,8:EnableStats,9:EnableFlexDebug
     // @User: Advanced
     AP_GROUPINFO("OPTION", 5, AP_DroneCAN, _options, 0),
     
-    // @Param: NTF_RT
+    // `@Param`: NTF_RT
     // @DisplayName: Notify State rate
     // @Description: Maximum transmit rate for Notify State Message
     // @Range: 1 200
@@ -141,21 +141,21 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("NTF_RT", 6, AP_DroneCAN, _notify_state_hz, 20),
 
-    // @Param: ESC_OF
+    // `@Param`: ESC_OF
     // @DisplayName: ESC Output channels offset
     // @Description: Offset for ESC numbering in DroneCAN ESC RawCommand messages. This allows for more efficient packing of ESC command messages. If your ESCs are on servo outputs 5 to 8 and you set this parameter to 4 then the ESC RawCommand will be sent with the first 4 slots filled. This can be used for more efficient usage of CAN bandwidth
     // @Range: 0 18
     // @User: Advanced
     AP_GROUPINFO("ESC_OF", 7, AP_DroneCAN, _esc_offset, 0),
 
-    // @Param: POOL
+    // `@Param`: POOL
     // @DisplayName: CAN pool size
     // @Description: Amount of memory in bytes to allocate for the DroneCAN memory pool. More memory is needed for higher CAN bus loads
     // @Range: 1024 16384
     // @User: Advanced
     AP_GROUPINFO("POOL", 8, AP_DroneCAN, _pool_size, DRONECAN_NODE_POOL_SIZE),
 
-    // @Param: ESC_RV
+    // `@Param`: ESC_RV
     // @DisplayName: Bitmask for output channels for reversible ESCs over DroneCAN.
     // @Description: Bitmask with one set for each output channel that uses a reversible ESC over DroneCAN. Reversible ESCs use both positive and negative values in RawCommands, with positive commanding the forward direction and negative commanding the reverse direction.
     // @Bitmask: 0: ESC 1, 1: ESC 2, 2: ESC 3, 3: ESC 4, 4: ESC 5, 5: ESC 6, 6: ESC 7, 7: ESC 8, 8: ESC 9, 9: ESC 10, 10: ESC 11, 11: ESC 12, 12: ESC 13, 13: ESC 14, 14: ESC 15, 15: ESC 16, 16: ESC 17, 17: ESC 18, 18: ESC 19, 19: ESC 20, 20: ESC 21, 21: ESC 22, 22: ESC 23, 23: ESC 24, 24: ESC 25, 25: ESC 26, 26: ESC 27, 27: ESC 28, 28: ESC 29, 29: ESC 30, 30: ESC 31, 31: ESC 32
@@ -163,7 +163,7 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     AP_GROUPINFO("ESC_RV", 9, AP_DroneCAN, _esc_rv, 0),
 
 #if AP_RELAY_DRONECAN_ENABLED
-    // @Param: RLY_RT
+    // `@Param`: RLY_RT
     // @DisplayName: DroneCAN relay output rate
     // @Description: Maximum transmit rate for relay outputs, note that this rate is per message each message does 1 relay, so if with more relays will take longer to update at the same rate, a extra message will be sent when a relay changes state
     // @Range: 0 200
@@ -177,7 +177,7 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
       due to the parameter tree depth limitation we can't use a sub-table for the serial parameters
      */
 
-    // @Param: SER_EN
+    // `@Param`: SER_EN
     // @DisplayName: DroneCAN Serial enable
     // @Description: Enable DroneCAN virtual serial ports
     // @Values: 0:Disabled, 1:Enabled
@@ -185,7 +185,7 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO_FLAGS("SER_EN", 10,  AP_DroneCAN, serial.enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: S1_NOD
+    // `@Param`: S1_NOD
     // @DisplayName: Serial CAN remote node number
     // @Description: CAN remote node number for serial port
     // @Range: 0 127
@@ -193,7 +193,7 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("S1_NOD", 11,  AP_DroneCAN, serial.ports[0].node, 0),
 
-    // @Param: S1_IDX
+    // `@Param`: S1_IDX
     // @DisplayName: DroneCAN Serial1 index
     // @Description: Serial port number on remote CAN node
     // @Range: 0 100
@@ -202,7 +202,7 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("S1_IDX", 12,  AP_DroneCAN, serial.ports[0].idx, -1),
 
-    // @Param: S1_BD
+    // `@Param`: S1_BD
     // @DisplayName: DroneCAN Serial default baud rate
     // @Description: Serial baud rate on remote CAN node
     // @CopyFieldsFrom: SERIAL1_BAUD
@@ -210,7 +210,7 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("S1_BD", 13,  AP_DroneCAN, serial.ports[0].state.baud, 57600),
 
-    // @Param: S1_PRO
+    // `@Param`: S1_PRO
     // @DisplayName: Serial protocol of DroneCAN serial port
     // @Description: Serial protocol of DroneCAN serial port
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
@@ -219,25 +219,25 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     AP_GROUPINFO("S1_PRO", 14,  AP_DroneCAN, serial.ports[0].state.protocol, -1),
 
 #if AP_DRONECAN_SERIAL_NUM_PORTS > 1
-    // @Param: S2_NOD
+    // `@Param`: S2_NOD
     // @DisplayName: Serial CAN remote node number
     // @Description: CAN remote node number for serial port
     // @CopyFieldsFrom: CAN_D1_UC_S1_NOD
     AP_GROUPINFO("S2_NOD", 15,  AP_DroneCAN, serial.ports[1].node, 0),
 
-    // @Param: S2_IDX
+    // `@Param`: S2_IDX
     // @DisplayName: Serial port number on remote CAN node
     // @Description: Serial port number on remote CAN node
     // @CopyFieldsFrom: CAN_D1_UC_S1_IDX
     AP_GROUPINFO("S2_IDX", 16,  AP_DroneCAN, serial.ports[1].idx, -1),
 
-    // @Param: S2_BD
+    // `@Param`: S2_BD
     // @DisplayName: DroneCAN Serial default baud rate
     // @Description: Serial baud rate on remote CAN node
     // @CopyFieldsFrom: CAN_D1_UC_S1_BD
     AP_GROUPINFO("S2_BD", 17,  AP_DroneCAN, serial.ports[1].state.baud, 57600),
 
-    // @Param: S2_PRO
+    // `@Param`: S2_PRO
     // @DisplayName: Serial protocol of DroneCAN serial port
     // @Description: Serial protocol of DroneCAN serial port
     // @CopyFieldsFrom: CAN_D1_UC_S1_PRO
@@ -245,25 +245,25 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
 #endif
 
 #if AP_DRONECAN_SERIAL_NUM_PORTS > 2
-    // @Param: S3_NOD
+    // `@Param`: S3_NOD
     // @DisplayName: Serial CAN remote node number
     // @Description: CAN node number for serial port
     // @CopyFieldsFrom: CAN_D1_UC_S1_NOD
     AP_GROUPINFO("S3_NOD", 19,  AP_DroneCAN, serial.ports[2].node, 0),
 
-    // @Param: S3_IDX
+    // `@Param`: S3_IDX
     // @DisplayName: Serial port number on remote CAN node
     // @Description: Serial port number on remote CAN node
     // @CopyFieldsFrom: CAN_D1_UC_S1_IDX
     AP_GROUPINFO("S3_IDX", 20,  AP_DroneCAN, serial.ports[2].idx, 0),
 
-    // @Param: S3_BD
+    // `@Param`: S3_BD
     // @DisplayName: Serial baud rate on remote CAN node
     // @Description: Serial baud rate on remote CAN node
     // @CopyFieldsFrom: CAN_D1_UC_S1_BD
     AP_GROUPINFO("S3_BD", 21,  AP_DroneCAN, serial.ports[2].state.baud, 57600),
 
-    // @Param: S3_PRO
+    // `@Param`: S3_PRO
     // @DisplayName: Serial protocol of DroneCAN serial port
     // @Description: Serial protocol of DroneCAN serial port
     // @CopyFieldsFrom: CAN_D1_UC_S1_PRO
@@ -1960,7 +1960,7 @@ void AP_DroneCAN::logging(void)
     }
     const auto &s = *stats;
 
-// @LoggerMessage: CANS
+// `@LoggerMessage`: CANS
 // @Description: CAN Bus Statistics
 // @Field: TimeUS: Time since system startup
 // @Field: I: driver index

@@ -62,13 +62,13 @@ extern const AP_HAL::HAL &hal;
 
 const AP_Param::GroupInfo AP_TemperatureSensor_MAX31865::var_info[] = {
 
-    // @Param: RTD_NOM
+    // `@Param`: RTD_NOM
     // @DisplayName: Nominal RTD resistance
     // @Description: Nominal RTD resistance used to calculate temperature, typically 100 or 1000 ohms.
     // @User: Standard
     AP_GROUPINFO("RTD_NOM", 8, AP_TemperatureSensor_MAX31865, nominal_resistance, 100),
 
-    // @Param: RTD_REF
+    // `@Param`: RTD_REF
     // @DisplayName: RTD reference resistance
     // @Description: Reference resistance used to calculate temperature, in ohms
     // @User: Standard

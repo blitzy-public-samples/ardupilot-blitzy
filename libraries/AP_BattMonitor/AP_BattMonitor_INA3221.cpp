@@ -67,7 +67,7 @@ uint8_t AP_BattMonitor_INA3221::address_driver_count;
 
 const AP_Param::GroupInfo AP_BattMonitor_INA3221::var_info[] = {
 
-    // @Param: I2C_BUS
+    // `@Param`: I2C_BUS
     // @DisplayName: Battery monitor I2C bus number
     // @Description: Battery monitor I2C bus number
     // @Range: 0 3
@@ -75,7 +75,7 @@ const AP_Param::GroupInfo AP_BattMonitor_INA3221::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("I2C_BUS", 22, AP_BattMonitor_INA3221, i2c_bus, HAL_BATTMON_INA3221_BUS),
 
-    // @Param: I2C_ADDR
+    // `@Param`: I2C_ADDR
     // @DisplayName: Battery monitor I2C address
     // @Description: Battery monitor I2C address. If this is zero then probe list of supported addresses
     // @Range: 0 127
@@ -83,7 +83,7 @@ const AP_Param::GroupInfo AP_BattMonitor_INA3221::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("I2C_ADDR", 23, AP_BattMonitor_INA3221, i2c_address, HAL_BATTMON_INA3221_ADDR),
 
-    // @Param: CHANNEL
+    // `@Param`: CHANNEL
     // @DisplayName: INA3221 channel
     // @Description: INA3221 channel to return data for
     // @Range: 1 3

@@ -6,7 +6,7 @@
 #define LOG_IDS_FROM_PRECLAND \
     LOG_PRECLAND_MSG
 
-// @LoggerMessage: PL
+// `@LoggerMessage`: PL
 // @Description: Precision Landing messages
 // @Field: TimeUS: Time since system startup
 // @Field: Heal: True if Precision Landing is healthy

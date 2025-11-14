@@ -12,7 +12,7 @@
     LOG_PSOT_MSG, \
     LOG_ANG_MSG
 
-// @LoggerMessage: PSCN
+// `@LoggerMessage`: PSCN
 // @Description: Position Control North
 // @Field: TimeUS: Time since system startup
 // @Field: DPN: Desired position relative to EKF origin
@@ -25,7 +25,7 @@
 // @Field: TAN: Target acceleration North
 // @Field: AN: Acceleration North
 
-// @LoggerMessage: PSCE
+// `@LoggerMessage`: PSCE
 // @Description: Position Control East
 // @Field: TimeUS: Time since system startup
 // @Field: DPE: Desired position relative to EKF origin + Offsets
@@ -38,7 +38,7 @@
 // @Field: TAE: Target acceleration East
 // @Field: AE: Acceleration East
 
-// @LoggerMessage: PSCD
+// `@LoggerMessage`: PSCD
 // @Description: Position Control Down
 // @Field: TimeUS: Time since system startup
 // @Field: DPD: Desired position relative to EKF origin + Offsets
@@ -67,7 +67,7 @@ struct PACKED log_PSCx {
     float accel;
 };
 
-// @LoggerMessage: PSON
+// `@LoggerMessage`: PSON
 // @Description: Position Control Offsets North
 // @Field: TimeUS: Time since system startup
 // @Field: TPON: Target position offset North
@@ -77,7 +77,7 @@ struct PACKED log_PSCx {
 // @Field: TAON: Target acceleration offset North
 // @Field: AON: Acceleration offset North
 
-// @LoggerMessage: PSOE
+// `@LoggerMessage`: PSOE
 // @Description: Position Control Offsets East
 // @Field: TimeUS: Time since system startup
 // @Field: TPOE: Target position offset East
@@ -87,7 +87,7 @@ struct PACKED log_PSCx {
 // @Field: TAOE: Target acceleration offset East
 // @Field: AOE: Acceleration offset East
 
-// @LoggerMessage: PSOD
+// `@LoggerMessage`: PSOD
 // @Description: Position Control Offsets Down
 // @Field: TimeUS: Time since system startup
 // @Field: TPOD: Target position offset Down
@@ -97,7 +97,7 @@ struct PACKED log_PSCx {
 // @Field: TAOD: Target acceleration offset Down
 // @Field: AOD: Acceleration offset Down
 
-// @LoggerMessage: PSOT
+// `@LoggerMessage`: PSOT
 // @Description: Position Control Offsets Terrain (Down)
 // @Field: TimeUS: Time since system startup
 // @Field: TPOT: Target position offset Terrain
@@ -119,7 +119,7 @@ struct PACKED log_PSOx {
     float accel_offset;
 };
 
-// @LoggerMessage: RATE
+// `@LoggerMessage`: RATE
 // @Description: Desired and achieved vehicle attitude rates. Not logged in Fixed Wing Plane modes.
 // @Field: TimeUS: Time since system startup
 // @Field: RDes: vehicle desired roll rate
@@ -153,7 +153,7 @@ struct PACKED log_Rate {
     float   throttle_slew;
 };
 
-// @LoggerMessage: ANG
+// `@LoggerMessage`: ANG
 // @Description: Attitude control attitude
 // @Field: TimeUS: Timestamp of the current Attitude loop
 // @Field: DesRoll: vehicle desired roll

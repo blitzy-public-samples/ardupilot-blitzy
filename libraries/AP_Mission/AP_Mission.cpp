@@ -21,7 +21,7 @@
 
 const AP_Param::GroupInfo AP_Mission::var_info[] = {
 
-    // @Param: TOTAL
+    // `@Param`: TOTAL
     // @DisplayName: Total mission commands
     // @Description: The number of mission mission items that has been loaded by the ground station. Do not change this manually.
     // @Range: 0 32766
@@ -30,14 +30,14 @@ const AP_Param::GroupInfo AP_Mission::var_info[] = {
     // @ReadOnly: True
     AP_GROUPINFO_FLAGS("TOTAL",  0, AP_Mission, _cmd_total, 0, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
-    // @Param: RESTART
+    // `@Param`: RESTART
     // @DisplayName: Mission Restart when entering Auto mode
     // @Description: Controls mission starting point when entering Auto mode (either restart from beginning of mission or resume from last command run)
     // @Values: 0:Resume Mission, 1:Restart Mission
     // @User: Advanced
     AP_GROUPINFO("RESTART",  1, AP_Mission, _restart, AP_MISSION_RESTART_DEFAULT),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Mission options bitmask
     // @Description: Bitmask of what options to use in missions. If the DontZeroCounter counter option is set than on completion of a jump loop the counter is left at zero, so the jump will not happen again if the loop is re-entered.
     // @Bitmask: 0:Clear Mission on reboot, 1:Use distance to land calc on battery failsafe,2:ContinueAfterLand, 3:DontZeroCounter

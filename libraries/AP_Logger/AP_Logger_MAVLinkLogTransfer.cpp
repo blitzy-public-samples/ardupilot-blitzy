@@ -28,9 +28,6 @@
 
 extern const AP_HAL::HAL& hal;
 
-/**
-   handle all types of log download requests from the GCS
- */
 void AP_Logger::handle_log_message(GCS_MAVLINK &link, const mavlink_message_t &msg)
 {
     if (!WritesEnabled()) {

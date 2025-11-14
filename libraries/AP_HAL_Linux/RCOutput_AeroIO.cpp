@@ -78,9 +78,7 @@ using namespace Linux;
  * pwm_01: Address 0x0000 frequency
  *       : Address 0x0001 duty cycle
  * pwm_02: Address 0x0002 frequency
- *   .
- *   .
- *   .
+ *   (etc.)
  *
  * Eg of allowed values:
  *     // PWM channel in 100Hz

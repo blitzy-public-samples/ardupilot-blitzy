@@ -22,21 +22,21 @@ extern const AP_HAL::HAL& hal;
 
 // table of user settable parameters
 const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: WheelEncoder type
     // @Description: What type of WheelEncoder is connected
     // @Values: 0:None,1:Quadrature,10:SITL Quadrature
     // @User: Standard
     AP_GROUPINFO_FLAGS("_TYPE", 0, AP_WheelEncoder, _type[0], 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _CPR
+    // `@Param`: _CPR
     // @DisplayName: WheelEncoder counts per revolution
     // @Description: WheelEncoder counts per full revolution of the wheel
     // @Increment: 1
     // @User: Standard
     AP_GROUPINFO("_CPR",     1, AP_WheelEncoder, _counts_per_revolution[0], WHEELENCODER_CPR_DEFAULT),
 
-    // @Param: _RADIUS
+    // `@Param`: _RADIUS
     // @DisplayName: Wheel radius
     // @Description: Wheel radius
     // @Units: m
@@ -44,7 +44,7 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_RADIUS",  2, AP_WheelEncoder, _wheel_radius[0], WHEELENCODER_RADIUS_DEFAULT),
 
-    // @Param: _POS_X
+    // `@Param`: _POS_X
     // @DisplayName: Wheel's X position offset
     // @Description: X position of the center of the wheel in body frame. Positive X is forward of the origin.
     // @Units: m
@@ -52,7 +52,7 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     // @Increment: 0.01
     // @User: Standard
 
-    // @Param: _POS_Y
+    // `@Param`: _POS_Y
     // @DisplayName: Wheel's Y position offset
     // @Description: Y position of the center of the wheel in body frame. Positive Y is to the right of the origin.
     // @Units: m
@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     // @Increment: 0.01
     // @User: Standard
 
-    // @Param: _POS_Z
+    // `@Param`: _POS_Z
     // @DisplayName: Wheel's Z position offset
     // @Description: Z position of the center of the wheel in body frame. Positive Z is down from the origin.
     // @Units: m
@@ -69,14 +69,14 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_POS",     3, AP_WheelEncoder, _pos_offset[0], 0.0f),
 
-    // @Param: _PINA
+    // `@Param`: _PINA
     // @DisplayName: Input Pin A
     // @Description: Input Pin A
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6
     // @User: Standard
     AP_GROUPINFO("_PINA",    4, AP_WheelEncoder, _pina[0], -1),
 
-    // @Param: _PINB
+    // `@Param`: _PINB
     // @DisplayName: Input Pin B
     // @Description: Input Pin B
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6
@@ -84,21 +84,21 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     AP_GROUPINFO("_PINB",    5, AP_WheelEncoder, _pinb[0], -1),
 
 #if WHEELENCODER_MAX_INSTANCES > 1
-    // @Param: 2_TYPE
+    // `@Param`: 2_TYPE
     // @DisplayName: Second WheelEncoder type
     // @Description: What type of WheelEncoder sensor is connected
     // @Values: 0:None,1:Quadrature,10:SITL Quadrature
     // @User: Standard
     AP_GROUPINFO("2_TYPE",   6, AP_WheelEncoder, _type[1], 0),
 
-    // @Param: 2_CPR
+    // `@Param`: 2_CPR
     // @DisplayName: WheelEncoder 2 counts per revolution
     // @Description: WheelEncoder 2 counts per full revolution of the wheel
     // @Increment: 1
     // @User: Standard
     AP_GROUPINFO("2_CPR",     7, AP_WheelEncoder, _counts_per_revolution[1], WHEELENCODER_CPR_DEFAULT),
 
-    // @Param: 2_RADIUS
+    // `@Param`: 2_RADIUS
     // @DisplayName: Wheel2's radius
     // @Description: Wheel2's radius
     // @Units: m
@@ -106,7 +106,7 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("2_RADIUS", 8, AP_WheelEncoder, _wheel_radius[1], WHEELENCODER_RADIUS_DEFAULT),
 
-    // @Param: 2_POS_X
+    // `@Param`: 2_POS_X
     // @DisplayName: Wheel2's X position offset
     // @Description: X position of the center of the second wheel in body frame. Positive X is forward of the origin.
     // @Units: m
@@ -114,7 +114,7 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     // @Increment: 0.01
     // @User: Standard
 
-    // @Param: 2_POS_Y
+    // `@Param`: 2_POS_Y
     // @DisplayName: Wheel2's Y position offset
     // @Description: Y position of the center of the second wheel in body frame. Positive Y is to the right of the origin.
     // @Units: m
@@ -122,7 +122,7 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     // @Increment: 0.01
     // @User: Standard
 
-    // @Param: 2_POS_Z
+    // `@Param`: 2_POS_Z
     // @DisplayName: Wheel2's Z position offset
     // @Description: Z position of the center of the second wheel in body frame. Positive Z is down from the origin.
     // @Units: m
@@ -131,14 +131,14 @@ const AP_Param::GroupInfo AP_WheelEncoder::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("2_POS",    9, AP_WheelEncoder, _pos_offset[1], 0.0f),
 
-    // @Param: 2_PINA
+    // `@Param`: 2_PINA
     // @DisplayName: Second Encoder Input Pin A
     // @Description: Second Encoder Input Pin A
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6
     // @User: Standard
     AP_GROUPINFO("2_PINA",   10, AP_WheelEncoder, _pina[1], 53),
 
-    // @Param: 2_PINB
+    // `@Param`: 2_PINB
     // @DisplayName: Second Encoder Input Pin B
     // @Description: Second Encoder Input Pin B
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6

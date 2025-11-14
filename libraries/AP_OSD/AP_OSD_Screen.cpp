@@ -61,684 +61,684 @@
 
 const AP_Param::GroupInfo AP_OSD_Screen::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable screen
     // @Description: Enable this screen
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLE", 1, AP_OSD_Screen, enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: CHAN_MIN
+    // `@Param`: CHAN_MIN
     // @DisplayName: Transmitter switch screen minimum pwm
     // @Description: This sets the PWM lower limit for this screen
     // @Range: 900 2100
     // @User: Standard
     AP_GROUPINFO("CHAN_MIN", 2, AP_OSD_Screen, channel_min, 900),
 
-    // @Param: CHAN_MAX
+    // `@Param`: CHAN_MAX
     // @DisplayName: Transmitter switch screen maximum pwm
     // @Description: This sets the PWM upper limit for this screen
     // @Range: 900 2100
     // @User: Standard
     AP_GROUPINFO("CHAN_MAX", 3, AP_OSD_Screen, channel_max, 2100),
 
-    // @Param: ALTITUDE_EN
+    // `@Param`: ALTITUDE_EN
     // @DisplayName: ALTITUDE_EN
     // @Description: Enables display of altitude AGL
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ALTITUDE_X
+    // `@Param`: ALTITUDE_X
     // @DisplayName: ALTITUDE_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ALTITUDE_Y
+    // `@Param`: ALTITUDE_Y
     // @DisplayName: ALTITUDE_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(altitude, "ALTITUDE", 4, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: BAT_VOLT_EN
+    // `@Param`: BAT_VOLT_EN
     // @DisplayName: BATVOLT_EN
     // @Description: Displays main battery voltage
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: BAT_VOLT_X
+    // `@Param`: BAT_VOLT_X
     // @DisplayName: BATVOLT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: BAT_VOLT_Y
+    // `@Param`: BAT_VOLT_Y
     // @DisplayName: BATVOLT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(bat_volt, "BAT_VOLT", 5, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: RSSI_EN
+    // `@Param`: RSSI_EN
     // @DisplayName: RSSI_EN
     // @Description: Displays RC signal strength
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: RSSI_X
+    // `@Param`: RSSI_X
     // @DisplayName: RSSI_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: RSSI_Y
+    // `@Param`: RSSI_Y
     // @DisplayName: RSSI_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(rssi, "RSSI", 6, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: CURRENT_EN
+    // `@Param`: CURRENT_EN
     // @DisplayName: CURRENT_EN
     // @Description: Displays main battery current
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: CURRENT_X
+    // `@Param`: CURRENT_X
     // @DisplayName: CURRENT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: CURRENT_Y
+    // `@Param`: CURRENT_Y
     // @DisplayName: CURRENT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(current, "CURRENT", 7, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: BATUSED_EN
+    // `@Param`: BATUSED_EN
     // @DisplayName: BATUSED_EN
     // @Description: Displays primary battery mAh consumed
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: BATUSED_X
+    // `@Param`: BATUSED_X
     // @DisplayName: BATUSED_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: BATUSED_Y
+    // `@Param`: BATUSED_Y
     // @DisplayName: BATUSED_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(batused, "BATUSED", 8, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: SATS_EN
+    // `@Param`: SATS_EN
     // @DisplayName: SATS_EN
     // @Description: Displays number of acquired satellites
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: SATS_X
+    // `@Param`: SATS_X
     // @DisplayName: SATS_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: SATS_Y
+    // `@Param`: SATS_Y
     // @DisplayName: SATS_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(sats, "SATS", 9, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: FLTMODE_EN
+    // `@Param`: FLTMODE_EN
     // @DisplayName: FLTMODE_EN
     // @Description: Displays flight mode
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: FLTMODE_X
+    // `@Param`: FLTMODE_X
     // @DisplayName: FLTMODE_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: FLTMODE_Y
+    // `@Param`: FLTMODE_Y
     // @DisplayName: FLTMODE_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(fltmode, "FLTMODE", 10, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: MESSAGE_EN
+    // `@Param`: MESSAGE_EN
     // @DisplayName: MESSAGE_EN
     // @Description: Displays Mavlink messages
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: MESSAGE_X
+    // `@Param`: MESSAGE_X
     // @DisplayName: MESSAGE_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: MESSAGE_Y
+    // `@Param`: MESSAGE_Y
     // @DisplayName: MESSAGE_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(message, "MESSAGE", 11, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: GSPEED_EN
+    // `@Param`: GSPEED_EN
     // @DisplayName: GSPEED_EN
     // @Description: Displays GPS ground speed
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: GSPEED_X
+    // `@Param`: GSPEED_X
     // @DisplayName: GSPEED_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: GSPEED_Y
+    // `@Param`: GSPEED_Y
     // @DisplayName: GSPEED_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(gspeed, "GSPEED", 12, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: HORIZON_EN
+    // `@Param`: HORIZON_EN
     // @DisplayName: HORIZON_EN
     // @Description: Displays artificial horizon
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: HORIZON_X
+    // `@Param`: HORIZON_X
     // @DisplayName: HORIZON_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: HORIZON_Y
+    // `@Param`: HORIZON_Y
     // @DisplayName: HORIZON_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(horizon, "HORIZON", 13, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: HOME_EN
+    // `@Param`: HOME_EN
     // @DisplayName: HOME_EN
     // @Description: Displays distance and relative direction to HOME
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: HOME_X
+    // `@Param`: HOME_X
     // @DisplayName: HOME_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: HOME_Y
+    // `@Param`: HOME_Y
     // @DisplayName: HOME_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(home, "HOME", 14, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: HEADING_EN
+    // `@Param`: HEADING_EN
     // @DisplayName: HEADING_EN
     // @Description: Displays heading
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: HEADING_X
+    // `@Param`: HEADING_X
     // @DisplayName: HEADING_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: HEADING_Y
+    // `@Param`: HEADING_Y
     // @DisplayName: HEADING_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(heading, "HEADING", 15, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: THROTTLE_EN
+    // `@Param`: THROTTLE_EN
     // @DisplayName: THROTTLE_EN
     // @Description: Displays actual throttle percentage being sent to motor(s)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: THROTTLE_X
+    // `@Param`: THROTTLE_X
     // @DisplayName: THROTTLE_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: THROTTLE_Y
+    // `@Param`: THROTTLE_Y
     // @DisplayName: THROTTLE_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(throttle, "THROTTLE", 16, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: COMPASS_EN
+    // `@Param`: COMPASS_EN
     // @DisplayName: COMPASS_EN
     // @Description: Enables display of compass rose
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: COMPASS_X
+    // `@Param`: COMPASS_X
     // @DisplayName: COMPASS_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: COMPASS_Y
+    // `@Param`: COMPASS_Y
     // @DisplayName: COMPASS_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(compass, "COMPASS", 17, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: WIND_EN
+    // `@Param`: WIND_EN
     // @DisplayName: WIND_EN
     // @Description: Displays wind speed and relative direction, on Rover this is the apparent wind speed and direction from the windvane, if fitted
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: WIND_X
+    // `@Param`: WIND_X
     // @DisplayName: WIND_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: WIND_Y
+    // `@Param`: WIND_Y
     // @DisplayName: WIND_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(wind, "WIND", 18, AP_OSD_Screen, AP_OSD_Setting),
 
 
-    // @Param: ASPEED_EN
+    // `@Param`: ASPEED_EN
     // @DisplayName: ASPEED_EN
     // @Description: Displays airspeed value being used by TECS (fused value)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ASPEED_X
+    // `@Param`: ASPEED_X
     // @DisplayName: ASPEED_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ASPEED_Y
+    // `@Param`: ASPEED_Y
     // @DisplayName: ASPEED_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(aspeed, "ASPEED", 19, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: VSPEED_EN
+    // `@Param`: VSPEED_EN
     // @DisplayName: VSPEED_EN
     // @Description: Displays climb rate
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: VSPEED_X
+    // `@Param`: VSPEED_X
     // @DisplayName: VSPEED_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: VSPEED_Y
+    // `@Param`: VSPEED_Y
     // @DisplayName: VSPEED_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(vspeed, "VSPEED", 20, AP_OSD_Screen, AP_OSD_Setting),
 
 #if HAL_WITH_ESC_TELEM
-    // @Param: ESCTEMP_EN
+    // `@Param`: ESCTEMP_EN
     // @DisplayName: ESCTEMP_EN
     // @Description: Displays highest temp of all active ESCs, or of a specific ECS if OSDx_ESC_IDX is set
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ESCTEMP_X
+    // `@Param`: ESCTEMP_X
     // @DisplayName: ESCTEMP_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ESCTEMP_Y
+    // `@Param`: ESCTEMP_Y
     // @DisplayName: ESCTEMP_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(esc_temp, "ESCTEMP", 21, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: ESCRPM_EN
+    // `@Param`: ESCRPM_EN
     // @DisplayName: ESCRPM_EN
     // @Description: Displays highest rpm of all active ESCs, or of a specific ESC if OSDx_ESC_IDX is set
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ESCRPM_X
+    // `@Param`: ESCRPM_X
     // @DisplayName: ESCRPM_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ESCRPM_Y
+    // `@Param`: ESCRPM_Y
     // @DisplayName: ESCRPM_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(esc_rpm, "ESCRPM", 22, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: ESCAMPS_EN
+    // `@Param`: ESCAMPS_EN
     // @DisplayName: ESCAMPS_EN
     // @Description: Displays the current of the ESC with the highest rpm of all active ESCs, or of a specific ESC if OSDx_ESC_IDX is set
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ESCAMPS_X
+    // `@Param`: ESCAMPS_X
     // @DisplayName: ESCAMPS_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ESCAMPS_Y
+    // `@Param`: ESCAMPS_Y
     // @DisplayName: ESCAMPS_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(esc_amps, "ESCAMPS", 23, AP_OSD_Screen, AP_OSD_Setting),
 #endif
-    // @Param: GPSLAT_EN
+    // `@Param`: GPSLAT_EN
     // @DisplayName: GPSLAT_EN
     // @Description: Displays GPS latitude
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: GPSLAT_X
+    // `@Param`: GPSLAT_X
     // @DisplayName: GPSLAT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: GPSLAT_Y
+    // `@Param`: GPSLAT_Y
     // @DisplayName: GPSLAT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(gps_latitude, "GPSLAT", 24, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: GPSLONG_EN
+    // `@Param`: GPSLONG_EN
     // @DisplayName: GPSLONG_EN
     // @Description: Displays GPS longitude
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: GPSLONG_X
+    // `@Param`: GPSLONG_X
     // @DisplayName: GPSLONG_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: GPSLONG_Y
+    // `@Param`: GPSLONG_Y
     // @DisplayName: GPSLONG_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(gps_longitude, "GPSLONG", 25, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: ROLL_EN
+    // `@Param`: ROLL_EN
     // @DisplayName: ROLL_EN
     // @Description: Displays degrees of roll from level
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ROLL_X
+    // `@Param`: ROLL_X
     // @DisplayName: ROLL_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ROLL_Y
+    // `@Param`: ROLL_Y
     // @DisplayName: ROLL_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(roll_angle, "ROLL", 26, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: PITCH_EN
+    // `@Param`: PITCH_EN
     // @DisplayName: PITCH_EN
     // @Description: Displays degrees of pitch from level
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: PITCH_X
+    // `@Param`: PITCH_X
     // @DisplayName: PITCH_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: PITCH_Y
+    // `@Param`: PITCH_Y
     // @DisplayName: PITCH_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(pitch_angle, "PITCH", 27, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: TEMP_EN
+    // `@Param`: TEMP_EN
     // @DisplayName: TEMP_EN
     // @Description: Displays temperature reported by primary barometer
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: TEMP_X
+    // `@Param`: TEMP_X
     // @DisplayName: TEMP_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: TEMP_Y
+    // `@Param`: TEMP_Y
     // @DisplayName: TEMP_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(temp, "TEMP", 28, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: HDOP_EN
+    // `@Param`: HDOP_EN
     // @DisplayName: HDOP_EN
     // @Description: Displays Horizontal Dilution Of Position
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: HDOP_X
+    // `@Param`: HDOP_X
     // @DisplayName: HDOP_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: HDOP_Y
+    // `@Param`: HDOP_Y
     // @DisplayName: HDOP_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(hdop, "HDOP", 29, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: WAYPOINT_EN
+    // `@Param`: WAYPOINT_EN
     // @DisplayName: WAYPOINT_EN
     // @Description: Displays bearing and distance to next waypoint
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: WAYPOINT_X
+    // `@Param`: WAYPOINT_X
     // @DisplayName: WAYPOINT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: WAYPOINT_Y
+    // `@Param`: WAYPOINT_Y
     // @DisplayName: WAYPOINT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(waypoint, "WAYPOINT", 30, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: XTRACK_EN
+    // `@Param`: XTRACK_EN
     // @DisplayName: XTRACK_EN
     // @Description: Displays crosstrack error
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: XTRACK_X
+    // `@Param`: XTRACK_X
     // @DisplayName: XTRACK_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: XTRACK_Y
+    // `@Param`: XTRACK_Y
     // @DisplayName: XTRACK_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(xtrack_error, "XTRACK", 31, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: DIST_EN
+    // `@Param`: DIST_EN
     // @DisplayName: DIST_EN
     // @Description: Displays total distance flown
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: DIST_X
+    // `@Param`: DIST_X
     // @DisplayName: DIST_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: DIST_Y
+    // `@Param`: DIST_Y
     // @DisplayName: DIST_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(dist, "DIST", 32, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: STATS_EN
+    // `@Param`: STATS_EN
     // @DisplayName: STATS_EN
     // @Description: Displays flight stats
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: STATS_X
+    // `@Param`: STATS_X
     // @DisplayName: STATS_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: STATS_Y
+    // `@Param`: STATS_Y
     // @DisplayName: STATS_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(stat, "STATS", 33, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: FLTIME_EN
+    // `@Param`: FLTIME_EN
     // @DisplayName: FLTIME_EN
     // @Description: Displays total flight time
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: FLTIME_X
+    // `@Param`: FLTIME_X
     // @DisplayName: FLTIME_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: FLTIME_Y
+    // `@Param`: FLTIME_Y
     // @DisplayName: FLTIME_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(flightime, "FLTIME", 34, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: CLIMBEFF_EN
+    // `@Param`: CLIMBEFF_EN
     // @DisplayName: CLIMBEFF_EN
     // @Description: Displays climb efficiency (climb rate/current)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: CLIMBEFF_X
+    // `@Param`: CLIMBEFF_X
     // @DisplayName: CLIMBEFF_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: CLIMBEFF_Y
+    // `@Param`: CLIMBEFF_Y
     // @DisplayName: CLIMBEFF_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(climbeff, "CLIMBEFF", 35, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: EFF_EN
+    // `@Param`: EFF_EN
     // @DisplayName: EFF_EN
     // @Description: Displays flight efficiency (mAh/km or /mi)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: EFF_X
+    // `@Param`: EFF_X
     // @DisplayName: EFF_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: EFF_Y
+    // `@Param`: EFF_Y
     // @DisplayName: EFF_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(eff, "EFF", 36, AP_OSD_Screen, AP_OSD_Setting),
 
 #if BARO_MAX_INSTANCES > 1
-    // @Param: BTEMP_EN
+    // `@Param`: BTEMP_EN
     // @DisplayName: BTEMP_EN
     // @Description: Displays temperature reported by secondary barometer
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: BTEMP_X
+    // `@Param`: BTEMP_X
     // @DisplayName: BTEMP_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: BTEMP_Y
+    // `@Param`: BTEMP_Y
     // @DisplayName: BTEMP_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(btemp, "BTEMP", 37, AP_OSD_Screen, AP_OSD_Setting),
 #endif
 
-    // @Param: ATEMP_EN
+    // `@Param`: ATEMP_EN
     // @DisplayName: ATEMP_EN
     // @Description: Displays temperature reported by primary airspeed sensor
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ATEMP_X
+    // `@Param`: ATEMP_X
     // @DisplayName: ATEMP_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ATEMP_Y
+    // `@Param`: ATEMP_Y
     // @DisplayName: ATEMP_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(atemp, "ATEMP", 38, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: BAT2_VLT_EN
+    // `@Param`: BAT2_VLT_EN
     // @DisplayName: BAT2VLT_EN
     // @Description: Displays battery2 voltage
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: BAT2_VLT_X
+    // `@Param`: BAT2_VLT_X
     // @DisplayName: BAT2VLT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: BAT2_VLT_Y
+    // `@Param`: BAT2_VLT_Y
     // @DisplayName: BAT2VLT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(bat2_vlt, "BAT2_VLT", 39, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: BAT2USED_EN
+    // `@Param`: BAT2USED_EN
     // @DisplayName: BAT2USED_EN
     // @Description: Displays secondary battery mAh consumed
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: BAT2USED_X
+    // `@Param`: BAT2USED_X
     // @DisplayName: BAT2USED_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: BAT2USED_Y
+    // `@Param`: BAT2USED_Y
     // @DisplayName: BAT2USED_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(bat2used, "BAT2USED", 40, AP_OSD_Screen, AP_OSD_Setting),
 
 
-    // @Param: ASPD2_EN
+    // `@Param`: ASPD2_EN
     // @DisplayName: ASPD2_EN
     // @Description: Displays airspeed reported directly from secondary airspeed sensor
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ASPD2_X
+    // `@Param`: ASPD2_X
     // @DisplayName: ASPD2_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ASPD2_Y
+    // `@Param`: ASPD2_Y
     // @DisplayName: ASPD2_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(aspd2, "ASPD2", 41, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: ASPD1_EN
+    // `@Param`: ASPD1_EN
     // @DisplayName: ASPD1_EN
     // @Description: Displays airspeed reported directly from primary airspeed sensor
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ASPD1_X
+    // `@Param`: ASPD1_X
     // @DisplayName: ASPD1_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ASPD1_Y
+    // `@Param`: ASPD1_Y
     // @DisplayName: ASPD1_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(aspd1, "ASPD1", 42, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: CLK_EN
+    // `@Param`: CLK_EN
     // @DisplayName: CLK_EN
     // @Description: Displays a clock panel based on AP_RTC local time
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: CLK_X
+    // `@Param`: CLK_X
     // @DisplayName: CLK_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: CLK_Y
+    // `@Param`: CLK_Y
     // @DisplayName: CLK_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(clk, "CLK", 43, AP_OSD_Screen, AP_OSD_Setting),
 
 #if HAL_OSD_SIDEBAR_ENABLE || HAL_MSP_ENABLED
-    // @Param: SIDEBARS_EN
+    // `@Param`: SIDEBARS_EN
     // @DisplayName: SIDEBARS_EN
     // @Description: Displays artificial horizon side bars
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: SIDEBARS_X
+    // `@Param`: SIDEBARS_X
     // @DisplayName: SIDEBARS_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: SIDEBARS_Y
+    // `@Param`: SIDEBARS_Y
     // @DisplayName: SIDEBARS_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
@@ -746,113 +746,113 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info[] = {
 #endif
 
 #if HAL_MSP_ENABLED
-    // @Param: CRSSHAIR_EN
+    // `@Param`: CRSSHAIR_EN
     // @DisplayName: CRSSHAIR_EN
     // @Description: Displays artificial horizon crosshair (MSP OSD only)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: CRSSHAIR_X
+    // `@Param`: CRSSHAIR_X
     // @DisplayName: CRSSHAIR_X
     // @Description: Horizontal position on screen (MSP OSD only)
     // @Range: 0 59
 
-    // @Param: CRSSHAIR_Y
+    // `@Param`: CRSSHAIR_Y
     // @DisplayName: CRSSHAIR_Y
     // @Description: Vertical position on screen (MSP OSD only)
     // @Range: 0 21
     AP_SUBGROUPINFO(crosshair, "CRSSHAIR", 45, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: HOMEDIST_EN
+    // `@Param`: HOMEDIST_EN
     // @DisplayName: HOMEDIST_EN
     // @Description: Displays distance from HOME (MSP OSD only)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: HOMEDIST_X
+    // `@Param`: HOMEDIST_X
     // @DisplayName: HOMEDIST_X
     // @Description: Horizontal position on screen (MSP OSD only)
     // @Range: 0 59
 
-    // @Param: HOMEDIST_Y
+    // `@Param`: HOMEDIST_Y
     // @DisplayName: HOMEDIST_Y
     // @Description: Vertical position on screen (MSP OSD only)
     // @Range: 0 21
     AP_SUBGROUPINFO(home_dist, "HOMEDIST", 46, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: HOMEDIR_EN
+    // `@Param`: HOMEDIR_EN
     // @DisplayName: HOMEDIR_EN
     // @Description: Displays relative direction to HOME (MSP OSD only)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: HOMEDIR_X
+    // `@Param`: HOMEDIR_X
     // @DisplayName: HOMEDIR_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: HOMEDIR_Y
+    // `@Param`: HOMEDIR_Y
     // @DisplayName: HOMEDIR_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(home_dir, "HOMEDIR", 47, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: POWER_EN
+    // `@Param`: POWER_EN
     // @DisplayName: POWER_EN
     // @Description: Displays power (MSP OSD only)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: POWER_X
+    // `@Param`: POWER_X
     // @DisplayName: POWER_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: POWER_Y
+    // `@Param`: POWER_Y
     // @DisplayName: POWER_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(power, "POWER", 48, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: CELLVOLT_EN
+    // `@Param`: CELLVOLT_EN
     // @DisplayName: CELL_VOLT_EN
     // @Description: Displays average cell voltage (MSP OSD only)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: CELLVOLT_X
+    // `@Param`: CELLVOLT_X
     // @DisplayName: CELL_VOLT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: CELLVOLT_Y
+    // `@Param`: CELLVOLT_Y
     // @DisplayName: CELL_VOLT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(cell_volt, "CELLVOLT", 49, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: BATTBAR_EN
+    // `@Param`: BATTBAR_EN
     // @DisplayName: BATT_BAR_EN
     // @Description: Displays battery usage bar (MSP OSD only)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: BATTBAR_X
+    // `@Param`: BATTBAR_X
     // @DisplayName: BATT_BAR_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: BATTBAR_Y
+    // `@Param`: BATTBAR_Y
     // @DisplayName: BATT_BAR_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(batt_bar, "BATTBAR", 50, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: ARMING_EN
+    // `@Param`: ARMING_EN
     // @DisplayName: ARMING_EN
     // @Description: Displays arming status (MSP OSD only)
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ARMING_X
+    // `@Param`: ARMING_X
     // @DisplayName: ARMING_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ARMING_Y
+    // `@Param`: ARMING_Y
     // @DisplayName: ARMING_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
@@ -860,17 +860,17 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info[] = {
 #endif //HAL_MSP_ENABLED
 
 #if HAL_PLUSCODE_ENABLE
-    // @Param: PLUSCODE_EN
+    // `@Param`: PLUSCODE_EN
     // @DisplayName: PLUSCODE_EN
     // @Description: Displays pluscode (OLC) element
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: PLUSCODE_X
+    // `@Param`: PLUSCODE_X
     // @DisplayName: PLUSCODE_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: PLUSCODE_Y
+    // `@Param`: PLUSCODE_Y
     // @DisplayName: PLUSCODE_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
@@ -878,51 +878,51 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info[] = {
 #endif
 
 #if AP_OSD_CALLSIGN_FROM_SD_ENABLED
-    // @Param: CALLSIGN_EN
+    // `@Param`: CALLSIGN_EN
     // @DisplayName: CALLSIGN_EN
     // @Description: Displays callsign from callsign.txt on microSD card
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: CALLSIGN_X
+    // `@Param`: CALLSIGN_X
     // @DisplayName: CALLSIGN_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: CALLSIGN_Y
+    // `@Param`: CALLSIGN_Y
     // @DisplayName: CALLSIGN_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(callsign, "CALLSIGN", 53, AP_OSD_Screen, AP_OSD_Setting),
 #endif
 
-    // @Param: CURRENT2_EN
+    // `@Param`: CURRENT2_EN
     // @DisplayName: CURRENT2_EN
     // @Description: Displays 2nd battery current
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: CURRENT2_X
+    // `@Param`: CURRENT2_X
     // @DisplayName: CURRENT2_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: CURRENT2_Y
+    // `@Param`: CURRENT2_Y
     // @DisplayName: CURRENT2_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(current2, "CURRENT2", 54, AP_OSD_Screen, AP_OSD_Setting),
 
 #if AP_VIDEOTX_ENABLED
-    // @Param: VTX_PWR_EN
+    // `@Param`: VTX_PWR_EN
     // @DisplayName: VTX_PWR_EN
     // @Description: Displays VTX Power
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: VTX_PWR_X
+    // `@Param`: VTX_PWR_X
     // @DisplayName: VTX_PWR_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: VTX_PWR_Y
+    // `@Param`: VTX_PWR_Y
     // @DisplayName: VTX_PWR_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
@@ -930,115 +930,115 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info[] = {
 #endif  // AP_VIDEOTX_ENABLED
 
 #if AP_TERRAIN_AVAILABLE
-    // @Param: TER_HGT_EN
+    // `@Param`: TER_HGT_EN
     // @DisplayName: TER_HGT_EN
     // @Description: Displays Height above terrain
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: TER_HGT_X
+    // `@Param`: TER_HGT_X
     // @DisplayName: TER_HGT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: TER_HGT_Y
+    // `@Param`: TER_HGT_Y
     // @DisplayName: TER_HGT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(hgt_abvterr, "TER_HGT", 56, AP_OSD_Screen, AP_OSD_Setting),
 #endif
 
-    // @Param: AVGCELLV_EN
+    // `@Param`: AVGCELLV_EN
     // @DisplayName: AVGCELLV_EN
     // @Description: Displays average cell voltage. WARNING: this can be inaccurate if the cell count is not detected or set properly. If the  the battery is far from fully charged the detected cell count might not be accurate if auto cell count detection is used (OSD_CELL_COUNT=0).
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: AVGCELLV_X
+    // `@Param`: AVGCELLV_X
     // @DisplayName: AVGCELLV_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: AVGCELLV_Y
+    // `@Param`: AVGCELLV_Y
     // @DisplayName: AVGCELLV_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(avgcellvolt, "AVGCELLV", 57, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: RESTVOLT_EN
+    // `@Param`: RESTVOLT_EN
     // @DisplayName: RESTVOLT_EN
     // @Description: Displays main battery resting voltage
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: RESTVOLT_X
+    // `@Param`: RESTVOLT_X
     // @DisplayName: RESTVOLT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: RESTVOLT_Y
+    // `@Param`: RESTVOLT_Y
     // @DisplayName: RESTVOLT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(restvolt, "RESTVOLT", 58, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: FENCE_EN
+    // `@Param`: FENCE_EN
     // @DisplayName: FENCE_EN
     // @Description: Displays indication of fence enable and breach
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: FENCE_X
+    // `@Param`: FENCE_X
     // @DisplayName: FENCE_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: FENCE_Y
+    // `@Param`: FENCE_Y
     // @DisplayName: FENCE_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(fence, "FENCE", 59, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: RNGF_EN
+    // `@Param`: RNGF_EN
     // @DisplayName: RNGF_EN
     // @Description: Displays a rangefinder's distance in cm
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: RNGF_X
+    // `@Param`: RNGF_X
     // @DisplayName: RNGF_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: RNGF_Y
+    // `@Param`: RNGF_Y
     // @DisplayName: RNGF_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(rngf, "RNGF", 60, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: ACRVOLT_EN
+    // `@Param`: ACRVOLT_EN
     // @DisplayName: ACRVOLT_EN
     // @Description: Displays resting voltage for the average cell. WARNING: this can be inaccurate if the cell count is not detected or set properly. If the  the battery is far from fully charged the detected cell count might not be accurate if auto cell count detection is used (OSD_CELL_COUNT=0).
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: ACRVOLT_X
+    // `@Param`: ACRVOLT_X
     // @DisplayName: ACRVOLT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: ACRVOLT_Y
+    // `@Param`: ACRVOLT_Y
     // @DisplayName: ACRVOLT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(avgcellrestvolt, "ACRVOLT", 61, AP_OSD_Screen, AP_OSD_Setting),
 
 #if AP_RPM_ENABLED
-	// @Param: RPM_EN
+	// `@Param`: RPM_EN
 	// @DisplayName: RPM_EN
 	// @Description: Displays main rotor revs/min
 	// @Values: 0:Disabled,1:Enabled
 
-	// @Param: RPM_X
+	// `@Param`: RPM_X
 	// @DisplayName: RPM_X
 	// @Description: Horizontal position on screen
 	// @Range: 0 29
 
-	// @Param: RPM_Y
+	// `@Param`: RPM_Y
 	// @DisplayName: RPM_Y
 	// @Description: Vertical position on screen
 	// @Range: 0 15
@@ -1052,31 +1052,31 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info2[] = {
     // duplicate of OSDn_ENABLE to ensure params are hidden when not enabled
     AP_GROUPINFO_FLAGS("ENABLE", 2, AP_OSD_Screen, enabled, 0, AP_PARAM_FLAG_ENABLE | AP_PARAM_FLAG_HIDDEN),
 
-    // @Param: LINK_Q_EN
+    // `@Param`: LINK_Q_EN
     // @DisplayName: LINK_Q_EN
     // @Description: Displays Receiver link quality
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: LINK_Q_X
+    // `@Param`: LINK_Q_X
     // @DisplayName: LINK_Q_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: LINK_Q_Y
+    // `@Param`: LINK_Q_Y
     // @DisplayName: LINK_Q_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(link_quality, "LINK_Q", 1, AP_OSD_Screen, AP_OSD_Setting),
 
 #if HAL_WITH_MSP_DISPLAYPORT
-    // @Param: TXT_RES
+    // `@Param`: TXT_RES
     // @DisplayName: Sets the overlay text resolution (MSP DisplayPort only)
     // @Description: Sets the overlay text resolution for this screen to either SD 30x16 or HD 50x18/60x22 (MSP DisplayPort only)
     // @Values: 0:30x16,1:50x18,2:60x22
     // @User: Standard
     AP_GROUPINFO("TXT_RES", 3, AP_OSD_Screen, txt_resolution, 0),
 
-    // @Param: FONT
+    // `@Param`: FONT
     // @DisplayName: Sets the font index for this screen (MSP DisplayPort only)
     // @Description: Sets the font index for this screen (MSP DisplayPort only)
     // @Range: 0 21
@@ -1085,81 +1085,81 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info2[] = {
 #endif
 
 #if AP_OSD_EXTENDED_LNK_STATS
-    // @Param: RC_PWR_EN
+    // `@Param`: RC_PWR_EN
     // @DisplayName: RC_PWR_EN
     // @Description: Displays the RC link transmit (TX) power in mW or W, depending on level
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: RC_PWR_X
+    // `@Param`: RC_PWR_X
     // @DisplayName: RC_PWR_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: RC_PWR_Y
+    // `@Param`: RC_PWR_Y
     // @DisplayName: RC_PWR_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(rc_tx_power, "RC_PWR", 5, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: RSSIDBM_EN
+    // `@Param`: RSSIDBM_EN
     // @DisplayName: RSSIDBM_EN
     // @Description: Displays RC link signal strength in dBm
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: RSSIDBM_X
+    // `@Param`: RSSIDBM_X
     // @DisplayName: RSSIDBM_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: RSSIDBM_Y
+    // `@Param`: RSSIDBM_Y
     // @DisplayName: RSSIDBM_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(rc_rssi_dbm, "RSSIDBM", 6, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: RC_SNR_EN
+    // `@Param`: RC_SNR_EN
     // @DisplayName: RC_SNR_EN
     // @Description: Displays RC link signal to noise ratio in dB
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: RC_SNR_X
+    // `@Param`: RC_SNR_X
     // @DisplayName: RC_SNR_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: RC_SNR_Y
+    // `@Param`: RC_SNR_Y
     // @DisplayName: RC_SNR_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(rc_snr, "RC_SNR", 7, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: RC_ANT_EN
+    // `@Param`: RC_ANT_EN
     // @DisplayName: RC_ANT_EN
     // @Description: Displays the current RC link active antenna
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: RC_ANT_X
+    // `@Param`: RC_ANT_X
     // @DisplayName: RC_ANT_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: RC_ANT_Y
+    // `@Param`: RC_ANT_Y
     // @DisplayName: RC_ANT_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
     AP_SUBGROUPINFO(rc_active_antenna, "RC_ANT", 8, AP_OSD_Screen, AP_OSD_Setting),
 
-    // @Param: RC_LQ_EN
+    // `@Param`: RC_LQ_EN
     // @DisplayName: RC_LQ_EN
     // @Description: Displays the RC link quality (uplink, 0 to 100%) and also RF mode if bit 7 of OSD_OPTIONS is set
     // @Values: 0:Disabled,1:Enabled
 
-    // @Param: RC_LQ_X
+    // `@Param`: RC_LQ_X
     // @DisplayName: RC_LQ_X
     // @Description: Horizontal position on screen
     // @Range: 0 59
 
-    // @Param: RC_LQ_Y
+    // `@Param`: RC_LQ_Y
     // @DisplayName: RC_LQ_Y
     // @Description: Vertical position on screen
     // @Range: 0 21
@@ -1167,7 +1167,7 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info2[] = {
 #endif
 
 #if HAL_WITH_ESC_TELEM
-    // @Param: ESC_IDX
+    // `@Param`: ESC_IDX
     // @DisplayName: ESC_IDX
     // @Description: Index of the ESC to use for displaying ESC information. 0 means use the ESC with the highest value.
     // @Range: 0 32

@@ -6,7 +6,7 @@
     LOG_BARO_MSG, \
     LOG_BARD_MSG
 
-// @LoggerMessage: BARO
+// `@LoggerMessage`: BARO
 // @Description: Gathered Barometer data
 // @Field: TimeUS: Time since system startup
 // @Field: I: barometer sensor instance number
@@ -36,7 +36,7 @@ struct PACKED log_BARO {
     float   corrected_pressure;
 };
 
-// @LoggerMessage: BARD
+// `@LoggerMessage`: BARD
 // @Description: Barometer dynamic data
 // @Field: TimeUS: Time since system startup
 // @Field: I: barometer sensor instance number

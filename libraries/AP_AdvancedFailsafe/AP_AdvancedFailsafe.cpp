@@ -38,71 +38,71 @@ extern const AP_HAL::HAL& hal;
 
 // table of user settable parameters
 const AP_Param::GroupInfo AP_AdvancedFailsafe::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable Advanced Failsafe
     // @Description: This enables the advanced failsafe system. If this is set to zero (disable) then all the other AFS options have no effect
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE",       11, AP_AdvancedFailsafe, _enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: MAN_PIN
+    // `@Param`: MAN_PIN
     // @DisplayName: Manual Pin
     // @Description: This sets a digital output pin to set high when in manual mode.  See the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @User: Advanced
     AP_GROUPINFO("MAN_PIN",     0, AP_AdvancedFailsafe, _manual_pin,    -1),
 
-    // @Param: HB_PIN
+    // `@Param`: HB_PIN
     // @DisplayName: Heartbeat Pin
     // @Description: This sets a digital output pin which is cycled at 10Hz when termination is not activated. Note that if a FS_TERM_PIN is set then the heartbeat pin will continue to cycle at 10Hz when termination is activated, to allow the termination board to distinguish between autopilot crash and termination. Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @User: Advanced
     // @Values: -1:Disabled,49:BB Blue GP0 pin 4,50:AUXOUT1,51:AUXOUT2,52:AUXOUT3,53:AUXOUT4,54:AUXOUT5,55:AUXOUT6,57:BB Blue GP0 pin 3,113:BB Blue GP0 pin 6,116:BB Blue GP0 pin 5
     AP_GROUPINFO("HB_PIN",      1, AP_AdvancedFailsafe, _heartbeat_pin, -1),
 
-    // @Param: WP_COMMS
+    // `@Param`: WP_COMMS
     // @DisplayName: Comms Waypoint
     // @Description: Waypoint number to navigate to on comms loss
     // @User: Advanced
     AP_GROUPINFO("WP_COMMS",    2, AP_AdvancedFailsafe, _wp_comms_hold, 0),
 
-    // @Param: WP_GPS_LOSS
+    // `@Param`: WP_GPS_LOSS
     // @DisplayName: GPS Loss Waypoint
     // @Description: Waypoint number to navigate to on GPS lock loss
     // @User: Advanced
     AP_GROUPINFO("WP_GPS_LOSS", 4, AP_AdvancedFailsafe, _wp_gps_loss, 0),
 
-    // @Param: TERMINATE
+    // `@Param`: TERMINATE
     // @DisplayName: Force Terminate
     // @Description: Can be set in flight to force termination of the heartbeat signal
     // @User: Advanced
     AP_GROUPINFO("TERMINATE",   5, AP_AdvancedFailsafe, _terminate, 0),
 
-    // @Param: TERM_ACTION
+    // `@Param`: TERM_ACTION
     // @DisplayName: Terminate action
     // @Description: This can be used to force an action on flight termination. Normally this is handled by an external failsafe board, but you can setup ArduPilot to handle it here. Please consult the wiki for more information on the possible values of the parameter
     // @User: Advanced
     AP_GROUPINFO("TERM_ACTION", 6, AP_AdvancedFailsafe, _terminate_action, 0),
 
-    // @Param: TERM_PIN
+    // `@Param`: TERM_PIN
     // @DisplayName: Terminate Pin
     // @Description: This sets a digital output pin to set high on flight termination. Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @User: Advanced
     // @Values: -1:Disabled,49:BB Blue GP0 pin 4,50:AUXOUT1,51:AUXOUT2,52:AUXOUT3,53:AUXOUT4,54:AUXOUT5,55:AUXOUT6,57:BB Blue GP0 pin 3,113:BB Blue GP0 pin 6,116:BB Blue GP0 pin 5
     AP_GROUPINFO("TERM_PIN",    7, AP_AdvancedFailsafe, _terminate_pin,    -1),
 
-    // @Param: AMSL_LIMIT
+    // `@Param`: AMSL_LIMIT
     // @DisplayName: AMSL limit
     // @Description: This sets the AMSL (above mean sea level) altitude limit. If the pressure altitude determined by QNH exceeds this limit then flight termination will be forced. Note that this limit is in meters, whereas pressure altitude limits are often quoted in feet. A value of zero disables the pressure altitude limit.
     // @User: Advanced
     // @Units: m
     AP_GROUPINFO("AMSL_LIMIT",   8, AP_AdvancedFailsafe, _amsl_limit,    0),
 
-    // @Param: AMSL_ERR_GPS
+    // `@Param`: AMSL_ERR_GPS
     // @DisplayName: Error margin for GPS based AMSL limit
     // @Description: This sets margin for error in GPS derived altitude limit. This error margin is only used if the barometer has failed. If the barometer fails then the GPS will be used to enforce the AMSL_LIMIT, but this margin will be subtracted from the AMSL_LIMIT first, to ensure that even with the given amount of GPS altitude error the pressure altitude is not breached. OBC users should set this to comply with their D2 safety case. A value of -1 will mean that barometer failure will lead to immediate termination.
     // @User: Advanced
     // @Units: m
     AP_GROUPINFO("AMSL_ERR_GPS", 9, AP_AdvancedFailsafe, _amsl_margin_gps,  -1),
 
-    // @Param: QNH_PRESSURE
+    // `@Param`: QNH_PRESSURE
     // @DisplayName: QNH pressure
     // @Description: This sets the QNH pressure in millibars to be used for pressure altitude in the altitude limit. A value of zero disables the altitude limit.
     // @Units: hPa
@@ -113,64 +113,64 @@ const AP_Param::GroupInfo AP_AdvancedFailsafe::var_info[] = {
 
     // *NOTE* index 12 of AP_Int16 RC_FAIL_MS was depreciated. Replaced by RC_FAIL_TIME.
 
-    // @Param: MAX_GPS_LOSS
+    // `@Param`: MAX_GPS_LOSS
     // @DisplayName: Maximum number of GPS loss events
     // @Description: Maximum number of GPS loss events before the aircraft stops returning to mission on GPS recovery. Use zero to allow for any number of GPS loss events.
     // @User: Advanced
     AP_GROUPINFO("MAX_GPS_LOSS", 13, AP_AdvancedFailsafe, _max_gps_loss, 0),
 
-    // @Param: MAX_COM_LOSS
+    // `@Param`: MAX_COM_LOSS
     // @DisplayName: Maximum number of comms loss events
     // @Description: Maximum number of comms loss events before the aircraft stops returning to mission on comms recovery. Use zero to allow for any number of comms loss events.
     // @User: Advanced
     AP_GROUPINFO("MAX_COM_LOSS", 14, AP_AdvancedFailsafe, _max_comms_loss, 0),
 
-    // @Param: GEOFENCE
+    // `@Param`: GEOFENCE
     // @DisplayName: Enable geofence Advanced Failsafe
     // @Description: This enables the geofence part of the AFS. Will only be in effect if AFS_ENABLE is also 1
     // @User: Advanced
     AP_GROUPINFO("GEOFENCE",     15, AP_AdvancedFailsafe, _enable_geofence_fs, 1),
 
-    // @Param: RC
+    // `@Param`: RC
     // @DisplayName: Enable RC Advanced Failsafe
     // @Description: This enables the RC part of the AFS. Will only be in effect if AFS_ENABLE is also 1
     // @User: Advanced
     AP_GROUPINFO("RC",           16, AP_AdvancedFailsafe, _enable_RC_fs, 1),
 
-    // @Param: RC_MAN_ONLY
+    // `@Param`: RC_MAN_ONLY
     // @DisplayName: Enable RC Termination only in manual control modes
     // @Description: If this parameter is set to 1, then an RC loss will only cause the plane to terminate in manual control modes. If it is 0, then the plane will terminate in any flight mode.
     // @User: Advanced
     AP_GROUPINFO("RC_MAN_ONLY",    17, AP_AdvancedFailsafe, _rc_term_manual_only, 1),
 
-    // @Param: DUAL_LOSS
+    // `@Param`: DUAL_LOSS
     // @DisplayName: Enable dual loss terminate due to failure of both GCS and GPS simultaneously
     // @Description: This enables the dual loss termination part of the AFS system. If this parameter is 1 and both GPS and the ground control station fail simultaneously, this will be considered a "dual loss" and cause termination.
     // @User: Advanced
     AP_GROUPINFO("DUAL_LOSS",      18, AP_AdvancedFailsafe, _enable_dual_loss, 1),
 
-    // @Param: RC_FAIL_TIME
+    // `@Param`: RC_FAIL_TIME
     // @DisplayName: RC failure time
     // @Description: This is the time in seconds in manual mode that failsafe termination will activate if RC input is lost. For the OBC rules this should be (1.5). Use 0 to disable.
     // @User: Advanced
     // @Units: s
     AP_GROUPINFO("RC_FAIL_TIME",   19, AP_AdvancedFailsafe, _rc_fail_time_seconds,    0),
 
-    // @Param: MAX_RANGE
+    // `@Param`: MAX_RANGE
     // @DisplayName: Max allowed range
     // @Description: This is the maximum range of the vehicle in kilometers from first arming. If the vehicle goes beyond this range then the TERM_ACTION is performed. A value of zero disables this feature.
     // @User: Advanced
     // @Units: km
     AP_GROUPINFO("MAX_RANGE",   20, AP_AdvancedFailsafe, _max_range_km,    0),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: AFS options
     // @Description: See description for each bitmask bit description
     // @Bitmask: 0: Continue the mission even after comms are recovered (does not go to the mission item at the time comms were lost)
     // @Bitmask: 1: Enable AFS for all autonomous modes (not just AUTO) 
     AP_GROUPINFO("OPTIONS", 21, AP_AdvancedFailsafe, options, 0),
 
-    // @Param: GCS_TIMEOUT
+    // `@Param`: GCS_TIMEOUT
     // @DisplayName: GCS timeout
     // @Description: The time (in seconds) of persistent data link loss before GCS failsafe occurs. 
     // @User: Advanced

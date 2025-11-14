@@ -316,7 +316,7 @@ float AP_OpticalFlow_Calibrator::calc_mean_squared_residuals(uint8_t axis, float
 // log all samples
 void AP_OpticalFlow_Calibrator::log_sample(uint8_t axis, uint8_t sample_num, float flow_rate, float body_rate, float los_pred)
 {
-    // @LoggerMessage: OFCA
+    // `@LoggerMessage`: OFCA
     // @Description: Optical Flow Calibration sample
     // @Field: TimeUS: Time since system startup
     // @Field: Axis: Axis (X=0 Y=1)

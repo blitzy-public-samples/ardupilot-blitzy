@@ -102,7 +102,7 @@ void JSON_Master::receive(struct sitl_input &input)
 #if HAL_LOGGING_ENABLED
         const bool use_servos = list->instance == master_instance;
 
-// @LoggerMessage: SLV1
+// `@LoggerMessage`: SLV1
 // @Description: Log data received from JSON simulator 1
 // @Field: TimeUS: Time since system startup (us)
 // @Field: Instance: Slave instance
@@ -121,7 +121,7 @@ void JSON_Master::receive(struct sitl_input &input)
                        buffer.frame_count,
                        use_servos);
 
-// @LoggerMessage: SLV2
+// `@LoggerMessage`: SLV2
 // @Description: Log data received from JSON simulator 2
 // @Field: TimeUS: Time since system startup
 // @Field: Instance: Slave instance

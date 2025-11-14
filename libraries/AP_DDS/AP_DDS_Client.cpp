@@ -119,7 +119,7 @@ rcl_interfaces_msg_Parameter AP_DDS_Client::param {};
 
 const AP_Param::GroupInfo AP_DDS_Client::var_info[] {
 
-    // @Param: _ENABLE
+    // `@Param`: _ENABLE
     // @DisplayName: DDS enable
     // @Description: Enable DDS subsystem
     // @Values: 0:Disabled,1:Enabled
@@ -128,7 +128,7 @@ const AP_Param::GroupInfo AP_DDS_Client::var_info[] {
     AP_GROUPINFO_FLAGS("_ENABLE", 1, AP_DDS_Client, enabled, ENABLED_BY_DEFAULT, AP_PARAM_FLAG_ENABLE),
 
 #if AP_DDS_UDP_ENABLED
-    // @Param: _UDP_PORT
+    // `@Param`: _UDP_PORT
     // @DisplayName: DDS UDP port
     // @Description: UDP port number for DDS
     // @Range: 1 65535
@@ -142,7 +142,7 @@ const AP_Param::GroupInfo AP_DDS_Client::var_info[] {
 
 #endif
 
-    // @Param: _DOMAIN_ID
+    // `@Param`: _DOMAIN_ID
     // @DisplayName: DDS DOMAIN ID
     // @Description: Set the ROS_DOMAIN_ID
     // @Range: 0 232
@@ -150,7 +150,7 @@ const AP_Param::GroupInfo AP_DDS_Client::var_info[] {
     // @User: Standard
     AP_GROUPINFO("_DOMAIN_ID", 4, AP_DDS_Client, domain_id, 0),
 
-    // @Param: _TIMEOUT_MS
+    // `@Param`: _TIMEOUT_MS
     // @DisplayName: DDS ping timeout
     // @Description: The time in milliseconds the DDS client will wait for a response from the XRCE agent before reattempting.
     // @Units: ms
@@ -160,7 +160,7 @@ const AP_Param::GroupInfo AP_DDS_Client::var_info[] {
     // @User: Standard
     AP_GROUPINFO("_TIMEOUT_MS", 5, AP_DDS_Client, ping_timeout_ms, 1000),
 
-    // @Param: _MAX_RETRY
+    // `@Param`: _MAX_RETRY
     // @DisplayName: DDS ping max attempts
     // @Description: The maximum number of times the DDS client will attempt to ping the XRCE agent before exiting. Set to 0 to allow unlimited retries.
     // @Range: 0 100
@@ -1493,6 +1493,7 @@ bool AP_DDS_Client::create()
     return true;
 }
 
+#if AP_DDS_TIME_PUB_ENABLED
 void AP_DDS_Client::write_time_topic()
 {
     WITH_SEMAPHORE(csem);
@@ -1507,6 +1508,7 @@ void AP_DDS_Client::write_time_topic()
         }
     }
 }
+#endif // AP_DDS_TIME_PUB_ENABLED
 
 #if AP_DDS_NAVSATFIX_PUB_ENABLED
 void AP_DDS_Client::write_nav_sat_fix_topic()

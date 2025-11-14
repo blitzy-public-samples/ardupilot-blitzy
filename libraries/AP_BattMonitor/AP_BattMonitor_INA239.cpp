@@ -32,7 +32,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_BattMonitor_INA239::var_info[] = {
 
-    // @Param: MAX_AMPS
+    // `@Param`: MAX_AMPS
     // @DisplayName: Battery monitor max current
     // @Description: This controls the maximum current the INA239 sensor will work with.
     // @Range: 1 400
@@ -40,7 +40,7 @@ const AP_Param::GroupInfo AP_BattMonitor_INA239::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAX_AMPS", 27, AP_BattMonitor_INA239, max_amps, HAL_BATTMON_INA239_MAX_CURRENT),
 
-    // @Param: SHUNT
+    // `@Param`: SHUNT
     // @DisplayName: Battery monitor shunt resistor
     // @Description: This sets the shunt resistor used in the device
     // @Range: 0.0001 0.01

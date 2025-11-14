@@ -11,14 +11,14 @@ extern const AP_HAL::HAL& hal;
 const AP_Param::GroupInfo AP_Winch::var_info[] = {
     // 0 was ENABLE
 
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: Winch Type
     // @Description: Winch Type
     // @User: Standard
     // @Values: 0:None, 1:PWM, 2:Daiwa
     AP_GROUPINFO_FLAGS("_TYPE", 1, AP_Winch, config.type, (int8_t)WinchType::NONE, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _RATE_MAX
+    // `@Param`: _RATE_MAX
     // @DisplayName: Winch deploy or retract rate maximum
     // @Description: Winch deploy or retract rate maximum.  Set to maximum rate with no load.
     // @User: Standard
@@ -26,14 +26,14 @@ const AP_Param::GroupInfo AP_Winch::var_info[] = {
     // @Units: m/s
     AP_GROUPINFO("_RATE_MAX", 2, AP_Winch, config.rate_max, 1.0f),
 
-    // @Param: _POS_P
+    // `@Param`: _POS_P
     // @DisplayName: Winch control position error P gain
     // @Description: Winch control position error P gain
     // @Range: 0.01 10.0
     // @User: Standard
     AP_GROUPINFO("_POS_P", 3, AP_Winch, config.pos_p, 1.0f),
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: Winch options
     // @Description: Winch options
     // @Bitmask:  0:Spin freely on startup, 1:Verbose output, 2:Retry if stuck (Daiwa only)

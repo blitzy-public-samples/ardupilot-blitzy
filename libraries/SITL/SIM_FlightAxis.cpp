@@ -37,7 +37,7 @@ extern const AP_HAL::HAL& hal;
 using namespace SITL;
 
 const AP_Param::GroupInfo FlightAxis::var_info[] = {
-    // @Param: OPTS
+    // `@Param`: OPTS
     // @DisplayName: FlightAxis options
     // @Description: Bitmask of FlightAxis options
     // @Bitmask: 0: Reset position on startup

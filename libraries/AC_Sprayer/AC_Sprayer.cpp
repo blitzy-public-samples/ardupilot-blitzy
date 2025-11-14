@@ -13,14 +13,14 @@ extern const AP_HAL::HAL& hal;
 // ------------------------------
 
 const AP_Param::GroupInfo AC_Sprayer::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Sprayer enable/disable
     // @Description: Allows you to enable (1) or disable (0) the sprayer
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLE", 0, AC_Sprayer, _enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: PUMP_RATE
+    // `@Param`: PUMP_RATE
     // @DisplayName: Pump speed
     // @Description: Desired pump speed when travelling 1m/s expressed as a percentage
     // @Units: %
@@ -28,7 +28,7 @@ const AP_Param::GroupInfo AC_Sprayer::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("PUMP_RATE",   1, AC_Sprayer, _pump_pct_1ms, AC_SPRAYER_DEFAULT_PUMP_RATE),
 
-    // @Param: SPINNER
+    // `@Param`: SPINNER
     // @DisplayName: Spinner rotation speed
     // @Description: Spinner's rotation speed in PWM (a higher rate will disperse the spray over a wider area horizontally)
     // @Units: ms
@@ -36,7 +36,7 @@ const AP_Param::GroupInfo AC_Sprayer::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPINNER",     2, AC_Sprayer, _spinner_pwm, AC_SPRAYER_DEFAULT_SPINNER_PWM),
 
-    // @Param: SPEED_MIN
+    // `@Param`: SPEED_MIN
     // @DisplayName: Speed minimum
     // @Description: Speed minimum at which we will begin spraying
     // @Units: cm/s
@@ -44,7 +44,7 @@ const AP_Param::GroupInfo AC_Sprayer::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPEED_MIN",   3, AC_Sprayer, _speed_min, AC_SPRAYER_DEFAULT_SPEED_MIN),
 
-    // @Param: PUMP_MIN
+    // `@Param`: PUMP_MIN
     // @DisplayName: Pump speed minimum
     // @Description: Minimum pump speed expressed as a percentage
     // @Units: %

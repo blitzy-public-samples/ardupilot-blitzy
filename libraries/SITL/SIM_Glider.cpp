@@ -51,13 +51,13 @@ using namespace SITL;
 
 // SITL glider parameters
 const AP_Param::GroupInfo Glider::var_info[] = {
-    // @Param: BLN_BRST
+    // `@Param`: BLN_BRST
     // @DisplayName: balloon burst height
     // @Description: balloon burst height
     // @Units: m
     AP_GROUPINFO("BLN_BRST", 1, Glider, balloon_burst_amsl, 30000),
 
-    // @Param: BLN_RATE
+    // `@Param`: BLN_RATE
     // @DisplayName: balloon climb rate
     // @Description: balloon climb rate. If the value is less than zero then the balloon is disabled.
     // @Units: m/s
@@ -128,7 +128,7 @@ Vector3f Glider::getTorque(float inputAileron, float inputElevator, float inputR
 
 
 #if 0
-    // @LoggerMessage: GLT
+    // `@LoggerMessage`: GLT
     // @Description: Simulated Glider Angles and coefficients
     // @Field: TimeUS: Time since system startup
     // @Field: Alpha: alpha angle
@@ -189,7 +189,7 @@ Vector3f Glider::getForce(float inputAileron, float inputElevator, float inputRu
             airspeed > 1) {
             last_drag_ms = now;
 #if HAL_LOGGING_ENABLED
-            // @LoggerMessage: SLD
+            // `@LoggerMessage`: SLD
             // @Description: Simulated Glider Dropped Calculations
             // @Field: TimeUS: Time since system startup
             // @Field: AltFt: altitude in feet
@@ -218,7 +218,7 @@ Vector3f Glider::getForce(float inputAileron, float inputElevator, float inputRu
                                degrees(alpharad),
                                Fx, Fy, Fz,
                                qPa);
-            // @LoggerMessage: SL2
+            // `@LoggerMessage`: SL2
             // @Description: More Simulated Glider Dropped Calculations
             // @Field: TimeUS: Time since system startup
             // @Field: AltFt: altitude in feet
@@ -250,7 +250,7 @@ Vector3f Glider::getForce(float inputAileron, float inputElevator, float inputRu
                                qPa,
                                accel_body.z);
 
-            // @LoggerMessage: SCTL
+            // `@LoggerMessage`: SCTL
             // @Description: Simulated Glider Drop control outputs
             // @Field: TimeUS: Time since system startup
             // @Field: Ail: aileron output

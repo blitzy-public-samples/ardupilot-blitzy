@@ -14,7 +14,7 @@
     LOG_IDS_FROM_GPS_SBP
 
 
-// @LoggerMessage: GPS
+// `@LoggerMessage`: GPS
 // @Description: Information received from GNSS systems attached to the autopilot
 // @Field: TimeUS: Time since system startup
 // @Field: I: GPS instance number
@@ -51,7 +51,7 @@ struct PACKED log_GPS {
     uint8_t  used;
 };
 
-// @LoggerMessage: GPA
+// `@LoggerMessage`: GPA
 // @Description: GPS accuracy information
 // @Field: I: GPS instance number
 // @Field: TimeUS: Time since system startup
@@ -87,7 +87,7 @@ struct PACKED log_GPA {
   UBlox logging
  */
 
-// @LoggerMessage: UBX1
+// `@LoggerMessage`: UBX1
 // @Description: uBlox-specific GPS information (part 1)
 // @Field: TimeUS: Time since system startup
 // @Field: Instance: GPS instance number
@@ -107,7 +107,7 @@ struct PACKED log_Ubx1 {
     uint32_t config;
 };
 
-// @LoggerMessage: UBX2
+// `@LoggerMessage`: UBX2
 // @Description: uBlox-specific GPS information (part 2)
 // @Field: TimeUS: Time since system startup
 // @Field: Instance: GPS instance number
@@ -125,7 +125,7 @@ struct PACKED log_Ubx2 {
     uint8_t  magQ;
 };
 
-// @LoggerMessage: GRAW
+// `@LoggerMessage`: GRAW
 // @Description: Raw uBlox data
 // @Field: TimeUS: Time since system startup
 // @Field: WkMS: receiver TimeOfWeek measurement
@@ -153,7 +153,7 @@ struct PACKED log_GPS_RAW {
     uint8_t lli;
 };
 
-// @LoggerMessage: GRXH
+// `@LoggerMessage`: GRXH
 // @Description: Raw uBlox data - header
 // @Field: TimeUS: Time since system startup
 // @Field: rcvTime: receiver TimeOfWeek measurement
@@ -171,7 +171,7 @@ struct PACKED log_GPS_RAWH {
     uint8_t recStat;
 };
 
-// @LoggerMessage: GRXS
+// `@LoggerMessage`: GRXS
 // @Description: Raw uBlox data - space-vehicle data
 // @Field: TimeUS: Time since system startup
 // @Field: prMes: Pseudorange measurement

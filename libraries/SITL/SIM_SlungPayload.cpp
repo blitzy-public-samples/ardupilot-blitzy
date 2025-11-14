@@ -32,14 +32,14 @@ using namespace SITL;
 
 // SlungPayloadSim parameters
 const AP_Param::GroupInfo SlungPayloadSim::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Slung Payload Sim enable/disable
     // @Description: Slung Payload Sim enable/disable
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE",  1, SlungPayloadSim,  enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: WEIGHT
+    // `@Param`: WEIGHT
     // @DisplayName: Slung Payload weight
     // @Description: Slung Payload weight in kg
     // @Units: kg
@@ -47,7 +47,7 @@ const AP_Param::GroupInfo SlungPayloadSim::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("WEIGHT",  2, SlungPayloadSim,  weight_kg, 1.0),
 
-    // @Param: LINELEN
+    // `@Param`: LINELEN
     // @DisplayName: Slung Payload line length
     // @Description: Slung Payload line length in meters
     // @Units: m
@@ -55,7 +55,7 @@ const AP_Param::GroupInfo SlungPayloadSim::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LINELEN", 3, SlungPayloadSim,  line_length, 30.0),
 
-    // @Param: DRAG
+    // `@Param`: DRAG
     // @DisplayName: Slung Payload drag coefficient
     // @Description: Slung Payload drag coefficient.  Higher values increase drag and slow the payload more quickly
     // @Units: m
@@ -63,7 +63,7 @@ const AP_Param::GroupInfo SlungPayloadSim::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DRAG",    4, SlungPayloadSim,  drag_coef, 1),
 
-    // @Param: SYSID
+    // `@Param`: SYSID
     // @DisplayName: Slung Payload MAVLink system ID
     // @Description: Slung Payload MAVLink system id to distinguish it from others on the same network
     // @Range: 0 255
@@ -227,7 +227,7 @@ void SlungPayloadSim::write_log()
 {
 #if HAL_LOGGING_ENABLED
     // write log of slung payload state
-    // @LoggerMessage: SLUP
+    // `@LoggerMessage`: SLUP
     // @Description: Slung payload
     // @Field: TimeUS: Time since system startup
     // @Field: Land: 1 if payload is landed, 0 otherwise

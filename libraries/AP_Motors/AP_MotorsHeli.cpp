@@ -28,7 +28,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
 
     // 2 was PIT_MAX which has been replaced by CYC_MAX
 
-    // @Param: COL_MIN
+    // `@Param`: COL_MIN
     // @DisplayName: Minimum Collective Pitch
     // @Description: Lowest possible servo position in PWM microseconds for the swashplate
     // @Range: 1000 2000
@@ -37,7 +37,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("COL_MIN", 3, AP_MotorsHeli, _collective_min, AP_MOTORS_HELI_COLLECTIVE_MIN),
 
-    // @Param: COL_MAX
+    // `@Param`: COL_MAX
     // @DisplayName: Maximum Collective Pitch
     // @Description: Highest possible servo position in PWM microseconds for the swashplate
     // @Range: 1000 2000
@@ -48,7 +48,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
 
     // index 5 was COL_MID. Do not use this index in the future.
 
-    // @Param: SV_MAN
+    // `@Param`: SV_MAN
     // @DisplayName: Manual Servo Mode
     // @Description: Manual servo override for swash set-up. Must be 0 (Disabled) for flight!
     // @Values: 0:Disabled,1:Passthrough,2:Max collective,3:Zero thrust collective,4:Min collective
@@ -65,7 +65,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
 
     // index 15 was RSC_POWER_HIGH. Do not use this index in the future.
 
-    // @Param: CYC_MAX
+    // `@Param`: CYC_MAX
     // @DisplayName: Maximum Cyclic Pitch Angle
     // @Description: Maximum cyclic pitch angle of the swash plate.  There are no units to this parameter.  This should be adjusted to get the desired cyclic blade pitch for the pitch and roll axes.  Typically this should be 6-7 deg (measured blade pitch angle difference between stick centered and stick max deflection.
     // @Range: 0 4500
@@ -73,7 +73,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("CYC_MAX", 16, AP_MotorsHeli, _cyclic_max, AP_MOTORS_HELI_SWASH_CYCLIC_MAX),
 
-    // @Param: SV_TEST
+    // `@Param`: SV_TEST
     // @DisplayName: Boot-up Servo Test Cycles
     // @Description: Number of cycles to run servo test on boot-up
     // @Range: 0 10
@@ -91,28 +91,28 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @Path: AP_MotorsHeli_RSC.cpp
     AP_SUBGROUPINFO(_main_rotor, "RSC_", 25, AP_MotorsHeli, AP_MotorsHeli_RSC),
 
-    // @Param: COL_HOVER
+    // `@Param`: COL_HOVER
     // @DisplayName: Collective Hover Value
     // @Description: Collective needed to hover expressed as a number from 0 to 1 where 0 is H_COL_MIN and 1 is H_COL_MAX
     // @Range: 0.3 0.8
     // @User: Advanced
     AP_GROUPINFO("COL_HOVER", 26, AP_MotorsHeli, _collective_hover, AP_MOTORS_HELI_COLLECTIVE_HOVER_DEFAULT),
 
-    // @Param: HOVER_LEARN
+    // `@Param`: HOVER_LEARN
     // @DisplayName: Hover Value Learning
     // @Description: Enable/Disable automatic learning of hover collective
     // @Values: 0:Disabled, 1:Learn, 2:Learn and Save
     // @User: Advanced
     AP_GROUPINFO("HOVER_LEARN", 27, AP_MotorsHeli, _collective_hover_learn, HOVER_LEARN_AND_SAVE),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Heli_Options
     // @Description: Bitmask of heli options.  Bit 0 changes how the pitch, roll, and yaw axis integrator term is managed for low speed and takeoff/landing. In AC 4.0 and earlier, scheme uses a leaky integrator for ground speeds less than 5 m/s and won't let the steady state integrator build above ILMI. The integrator is allowed to build to the ILMI value when it is landed.  The other integrator management scheme bases integrator limiting on takeoff and landing.  Whenever the aircraft is landed the integrator is set to zero.  When the aicraft is airborne, the integrator is only limited by IMAX. 
     // @Bitmask: 0:Use Leaky I
     // @User: Standard
     AP_GROUPINFO("OPTIONS", 28, AP_MotorsHeli, _heli_options, (uint8_t)HeliOption::USE_LEAKY_I),
 
-    // @Param: COL_ANG_MIN
+    // `@Param`: COL_ANG_MIN
     // @DisplayName: Collective Blade Pitch Angle Minimum
     // @Description: Minimum collective blade pitch angle in deg that corresponds to the PWM set for minimum collective pitch (H_COL_MIN).
     // @Range: -20 0
@@ -121,7 +121,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("COL_ANG_MIN", 29, AP_MotorsHeli, _collective_min_deg, AP_MOTORS_HELI_COLLECTIVE_MIN_DEG),
 
-    // @Param: COL_ANG_MAX
+    // `@Param`: COL_ANG_MAX
     // @DisplayName: Collective Blade Pitch Angle Maximum
     // @Description: Maximum collective blade pitch angle in deg that corresponds to the PWM set for maximum collective pitch (H_COL_MAX).
     // @Range: 5 20
@@ -130,7 +130,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("COL_ANG_MAX", 30, AP_MotorsHeli, _collective_max_deg, AP_MOTORS_HELI_COLLECTIVE_MAX_DEG),
 
-    // @Param: COL_ZERO_THRST
+    // `@Param`: COL_ZERO_THRST
     // @DisplayName: Collective Blade Pitch at Zero Thrust
     // @Description: Collective blade pitch angle at zero thrust in degrees. For symetric airfoil blades this value is zero deg. For chambered airfoil blades this value is typically negative.
     // @Range: -5 0
@@ -139,7 +139,7 @@ const AP_Param::GroupInfo AP_MotorsHeli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("COL_ZERO_THRST", 31, AP_MotorsHeli, _collective_zero_thrust_deg, 0.0f),
 
-    // @Param: COL_LAND_MIN
+    // `@Param`: COL_LAND_MIN
     // @DisplayName: Collective Blade Pitch Minimum when Landed
     // @Description: Minimum collective blade pitch angle when landed in degrees for non-manual collective modes (i.e. modes that use altitude hold).
     // @Range: -5 0

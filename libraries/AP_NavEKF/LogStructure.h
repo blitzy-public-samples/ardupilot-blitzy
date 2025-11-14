@@ -2,7 +2,7 @@
 
 #include <AP_Logger/LogStructure.h>
 
-// @LoggerMessage: XKY0,NKY0
+// `@LoggerMessage`: XKY0,NKY0
 // @Description: EKF Yaw Estimator States
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF core this data is for
@@ -37,7 +37,7 @@ struct PACKED log_KY0 {
 };
 
 
-// @LoggerMessage: XKY1,NKY1
+// `@LoggerMessage`: XKY1,NKY1
 // @Description: EKF Yaw Estimator Innovations
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF core this data is for
