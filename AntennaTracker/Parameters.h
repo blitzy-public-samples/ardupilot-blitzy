@@ -1,3 +1,23 @@
+/**
+ * @file Parameters.h
+ * @brief Parameter declarations and Parameters class for AntennaTracker configuration
+ * 
+ * @details Defines all configurable parameters for the AntennaTracker vehicle, organized
+ *          in the Parameters class with AP_Param integration for persistent storage.
+ *          Parameters include servo control PID tuning, mechanical limits, servo types,
+ *          tracking behavior, MAVLink configuration, and logging options.
+ *          
+ *          All parameters are stored in EEPROM for persistence across reboots and are
+ *          accessible via MAVLink for ground station configuration. Default values are
+ *          defined in Parameters.cpp var_info table.
+ *          
+ * @note Parameter name format follows ArduPilot conventions with namespace prefixes.
+ *       Changes to k_param_* enum values or parameter meanings require k_format_version update.
+ * 
+ * @see Parameters.cpp for var_info table with parameter metadata and defaults
+ * @see AP_Param library for parameter storage and access mechanisms
+ */
+
 #pragma once
 
 #define AP_PARAM_VEHICLE_NAME tracker
@@ -5,39 +25,73 @@
 #include <AC_PID/AC_PID.h>
 #include <AP_Param/AP_Param.h>
 
-// Global parameter class.
-//
+/**
+ * @class Parameters
+ * @brief Container for all AntennaTracker configuration parameters
+ * 
+ * @details This class holds all configurable parameter objects (AP_Int8, AP_Int16, AP_Float,
+ *          AC_PID, etc.) that define the tracker's behavior. Parameters are integrated with
+ *          the AP_Param system for:
+ *          - Persistent storage in EEPROM with format versioning
+ *          - MAVLink parameter protocol support for GCS configuration
+ *          - Default value initialization from var_info table
+ *          - Type-safe parameter access throughout the codebase
+ *          
+ *          The k_param_* enum defines unique keys for each parameter group in EEPROM storage.
+ *          The k_format_version must be incremented when parameter meanings or enum values change
+ *          to invalidate old EEPROM data and force parameter reset.
+ *          
+ * @note All parameter objects are public for direct access by vehicle code.
+ *       The constructor initializes PID controllers with default tuning values.
+ */
 class Parameters {
 public:
 
-    /*
-     *  The value of k_format_version determines whether the existing
-     *  eeprom data is considered valid. You should only change this
-     *  value under the following circumstances:
-     *
-     *  1) the meaning of an existing eeprom parameter changes
-     *
-     *  2) the value of an existing k_param_* enum value changes
-     *
-     *  Adding a new parameter should _not_ require a change to
-     *  k_format_version except under special circumstances. If you
-     *  change it anyway then all ArduPlane users will need to reload all
-     *  their parameters. We want that to be an extremely rare
-     *  thing. Please do not just change it "just in case".
-     *
-     *  To determine if a k_param_* value has changed, use the rules of
-     *  C++ enums to work out the value of the neighboring enum
-     *  values. If you don't know the C++ enum rules then please ask for
-     *  help.
+    /**
+     * @brief EEPROM parameter format version for AntennaTracker
+     * 
+     * @details The value of k_format_version determines whether existing EEPROM parameter
+     *          data is considered valid. When the stored format version doesn't match this
+     *          value, all parameters are reset to defaults, forcing users to reconfigure.
+     * 
+     *          You should ONLY change this value under these circumstances:
+     *          1) The meaning of an existing EEPROM parameter changes
+     *          2) The value of an existing k_param_* enum value changes
+     * 
+     *          Adding a new parameter should NOT require a format version change except
+     *          under special circumstances. Changing this value forces ALL AntennaTracker
+     *          users to reload all their parameters, which should be extremely rare.
+     * 
+     * @warning STOP!!! DO NOT CHANGE THIS VALUE UNTIL YOU FULLY UNDERSTAND THE IMPLICATIONS.
+     *          IF UNSURE, ASK ANOTHER DEVELOPER!!!
+     * 
+     * @note To verify if a k_param_* value has changed, use C++ enum rules to calculate
+     *       the implicit integer values of neighboring enum entries.
+     * 
+     * @see AP_Param::check_var_info() for format version validation
      */
-
-    //////////////////////////////////////////////////////////////////
-    // STOP!!! DO NOT CHANGE THIS VALUE UNTIL YOU FULLY UNDERSTAND THE
-    // COMMENTS ABOVE. IF UNSURE, ASK ANOTHER DEVELOPER!!!
     static const uint16_t k_format_version = 1;
-    //////////////////////////////////////////////////////////////////
 
-
+    /**
+     * @brief Parameter storage key enumeration for EEPROM addressing
+     * 
+     * @details Defines unique keys for each parameter or parameter group stored in EEPROM.
+     *          These keys determine the storage location and are used by AP_Param for
+     *          serialization and deserialization. The enum values are implicitly assigned
+     *          sequential integers by the compiler unless explicitly specified.
+     * 
+     *          Key ranges are organized by functional groups:
+     *          - 0-99: Core system parameters
+     *          - 100-199: System configuration (GCS, serial, sensors)
+     *          - 200-219: Radio/servo control parameters
+     *          - 220+: Mission, logging, and vehicle-specific parameters
+     * 
+     * @warning Changing enum values breaks EEPROM compatibility and requires k_format_version increment.
+     *          Deprecated entries must remain in the enum to preserve numbering for remaining parameters.
+     * 
+     * @note Entries marked "unused" or "deprecated" are retained for EEPROM compatibility.
+     *       Adding new parameters should use unused key slots or append to the end.
+     */
     enum {
         // Layout version number, always key zero.
         //
@@ -136,55 +190,199 @@ public:
         k_param__gcs = 258,
     };
 
+    /// @brief Parameter format version stored in EEPROM for compatibility checking
     AP_Int16 format_version;
 
-    // Telemetry control
-    //
+    // ========================================================================
+    // MAVLink System Configuration
+    // ========================================================================
+    
+    /// @brief Target vehicle MAVLink system ID to track (identifies which vehicle to follow)
     AP_Int16 sysid_target;
 
+    // ========================================================================
+    // Servo Slew Rate and Timing Parameters
+    // ========================================================================
+    
+    /// @brief Maximum yaw axis slew rate in degrees/second (limits servo speed for smooth tracking)
     AP_Float yaw_slew_time;
+    
+    /// @brief Maximum pitch axis slew rate in degrees/second (limits servo speed for smooth tracking)
     AP_Float pitch_slew_time;
+    
+    /// @brief Minimum time in seconds before reversing servo direction (prevents rapid oscillation)
     AP_Float min_reverse_time;
+    
+    /// @brief Yaw axis scan speed in degrees/second when in SCAN mode
     AP_Int16 scan_speed_yaw;
+    
+    /// @brief Pitch axis scan speed in degrees/second when in SCAN mode
     AP_Int16 scan_speed_pitch;
 
+    // ========================================================================
+    // Initial Position Configuration
+    // ========================================================================
+    
+    /// @brief Starting latitude in degrees (tracker home position if GPS not available)
     AP_Float start_latitude;
+    
+    /// @brief Starting longitude in degrees (tracker home position if GPS not available)
     AP_Float start_longitude;
 
+    // ========================================================================
+    // Servo Type and Configuration
+    // ========================================================================
+    
+    /// @brief Startup delay in seconds before enabling servo movement (allows mechanical settling)
     AP_Float startup_delay;
+    
+    /// @brief Pitch servo type: 0=Position, 1=OnOff, 2=ContinuousRotation
     AP_Int8  servo_pitch_type;
+    
+    /// @brief Yaw servo type: 0=Position, 1=OnOff, 2=ContinuousRotation
     AP_Int8  servo_yaw_type;
+    
+    /// @brief Altitude source for pitch calculation: 0=GPS, 1=Barometer
     AP_Int8  alt_source;
+    
+    /// @brief MAVLink telemetry update rate in Hz (how often to send position to GCS)
     AP_Int8  mavlink_update_rate;
+
+    // ========================================================================
+    // On/Off Servo Control Parameters (for bang-bang control mode)
+    // ========================================================================
+    
+    /// @brief Yaw rate threshold in degrees/second for OnOff servo mode (dead zone for discrete control)
     AP_Float onoff_yaw_rate;
+    
+    /// @brief Pitch rate threshold in degrees/second for OnOff servo mode (dead zone for discrete control)
     AP_Float onoff_pitch_rate;
+    
+    /// @brief Minimum on-time in seconds for yaw OnOff servo (prevents rapid switching)
     AP_Float onoff_yaw_mintime;
+    
+    /// @brief Minimum on-time in seconds for pitch OnOff servo (prevents rapid switching)
     AP_Float onoff_pitch_mintime;
+
+    // ========================================================================
+    // Servo Trim and Mechanical Limits
+    // ========================================================================
+    
+    /// @brief Yaw servo trim offset in degrees (calibration for zero-degree pointing)
     AP_Float yaw_trim;
+    
+    /// @brief Pitch servo trim offset in degrees (calibration for zero-degree pointing)
     AP_Float pitch_trim;
-    AP_Int16 yaw_range;             // yaw axis total range of motion in degrees
-    AP_Int16 distance_min;          // target's must be at least this distance from tracker to be tracked
+    
+    /// @brief Yaw axis total range of motion in degrees (mechanical limit, ±range/2 from center)
+    AP_Int16 yaw_range;
+    
+    /// @brief Minimum target distance in meters (targets closer than this are not tracked)
+    AP_Int16 distance_min;
+    
+    /// @brief Minimum pitch angle in degrees (lower mechanical limit for pitch axis)
     AP_Int16 pitch_min;
+    
+    /// @brief Maximum pitch angle in degrees (upper mechanical limit for pitch axis)
     AP_Int16 pitch_max;
+
+    // ========================================================================
+    // GCS and Mode Configuration
+    // ========================================================================
+    
+    /// @brief Bitmask for which PID values to send to GCS (for tuning visualization)
     AP_Int16 gcs_pid_mask;
+    
+    /// @brief Initial flight mode on boot (0=Manual, 1=Stop, 2=Scan, 3=Servo_Test, 4=Auto)
     AP_Int8  initial_mode;
+    
+    /// @brief Disarm servo behavior: 0=TRIM (center position), 1=ZERO (disable PWM output)
     AP_Int8 disarm_pwm;
+    
+    /// @brief AUTO mode option bitmask (bit flags for AUTO mode behavior customization)
     AP_Int8 auto_opts;
 
-    // Waypoints
-    //
-    AP_Int8 command_total; // 1 if HOME is set
+    // ========================================================================
+    // Waypoint/Mission Configuration
+    // ========================================================================
+    
+    /// @brief Number of stored waypoints (1 if HOME is set, 0 otherwise)
+    AP_Int8 command_total;
 
+    // ========================================================================
+    // Logging Configuration
+    // ========================================================================
+    
+    /// @brief Log message selection bitmask (enables/disables specific log message types)
     AP_Int32 log_bitmask;
 
-    // AC_PID controllers
+    // ========================================================================
+    // PID Controllers for Servo Control Loops
+    // ========================================================================
+    
+    /**
+     * @brief Pitch axis servo control PID controller
+     * 
+     * @details Converts pitch angle error (desired - actual) to servo output command.
+     *          Default tuning: P=0.2, I=0.0, D=0.05, FF=0.02, IMAX=4000.0
+     *          Runs in closed-loop to maintain accurate pitch pointing.
+     * 
+     * @note Tuning affects tracking accuracy and servo smoothness. Too aggressive causes oscillation.
+     */
     AC_PID         pidPitch2Srv;
+    
+    /**
+     * @brief Yaw axis servo control PID controller
+     * 
+     * @details Converts yaw angle error (desired - actual) to servo output command.
+     *          Default tuning: P=0.2, I=0.0, D=0.05, FF=0.02, IMAX=4000.0
+     *          Runs in closed-loop to maintain accurate yaw pointing.
+     * 
+     * @note Tuning affects tracking accuracy and servo smoothness. Too aggressive causes oscillation.
+     */
     AC_PID         pidYaw2Srv;
 
+    /**
+     * @brief Constructor initializes PID controllers with default tuning values
+     * 
+     * @details Initializes both pitch and yaw PID controllers with:
+     *          - P gain: 0.2 (proportional response to angle error)
+     *          - I gain: 0.0 (no integral term by default)
+     *          - D gain: 0.05 (damping term to reduce oscillation)
+     *          - FF gain: 0.02 (feedforward term)
+     *          - IMAX: 4000.0 (integral windup limit)
+     *          - Filter: 0.1 Hz (D-term filtering)
+     * 
+     * @note These are starting values; actual tuning is loaded from EEPROM parameters.
+     *       PID values are accessible via MAVLink for runtime tuning.
+     */
     Parameters() :
         pidPitch2Srv(0.2, 0.0f, 0.05f, 0.02f, 4000.0f, 0.0f, 0.0f, 0.0f, 0.1f),
         pidYaw2Srv  (0.2, 0.0f, 0.05f, 0.02f, 4000.0f, 0.0f, 0.0f, 0.0f, 0.1f)
         {}
 };
 
+/**
+ * @brief AP_Param metadata table for parameter storage and GCS access
+ * 
+ * @details Defined in Parameters.cpp, this table provides metadata for each parameter:
+ *          - Parameter name (as displayed in ground station)
+ *          - Storage key (k_param_* enum value)
+ *          - Data type (AP_Int8, AP_Float, etc.)
+ *          - Memory offset within Parameters class
+ *          - Default value, units, min/max ranges
+ *          - Help text for ground station display
+ * 
+ *          The AP_Param system uses this table to:
+ *          - Serialize/deserialize parameters to/from EEPROM
+ *          - Handle MAVLink parameter protocol requests
+ *          - Validate parameter values against defined ranges
+ *          - Provide parameter documentation to ground stations
+ * 
+ * @note This table must be kept synchronized with the Parameters class member variables
+ *       and the k_param_* enumeration.
+ * 
+ * @see Parameters.cpp for the complete var_info table definition
+ * @see AP_Param library for parameter system implementation details
+ */
 extern const AP_Param::Info var_info[];
