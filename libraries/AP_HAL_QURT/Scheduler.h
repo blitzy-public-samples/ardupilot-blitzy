@@ -28,7 +28,7 @@
 #pragma once
 
 #include <AP_HAL/AP_HAL.h>
-#if CONFIG_HAL_BOARD == HAL_BOARD_QURT
+#if CONFIG_HAL_BOARD == HAL_BOARD_QURT || defined(__DOXYGEN__)
 #include "AP_HAL_QURT_Namespace.h"
 #include <sys/time.h>
 #include <signal.h>
@@ -262,7 +262,7 @@ public:
      *          battery voltage, GPS health) and trigger protective actions if failures
      *          are detected. Executes in the timer thread context at high priority.
      * 
-     * @param[in] proc Function pointer to failsafe check callback
+     * @param[in] failsafe Function pointer to failsafe check callback
      * @param[in] period_us Execution period in microseconds (e.g., 1000 for 1kHz)
      * 
      * @note Executes in timer thread context at APM_TIMER_PRIORITY
@@ -270,7 +270,7 @@ public:
      *          should complete in <100us to avoid affecting main loop timing
      * @warning Failsafe triggers can change vehicle mode or override pilot control
      */
-    void     register_timer_failsafe(AP_HAL::Proc, uint32_t period_us) override;
+    void     register_timer_failsafe(AP_HAL::Proc failsafe, uint32_t period_us) override;
     
     /**
      * @brief Temporarily disable timer callback execution

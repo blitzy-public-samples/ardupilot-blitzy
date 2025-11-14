@@ -84,69 +84,69 @@
 #define AP_FILTER_ENABLED HAL_PROGRAM_SIZE_LIMIT_KB > 1024
 #endif
 
-/**
- * @def AP_FILTER_NUM_FILTERS
- * @brief Number of configurable filter slots in the AP_Filters manager
- * 
- * @details Determines how many independent filter instances can be configured
- *          at runtime through ground station parameters. Each filter slot can
- *          be independently configured with different filter types and parameters.
- *          
- *          This macro is only defined when AP_FILTER_ENABLED=1. When the filter
- *          subsystem is disabled, no filter slots are allocated.
- *          
- *          Default Values (automatically selected based on board size):
- *          - 8 filters: Boards with >1024KB program size (e.g., STM32H7, Pixhawk 4)
- *          - 4 filters: Boards with ≤1024KB program size (e.g., STM32F4, Pixhawk 1)
- *          
- *          Effect on System:
- *          Determines the size of:
- *          - AP_Filters::filters[] array (runtime filter instances)
- *          - AP_Filters::params[] array (parameter storage)
- *          - Parameter table entries (FILT1_* through FILT<N>_*)
- *          
- *          Memory Impact:
- *          Each filter slot consumes:
- *          - EEPROM: ~20-30 bytes for parameter storage
- *          - RAM: ~40-60 bytes for filter state (varies by filter type)
- *          - Flash: Negligible (array size only, code shared)
- *          
- *          Parameter Naming:
- *          Filter slots are exposed as ground station parameters:
- *          - FILT1_TYPE, FILT1_FREQ, FILT1_BW, etc. (filter 1)
- *          - FILT2_TYPE, FILT2_FREQ, FILT2_BW, etc. (filter 2)
- *          - ...
- *          - FILT<N>_TYPE, FILT<N>_FREQ, FILT<N>_BW, etc. (filter N)
- *          
- *          Where N = AP_FILTER_NUM_FILTERS
- *          
- *          Board Size Categories:
- *          - >1024KB: High-end boards (Pixhawk 4, Cube Orange, etc.) - 8 filter slots
- *          - ≤1024KB: Mid-range boards (Pixhawk 1, Cube Black, etc.) - 4 filter slots
- *          - <1024KB with AP_FILTER_ENABLED=0: Low-end boards - no filter subsystem
- *          
- *          Override Usage:
- *          Define via compiler flag for custom filter count:
- *          - Increase slots: -DAP_FILTER_NUM_FILTERS=16
- *          - Decrease slots: -DAP_FILTER_NUM_FILTERS=2
- *          
- *          Conditional Compilation:
- *          This macro is only defined when AP_FILTER_ENABLED=1. If AP_FILTER_ENABLED=0,
- *          the entire filter subsystem is excluded and no filter slots are allocated.
- *          
- * @warning Changing AP_FILTER_NUM_FILTERS affects the parameter table layout.
- *          If you decrease the count, existing parameters for higher-numbered filters
- *          (e.g., FILT5_* through FILT8_* when reducing from 8 to 4) may become invalid.
- *          Users should reset parameters or back up settings after changing filter count.
- * 
- * @note This only controls the number of AP_Filter subsystem filter slots.
- *       Core filter primitives (LowPassFilter, NotchFilter) and HarmonicNotchFilter
- *       are configured separately and are not affected by this setting.
- * 
- * @see AP_FILTER_ENABLED for subsystem enable/disable
- * @see AP_Filters class for filter manager implementation
- */
 #if AP_FILTER_ENABLED
+ /**
+  * @def AP_FILTER_NUM_FILTERS
+  * @brief Number of configurable filter slots in the AP_Filters manager
+  * 
+  * @details Determines how many independent filter instances can be configured
+  *          at runtime through ground station parameters. Each filter slot can
+  *          be independently configured with different filter types and parameters.
+  *          
+  *          This macro is only defined when AP_FILTER_ENABLED=1. When the filter
+  *          subsystem is disabled, no filter slots are allocated.
+  *          
+  *          Default Values (automatically selected based on board size):
+  *          - 8 filters: Boards with >1024KB program size (e.g., STM32H7, Pixhawk 4)
+  *          - 4 filters: Boards with ≤1024KB program size (e.g., STM32F4, Pixhawk 1)
+  *          
+  *          Effect on System:
+  *          Determines the size of:
+  *          - AP_Filters::filters[] array (runtime filter instances)
+  *          - AP_Filters::params[] array (parameter storage)
+  *          - Parameter table entries (FILT1_* through FILT<N>_*)
+  *          
+  *          Memory Impact:
+  *          Each filter slot consumes:
+  *          - EEPROM: ~20-30 bytes for parameter storage
+  *          - RAM: ~40-60 bytes for filter state (varies by filter type)
+  *          - Flash: Negligible (array size only, code shared)
+  *          
+  *          Parameter Naming:
+  *          Filter slots are exposed as ground station parameters:
+  *          - FILT1_TYPE, FILT1_FREQ, FILT1_BW, etc. (filter 1)
+  *          - FILT2_TYPE, FILT2_FREQ, FILT2_BW, etc. (filter 2)
+  *          - ...
+  *          - FILT<N>_TYPE, FILT<N>_FREQ, FILT<N>_BW, etc. (filter N)
+  *          
+  *          Where N = AP_FILTER_NUM_FILTERS
+  *          
+  *          Board Size Categories:
+  *          - >1024KB: High-end boards (Pixhawk 4, Cube Orange, etc.) - 8 filter slots
+  *          - ≤1024KB: Mid-range boards (Pixhawk 1, Cube Black, etc.) - 4 filter slots
+  *          - <1024KB with AP_FILTER_ENABLED=0: Low-end boards - no filter subsystem
+  *          
+  *          Override Usage:
+  *          Define via compiler flag for custom filter count:
+  *          - Increase slots: -DAP_FILTER_NUM_FILTERS=16
+  *          - Decrease slots: -DAP_FILTER_NUM_FILTERS=2
+  *          
+  *          Conditional Compilation:
+  *          This macro is only defined when AP_FILTER_ENABLED=1. If AP_FILTER_ENABLED=0,
+  *          the entire filter subsystem is excluded and no filter slots are allocated.
+  *          
+  * @warning Changing AP_FILTER_NUM_FILTERS affects the parameter table layout.
+  *          If you decrease the count, existing parameters for higher-numbered filters
+  *          (e.g., FILT5_* through FILT8_* when reducing from 8 to 4) may become invalid.
+  *          Users should reset parameters or back up settings after changing filter count.
+  * 
+  * @note This only controls the number of AP_Filter subsystem filter slots.
+  *       Core filter primitives (LowPassFilter, NotchFilter) and HarmonicNotchFilter
+  *       are configured separately and are not affected by this setting.
+  * 
+  * @see AP_FILTER_ENABLED for subsystem enable/disable
+  * @see AP_Filters class for filter manager implementation
+  */
  #ifndef AP_FILTER_NUM_FILTERS
  #if HAL_PROGRAM_SIZE_LIMIT_KB > 1024
   #define AP_FILTER_NUM_FILTERS 8

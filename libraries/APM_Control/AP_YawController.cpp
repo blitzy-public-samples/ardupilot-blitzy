@@ -27,7 +27,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_YawController::var_info[] = {
 
-    // @Param: 2SRV_SLIP
+    // `@Param`: 2SRV_SLIP
     // @DisplayName: Sideslip control gain
     // @Description: Gain from lateral acceleration to demanded yaw rate for aircraft with enough fuselage area to detect lateral acceleration and sideslips. Do not enable for flying wings and gliders. Actively coordinates flight more than just yaw damping. Set after YAW2SRV_DAMP and YAW2SRV_INT are tuned.
     // @Range: 0 4
@@ -35,7 +35,7 @@ const AP_Param::GroupInfo AP_YawController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("2SRV_SLIP",    0, AP_YawController, _K_A,    0),
 
-    // @Param: 2SRV_INT
+    // `@Param`: 2SRV_INT
     // @DisplayName: Sideslip control integrator
     // @Description: Integral gain from lateral acceleration error. Effectively trims rudder to eliminate long-term sideslip.
     // @Range: 0 2
@@ -43,7 +43,7 @@ const AP_Param::GroupInfo AP_YawController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("2SRV_INT",    1, AP_YawController, _K_I,    0),
 
-    // @Param: 2SRV_DAMP
+    // `@Param`: 2SRV_DAMP
     // @DisplayName: Yaw damping
     // @Description: Gain from yaw rate to rudder. Most effective at yaw damping and should be tuned after KFF_RDDRMIX. Also disables YAW2SRV_INT if set to 0.
     // @Range: 0 2
@@ -51,7 +51,7 @@ const AP_Param::GroupInfo AP_YawController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("2SRV_DAMP",   2, AP_YawController, _K_D,    0),
 
-    // @Param: 2SRV_RLL
+    // `@Param`: 2SRV_RLL
     // @DisplayName: Yaw coordination gain
     // @Description: Gain to the yaw rate required to keep it consistent with the turn rate in a coordinated turn. Corrects for yaw tendencies after the turn is established. Increase yaw into the turn by raising. Increase yaw out of the turn by decreasing. Values outside of 0.9-1.1 range indicate airspeed calibration problems.
     // @Range: 0.8 1.2
@@ -64,7 +64,7 @@ const AP_Param::GroupInfo AP_YawController::var_info[] = {
       AP_Int8 version of the IMAX in the 2.74 release
      */
 
-    // @Param: 2SRV_IMAX
+    // `@Param`: 2SRV_IMAX
     // @DisplayName: Integrator limit
     // @Description: Limit of yaw integrator gain in centi-degrees of servo travel. Servos are assumed to have +/- 4500 centi-degrees of travel, so a value of 1500 allows trim of up to 1/3 of servo travel range.
     // @Range: 0 4500
@@ -72,49 +72,49 @@ const AP_Param::GroupInfo AP_YawController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("2SRV_IMAX",  5, AP_YawController, _imax,        1500),
 
-    // @Param: _RATE_ENABLE
+    // `@Param`: _RATE_ENABLE
     // @DisplayName: Yaw rate enable
     // @Description: Enable yaw rate controller for aerobatic flight
     // @Values: 0:Disable,1:Enable
     // @User: Advanced
     AP_GROUPINFO_FLAGS("_RATE_ENABLE",  6, AP_YawController, _rate_enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _RATE_P
+    // `@Param`: _RATE_P
     // @DisplayName: Yaw axis rate controller P gain
     // @Description: Yaw axis rate controller P gain.  Corrects in proportion to the difference between the desired yaw rate vs actual yaw rate
     // @Range: 0.08 0.35
     // @Increment: 0.005
     // @User: Standard
 
-    // @Param: _RATE_I
+    // `@Param`: _RATE_I
     // @DisplayName: Yaw axis rate controller I gain
     // @Description: Yaw axis rate controller I gain.  Corrects long-term difference in desired yaw rate vs actual yaw rate
     // @Range: 0.01 0.6
     // @Increment: 0.01
     // @User: Standard
 
-    // @Param: _RATE_IMAX
+    // `@Param`: _RATE_IMAX
     // @DisplayName: Yaw axis rate controller I gain maximum
     // @Description: Yaw axis rate controller I gain maximum.  Constrains the maximum that the I term will output
     // @Range: 0 1
     // @Increment: 0.01
     // @User: Standard
 
-    // @Param: _RATE_D
+    // `@Param`: _RATE_D
     // @DisplayName: Yaw axis rate controller D gain
     // @Description: Yaw axis rate controller D gain.  Compensates for short-term change in desired yaw rate vs actual yaw rate
     // @Range: 0.001 0.03
     // @Increment: 0.001
     // @User: Standard
 
-    // @Param: _RATE_FF
+    // `@Param`: _RATE_FF
     // @DisplayName: Yaw axis rate controller feed forward
     // @Description: Yaw axis rate controller feed forward
     // @Range: 0 3.0
     // @Increment: 0.001
     // @User: Standard
 
-    // @Param: _RATE_FLTT
+    // `@Param`: _RATE_FLTT
     // @DisplayName: Yaw axis rate controller target frequency in Hz
     // @Description: Yaw axis rate controller target frequency in Hz
     // @Range: 2 50
@@ -122,7 +122,7 @@ const AP_Param::GroupInfo AP_YawController::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _RATE_FLTE
+    // `@Param`: _RATE_FLTE
     // @DisplayName: Yaw axis rate controller error frequency in Hz
     // @Description: Yaw axis rate controller error frequency in Hz
     // @Range: 2 50
@@ -130,7 +130,7 @@ const AP_Param::GroupInfo AP_YawController::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _RATE_FLTD
+    // `@Param`: _RATE_FLTD
     // @DisplayName: Yaw axis rate controller derivative frequency in Hz
     // @Description: Yaw axis rate controller derivative frequency in Hz
     // @Range: 0 50
@@ -138,33 +138,33 @@ const AP_Param::GroupInfo AP_YawController::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _RATE_SMAX
+    // `@Param`: _RATE_SMAX
     // @DisplayName: Yaw slew rate limit
     // @Description: Sets an upper limit on the slew rate produced by the combined P and D gains. If the amplitude of the control action produced by the rate feedback exceeds this value, then the D+P gain is reduced to respect the limit. This limits the amplitude of high frequency oscillations caused by an excessive gain. The limit should be set to no more than 25% of the actuators maximum slew rate to allow for load effects. Note: The gain will not be reduced to less than 10% of the nominal value. A value of zero will disable this feature.
     // @Range: 0 200
     // @Increment: 0.5
     // @User: Advanced
 
-    // @Param: _RATE_PDMX
+    // `@Param`: _RATE_PDMX
     // @DisplayName: Yaw axis rate controller PD sum maximum
     // @Description: Yaw axis rate controller PD sum maximum.  The maximum/minimum value that the sum of the P and D term can output
     // @Range: 0 1
     // @Increment: 0.01
 
-    // @Param: _RATE_D_FF
+    // `@Param`: _RATE_D_FF
     // @DisplayName: Yaw Derivative FeedForward Gain
     // @Description: FF D Gain which produces an output that is proportional to the rate of change of the target
     // @Range: 0 0.03
     // @Increment: 0.001
     // @User: Advanced
 
-    // @Param: _RATE_NTF
+    // `@Param`: _RATE_NTF
     // @DisplayName: Yaw Target notch filter index
     // @Description: Yaw Target notch filter index
     // @Range: 1 8
     // @User: Advanced
 
-    // @Param: _RATE_NEF
+    // `@Param`: _RATE_NEF
     // @DisplayName: Yaw Error notch filter index
     // @Description: Yaw Error notch filter index
     // @Range: 1 8

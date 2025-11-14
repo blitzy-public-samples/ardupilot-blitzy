@@ -72,13 +72,13 @@ const AP_Filesystem::Backend AP_Filesystem::backends[] = {
     { "@ROMFS", fs_romfs },
 #endif
 #if AP_FILESYSTEM_PARAM_ENABLED
-    { "@PARAM", fs_param },
+    { "`@PARAM`", fs_param },
 #endif
 #if AP_FILESYSTEM_SYS_ENABLED
     { "@SYS", fs_sys },
 #endif
 #if AP_FILESYSTEM_MISSION_ENABLED
-    { "@MISSION", fs_mission },
+    { "`@MISSION`", fs_mission },
 #endif
 };
 
@@ -250,7 +250,7 @@ struct dirent *AP_Filesystem::readdir(DirHandle *dirp)
         return ret;
     }
 
-    // virtual directory entries in the root directory (e.g. @SYS, @MISSION)
+    // virtual directory entries in the root directory (e.g. @SYS, `@MISSION`)
     for (; ret == nullptr && virtual_dirent.backend_ofs < ARRAY_SIZE(AP_Filesystem::backends); virtual_dirent.backend_ofs++) {
         const char *prefix = backends[virtual_dirent.backend_ofs].prefix;
         if (prefix == nullptr) {

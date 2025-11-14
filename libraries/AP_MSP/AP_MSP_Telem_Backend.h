@@ -378,7 +378,7 @@ protected:
      * @brief UTF-8 directional arrow encoding table for OSD display
      * 
      * @details Third byte of UTF-8 three-byte encoding sequence for directional arrows.
-     *          Full encoding is: 0xE2 0x86 <value_from_table>
+     *          Full encoding is: 0xE2 0x86 &lt;value_from_table&gt;
      * 
      *          Arrow directions (clockwise from North):
      *          - Index 0: U+2191 ↑  (0x91) UPWARDS ARROW (North)

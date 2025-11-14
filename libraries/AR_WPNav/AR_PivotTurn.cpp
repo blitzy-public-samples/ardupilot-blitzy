@@ -32,7 +32,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AR_PivotTurn::var_info[] = {
 
-    // @Param: ANGLE
+    // `@Param`: ANGLE
     // @DisplayName: Pivot Angle
     // @Description: Pivot when the difference between the vehicle's heading and its target heading is more than this many degrees. Set to zero to disable pivot turns.  This parameter should be greater than 5 degrees for pivot turns to work.
     // @Units: deg
@@ -41,7 +41,7 @@ const AP_Param::GroupInfo AR_PivotTurn::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ANGLE", 1, AR_PivotTurn, _angle, AR_PIVOT_ANGLE_DEFAULT),
 
-    // @Param: RATE
+    // `@Param`: RATE
     // @DisplayName: Pivot Turn Rate
     // @Description: Turn rate during pivot turns
     // @Units: deg/s
@@ -50,7 +50,7 @@ const AP_Param::GroupInfo AR_PivotTurn::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RATE", 2, AR_PivotTurn, _rate_max, AR_PIVOT_RATE_DEFAULT),
 
-    // @Param: DELAY
+    // `@Param`: DELAY
     // @DisplayName: Pivot Delay
     // @Description: Vehicle waits this many seconds after completing a pivot turn before proceeding
     // @Units: s

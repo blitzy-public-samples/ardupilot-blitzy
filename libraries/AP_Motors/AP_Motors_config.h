@@ -26,7 +26,7 @@
  * Related Configuration:
  * - SRV_Channel library provides underlying servo/motor output capabilities
  * - HAL (Hardware Abstraction Layer) determines physical output limits
- * - hwdef files (AP_HAL_ChibiOS/hwdef/*.hwdef) configure per-board output counts
+ * - hwdef files (AP_HAL_ChibiOS/hwdef/\*.hwdef) configure per-board output counts
  * 
  * Source: libraries/AP_Motors/AP_Motors_config.h
  */

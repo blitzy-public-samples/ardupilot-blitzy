@@ -23,7 +23,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_BattMonitor_Sum::var_info[] = {
 
-    // @Param: SUM_MASK
+    // `@Param`: SUM_MASK
     // @DisplayName: Battery Sum mask
     // @Description: 0: sum of remaining battery monitors, If none 0 sum of specified monitors. Current will be summed and voltages averaged.
     // @Bitmask: 0:monitor 1, 1:monitor 2, 2:monitor 3, 3:monitor 4, 4:monitor 5, 5:monitor 6, 6:monitor 7, 7:monitor 8, 8:monitor 9

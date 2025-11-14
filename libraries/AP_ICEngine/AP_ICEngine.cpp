@@ -32,14 +32,14 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable ICEngine control
     // @Description: This enables internal combustion engine control
     // @Values: 0:Disabled, 1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE", 0, AP_ICEngine, enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: START_CHAN
+    // `@Param`: START_CHAN
     // @DisplayName: Input channel for engine start
     // @Description: This is an RC input channel for requesting engine start. Engine will try to start when channel is at or above 1700. Engine will stop when channel is at or below 1300. Between 1301 and 1699 the engine will not change state unless a MAVLink command or mission item commands a state change, or the vehicle is disarmed. See ICE_STARTCHN_MIN parameter to change engine stop PWM value and/or to enable debouncing of the START_CH to avoid accidental engine kills due to noise on channel.
     // @Legacy: 4.5 param
@@ -48,7 +48,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
 
     // 1 was START_CHAN
 
-    // @Param: STARTER_TIME
+    // `@Param`: STARTER_TIME
     // @DisplayName: Time to run starter
     // @Description: This is the number of seconds to run the starter when trying to start the engine
     // @User: Standard
@@ -56,7 +56,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
     // @Range: 0.1 5
     AP_GROUPINFO("STARTER_TIME", 2, AP_ICEngine, starter_time, 3),
 
-    // @Param: START_DELAY
+    // `@Param`: START_DELAY
     // @DisplayName: Time to wait between starts
     // @Description: Delay between start attempts
     // @User: Standard
@@ -65,7 +65,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
     AP_GROUPINFO("START_DELAY", 3, AP_ICEngine, starter_delay, 2),
 
 #if AP_RPM_ENABLED
-    // @Param: RPM_THRESH
+    // `@Param`: RPM_THRESH
     // @DisplayName: RPM threshold
     // @Description: This is the measured RPM above which the engine is considered to be running
     // @User: Standard
@@ -73,7 +73,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
     AP_GROUPINFO("RPM_THRESH", 4, AP_ICEngine, rpm_threshold, 100),
 #endif
 
-    // @Param: PWM_IGN_ON
+    // `@Param`: PWM_IGN_ON
     // @DisplayName: PWM value for ignition on
     // @Description: This is the value sent to the ignition channel when on
     // @Legacy: 4.5 param
@@ -82,7 +82,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
 
     // 5 was PWM_IGN_ON
 
-    // @Param: PWM_IGN_OFF
+    // `@Param`: PWM_IGN_OFF
     // @DisplayName: PWM value for ignition off
     // @Description: This is the value sent to the ignition channel when off
     // @Legacy: 4.5 param
@@ -91,7 +91,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
 
     // 6 was PWM_IGN_OFF
 
-    // @Param: PWM_STRT_ON
+    // `@Param`: PWM_STRT_ON
     // @DisplayName: PWM value for starter on
     // @Description: This is the value sent to the starter channel when on
     // @Legacy: 4.5 param
@@ -100,7 +100,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
 
     // 7 was PWM_STRT_ON
 
-    // @Param: PWM_STRT_OFF
+    // `@Param`: PWM_STRT_OFF
     // @DisplayName: PWM value for starter off
     // @Description: This is the value sent to the starter channel when off
     // @Legacy: 4.5 param
@@ -110,7 +110,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
     // 8 was PWM_STRT_OFF
 
 #if AP_RPM_ENABLED
-    // @Param: RPM_CHAN
+    // `@Param`: RPM_CHAN
     // @DisplayName: RPM instance channel to use
     // @Description: This is which of the RPM instances to use for detecting the RPM of the engine
     // @User: Standard
@@ -118,14 +118,14 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
     AP_GROUPINFO("RPM_CHAN",  9, AP_ICEngine, rpm_instance, 0),
 #endif
 
-    // @Param: START_PCT
+    // `@Param`: START_PCT
     // @DisplayName: Throttle percentage for engine start
     // @Description: This is the percentage throttle output for engine start
     // @User: Standard
     // @Range: 0 100
     AP_GROUPINFO("START_PCT", 10, AP_ICEngine, start_percent, 5),
 
-    // @Param: IDLE_PCT
+    // `@Param`: IDLE_PCT
     // @DisplayName: Throttle percentage for engine idle
     // @Description: This is the minimum percentage throttle output while running, this includes being disarmed, but not safe
     // @User: Standard
@@ -133,30 +133,30 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
     AP_GROUPINFO("IDLE_PCT", 11, AP_ICEngine, idle_percent, 0),
 
 #if AP_RPM_ENABLED
-    // @Param: IDLE_RPM
+    // `@Param`: IDLE_RPM
     // @DisplayName: RPM Setpoint for Idle Governor
     // @Description: This configures the RPM that will be commanded by the idle governor. Set to -1 to disable
     // @User: Advanced
     AP_GROUPINFO("IDLE_RPM", 12, AP_ICEngine, idle_rpm, -1),
 
-    // @Param: IDLE_DB
+    // `@Param`: IDLE_DB
     // @DisplayName: Deadband for Idle Governor
     // @Description: This configures the deadband that is tolerated before adjusting the idle setpoint
     AP_GROUPINFO("IDLE_DB", 13, AP_ICEngine, idle_db, 50),
 
-    // @Param: IDLE_SLEW
+    // `@Param`: IDLE_SLEW
     // @DisplayName: Slew Rate for idle control
     // @Description: This configures the slewrate used to adjust the idle setpoint in percentage points per second
     AP_GROUPINFO("IDLE_SLEW", 14, AP_ICEngine, idle_slew, 1),
 #endif
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: ICE options
     // @Description: Options for ICE control. The Disable ignition in RC failsafe option will cause the ignition to be set off on any R/C failsafe. If Throttle while disarmed is set then throttle control will be allowed while disarmed for planes when in MANUAL mode. If disable while disarmed is set the engine will not start while the vehicle is disarmed unless overriden by the MAVLink DO_ENGINE_CONTROL command.
     // @Bitmask: 0:Disable ignition in RC failsafe,1:Disable redline governor,2:Throttle control in MANUAL while disarmed with safety off,3:Disable while disarmed,4:Crank direction Reverse
     AP_GROUPINFO("OPTIONS", 15, AP_ICEngine, options, 0),
 
-    // @Param: STARTCHN_MIN
+    // `@Param`: STARTCHN_MIN
     // @DisplayName: Input channel for engine start minimum PWM
     // @Description: This is a minimum PWM value for engine start channel for an engine stop to be commanded. Setting this value will avoid RC input glitches with low PWM values from causing an unwanted engine stop. A value of zero means any PWM above 800 and below 1300 triggers an engine stop. To stop the engine start channel must above the larger of this value and 800 and below 1300.
     // @User: Standard
@@ -164,7 +164,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
     AP_GROUPINFO("STARTCHN_MIN", 16, AP_ICEngine, start_chan_min_pwm, 0),
 
 #if AP_RPM_ENABLED
-    // @Param: REDLINE_RPM
+    // `@Param`: REDLINE_RPM
     // @DisplayName: RPM of the redline limit for the engine
     // @Description: Maximum RPM for the engine provided by the manufacturer. A value of 0 disables this feature. See ICE_OPTIONS to enable or disable the governor.
     // @User: Advanced
@@ -179,7 +179,7 @@ const AP_Param::GroupInfo AP_ICEngine::var_info[] = {
     // This allows one time conversion while allowing user to flash between versions with and without converted params
     AP_GROUPINFO_FLAGS("FMT_VER", 19, AP_ICEngine, param_format_version, 0, AP_PARAM_FLAG_HIDDEN),
 
-    // @Param: STRT_MX_RTRY
+    // `@Param`: STRT_MX_RTRY
     // @DisplayName: Maximum number of retries
     // @Description: If set 0 then there is no limit to retrials. If set to a value greater than 0 then the engine will retry starting the engine this many times before giving up.
     // @User: Standard

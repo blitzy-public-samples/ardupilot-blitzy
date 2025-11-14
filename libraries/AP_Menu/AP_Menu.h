@@ -1,6 +1,7 @@
-/// @file	menu.h
+/// @file	AP_Menu.h
 /// @brief	Simple commandline menu subsystem.
-/// @discussion
+///
+/// @details
 /// The Menu class implements a simple CLI that accepts commands typed by
 /// the user, and passes the arguments to those commands to a function
 /// defined as handing the command.
@@ -40,16 +41,13 @@ public:
     /// menu command function
     ///
     /// Functions called by menu array entries are expected to be of this
-    /// type.
+    /// type. The functor signature is: int8_t func(uint8_t argc, const struct arg *argv)
     ///
-    /// @param	argc		The number of valid arguments, including the
-    ///						name of the command in argv[0].  Will never be
-    ///						more than MENU_ARGS_MAX.
-    /// @param	argv		Pointer to an array of Menu::arg structures
-    ///						detailing any optional arguments given to the
-    ///						command.  argv[0] is always the name of the
-    ///						command, so that the same function can be used
-    ///						to handle more than one command.
+    /// The first parameter (argc) is the number of valid arguments, including the
+    /// name of the command in argv[0]. Will never be more than MENU_ARGS_MAX.
+    /// The second parameter (argv) is a pointer to an array of Menu::arg structures
+    /// detailing any optional arguments given to the command. argv[0] is always the name of the
+    /// command, so that the same function can be used to handle more than one command.
     ///
     FUNCTOR_TYPEDEF(func, int8_t, uint8_t, const struct arg *);
 
@@ -94,8 +92,9 @@ public:
     /// the MENU and MENU2 macros defined below.
     ///
     /// @param prompt		The prompt to be displayed with this menu.
-    /// @param commands		An array of ::command structures in program memory.
+    /// @param commands		An array of Menu::command structures in program memory.
     /// @param entries		The number of entries in the menu.
+    /// @param ppfunc		Pre-prompt function to call before displaying prompt.
     ///
     Menu(const char *prompt, const struct command *commands, uint8_t entries, preprompt ppfunc = 0);
 

@@ -8,14 +8,14 @@ const extern AP_HAL::HAL& hal;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_Stats::var_info[] = {
 
-    // @Param: _BOOTCNT
+    // `@Param`: _BOOTCNT
     // @DisplayName: Boot Count
     // @Description: Number of times board has been booted
     // @ReadOnly: True
     // @User: Standard
     AP_GROUPINFO("_BOOTCNT",    0, AP_Stats, params.bootcount, 0),
 
-    // @Param: _FLTTIME
+    // `@Param`: _FLTTIME
     // @DisplayName: Total FlightTime
     // @Description: Total FlightTime (seconds)
     // @Units: s
@@ -23,7 +23,7 @@ const AP_Param::GroupInfo AP_Stats::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_FLTTIME",    1, AP_Stats, params.flttime, 0),
 
-    // @Param: _RUNTIME
+    // `@Param`: _RUNTIME
     // @DisplayName: Total RunTime
     // @Description: Total time autopilot has run
     // @Units: s
@@ -31,7 +31,7 @@ const AP_Param::GroupInfo AP_Stats::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_RUNTIME",    2, AP_Stats, params.runtime, 0),
 
-    // @Param: _RESET
+    // `@Param`: _RESET
     // @DisplayName: Statistics Reset Time
     // @Description: Seconds since January 1st 2016 (Unix epoch+1451606400) since statistics reset (set to 0 to reset statistics, other set values will be ignored)
     // @Units: s

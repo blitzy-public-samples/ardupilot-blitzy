@@ -32,14 +32,14 @@ AP_RTC::AP_RTC()
 // table of user settable parameters
 const AP_Param::GroupInfo AP_RTC::var_info[] = {
 
-    // @Param: _TYPES
+    // `@Param`: _TYPES
     // @DisplayName: Allowed sources of RTC time
     // @Description: Specifies which sources of UTC time will be accepted
     // @Bitmask: 0:GPS,1:MAVLINK_SYSTEM_TIME,2:HW
     // @User: Advanced
     AP_GROUPINFO("_TYPES",  1, AP_RTC, allowed_types, 1),
 
-    // @Param: _TZ_MIN
+    // `@Param`: _TZ_MIN
     // @DisplayName: Timezone offset from UTC
     // @Description: Adds offset in +- minutes from UTC to calculate local time
     // @Range: -720 +840
@@ -111,7 +111,7 @@ void AP_RTC::set_utc_usec(uint64_t time_utc_usec, source_type type)
     if (old_utc != new_utc) {
         if (AP::logger().should_log(0xFFFF)){
             // log to AP_Logger
-            // @LoggerMessage: RTC
+            // `@LoggerMessage`: RTC
             // @Description: Information about RTC clock resets
             // @Field: TimeUS: Time since system startup
             // @Field: old_utc: old time

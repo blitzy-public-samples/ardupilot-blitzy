@@ -419,14 +419,14 @@ public:
      *          - RALLY_LIMIT_KM (index 1): Maximum distance to rally point in kilometers
      *          - RALLY_INCL_HOME (index 2): Whether to include home as a rally point option
      *          
-     *          These parameters are defined with @Param tags in AP_Rally.cpp for automatic
+     *          These parameters are defined with `@Param` tags in AP_Rally.cpp for automatic
      *          documentation generation and ground station integration.
      * 
      * @note Parameter indices must remain stable across firmware versions for compatibility
      * @note Modifications to this structure require parameter table versioning consideration
      * 
      * @see AP_Param::GroupInfo
-     * @see AP_Rally.cpp (lines 29-52 for @Param definitions)
+     * @see AP_Rally.cpp (lines 29-52 for `@Param` definitions)
      */
     static const struct AP_Param::GroupInfo var_info[];
 

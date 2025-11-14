@@ -16,7 +16,7 @@
  * 
  *          Filesystem Backend Types:
  *          - Physical Storage: ESP32, FATFS (SD card), LittleFS (SPI flash), POSIX
- *          - Virtual Filesystems: @PARAM (parameter access), @SYS (diagnostics), @MISSION
+ *          - Virtual Filesystems: `@PARAM` (parameter access), `@SYS` (diagnostics), `@MISSION`
  *          - Read-Only: ROMFS (embedded files)
  * 
  *          Customization Example for Custom Boards:
@@ -85,8 +85,8 @@
  *          - LittleFS: Requires HAL_OS_LITTLEFS_IO (SPI flash hardware)
  *          - POSIX: Requires POSIX-compliant OS (SITL, Linux, QURT)
  *          - ROMFS: Requires embedded ROMFS data (HAL_HAVE_AP_ROMFS_EMBEDDED_H)
- *          - @PARAM, @SYS: Always enabled (core virtual filesystems)
- *          - @MISSION: Requires AP_MISSION_ENABLED
+ *          - `@PARAM`, `@SYS`: Always enabled (core virtual filesystems)
+ *          - `@MISSION`: Requires AP_MISSION_ENABLED
  * 
  * @{
  */
@@ -177,12 +177,12 @@
 
 /**
  * @def AP_FILESYSTEM_PARAM_ENABLED
- * @brief Enable virtual @PARAM filesystem for parameter pack/unpack
+ * @brief Enable virtual `@PARAM` filesystem for parameter pack/unpack
  * 
- * @details Provides magic "@PARAM" filesystem prefix for parameter operations.
+ * @details Provides magic "`@PARAM`" filesystem prefix for parameter operations.
  *          Allows parameter backup/restore via standard file operations.
- *          Writing to @PARAM/filename.parm saves all parameters to file.
- *          Reading from @PARAM/filename.parm loads parameters from file.
+ *          Writing to `@PARAM`/filename.parm saves all parameters to file.
+ *          Reading from `@PARAM`/filename.parm loads parameters from file.
  * 
  *          Virtual Filesystem: No physical storage, translates file ops to parameter ops
  *          Use Cases: Parameter backup, bulk parameter loading, GCS parameter transfer
@@ -242,19 +242,19 @@
 
 /**
  * @def AP_FILESYSTEM_SYS_ENABLED
- * @brief Enable virtual @SYS filesystem for system diagnostics
+ * @brief Enable virtual `@SYS` filesystem for system diagnostics
  * 
- * @details Provides magic "@SYS" filesystem prefix for runtime system information.
+ * @details Provides magic "`@SYS`" filesystem prefix for runtime system information.
  *          Allows reading system state via standard file operations.
  *          Virtual files expose internal state: threads, memory, timers, versions.
  * 
  *          Virtual Filesystem: No physical storage, generates data on read
- *          Available Files: @SYS/threads.txt, @SYS/version.txt, etc.
+ *          Available Files: `@SYS`/threads.txt, `@SYS`/version.txt, etc.
  *          Use Cases: System diagnostics, health monitoring, debugging
  * 
  * @note Always enabled - core functionality for system diagnostics
  * @note This is a virtual filesystem - files are generated on demand
- * @note Reading @SYS files may briefly block for data collection
+ * @note Reading `@SYS` files may briefly block for data collection
  * 
  * @see AP_FILESYSTEM_SYS_FLASH_ENABLED for flash memory inspection feature
  */
@@ -317,7 +317,7 @@
  *          Indicates that the system can open and write non-virtual files.
  * 
  *          Includes: ESP32, FATFS, LittleFS, POSIX (physical storage backends)
- *          Excludes: @SYS, @PARAM, @MISSION (virtual filesystems)
+ *          Excludes: `@SYS`, `@PARAM`, `@MISSION` (virtual filesystems)
  *          Excludes: ROMFS (read-only filesystem)
  * 
  *          Dependent Features:
@@ -346,17 +346,17 @@
  * 
  *          Includes: All backends that support FILE_WRITING_ENABLED
  *          Plus: ROMFS (read-only embedded files)
- *          Plus: @SYS (virtual diagnostic files)
- *          Plus: @PARAM (virtual parameter files)
- *          Excludes: @MISSION when AP_MISSION_ENABLED is false
+ *          Plus: `@SYS` (virtual diagnostic files)
+ *          Plus: `@PARAM` (virtual parameter files)
+ *          Excludes: `@MISSION` when AP_MISSION_ENABLED is false
  * 
  *          Dependent Features:
  *          - Parameter loading from file requires this
  *          - ROMFS script/config loading requires this
- *          - System diagnostics (@SYS) requires this
+ *          - System diagnostics (`@SYS`) requires this
  *          - Log replay requires this
  * 
- * @note Nearly always true - at minimum @PARAM and @SYS are enabled
+ * @note Nearly always true - at minimum `@PARAM` and `@SYS` are enabled
  * @note This does not guarantee writable storage - check FILE_WRITING_ENABLED for that
  * 
  * @see AP_FILESYSTEM_FILE_WRITING_ENABLED for write capability
@@ -375,12 +375,12 @@
 
 /**
  * @def AP_FILESYSTEM_SYS_FLASH_ENABLED
- * @brief Enable @SYS flash memory access feature
+ * @brief Enable `@SYS` flash memory access feature
  * 
- * @details Allows reading raw flash memory content via @SYS filesystem for debugging.
+ * @details Allows reading raw flash memory content via `@SYS` filesystem for debugging.
  *          ChibiOS-only feature that exposes flash memory regions as virtual files.
  * 
- *          Virtual Files: @SYS/flash/* (platform-specific memory regions)
+ *          Virtual Files: `@SYS`/flash/\* (platform-specific memory regions)
  *          Use Cases: Flash inspection, bootloader debugging, memory corruption analysis
  * 
  * @note Only available on ChibiOS-based flight controllers
@@ -421,11 +421,11 @@
 
 /**
  * @def AP_FILESYSTEM_MISSION_ENABLED
- * @brief Enable virtual @MISSION filesystem for mission operations
+ * @brief Enable virtual `@MISSION` filesystem for mission operations
  * 
- * @details Provides magic "@MISSION" filesystem prefix for mission upload/download.
+ * @details Provides magic "`@MISSION`" filesystem prefix for mission upload/download.
  *          Allows mission transfer via standard file operations instead of MAVLink protocol.
- *          Writing to @MISSION uploads mission items, reading downloads current mission.
+ *          Writing to `@MISSION` uploads mission items, reading downloads current mission.
  * 
  *          Virtual Filesystem: No physical storage, translates file ops to mission commands
  *          Use Cases: Bulk mission upload, mission backup, non-MAVLink mission transfer

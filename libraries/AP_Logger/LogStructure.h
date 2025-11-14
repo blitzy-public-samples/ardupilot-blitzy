@@ -980,7 +980,7 @@ struct PACKED log_DSF {
  *          - Detect event sequences (e.g., failsafe cascade)
  *          - Correlate events with sensor data anomalies
  * 
- * @note Event IDs defined in LogEvent enum (values documented with @LoggerMessage: EV)
+ * @note Event IDs defined in LogEvent enum (values documented with `@LoggerMessage`: EV)
  * @note Multiple EV messages may be written per second during dynamic operations
  * @note Events are timestamped precisely at occurrence for timeline accuracy
  * 
@@ -6381,12 +6381,12 @@ struct PACKED log_STAK {
  *          Name of the file being embedded:
  *          - **Type**: char[16] (null-terminated string)
  *          - **Length**: Up to 15 characters + null
- *          - **Path**: May include simple path (e.g., "@PARAM/params.parm")
+ *          - **Path**: May include simple path (e.g., "`@PARAM`/params.parm")
  *          - **Purpose**: Identify file when extracting from log
  *          
  *          Common Filenames:
  *          @code
- *          filename = "@PARAM/defaults.parm"
+ *          filename = "`@PARAM`/defaults.parm"
  *              - Default parameter values
  *              - Factory settings
  *          
@@ -6413,7 +6413,7 @@ struct PACKED log_STAK {
  *          
  *          Special Filename Prefixes:
  *          @code
- *          @PARAM/ prefix
+ *          `@PARAM`/ prefix
  *              - Parameter-related files
  *              - System-generated parameter dumps
  *          
@@ -6545,7 +6545,7 @@ struct PACKED log_STAK {
  *          
  *          Mission Planner Integration:
  *          - Mission Planner can extract embedded files from logs
- *          - "Log Browse" → "Extract Parameters" gets @PARAM files
+ *          - "Log Browse" → "Extract Parameters" gets `@PARAM` files
  *          - Allows parameter comparison between flights
  *          - Mission/fence extraction for review
  *          
@@ -6627,7 +6627,7 @@ struct PACKED log_STAK {
  */
 struct PACKED log_File {
     LOG_PACKET_HEADER;      ///< Standard 3-byte header: head1, head2, msgid
-    char filename[16];      ///< Filename (null-terminated, may include path prefix like "@PARAM/")
+    char filename[16];      ///< Filename (null-terminated, may include path prefix like "`@PARAM`/")
     uint32_t offset;        ///< Byte offset of this chunk in the original file
     uint8_t length;         ///< Number of valid bytes in data[] field (0-64)
     char data[64];          ///< Raw file data chunk (binary safe, not null-terminated)
@@ -7690,7 +7690,7 @@ struct PACKED log_VER {
  *          PID terms are unitless because:
  *          - Units depend on what is being controlled (angle, rate, velocity, etc.)
  *          - Each PID instance (PIDR, PIDP, etc.) controls different quantities
- *          - Actual units specified in @LoggerMessage comments
+ *          - Actual units specified in `@LoggerMessage` comments
  */
 #define PID_UNITS  "s-----------"
 
@@ -7704,7 +7704,7 @@ struct PACKED log_VER {
  */
 #define PID_MULTS  "F-----------"
 
-// @LoggerMessage: ADSB
+// `@LoggerMessage`: ADSB
 // @Description: Automatic Dependent Serveillance - Broadcast detected vehicle information
 // @Field: TimeUS: Time since system startup
 // @Field: ICAO_address: Transponder address
@@ -7716,7 +7716,7 @@ struct PACKED log_VER {
 // @Field: Ver_vel: Vehicle vertical velocity
 // @Field: Squark: Transponder squawk code
 
-// @LoggerMessage: ARM
+// `@LoggerMessage`: ARM
 // @Description: Arming status changes
 // @Field: TimeUS: Time since system startup
 // @Field: ArmState: true if vehicle is now armed
@@ -7726,7 +7726,7 @@ struct PACKED log_VER {
 // @Field: Method: method used for arming
 // @FieldValueEnum: Method: AP_Arming::Method
 
-// @LoggerMessage: ARSP
+// `@LoggerMessage`: ARSP
 // @Description: Airspeed sensor data
 // @Field: TimeUS: Time since system startup
 // @Field: I: Airspeed sensor instance number
@@ -7741,7 +7741,7 @@ struct PACKED log_VER {
 // @Field: TR: innovation test ratio
 // @Field: Pri: True if sensor is the primary sensor
 
-// @LoggerMessage: DMS
+// `@LoggerMessage`: DMS
 // @Description: DataFlash-Over-MAVLink statistics
 // @Field: TimeUS: Time since system startup
 // @Field: N: Current block number
@@ -7758,7 +7758,7 @@ struct PACKED log_VER {
 // @Field: Smn: Minimum number of blocks on the sent list
 // @Field: Smx: Maximum number of blocks on the sent list
 
-// @LoggerMessage: DSF
+// `@LoggerMessage`: DSF
 // @Description: Onboard logging statistics
 // @Field: TimeUS: Time since system startup
 // @Field: Dp: Number of times we rejected a write to the backend
@@ -7768,20 +7768,20 @@ struct PACKED log_VER {
 // @Field: FMx: Maximum free space in write buffer in last time period
 // @Field: FAv: Average free space in write buffer in last time period
 
-// @LoggerMessage: ERR
+// `@LoggerMessage`: ERR
 // @Description: Specifically coded error messages
 // @Field: TimeUS: Time since system startup
 // @Field: Subsys: Subsystem in which the error occurred
 // @FieldValueEnum: Subsys: LogErrorSubsystem
 // @Field: ECode: Subsystem-specific error code
 
-// @LoggerMessage: EV
+// `@LoggerMessage`: EV
 // @Description: Specifically coded event messages
 // @Field: TimeUS: Time since system startup
 // @Field: Id: Event identifier
 // @FieldValueEnum: Id: LogEvent
 
-// @LoggerMessage: FMT
+// `@LoggerMessage`: FMT
 // @Description: Message defining the format of messages in this file
 // @URL: https://ardupilot.org/dev/docs/code-overview-adding-a-new-log-message.html
 // @Field: Type: unique-to-this-log identifier for message being defined
@@ -7790,14 +7790,14 @@ struct PACKED log_VER {
 // @Field: Format: character string defining the C-storage-type of the fields in this message
 // @Field: Columns: the labels of the message being defined
 
-// @LoggerMessage: FMTU
+// `@LoggerMessage`: FMTU
 // @Description: Message defining units and multipliers used for fields of other messages
 // @Field: TimeUS: Time since system startup
 // @Field: FmtType: numeric reference to associated FMT message
 // @Field: UnitIds: each character refers to a UNIT message.  The unit at an offset corresponds to the field at the same offset in FMT.Format
 // @Field: MultIds: each character refers to a MULT message.  The multiplier at an offset corresponds to the field at the same offset in FMT.Format
 
-// @LoggerMessage: LGR
+// `@LoggerMessage`: LGR
 // @Description: Landing gear information
 // @Field: TimeUS: Time since system startup
 // @Field: LandingGear: Current landing gear state
@@ -7805,7 +7805,7 @@ struct PACKED log_VER {
 // @Field: WeightOnWheels: Weight on wheels state
 // @FieldValueEnum: WeightOnWheels: AP_LandingGear::LG_WOW_State
 
-// @LoggerMessage: MAG
+// `@LoggerMessage`: MAG
 // @Description: Information received from compasses
 // @Field: TimeUS: Time since system startup
 // @Field: I: magnetometer sensor instance number
@@ -7821,7 +7821,7 @@ struct PACKED log_VER {
 // @Field: Health: true if the compass is considered healthy
 // @Field: S: time measurement was taken
 
-// @LoggerMessage: MAV
+// `@LoggerMessage`: MAV
 // @Description: GCS MAVLink link statistics
 // @Field: TimeUS: Time since system startup
 // @Field: chan: mavlink channel number
@@ -7834,7 +7834,7 @@ struct PACKED log_VER {
 // @Field: tf: times buffer was full when a message was going to be sent
 // @Field: mgs: time MAV_GCS_SYSID heartbeat (or manual control) last seen
 
-// @LoggerMessage: MAVC
+// `@LoggerMessage`: MAVC
 // @Description: MAVLink command we have just executed
 // @Field: TimeUS: Time since system startup
 // @Field: TS: target system for command
@@ -7853,7 +7853,7 @@ struct PACKED log_VER {
 // @Field: Res: command result being returned from autopilot
 // @Field: WL: true if this command arrived via a COMMAND_LONG rather than COMMAND_INT
 
-// @LoggerMessage: MODE
+// `@LoggerMessage`: MODE
 // @Description: vehicle control mode information
 // @Field: TimeUS: Time since system startup
 // @Field: Mode: vehicle-specific mode number
@@ -7861,18 +7861,18 @@ struct PACKED log_VER {
 // @Field: Rsn: reason for entering this mode; enumeration value
 // @FieldValueEnum: Rsn: ModeReason
 
-// @LoggerMessage: MSG
+// `@LoggerMessage`: MSG
 // @Description: Textual messages
 // @Field: TimeUS: Time since system startup
 // @Field: Message: message text
 
-// @LoggerMessage: MULT
+// `@LoggerMessage`: MULT
 // @Description: Message mapping from single character to numeric multiplier
 // @Field: TimeUS: Time since system startup
 // @Field: Id: character referenced by FMTU
 // @Field: Mult: numeric multiplier
 
-// @LoggerMessage: OF
+// `@LoggerMessage`: OF
 // @Description: Optical flow sensor data
 // @Field: TimeUS: Time since system startup
 // @Field: Qual: Estimated sensor data quality
@@ -7881,26 +7881,26 @@ struct PACKED log_VER {
 // @Field: bodyX: derived rotational velocity, X-axis
 // @Field: bodyY: derived rotational velocity, Y-axis
 
-// @LoggerMessage: PARM
+// `@LoggerMessage`: PARM
 // @Description: parameter value
 // @Field: TimeUS: Time since system startup
 // @Field: Name: parameter name
 // @Field: Value: parameter value
 // @Field: Default: default parameter value for this board and config
 
-// @LoggerMessage: PIDR
+// `@LoggerMessage`: PIDR
 // @Description: Proportional/Integral/Derivative gain values for Roll rate
-// @LoggerMessage: PIDP
+// `@LoggerMessage`: PIDP
 // @Description: Proportional/Integral/Derivative gain values for Pitch rate
-// @LoggerMessage: PIDY
+// `@LoggerMessage`: PIDY
 // @Description: Proportional/Integral/Derivative gain values for Yaw rate
-// @LoggerMessage: PIDA
+// `@LoggerMessage`: PIDA
 // @Description: Proportional/Integral/Derivative gain values for vertical acceleration
-// @LoggerMessage: PIDS
+// `@LoggerMessage`: PIDS
 // @Description: Proportional/Integral/Derivative gain values for ground steering yaw rate
-// @LoggerMessage: PIDN
+// `@LoggerMessage`: PIDN
 // @Description: Proportional/Integral/Derivative gain values for North/South velocity
-// @LoggerMessage: PIDE
+// `@LoggerMessage`: PIDE
 // @Description: Proportional/Integral/Derivative gain values for East/West velocity
 // @Field: TimeUS: Time since system startup
 // @Field: Tar: desired value
@@ -7916,7 +7916,7 @@ struct PACKED log_VER {
 // @Field: Flags: bitmask of PID state flags
 // @FieldBitmaskEnum: Flags: log_PID_Flags
 
-// @LoggerMessage: PM
+// `@LoggerMessage`: PM
 // @Description: autopilot system performance and general data dumping ground
 // @Field: TimeUS: Time since system startup
 // @Field: LR: Main loop rate
@@ -7935,7 +7935,7 @@ struct PACKED log_VER {
 // @Field: Ex: number of microseconds being added to each loop to address scheduler overruns
 // @Field: R: RTC time, time since Unix epoch
 
-// @LoggerMessage: POWR
+// `@LoggerMessage`: POWR
 // @Description: System power information
 // @Field: TimeUS: Time since system startup
 // @Field: Vcc: Flight board voltage
@@ -7946,7 +7946,7 @@ struct PACKED log_VER {
 // @FieldBitmaskEnum: AccFlags: AP_HAL::AnalogIn::PowerStatusFlag
 // @Field: Safety: Hardware Safety Switch status
 
-// @LoggerMessage: MCU
+// `@LoggerMessage`: MCU
 // @Description: MCU voltage and temprature monitering
 // @Field: TimeUS: Time since system startup
 // @Field: MTemp: Temperature
@@ -7954,7 +7954,7 @@ struct PACKED log_VER {
 // @Field: MVmin: Voltage min
 // @Field: MVmax: Voltage max
 
-// @LoggerMessage: RAD
+// `@LoggerMessage`: RAD
 // @Description: Telemetry radio statistics
 // @Field: TimeUS: Time since system startup
 // @Field: RSSI: RSSI
@@ -7965,7 +7965,7 @@ struct PACKED log_VER {
 // @Field: RxErrors: damaged packet count
 // @Field: Fixed: fixed damaged packet count
 
-// @LoggerMessage: RALY
+// `@LoggerMessage`: RALY
 // @Description: Rally point information
 // @Field: TimeUS: Time since system startup
 // @Field: Tot: total number of rally points onboard
@@ -7975,7 +7975,7 @@ struct PACKED log_VER {
 // @Field: Alt: altitude of rally point
 // @Field: Flags: altitude frame flags
 
-// @LoggerMessage: RCI2
+// `@LoggerMessage`: RCI2
 // @Description: (More) RC input channels to vehicle
 // @Field: TimeUS: Time since system startup
 // @Field: C15: channel 15 input
@@ -7984,7 +7984,7 @@ struct PACKED log_VER {
 // @Field: Flags: bitmask of RC state flags
 // @FieldBitmaskEnum: Flags: AP_Logger::RCLoggingFlags
 
-// @LoggerMessage: RCIN
+// `@LoggerMessage`: RCIN
 // @Description: RC input channels to vehicle
 // @Field: TimeUS: Time since system startup
 // @Field: C1: channel 1 input
@@ -8002,7 +8002,7 @@ struct PACKED log_VER {
 // @Field: C13: channel 13 input
 // @Field: C14: channel 14 input
 
-// @LoggerMessage: RCOU
+// `@LoggerMessage`: RCOU
 // @Description: Servo channel output values 1 to 14
 // @Field: TimeUS: Time since system startup
 // @Field: C1: channel 1 output
@@ -8020,7 +8020,7 @@ struct PACKED log_VER {
 // @Field: C13: channel 13 output
 // @Field: C14: channel 14 output
 
-// @LoggerMessage: RCO2
+// `@LoggerMessage`: RCO2
 // @Description: Servo channel output values 15 to 18
 // @Field: TimeUS: Time since system startup
 // @Field: C15: channel 15 output
@@ -8028,7 +8028,7 @@ struct PACKED log_VER {
 // @Field: C17: channel 17 output
 // @Field: C18: channel 18 output
 
-// @LoggerMessage: RCO3
+// `@LoggerMessage`: RCO3
 // @Description: Servo channel output values 19 to 32
 // @Field: TimeUS: Time since system startup
 // @Field: C19: channel 19 output
@@ -8046,7 +8046,7 @@ struct PACKED log_VER {
 // @Field: C31: channel 31 output
 // @Field: C32: channel 32 output
 
-// @LoggerMessage: RFND
+// `@LoggerMessage`: RFND
 // @Description: Rangefinder sensor information
 // @Field: TimeUS: Time since system startup
 // @Field: Instance: rangefinder instance number this data is from
@@ -8057,13 +8057,13 @@ struct PACKED log_VER {
 // @FieldValueEnum: Orient: Rotation
 // @Field: Quality: Signal quality. -1 means invalid, 0 is no signal, 100 is perfect signal
 
-// @LoggerMessage: RSSI
+// `@LoggerMessage`: RSSI
 // @Description: Received Signal Strength Indicator for RC receiver
 // @Field: TimeUS: Time since system startup
 // @Field: RXRSSI: RSSI
 // @Field: RXLQ: RX Link Quality
 
-// @LoggerMessage: SIM
+// `@LoggerMessage`: SIM
 // @Description: SITL simulator state
 // @Field: TimeUS: Time since system startup
 // @Field: Roll: Simulated roll
@@ -8077,7 +8077,7 @@ struct PACKED log_VER {
 // @Field: Q3: Attitude quaternion component 3
 // @Field: Q4: Attitude quaternion component 4
 
-// @LoggerMessage: SRTL
+// `@LoggerMessage`: SRTL
 // @Description: SmartRTL statistics
 // @Field: TimeUS: Time since system startup
 // @Field: Active: true if SmartRTL could be used right now
@@ -8089,7 +8089,7 @@ struct PACKED log_VER {
 // @Field: E: point associated with most recent action (East component)
 // @Field: D: point associated with most recent action (Down component)
 
-// @LoggerMessage: TERR
+// `@LoggerMessage`: TERR
 // @Description: Terrain database information
 // @Field: TimeUS: Time since system startup
 // @Field: Status: Terrain database status
@@ -8103,19 +8103,19 @@ struct PACKED log_VER {
 // @Field: Loaded: Number of tiles in memory
 // @Field: ROfs: terrain reference offset for arming altitude
 
-// @LoggerMessage: TSYN
+// `@LoggerMessage`: TSYN
 // @Description: Time synchronisation response information
 // @Field: TimeUS: Time since system startup
 // @Field: SysID: system ID this data is for
 // @Field: RTT: round trip time for this system
 
-// @LoggerMessage: UNIT
+// `@LoggerMessage`: UNIT
 // @Description: Message mapping from single character to SI unit
 // @Field: TimeUS: Time since system startup
 // @Field: Id: character referenced by FMTU
 // @Field: Label: Unit - SI where available
 
-// @LoggerMessage: WENC
+// `@LoggerMessage`: WENC
 // @Description: Wheel encoder measurements
 // @Field: TimeUS: Time since system startup
 // @Field: Dist0: First wheel distance travelled
@@ -8123,7 +8123,7 @@ struct PACKED log_VER {
 // @Field: Dist1: Second wheel distance travelled
 // @Field: Qual1: Quality measurement of Dist1
 
-// @LoggerMessage: WINC
+// `@LoggerMessage`: WINC
 // @Description: Winch
 // @Field: TimeUS: Time since system startup
 // @Field: Heal: Healthy
@@ -8138,7 +8138,7 @@ struct PACKED log_VER {
 // @Field: Vcc: Voltage to Motor
 // @Field: Temp: Motor temperature
 
-// @LoggerMessage: STAK
+// `@LoggerMessage`: STAK
 // @Description: Stack information
 // @Field: TimeUS: Time since system startup
 // @Field: Id: thread ID
@@ -8147,14 +8147,14 @@ struct PACKED log_VER {
 // @Field: Free: free stack
 // @Field: Name: thread name
 
-// @LoggerMessage: FILE
+// `@LoggerMessage`: FILE
 // @Description: File data
 // @Field: FileName: File name
 // @Field: Offset: Offset into the file of this block
 // @Field: Length: Length of this data block
 // @Field: Data: File data of this block
 
-// @LoggerMessage: SCR
+// `@LoggerMessage`: SCR
 // @Description: Scripting runtime stats
 // @Field: TimeUS: Time since system startup
 // @Field: Name: script name
@@ -8162,7 +8162,7 @@ struct PACKED log_VER {
 // @Field: Total_mem: total memory usage of all scripts
 // @Field: Run_mem: run memory usage
 
-// @LoggerMessage: VER
+// `@LoggerMessage`: VER
 // @Description: Ardupilot version
 // @Field: TimeUS: Time since system startup
 // @Field: BT: Board type
@@ -8182,7 +8182,7 @@ struct PACKED log_VER {
 // @Field: IMI: IOMCU MCU ID
 // @Field: ICI: IOMCU CPU ID
 
-// @LoggerMessage: MOTB
+// `@LoggerMessage`: MOTB
 // @Description: Motor mixer information
 // @Field: TimeUS: Time since system startup
 // @Field: LiftMax: Maximum motor compensation gain
@@ -8544,7 +8544,7 @@ LOG_STRUCTURE_FROM_AIS \
  *          Adding New Common Messages:
  *          To add a new common log message:
  *          1. Add message struct definition (log_NewMessage)
- *          2. Add @LoggerMessage documentation comment
+ *          2. Add `@LoggerMessage` documentation comment
  *          3. Add enum entry here (LOG_NEWMESSAGE_MSG)
  *          4. Add entry to LOG_COMMON_STRUCTURES macro
  *          5. Ensure ID doesn't conflict with existing or reserved IDs

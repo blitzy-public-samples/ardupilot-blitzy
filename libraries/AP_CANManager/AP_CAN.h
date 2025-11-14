@@ -43,7 +43,7 @@
 class AP_CAN {
 public:
     /**
-     * @enum AP_CAN::Protocol
+     * @enum Protocol
      * @brief CAN protocol type identifiers for driver selection
      * 
      * @details Used by CAN_Dn_PROTOCOL and CAN_Dn_PROTOCOL2 parameters to specify which

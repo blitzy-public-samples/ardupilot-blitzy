@@ -18,7 +18,7 @@
  * 
  * @details Provides single AP::FS() entry point that multiplexes across multiple 
  *          backend implementations (FATFS, LittleFS, POSIX, ROMFS, virtual backends). 
- *          Routes operations based on path prefixes (@PARAM/, @SYS/, @MISSION/, @ROMFS/) 
+ *          Routes operations based on path prefixes (`@PARAM`/, `@SYS`/, `@MISSION`/, `@ROMFS`/) 
  *          or file descriptor encoding. Normalizes paths, encodes backend indices into 
  *          file descriptors, and forwards POSIX-like operations to selected backends.
  * 
@@ -26,10 +26,10 @@
  *          path-based routing
  * 
  *          Path Routing Examples:
- *          - "@PARAM/param.pck" → AP_Filesystem_Param backend
- *          - "@SYS/threads.txt" → AP_Filesystem_Sys backend
- *          - "@MISSION/mission.dat" → AP_Filesystem_Mission backend
- *          - "@ROMFS/font.bin" → AP_Filesystem_ROMFS backend
+ *          - "`@PARAM`/param.pck" → AP_Filesystem_Param backend
+ *          - "`@SYS`/threads.txt" → AP_Filesystem_Sys backend
+ *          - "`@MISSION`/mission.dat" → AP_Filesystem_Mission backend
+ *          - "`@ROMFS`/font.bin" → AP_Filesystem_ROMFS backend
  *          - "/SDCARD/log.bin" → FATFS or POSIX backend (platform-specific)
  *          - "params.txt" → Default backend (FATFS/POSIX/LittleFS based on platform)
  * 
@@ -134,7 +134,7 @@ struct dirent {
  *          - Normalizes and strips path prefixes before passing to backends
  *          - Encodes backend indices into file descriptors (per-backend FD ranges)
  *          - Provides POSIX-like interface familiar to developers
- *          - Supports virtual filesystems (@PARAM, @SYS, @MISSION) alongside physical storage
+ *          - Supports virtual filesystems (`@PARAM`, `@SYS`, `@MISSION`) alongside physical storage
  * 
  *          Access: Via AP::FS() singleton getter in AP namespace
  * 
@@ -179,7 +179,7 @@ public:
     /**
      * @brief Open file on any backend, selecting backend by path prefix
      * 
-     * @param[in] fname         File path (with optional prefix like "@PARAM/", "@SYS/", etc.)
+     * @param[in] fname         File path (with optional prefix like "`@PARAM`/", "`@SYS`/", etc.)
      * @param[in] flags         POSIX open flags (O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_TRUNC, O_APPEND)
      * @param[in] allow_absolute_paths  Skip prefix stripping for absolute paths (default false)
      * 
@@ -187,9 +187,9 @@ public:
      * 
      * @details Selects backend via backend_by_path(), normalizes path, encodes backend 
      *          index into returned fd (fd_offset + backend_fd). Backend selection based on 
-     *          path prefix matching (e.g., "@PARAM/" routes to param backend).
+     *          path prefix matching (e.g., "`@PARAM`/" routes to param backend).
      * 
-     * @note Prefix examples: "@PARAM/param.pck", "@SYS/threads.txt", "/SDCARD/log.bin"
+     * @note Prefix examples: "`@PARAM`/param.pck", "`@SYS`/threads.txt", "/SDCARD/log.bin"
      * @note File descriptor encoding: fd = backend_index * MAX_FD_PER_BACKEND + backend_local_fd
      */
     int open(const char *fname, int flags, bool allow_absolute_paths = false);
@@ -531,7 +531,7 @@ private:
      * @details Associates a path prefix with a backend implementation
      */
     struct Backend {
-        const char *prefix;            ///< @brief Path prefix for routing (e.g., "@PARAM/"), empty string ("") for default backend
+        const char *prefix;            ///< @brief Path prefix for routing (e.g., "`@PARAM`/"), empty string ("") for default backend
         AP_Filesystem_Backend &fs;     ///< @brief Reference to backend instance (concrete backend object like FATFS, LittleFS, etc.)
     };
 
@@ -573,7 +573,7 @@ private:
 
     /**
      * @brief State for virtual directory enumeration
-     * @details Used when opening root "/" to list virtual prefixes like @SYS, @PARAM, etc.
+     * @details Used when opening root "/" to list virtual prefixes like `@SYS`, `@PARAM`, etc.
      *          Tracks iteration position through backends array.
      */
     struct {
@@ -597,7 +597,7 @@ namespace AP {
      * 
      * Example usage:
      * @code
-     * int fd = AP::FS().open("@PARAM/params.pck", O_RDONLY);
+     * int fd = AP::FS().open("`@PARAM`/params.pck", O_RDONLY);
      * if (fd >= 0) {
      *     char buf[256];
      *     int32_t bytes = AP::FS().read(fd, buf, sizeof(buf));

@@ -417,26 +417,37 @@ public:
     bool check_mot_pwm_params() const;
 
     /**
-     * @brief Set callback function for thrust compensation - used by tiltrotors and tiltwings
+     * @brief Thrust compensation callback function type
      * 
-     * @param[in] callback Function pointer to thrust compensation callback
+     * @details Defines callback signature for vehicle-supplied thrust compensation functions.
+     *          The resulting functor type `thrust_compensation_fn_t` takes two parameters:
+     *          - float* actuator_array: Array of motor thrust values (0.0 to 1.0) to be modified
+     *          - uint8_t motor_count: Number of motors in the actuator array
      * 
-     * @details Registers a vehicle-supplied callback that modifies motor thrust values before output.
      *          Used primarily by tiltrotor and tiltwing vehicles to compensate for:
      *          - Motor tilt angle effects on vertical thrust
      *          - Transition between hover and forward flight
      *          - Differential tilt for control
      * 
+     * @note Functor typedef created via FUNCTOR_TYPEDEF macro
+     * @see set_thrust_compensation_callback() to register a callback
+     */
+    FUNCTOR_TYPEDEF(thrust_compensation_fn_t, void, float *, uint8_t);
+    
+    /**
+     * @brief Register thrust compensation callback function
+     * 
+     * @param[in] callback Function pointer implementing thrust_compensation_fn_t signature
+     * 
+     * @details Registers a vehicle-supplied callback that modifies motor thrust values before output.
      *          The callback receives the actuator array and motor count, allowing direct modification
      *          of thrust values before PWM conversion.
      * 
-     * @note Callback signature: void callback(float* actuator_array, uint8_t motor_count)
      * @note Callback is invoked by output() before output_to_motors() each loop iteration.
      * @note Only one callback can be registered - subsequent calls replace previous callback.
      * 
      * @see thrust_compensation() for internal compensation hook
      */
-    FUNCTOR_TYPEDEF(thrust_compensation_fn_t, void, float *, uint8_t);
     void                set_thrust_compensation_callback(thrust_compensation_fn_t callback) {
         _thrust_compensation_callback = callback;
     }

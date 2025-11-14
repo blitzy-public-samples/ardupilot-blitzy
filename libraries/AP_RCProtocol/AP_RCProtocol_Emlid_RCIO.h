@@ -12,7 +12,7 @@
  * 
  *          Hardware Integration:
  *          - Navio/Navio2 boards: RCIO kernel module handles PWM capture
- *          - Linux sysfs interface: /sys/kernel/rcio/rcin/ch<N> files
+ *          - Linux sysfs interface: /sys/kernel/rcio/rcin/ch`<N>` files
  *          - Per-channel text files contain PWM pulse widths in microseconds
  * 
  *          Data Flow:

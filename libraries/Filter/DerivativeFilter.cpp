@@ -120,6 +120,7 @@ void DerivativeFilter<T,FILTER_SIZE>::reset(void)
 }
 
 // add new instances as needed here
+/// @cond EXPLICIT_TEMPLATE_INSTANTIATIONS
 template void DerivativeFilter<float,5>::update(float sample, uint32_t timestamp);
 template float DerivativeFilter<float,5>::slope(void);
 template void DerivativeFilter<float,5>::reset(void);
@@ -135,6 +136,7 @@ template void DerivativeFilter<float,9>::reset(void);
 template void DerivativeFilter<float,11>::update(float sample, uint32_t timestamp);
 template float DerivativeFilter<float,11>::slope(void);
 template void DerivativeFilter<float,11>::reset(void);
+/// @endcond
 
 
 

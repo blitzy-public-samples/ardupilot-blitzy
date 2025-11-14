@@ -133,21 +133,21 @@ AP_Notify *AP_Notify::_singleton;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_Notify::var_info[] = {
 
-    // @Param: LED_BRIGHT
+    // `@Param`: LED_BRIGHT
     // @DisplayName: LED Brightness
     // @Description: Select the RGB LED brightness level. When USB is connected brightness will never be higher than low regardless of the setting.
     // @Values: 0:Off,1:Low,2:Medium,3:High
     // @User: Advanced
     AP_GROUPINFO("LED_BRIGHT", 0, AP_Notify, _rgb_led_brightness, NOTIFY_LED_BRIGHT_DEFAULT),
 
-    // @Param: BUZZ_TYPES
+    // `@Param`: BUZZ_TYPES
     // @DisplayName: Buzzer Driver Types
     // @Description: Controls what types of Buzzer will be enabled
     // @Bitmask: 0:Built-in buzzer, 1:DShot, 2:DroneCAN
     // @User: Advanced
     AP_GROUPINFO("BUZZ_TYPES", 1, AP_Notify, _buzzer_type, BUILD_DEFAULT_BUZZER_TYPE),
 
-    // @Param: LED_OVERRIDE
+    // `@Param`: LED_OVERRIDE
     // @DisplayName: Specifies colour source for the RGBLed
     // @Description: Specifies the source for the colours and brightness for the LED.  OutbackChallenge conforms to the MedicalExpress (https://uavchallenge.org/medical-express/) rules, essentially "Green" is disarmed (safe-to-approach), "Red" is armed (not safe-to-approach). Traffic light is a simplified color set, red when armed, yellow when the safety switch is not surpressing outputs (but disarmed), and green when outputs are surpressed and disarmed, the LED will blink faster if disarmed and failing arming checks.
     // @Values: 0:Standard,1:MAVLink/Scripting/AP_Periph,2:OutbackChallenge,3:TrafficLight
@@ -155,7 +155,7 @@ const AP_Param::GroupInfo AP_Notify::var_info[] = {
     AP_GROUPINFO("LED_OVERRIDE", 2, AP_Notify, _rgb_led_override, NOTIFY_LED_OVERRIDE_DEFAULT),
 
 #if HAL_DISPLAY_ENABLED
-    // @Param: DISPLAY_TYPE
+    // `@Param`: DISPLAY_TYPE
     // @DisplayName: Type of on-board I2C display
     // @Description: This sets up the type of on-board I2C display. Disabled by default.
     // @Values: 0:Disable,1:ssd1306,2:sh1106,10:SITL
@@ -164,7 +164,7 @@ const AP_Param::GroupInfo AP_Notify::var_info[] = {
 #endif
 
 #if AP_NOTIFY_OREOLED_ENABLED
-    // @Param: OREO_THEME
+    // `@Param`: OREO_THEME
     // @DisplayName: OreoLED Theme
     // @Description: Enable/Disable Solo Oreo LED driver, 0 to disable, 1 for Aircraft theme, 2 for Rover theme
     // @Values: 0:Disabled,1:Aircraft,2:Rover
@@ -172,35 +172,35 @@ const AP_Param::GroupInfo AP_Notify::var_info[] = {
     AP_GROUPINFO("OREO_THEME", 4, AP_Notify, _oreo_theme, 0),
 #endif
 
-    // @Param: BUZZ_PIN
+    // `@Param`: BUZZ_PIN
     // @DisplayName: Buzzer pin
     // @Description: Enables to connect active buzzer to arbitrary pin. Requires 3-pin buzzer or additional MOSFET! Some the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @Values: -1:Disabled
     // @User: Advanced
     AP_GROUPINFO("BUZZ_PIN", 5, AP_Notify, _buzzer_pin, HAL_BUZZER_PIN),
 
-    // @Param: LED_TYPES
+    // `@Param`: LED_TYPES
     // @DisplayName: LED Driver Types
     // @Description: Controls what types of LEDs will be enabled
     // @Bitmask: 0:Built-in LED, 1:Internal ToshibaLED, 2:External ToshibaLED, 3:External PCA9685, 4:Oreo LED, 5:DroneCAN, 6:NCP5623 External, 7:NCP5623 Internal, 8:NeoPixel, 9:ProfiLED, 10:Scripting, 11:DShot, 12:ProfiLED_SPI, 13:LP5562 External, 14: LP5562 Internal, 15:IS31FL3195 External, 16: IS31FL3195 Internal, 17: DiscreteRGB, 18: NeoPixelRGB, 19:ProfiLED_IOMCU
     // @User: Advanced
     AP_GROUPINFO("LED_TYPES", 6, AP_Notify, _led_type, DEFAULT_NTF_LED_TYPES),
 
-    // @Param: BUZZ_ON_LVL
+    // `@Param`: BUZZ_ON_LVL
     // @DisplayName: Buzzer-on pin logic level
     // @Description: Specifies pin level that indicates buzzer should play
     // @Values: 0:LowIsOn,1:HighIsOn
     // @User: Advanced
     AP_GROUPINFO("BUZZ_ON_LVL", 7, AP_Notify, _buzzer_level, DEFAULT_BUZZ_ON_LVL),
 
-    // @Param: BUZZ_VOLUME
+    // `@Param`: BUZZ_VOLUME
     // @DisplayName: Buzzer volume
     // @Description: Control the volume of the buzzer
     // @Range: 0 100
     // @Units: %
     AP_GROUPINFO("BUZZ_VOLUME", 8, AP_Notify, _buzzer_volume, 100),
 
-    // @Param: LED_LEN
+    // `@Param`: LED_LEN
     // @DisplayName: Serial LED String Length
     // @Description: The number of Serial LED's to use for notifications (NeoPixel's and ProfiLED)
     // @Range: 1 32

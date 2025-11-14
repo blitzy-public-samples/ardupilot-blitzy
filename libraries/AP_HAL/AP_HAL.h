@@ -45,12 +45,12 @@
  * 
  * The HAL uses object-oriented design with pure virtual interfaces:
  * 
- * 1. **Interface Layer** (libraries/AP_HAL/*.h):
+ * 1. **Interface Layer** (libraries/AP_HAL/\*.h):
  *    - Abstract base classes defining hardware contracts
  *    - Pure virtual methods that platforms must implement
  *    - Platform-independent data structures
  * 
- * 2. **Platform Layer** (libraries/AP_HAL_*):
+ * 2. **Platform Layer** (libraries/AP_HAL_\*):
  *    - Concrete implementations for each platform
  *    - Driver code for specific hardware peripherals
  *    - RTOS integration (ChibiOS, FreeRTOS, Linux)

@@ -191,7 +191,7 @@ void AP_RCProtocol_Backend::log_data(AP_RCProtocol::rcprotocol_t prot, uint32_t 
             len = sizeof(u32);
         }
         memcpy(u32, data, len);
-// @LoggerMessage: RCDA
+// `@LoggerMessage`: RCDA
 // @Description: Raw RC data
 // @Field: TimeUS: Time since system startup
 // @Field: TS: data arrival timestamp

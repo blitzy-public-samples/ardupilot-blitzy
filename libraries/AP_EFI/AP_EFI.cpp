@@ -39,7 +39,7 @@ extern const AP_HAL::HAL& hal;
 
 // table of user settable parameters
 const AP_Param::GroupInfo AP_EFI::var_info[] = {
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: EFI communication type
     // @Description: What method of communication is used for EFI #1
     // @Values: 0:None,1:Serial-MS,2:NWPMU,3:Serial-Lutan,4:Loweheiser,5:DroneCAN,6:Currawong-ECU,7:Scripting,8:Hirth,9:MAVLink
@@ -47,21 +47,21 @@ const AP_Param::GroupInfo AP_EFI::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO_FLAGS("_TYPE", 1, AP_EFI, type, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _COEF1
+    // `@Param`: _COEF1
     // @DisplayName: EFI Calibration Coefficient 1
     // @Description: Used to calibrate fuel flow for MS protocol (Slope). This should be calculated from a log at constant fuel usage rate. Plot (ECYL[0].InjT*EFI.Rpm)/600.0 to get the duty_cycle. Measure actual fuel usage in cm^3/min, and set EFI_COEF1 = fuel_usage_cm3permin / duty_cycle
     // @Range: 0 1
     // @User: Advanced
     AP_GROUPINFO("_COEF1", 2, AP_EFI, coef1, 0),
 
-    // @Param: _COEF2
+    // `@Param`: _COEF2
     // @DisplayName: EFI Calibration Coefficient 2
     // @Description: Used to calibrate fuel flow for MS protocol (Offset). This can be used to correct for a non-zero offset in the fuel consumption calculation of EFI_COEF1
     // @Range: 0 10
     // @User: Advanced
     AP_GROUPINFO("_COEF2", 3, AP_EFI, coef2, 0),
 
-    // @Param: _FUEL_DENS
+    // `@Param`: _FUEL_DENS
     // @DisplayName: ECU Fuel Density
     // @Description: Used to calculate fuel consumption
     // @Units: kg/m/m/m
@@ -173,7 +173,7 @@ bool AP_EFI::is_healthy(void) const
  */
 void AP_EFI::log_status(void)
 {
-// @LoggerMessage: EFI
+// `@LoggerMessage`: EFI
 // @Description: Electronic Fuel Injection system data
 // @Field: TimeUS: Time since system startup
 // @Field: LP: Reported engine load
@@ -211,7 +211,7 @@ void AP_EFI::log_status(void)
                        uint8_t(state.throttle_position_percent),
                        uint8_t(state.ecu_index));
 
-// @LoggerMessage: EFI2
+// `@LoggerMessage`: EFI2
 // @Description: Electronic Fuel Injection system data - redux
 // @Field: TimeUS: Time since system startup
 // @Field: Healthy: True if EFI is healthy
@@ -245,7 +245,7 @@ void AP_EFI::log_status(void)
                        uint8_t(state.spark_plug_usage),
                        uint8_t(state.ecu_index));
 
-// @LoggerMessage: ECYL
+// `@LoggerMessage`: ECYL
 // @Description: EFI per-cylinder information
 // @Field: TimeUS: Time since system startup
 // @Field: Inst: Cylinder this data belongs to

@@ -359,12 +359,12 @@ private:
     } _neighbor_umbrellas[3];
 
     /**
-     * Get the component_index-th component of the umbrella_index-th neighbor
+     * Get the component_idx-th component of the umbrella_index-th neighbor
      * umbrella.
      *
-     * @param umbrella_index[in] The neighbor umbrella's index.
+     * @param[in] umbrella_index The neighbor umbrella's index.
      *
-     * @param component_index[in] The component's index.
+     * @param[in] component_idx The component's index.
      *
      * @return The icosahedron triangle's index of the component.
      */
@@ -374,16 +374,16 @@ private:
      * Find the icosahedron triangle index of the component of
      * #_neighbor_umbrellas[umbrella_index] that is crossed by \p v.
      *
-     * @param umbrella_index[in] The umbrella index. Must be in [0,6).
+     * @param[in] umbrella_index The umbrella index. Must be in [0,6).
      *
-     * @param v[in] The vector to be tested.
+     * @param[in] v The vector to be tested.
      *
-     * @param u[in] The vector \p u must be \p v  expressed with respect to the
+     * @param[in] u The vector \p u must be \p v  expressed with respect to the
      * base formed by the umbrella's 0-th, 1-th and 3-th vertices, in that
      * order.
      *
-     * @param inclusive[in] This parameter follows the same rules defined in
-     * #section() const.
+     * @param[in] inclusive This parameter follows the same rules defined in
+     * section() const.
      *
      * @return The index of the icosahedron triangle. The value -1 is returned
      * if \p v is the null vector or the triangle isn't found, which might
@@ -397,10 +397,10 @@ private:
     /**
      * Find which icosahedron's triangle is crossed by \p v.
      *
-     * @param v[in] The vector to be verified.
+     * @param[in] v The vector to be verified.
      *
-     * @param inclusive[in] This parameter follow the same rules defined in
-     * #section() const.
+     * @param[in] inclusive This parameter follow the same rules defined in
+     * section() const.
      *
      * @return The index of the triangle. The value -1 is returned if the
      * triangle isn't found, which might happen when \p inclusive is false.
@@ -414,13 +414,13 @@ private:
      * The vector \p v must belong to the super-section formed by the triangle
      * pointed by \p triangle_index, otherwise the result is undefined.
      *
-     * @param triangle_index[in] The icosahedron's triangle index, it must be in
+     * @param[in] triangle_index The icosahedron's triangle index, it must be in
      * the interval [0,20). Passing invalid values is undefined behavior.
      *
-     * @param v[in] The vector to be verified.
+     * @param[in] v The vector to be verified.
      *
-     * @param inclusive[in] This parameter follow the same rules defined in
-     * #section() const.
+     * @param[in] inclusive This parameter follow the same rules defined in
+     * section() const.
      *
      * @return The index of the sub-triangle. The value -1 is returned if the
      * triangle isn't found, which might happen when \p inclusive is false.

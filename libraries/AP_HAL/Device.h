@@ -199,10 +199,9 @@ public:
     };
 
     /**
-     * @typedef PeriodicCb
      * @brief Callback functor for periodic device operations
      * 
-     * @details Function signature: void callback(void)
+     * @details PeriodicCb function signature: void callback(void)
      *          
      *          Callback executes on dedicated I/O thread at specified interval.
      *          Must complete quickly to avoid delaying other devices.
@@ -222,21 +221,12 @@ public:
     typedef void* PeriodicHandle;
 
     /**
-     * @typedef RegisterRWCb
-     * @brief Callback functor for register read/write notifications
+     * Callback functor for register read/write notifications.
      * 
-     * @details Function signature: void callback(uint8_t reg_addr, 
-     *                                           uint8_t* data, 
-     *                                           uint32_t data_len, 
-     *                                           bool is_write)
+     * Function signature: void callback(uint8_t reg_addr, uint8_t* data, uint32_t data_len, bool is_write)
      *          
-     *          Called before each register read or write operation.
-     *          Allows monitoring or modifying register access patterns.
-     *          
-     * @param[in] reg_addr    Register address being accessed
-     * @param[in,out] data    Pointer to data buffer
-     * @param[in] data_len    Length of data in bytes
-     * @param[in] is_write    true for write operation, false for read
+     * Called before each register read or write operation.
+     * Allows monitoring or modifying register access patterns.
      * 
      * @see set_register_rw_callback()
      */
@@ -249,16 +239,13 @@ public:
     typedef void* RegisterRWHandle;
 
     /**
-     * @typedef BankSelectCb
-     * @brief Callback functor for bank selection on multi-bank devices
+     * Callback functor for bank selection on multi-bank devices.
      * 
-     * @details Function signature: bool callback(uint8_t bank)
+     * Function signature: bool callback(uint8_t bank)
      *          
-     *          Some sensors have multiple register banks. This callback
-     *          switches to the specified bank before register access.
-     *          
-     * @param[in] bank  Bank number to select (0-255)
-     * @return true if bank selection succeeded, false on error
+     * Some sensors have multiple register banks. This callback
+     * switches to the specified bank before register access.
+     * Returns true if bank selection succeeded, false on error.
      * 
      * @see setup_bankselect_callback()
      * @see transfer_bank()
@@ -982,13 +969,13 @@ public:
      * @brief Register a function to be called periodically on I/O thread
      * 
      * @param[in] period_usec Period between calls in microseconds
-     * @param[in] cb          Callback functor (use FUNCTOR_BIND_MEMBER)
      * 
      * @return Handle for this callback, or nullptr on failure
      * 
      * @details Registers a function to be called at fixed intervals on a
-     *          dedicated I/O thread. This is the preferred method for regular
-     *          device polling and sensor sampling.
+     *          dedicated I/O thread. The second parameter is a PeriodicCb functor
+     *          (created with FUNCTOR_BIND_MEMBER). This is the preferred method for 
+     *          regular device polling and sensor sampling.
      *          
      *          **Callback Execution Context:**
      *          - Runs on dedicated per-bus I/O thread (NOT main thread)

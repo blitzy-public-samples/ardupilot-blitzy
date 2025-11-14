@@ -60,14 +60,14 @@
 // table of user settable parameters
 const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Harmonic Notch Filter enable
     // @Description: Harmonic Notch Filter enable
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE", 1, HarmonicNotchFilterParams, _enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: FREQ
+    // `@Param`: FREQ
     // @DisplayName: Harmonic Notch Filter base frequency
     // @Description: Harmonic Notch Filter base center frequency in Hz. This is the center frequency for static notches, the center frequency for Throttle based notches at the reference thrust value, and the minimum limit of center frequency variation for all other notch types. This should always be set lower than half the backend gyro rate (which is typically 1Khz). 
     // @Range: 10 495
@@ -75,7 +75,7 @@ const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("FREQ", 2, HarmonicNotchFilterParams, _center_freq_hz, 80),
 
-    // @Param: BW
+    // `@Param`: BW
     // @DisplayName: Harmonic Notch Filter bandwidth
     // @Description: Harmonic Notch Filter bandwidth in Hz. This is typically set to half the base frequency. The ratio of base frequency to bandwidth determines the notch quality factor and is fixed across harmonics.
     // @Range: 5 250
@@ -83,7 +83,7 @@ const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("BW", 3, HarmonicNotchFilterParams, _bandwidth_hz, 40),
 
-    // @Param: ATT
+    // `@Param`: ATT
     // @DisplayName: Harmonic Notch Filter attenuation
     // @Description: Harmonic Notch Filter attenuation in dB. Values greater than 40dB will typically produce a hard notch rather than a modest attenuation of motor noise.
     // @Range: 5 50
@@ -91,7 +91,7 @@ const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ATT", 4, HarmonicNotchFilterParams, _attenuation_dB, 40),
 
-    // @Param: HMNCS
+    // `@Param`: HMNCS
     // @DisplayName: Harmonic Notch Filter harmonics
     // @Description: Bitmask of harmonic frequencies to apply Harmonic Notch Filter to. This option takes effect on the next reboot. A value of 0 disables this filter. The first harmonic refers to the base frequency.
     // @Bitmask: 0:  1st harmonic
@@ -114,7 +114,7 @@ const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("HMNCS", 5, HarmonicNotchFilterParams, _harmonics, 3),
 
-    // @Param: REF
+    // `@Param`: REF
     // @DisplayName: Harmonic Notch Filter reference value
     // @Description: A reference value of zero disables dynamic updates on the Harmonic Notch Filter and a positive value enables dynamic updates on the Harmonic Notch Filter.  For throttle-based scaling, this parameter is the reference value associated with the specified frequency to facilitate frequency scaling of the Harmonic Notch Filter. For RPM and ESC telemetry based tracking, this parameter is set to 1 to enable the Harmonic Notch Filter using the RPM sensor or ESC telemetry set to measure rotor speed.  The sensor data is converted to Hz automatically for use in the Harmonic Notch Filter.  This reference value may also be used to scale the sensor data, if required.  For example, rpm sensor data is required to measure heli motor RPM. Therefore the reference value can be used to scale the RPM sensor to the rotor RPM.
     // @User: Advanced
@@ -122,7 +122,7 @@ const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("REF", 6, HarmonicNotchFilterParams, _reference, 0),
 
-    // @Param: MODE
+    // `@Param`: MODE
     // @DisplayName: Harmonic Notch Filter dynamic frequency tracking mode
     // @Description: Harmonic Notch Filter dynamic frequency tracking mode. Dynamic updates can be throttle, RPM sensor, ESC telemetry or dynamic FFT based. Throttle-based harmonic notch cannot be used on fixed wing only planes. It can for Copters, QuaadPlane(while in VTOL modes), and Rovers.
     // @Range: 0 5
@@ -130,7 +130,7 @@ const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MODE", 7, HarmonicNotchFilterParams, _tracking_mode, NOTCHFILTER_DEFAULT_MODE),
 
-    // @Param: OPTS
+    // `@Param`: OPTS
     // @DisplayName: Harmonic Notch Filter options
     // @Description: Harmonic Notch Filter options. Triple and double-notches can provide deeper attenuation across a wider bandwidth with reduced latency than single notches and are suitable for larger aircraft. Multi-Source attaches a harmonic notch to each detected noise frequency instead of simply being multiples of the base frequency, in the case of FFT it will attach notches to each of three detected noise peaks, in the case of ESC it will attach notches to each of four motor RPM values. Loop rate update changes the notch center frequency at the scheduler loop rate rather than at the default of 200Hz. If both double and triple notches are specified only double notches will take effect.
     // @Bitmask: 0:Double notch,1:Multi-Source,2:Update at loop rate,3:EnableOnAllIMUs,4:Triple notch, 5:Use min freq on RPM source failure
@@ -138,7 +138,7 @@ const AP_Param::GroupInfo HarmonicNotchFilterParams::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("OPTS", 8, HarmonicNotchFilterParams, _options, 0),
 
-    // @Param: FM_RAT
+    // `@Param`: FM_RAT
     // @DisplayName: Throttle notch min frequency ratio
     // @Description: The minimum ratio below the configured frequency to take throttle based notch filters when flying at a throttle level below the reference throttle. Note that lower frequency notch filters will have more phase lag. If you want throttle based notch filtering to be effective at a throttle up to 30% below the configured notch frequency then set this parameter to 0.7. The default of 1.0 means the notch will not go below the frequency in the FREQ parameter.
     // @Range: 0.1 1.0
@@ -441,7 +441,7 @@ void HarmonicNotchFilter<T>::reset()
 }
 
 #if HAL_LOGGING_ENABLED
-// @LoggerMessage: FCN
+// `@LoggerMessage`: FCN
 // @Description: Filter Center Message - per motor
 // @Field: TimeUS: microseconds since system startup
 // @Field: I: instance
@@ -459,7 +459,7 @@ void HarmonicNotchFilter<T>::reset()
 // @Field: HF5: Second harmonic centre frequency for motor 5
 // @Field: HF6: Second harmonic centre frequency for motor 6
 
-// @LoggerMessage: FCNS
+// `@LoggerMessage`: FCNS
 // @Description: Filter Center Message
 // @Field: TimeUS: microseconds since system startup
 // @Field: I: instance

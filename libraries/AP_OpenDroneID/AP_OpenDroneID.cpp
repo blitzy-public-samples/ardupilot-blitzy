@@ -47,31 +47,31 @@ extern const AP_HAL::HAL &hal;
 
 const AP_Param::GroupInfo AP_OpenDroneID::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable ODID subsystem
     // @Description: Enable ODID subsystem
     // @Values: 0:Disabled,1:Enabled
     AP_GROUPINFO_FLAGS("ENABLE", 1, AP_OpenDroneID, _enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: MAVPORT
+    // `@Param`: MAVPORT
     // @DisplayName: MAVLink serial port
     // @Description: Serial port number to send OpenDroneID MAVLink messages to. Can be -1 if using DroneCAN.
     // @Values: -1:Disabled,0:Serial0,1:Serial1,2:Serial2,3:Serial3,4:Serial4,5:Serial5,6:Serial6
     AP_GROUPINFO("MAVPORT", 2, AP_OpenDroneID, _mav_port, -1),
 
-    // @Param: CANDRIVER
+    // `@Param`: CANDRIVER
     // @DisplayName: DroneCAN driver number
     // @Description: DroneCAN driver index, 0 to disable DroneCAN
     // @Values: 0:Disabled,1:Driver1,2:Driver2
     AP_GROUPINFO("CANDRIVER", 3, AP_OpenDroneID, _can_driver, 0),
     
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: OpenDroneID options
     // @Description: Options for OpenDroneID subsystem
     // @Bitmask: 0:EnforceArming, 1:AllowNonGPSPosition, 2:LockUASIDOnFirstBasicIDRx
     AP_GROUPINFO("OPTIONS", 4, AP_OpenDroneID, _options, 0),
 
-    // @Param: BARO_ACC
+    // `@Param`: BARO_ACC
     // @DisplayName: Barometer vertical accuraacy
     // @Description: Barometer Vertical Accuracy when installed in the vehicle. Note this is dependent upon installation conditions and thus disabled by default
     // @Units: m

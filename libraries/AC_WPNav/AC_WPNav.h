@@ -284,7 +284,7 @@ public:
      *          navigation sequence.
      * 
      * @param[in] speed_cms Desired maximum horizontal speed in cm/s (0 = use default from WPNAV_SPEED parameter)
-     * @param[in] stopping_point Optional stopping point in NEU frame (cm from EKF origin)
+     * @param[in] stopping_point_ne_cm Optional stopping point in NEU frame (cm from EKF origin)
      * 
      * @note Call this method when transitioning into AUTO, GUIDED, or RTL modes
      * @note Updates position controller target roll/pitch and I-terms based on current vehicle lean angles
@@ -292,7 +292,7 @@ public:
      * 
      * @see set_wp_destination_NEU_cm() to set first waypoint after initialization
      */
-    void wp_and_spline_init_cm(float speed_cms = 0.0f, Vector3f stopping_point = Vector3f{});
+    void wp_and_spline_init_cm(float speed_cms = 0.0f, Vector3f stopping_point_ne_cm = Vector3f{});
 
     /**
      * @brief Set target horizontal speed during waypoint navigation

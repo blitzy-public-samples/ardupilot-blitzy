@@ -12,14 +12,14 @@ const AP_Param::GroupInfo AC_InputManager_Heli::var_info[] = {
 
     // Indicies 1-4 (STAB_COL_1 thru STAB_COL_4) have been replaced. 
 
-    // @Param: ACRO_COL_EXP
+    // `@Param`: ACRO_COL_EXP
     // @DisplayName: Acro Mode Collective Expo
     // @Description: Used to soften collective pitch inputs near center point in Acro mode.
     // @Values: 0:Disabled,0.1:Very Low,0.2:Low,0.3:Medium,0.4:High,0.5:Very High
     // @User: Advanced
     AP_GROUPINFO("ACRO_COL_EXP",    5, AC_InputManager_Heli, _acro_col_expo, 0),
 
-    // @Param: STB_COL_1
+    // `@Param`: STB_COL_1
     // @DisplayName: Stabilize Collective Low
     // @Description: Helicopter's minimum collective pitch setting at zero collective stick input in Stabilize mode.  Set this as a percent of collective range given by H_COL_MAX minus H_COL_MIN.
     // @Range: 0 100
@@ -28,7 +28,7 @@ const AP_Param::GroupInfo AC_InputManager_Heli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("STB_COL_1",    6, AC_InputManager_Heli, _heli_stab_col_min, AC_ATTITUDE_HELI_STAB_COLLECTIVE_MIN_DEFAULT),
 
-    // @Param: STB_COL_2
+    // `@Param`: STB_COL_2
     // @DisplayName: Stabilize Collective Mid-Low
     // @Description: Helicopter's collective pitch setting at mid-low (40%) collective stick input in Stabilize mode. Set this as a percent of collective range given by H_COL_MAX minus H_COL_MIN.
     // @Range: 0 100
@@ -37,7 +37,7 @@ const AP_Param::GroupInfo AC_InputManager_Heli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("STB_COL_2",    7, AC_InputManager_Heli, _heli_stab_col_low, AC_ATTITUDE_HELI_STAB_COLLECTIVE_LOW_DEFAULT),
 
-    // @Param: STB_COL_3
+    // `@Param`: STB_COL_3
     // @DisplayName: Stabilize Collective Mid-High
     // @Description: Helicopter's collective pitch setting at mid-high (60%) collective stick input in Stabilize mode. Set this as a percent of collective range given by H_COL_MAX minus H_COL_MIN.
     // @Range: 0 100
@@ -46,7 +46,7 @@ const AP_Param::GroupInfo AC_InputManager_Heli::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("STB_COL_3",    8, AC_InputManager_Heli, _heli_stab_col_high, AC_ATTITUDE_HELI_STAB_COLLECTIVE_HIGH_DEFAULT),
 
-    // @Param: STB_COL_4
+    // `@Param`: STB_COL_4
     // @DisplayName: Stabilize Collective High
     // @Description: Helicopter's maximum collective pitch setting at full collective stick input in Stabilize mode. Set this as a percent of collective range given by H_COL_MAX minus H_COL_MIN.
     // @Range: 0 100

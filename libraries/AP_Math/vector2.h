@@ -668,29 +668,17 @@ struct Vector2
     }
 };
 
-/**
- * @brief Template specialization: is_zero() for float with epsilon tolerance
- * 
- * @return true if both x and y are within epsilon of zero, false otherwise
- * 
- * @note Uses ::is_zero() helper function with floating-point epsilon comparison
- * @note More appropriate for floating-point vectors than exact equality check
- */
+/// @cond TEMPLATE_SPECIALIZATIONS
+// Template specialization: is_zero() for float with epsilon tolerance
 template<> inline bool Vector2<float>::is_zero(void) const {
     return ::is_zero(x) && ::is_zero(y);
 }
 
-/**
- * @brief Template specialization: is_zero() for double with epsilon tolerance
- * 
- * @return true if both x and y are within epsilon of zero, false otherwise
- * 
- * @note Uses ::is_zero() helper function with floating-point epsilon comparison
- * @note More appropriate for floating-point vectors than exact equality check
- */
+// Template specialization: is_zero() for double with epsilon tolerance
 template<> inline bool Vector2<double>::is_zero(void) const {
     return ::is_zero(x) && ::is_zero(y);
 }
+/// @endcond
 
 // Common Vector2 type aliases for convenience
 typedef Vector2<int16_t>        Vector2i;    ///< 2D vector with 16-bit signed integer components

@@ -17,16 +17,16 @@
  * @file AP_Filesystem_Mission.h
  * @brief Virtual filesystem backend providing mission, fence, and rally data as files
  * 
- * @details This file implements a virtual filesystem mounted at @MISSION that exposes
+ * @details This file implements a virtual filesystem mounted at `@MISSION` that exposes
  *          mission waypoints, geofence polygons, and rally points as binary files
  *          accessible through MAVLink FTP. This provides an efficient alternative to
  *          the traditional MAVLink mission protocol for uploading/downloading large
  *          mission data sets.
  * 
  *          Virtual Files Exposed:
- *          - @MISSION/mission.dat: Mission waypoints from AP_Mission
- *          - @MISSION/fence.dat: Geofence polygon points from AC_Fence
- *          - @MISSION/rally.dat: Rally points from AP_Rally
+ *          - `@MISSION`/mission.dat: Mission waypoints from AP_Mission
+ *          - `@MISSION`/fence.dat: Geofence polygon points from AC_Fence
+ *          - `@MISSION`/rally.dat: Rally points from AP_Rally
  * 
  *          The binary format consists of a header (magic, type, options, start, count)
  *          followed by packed MAVLINK_MISSION_ITEM_INT structures. On write, data is

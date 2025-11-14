@@ -532,7 +532,7 @@ void AP_IOMCU::write_log()
         last_log_ms = now;
 #if HAL_LOGGING_ENABLED
         if (AP_Logger::get_singleton()) {
-// @LoggerMessage: IOMC
+// `@LoggerMessage`: IOMC
 // @Description: IOMCU diagnostic information
 // @Field: TimeUS: Time since system startup
 // @Field: RSErr: Status Read error count (zeroed on successful read)

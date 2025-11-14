@@ -35,7 +35,7 @@
  * @warning THIS IS A PRIVATE HEADER - Only include from within AP_HAL_QURT module!
  *          External code must NOT include this header. All external access to QURT
  *          HAL functionality must go through the abstract AP_HAL interfaces defined
- *          in libraries/AP_HAL/*.h. This encapsulation ensures platform independence
+ *          in libraries/AP_HAL/\*.h. This encapsulation ensures platform independence
  *          and prevents tight coupling to QURT-specific implementation details.
  * 
  * Rationale for Encapsulation:

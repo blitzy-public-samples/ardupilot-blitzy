@@ -24,35 +24,35 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_MotorsHeli_Swash::var_info[] = {
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Swashplate Type
     // @Description: H3 is generic, three-servo only. H3_120/H3_140 plates have Motor1 left side, Motor2 right side, Motor3 elevator in rear. HR3_120/HR3_140 have Motor1 right side, Motor2 left side, Motor3 elevator in front - use H3_120/H3_140 and reverse servo and collective directions as necessary. For all H3_90 swashplates use H4_90 and don't use servo output for the missing servo. For H4-90 Motors1&2 are left/right respectively, Motors3&4 are rear/front respectively. For H4-45 Motors1&2 are LF/RF, Motors3&4 are LR/RR 
     // @Values: 0:H3 Generic,1:H1 non-CPPM,2:H3_140,3:H3_120,4:H4_90,5:H4_45
     // @User: Standard
     AP_GROUPINFO("TYPE", 1, AP_MotorsHeli_Swash, _swashplate_type, SWASHPLATE_TYPE_H3_120),
 
-    // @Param: COL_DIR
+    // `@Param`: COL_DIR
     // @DisplayName: Swashplate Collective Control Direction
     // @Description: Direction collective moves for positive pitch. 0 for Normal, 1 for Reversed
     // @Values: 0:Normal,1:Reversed
     // @User: Standard
     AP_GROUPINFO("COL_DIR", 2, AP_MotorsHeli_Swash, _swash_coll_dir, COLLECTIVE_DIRECTION_NORMAL),
 
-    // @Param: LIN_SVO
+    // `@Param`: LIN_SVO
     // @DisplayName: Linearize Swashplate Servo Mechanical Throw
     // @Description: This linearizes the swashplate servo's mechanical output to account for nonlinear output due to arm rotation.  This requires a specific setup procedure to work properly.  The servo arm must be centered on the mechanical throw at the servo trim position and the servo trim position kept as close to 1500 as possible. Leveling the swashplate can only be done through the pitch links.  See the ardupilot wiki for more details on setup.
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO("LIN_SVO", 3, AP_MotorsHeli_Swash, _linear_swash_servo, 0),
 
-    // @Param: H3_ENABLE
+    // `@Param`: H3_ENABLE
     // @DisplayName: Enable Generic H3 Swashplate Settings
     // @Description: Automatically set when H3 generic swash type is selected. Do not set manually.
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("H3_ENABLE", 4, AP_MotorsHeli_Swash, enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: H3_SV1_POS
+    // `@Param`: H3_SV1_POS
     // @DisplayName: Swashplate Servo 1 Position
     // @Description: Azimuth position on swashplate for servo 1 with the front of the heli being 0 deg
     // @Range: -180 180
@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Swash::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("H3_SV1_POS", 5, AP_MotorsHeli_Swash, _servo1_pos, -60),
 
-    // @Param: H3_SV2_POS
+    // `@Param`: H3_SV2_POS
     // @DisplayName: Swashplate Servo 2 Position
     // @Description: Azimuth position on swashplate for servo 2 with the front of the heli being 0 deg
     // @Range: -180 180
@@ -68,7 +68,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Swash::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("H3_SV2_POS", 6, AP_MotorsHeli_Swash, _servo2_pos, 60),
 
-    // @Param: H3_SV3_POS
+    // `@Param`: H3_SV3_POS
     // @DisplayName: Swashplate Servo 3 Position
     // @Description: Azimuth position on swashplate for servo 3 with the front of the heli being 0 deg
     // @Range: -180 180
@@ -76,7 +76,7 @@ const AP_Param::GroupInfo AP_MotorsHeli_Swash::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("H3_SV3_POS", 7, AP_MotorsHeli_Swash, _servo3_pos, 180),
     
-    // @Param: H3_PHANG
+    // `@Param`: H3_PHANG
     // @DisplayName: Swashplate Phase Angle Compensation
     // @Description: Only for H3 swashplate.  If pitching the swash forward induces a roll, this can be correct the problem
     // @Range: -30 30
@@ -304,7 +304,7 @@ void AP_MotorsHeli_Swash::write_log(float cyclic_scaler, float col_ang_min, floa
     float pcyc = _pitch_input * cyclic_scaler;
     float rcyc = _roll_input * cyclic_scaler;
 
-    // @LoggerMessage: SWSH
+    // `@LoggerMessage`: SWSH
     // @Description: Helicopter swashplate logging
     // @Field: TimeUS: Time since system startup
     // @Field: I: Swashplate instance

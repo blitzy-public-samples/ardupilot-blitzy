@@ -700,7 +700,6 @@ private:
     struct sbf_msg_parser_t
     {
         /**
-         * @enum (anonymous)
          * @brief Parser state machine states
          */
         enum
@@ -725,7 +724,6 @@ private:
     } sbf_msg;                  ///< Parser state instance
 
     /**
-     * @enum (anonymous)
      * @brief Receiver error flag bitmask values from ReceiverStatus.RxError field
      * 
      * @details Error flags indicating various receiver health issues. Multiple flags

@@ -81,7 +81,7 @@ const AP_Param::GroupInfo RC_Channels::var_info[] = {
     // @Path: RC_Channel.cpp
     AP_SUBGROUPINFO(obj_channels[15], "16_", 16, RC_CHANNELS_SUBCLASS, RC_CHANNEL_SUBCLASS),
 
-    // @Param: _OVERRIDE_TIME
+    // `@Param`: _OVERRIDE_TIME
     // @DisplayName: RC override timeout
     // @Description: Timeout after which RC overrides will no longer be used, and RC input will resume, 0 will disable RC overrides, -1 will never timeout, and continue using overrides until they are disabled
     // @User: Advanced
@@ -89,7 +89,7 @@ const AP_Param::GroupInfo RC_Channels::var_info[] = {
     // @Units: s
     AP_GROUPINFO("_OVERRIDE_TIME", 32, RC_CHANNELS_SUBCLASS, _override_timeout, 3.0),
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: RC options
     // @Description: RC input options
     // @User: Advanced
@@ -97,14 +97,14 @@ const AP_Param::GroupInfo RC_Channels::var_info[] = {
     AP_GROUPINFO("_OPTIONS", 33, RC_CHANNELS_SUBCLASS, _options, (uint32_t)RC_Channels::Option::ARMING_CHECK_THROTTLE),
 
     // _PROTOCOLS copied to AP_Periph/Parameters.cpp
-    // @Param: _PROTOCOLS
+    // `@Param`: _PROTOCOLS
     // @DisplayName: RC protocols enabled
     // @Description: Bitmask of enabled RC protocols. Allows narrowing the protocol detection to only specific types of RC receivers which can avoid issues with incorrect detection. Set to 1 to enable all protocols.
     // @User: Advanced
     // @Bitmask: 0:All,1:PPM,2:IBUS,3:SBUS,4:SBUS_NI,5:DSM,6:SUMD,7:SRXL,8:SRXL2,9:CRSF,10:ST24,11:FPORT,12:FPORT2,13:FastSBUS,14:DroneCAN,15:Ghost,16:MAVRadio
     AP_GROUPINFO("_PROTOCOLS", 34, RC_CHANNELS_SUBCLASS, _protocols, 1),
 
-    // @Param: _FS_TIMEOUT
+    // `@Param`: _FS_TIMEOUT
     // @DisplayName: RC Failsafe timeout
     // @Description: RC failsafe will trigger this many seconds after loss of RC
     // @User: Standard

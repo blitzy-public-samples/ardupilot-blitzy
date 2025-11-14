@@ -24,7 +24,7 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
 
     // 0, 1 were RATE_RP_MAX, RATE_Y_MAX
 
-    // @Param: SLEW_YAW
+    // `@Param`: SLEW_YAW
     // @DisplayName: Yaw target slew rate
     // @Description: Maximum rate the yaw target can be updated in RTL and Auto flight modes
     // @Units: cdeg/s
@@ -35,7 +35,7 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
 
     // 3 was for ACCEL_RP_MAX
 
-    // @Param: ACCEL_Y_MAX
+    // `@Param`: ACCEL_Y_MAX
     // @DisplayName: Acceleration Max for Yaw
     // @Description: Maximum acceleration in yaw axis
     // @Units: cdeg/s/s
@@ -45,14 +45,14 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ACCEL_Y_MAX", 4, AC_AttitudeControl, _accel_yaw_max_cdss, AC_ATTITUDE_CONTROL_ACCEL_Y_MAX_DEFAULT_CDSS),
 
-    // @Param: RATE_FF_ENAB
+    // `@Param`: RATE_FF_ENAB
     // @DisplayName: Rate Feedforward Enable
     // @Description: Controls whether body-frame rate feedforward is enabled or disabled
     // @Values: 0:Disabled, 1:Enabled
     // @User: Advanced
     AP_GROUPINFO("RATE_FF_ENAB", 5, AC_AttitudeControl, _rate_bf_ff_enabled, AC_ATTITUDE_CONTROL_RATE_BF_FF_DEFAULT),
 
-    // @Param: ACCEL_R_MAX
+    // `@Param`: ACCEL_R_MAX
     // @DisplayName: Acceleration Max for Roll
     // @Description: Maximum acceleration in roll axis
     // @Units: cdeg/s/s
@@ -62,7 +62,7 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ACCEL_R_MAX", 6, AC_AttitudeControl, _accel_roll_max_cdss, AC_ATTITUDE_CONTROL_ACCEL_RP_MAX_DEFAULT_CDSS),
 
-    // @Param: ACCEL_P_MAX
+    // `@Param`: ACCEL_P_MAX
     // @DisplayName: Acceleration Max for Pitch
     // @Description: Maximum acceleration in pitch axis
     // @Units: cdeg/s/s
@@ -74,14 +74,14 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
 
     // IDs 8,9,10,11 RESERVED (in use on Solo)
 
-    // @Param: ANGLE_BOOST
+    // `@Param`: ANGLE_BOOST
     // @DisplayName: Angle Boost
     // @Description: Angle Boost increases output throttle as the vehicle leans to reduce loss of altitude
     // @Values: 0:Disabled, 1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ANGLE_BOOST", 12, AC_AttitudeControl, _angle_boost_enabled, 1),
 
-    // @Param: ANG_RLL_P
+    // `@Param`: ANG_RLL_P
     // @DisplayName: Roll axis angle controller P gain
     // @Description: Roll axis angle controller P gain.  Converts the error between the desired roll angle and actual angle to a desired roll rate
     // @Range: 3.000 12.000
@@ -89,7 +89,7 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Standard
     AP_SUBGROUPINFO(_p_angle_roll, "ANG_RLL_", 13, AC_AttitudeControl, AC_P),
 
-    // @Param: ANG_PIT_P
+    // `@Param`: ANG_PIT_P
     // @DisplayName: Pitch axis angle controller P gain
     // @Description: Pitch axis angle controller P gain.  Converts the error between the desired pitch angle and actual angle to a desired pitch rate
     // @Range: 3.000 12.000
@@ -97,7 +97,7 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Standard
     AP_SUBGROUPINFO(_p_angle_pitch, "ANG_PIT_", 14, AC_AttitudeControl, AC_P),
 
-    // @Param: ANG_YAW_P
+    // `@Param`: ANG_YAW_P
     // @DisplayName: Yaw axis angle controller P gain
     // @Description: Yaw axis angle controller P gain.  Converts the error between the desired yaw angle and actual angle to a desired yaw rate
     // @Range: 3.000 12.000
@@ -105,14 +105,14 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Standard
     AP_SUBGROUPINFO(_p_angle_yaw, "ANG_YAW_", 15, AC_AttitudeControl, AC_P),
 
-    // @Param: ANG_LIM_TC
+    // `@Param`: ANG_LIM_TC
     // @DisplayName: Angle Limit (to maintain altitude) Time Constant
     // @Description: Angle Limit (to maintain altitude) Time Constant
     // @Range: 0.5 10.0
     // @User: Advanced
     AP_GROUPINFO("ANG_LIM_TC", 16, AC_AttitudeControl, _angle_limit_tc, AC_ATTITUDE_CONTROL_ANGLE_LIMIT_TC_DEFAULT),
 
-    // @Param: RATE_R_MAX
+    // `@Param`: RATE_R_MAX
     // @DisplayName: Angular Velocity Max for Roll
     // @Description: Maximum angular velocity in roll axis
     // @Units: deg/s
@@ -122,7 +122,7 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RATE_R_MAX", 17, AC_AttitudeControl, _ang_vel_roll_max_degs, 0.0f),
 
-    // @Param: RATE_P_MAX
+    // `@Param`: RATE_P_MAX
     // @DisplayName: Angular Velocity Max for Pitch
     // @Description: Maximum angular velocity in pitch axis
     // @Units: deg/s
@@ -132,7 +132,7 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RATE_P_MAX", 18, AC_AttitudeControl, _ang_vel_pitch_max_degs, 0.0f),
 
-    // @Param: RATE_Y_MAX
+    // `@Param`: RATE_Y_MAX
     // @DisplayName: Angular Velocity Max for Yaw
     // @Description: Maximum angular velocity in yaw axis
     // @Units: deg/s
@@ -142,7 +142,7 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RATE_Y_MAX", 19, AC_AttitudeControl, _ang_vel_yaw_max_degs, 0.0f),
 
-    // @Param: INPUT_TC
+    // `@Param`: INPUT_TC
     // @DisplayName: Attitude control input time constant
     // @Description: Attitude control input time constant.  Low numbers lead to sharper response, higher numbers to softer response
     // @Units: s
@@ -152,21 +152,21 @@ const AP_Param::GroupInfo AC_AttitudeControl::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("INPUT_TC", 20, AC_AttitudeControl, _input_tc, AC_ATTITUDE_CONTROL_INPUT_TC_DEFAULT),
 
-    // @Param: LAND_R_MULT
+    // `@Param`: LAND_R_MULT
     // @DisplayName: Landed roll gain multiplier
     // @Description: Roll gain multiplier active when landed. A factor of 1.0 means no reduction in gain while landed. Reduce this factor to reduce ground oscitation in the roll axis. 
     // @Range: 0.25 1.0
     // @User: Advanced
     AP_GROUPINFO("LAND_R_MULT", 21, AC_AttitudeControl, _land_roll_mult, 1.0),
 
-    // @Param: LAND_P_MULT
+    // `@Param`: LAND_P_MULT
     // @DisplayName: Landed pitch gain multiplier
     // @Description: Pitch gain multiplier active when landed. A factor of 1.0 means no reduction in gain while landed. Reduce this factor to reduce ground oscitation in the pitch axis. 
     // @Range: 0.25 1.0
     // @User: Advanced
     AP_GROUPINFO("LAND_P_MULT", 22, AC_AttitudeControl, _land_pitch_mult, 1.0),
 
-    // @Param: LAND_Y_MULT
+    // `@Param`: LAND_Y_MULT
     // @DisplayName: Landed yaw gain multiplier
     // @Description: Yaw gain multiplier active when landed. A factor of 1.0 means no reduction in gain while landed. Reduce this factor to reduce ground oscitation in the yaw axis. 
     // @Range: 0.25 1.0

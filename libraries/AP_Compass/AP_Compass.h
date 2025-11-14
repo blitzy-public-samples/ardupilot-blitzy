@@ -399,8 +399,6 @@ public:
      *          - MSP compasses (from flight controller telemetry)
      *          - External AHRS compasses (VectorNav, MicroStrain, etc.)
      * 
-     * @return void (marked __INITFUNC__ for placement in initialization section)
-     * 
      * @note Called once during vehicle initialization, typically from AP_AHRS::init()
      * @note __INITFUNC__ macro places this in a special memory section freed after boot
      * @warning Must be called before read() or any compass access methods
@@ -1538,6 +1536,7 @@ private:
     /// Register a new compas driver, allocating an instance number
     ///
     /// @param  dev_id                   Dev ID of compass to register against
+    /// @param[out] instance             Allocated instance number for this compass
     ///
     /// @return instance number saved against the dev id or first available empty instance number
     bool register_compass(int32_t dev_id, uint8_t& instance);
@@ -1816,10 +1815,7 @@ private:
     bool learn_allocated;
 
     /// Sets the initial location used to get declination
-    ///
-    /// @param  latitude             GPS Latitude.
-    /// @param  longitude            GPS Longitude.
-    ///
+    /// Obtains location from AHRS if available
     void try_set_initial_location();
     bool _initial_location_set;
 

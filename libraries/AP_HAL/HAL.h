@@ -145,9 +145,11 @@ public:
      * @param[in] _util        Utility functions instance
      * @param[in] _opticalflow Optical flow sensor interface (may be nullptr)
      * @param[in] _flash       Internal flash programming interface (may be nullptr)
-     * @param[in] _simstate    Simulator state (SIM builds only)
-     * @param[in] _dsp         DSP/FFT interface (HAL_WITH_DSP only, may be nullptr)
      * @param[in] _can_ifaces  Array of CAN interface pointers (HAL_NUM_CAN_IFACES)
+     * 
+     * @note Additional conditional parameters (not always present):
+     *       - _simstate: Simulator state (AP_SIM_ENABLED builds only)
+     *       - _dsp: DSP/FFT interface (HAL_WITH_DSP builds only)
      * 
      * @note Constructor never fails - platform must provide valid pointers
      * @note Optional interfaces (opticalflow, flash, dsp) may be nullptr
@@ -315,7 +317,7 @@ public:
      *          ```
      *          
      *          This is primarily used in:
-     *          - Simple test programs in libraries/*/examples/
+     *          - Simple test programs in libraries/\*/examples/
      *          - Hardware bringup and testing
      *          - Minimal SITL test cases
      *          
@@ -516,7 +518,7 @@ public:
  *          - Console disabled: Empty (no code generated)
  * 
  * @param[in] fmt  Printf-style format string
- * @param[in] args Variable arguments matching format string
+ * @param[in] ...  Variable arguments matching format string
  * 
  * @note Output goes to console UART (typically USB or Serial0)
  * @note Automatically disabled in builds without console support
@@ -536,18 +538,7 @@ public:
 
 };
 
-/**
- * @brief Inline implementation of serial port accessor
- * 
- * @details Returns pointer to requested serial port with bounds checking.
- *          Inline for performance since this is called frequently throughout
- *          the firmware for GPS, telemetry, and peripheral communication.
- * 
- * @param[in] sernum Serial port index (0-9)
- * @return UARTDriver pointer or nullptr if index out of range
- * 
- * @note Inlined for performance - used in hot paths
- */
+/** Inline implementation of serial port accessor - see declaration for documentation */
 inline AP_HAL::UARTDriver* AP_HAL::HAL::serial(uint8_t sernum) const
 {
     if (sernum >= ARRAY_SIZE(serial_array)) {

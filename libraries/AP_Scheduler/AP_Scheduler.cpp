@@ -51,14 +51,14 @@
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_Scheduler::var_info[] = {
-    // @Param: DEBUG
+    // `@Param`: DEBUG
     // @DisplayName: Scheduler debug level
     // @Description: Set to non-zero to enable scheduler debug messages. When set to show "Slips" the scheduler will display a message whenever a scheduled task is delayed due to too much CPU load. When set to ShowOverruns the scheduled will display a message whenever a task takes longer than the limit promised in the task table.
     // @Values: 0:Disabled,2:ShowSlips,3:ShowOverruns
     // @User: Advanced
     AP_GROUPINFO("DEBUG",    0, AP_Scheduler, _debug, 0),
 
-    // @Param: LOOP_RATE
+    // `@Param`: LOOP_RATE
     // @DisplayName: Scheduling main loop rate
     // @Description: This controls the rate of the main control loop in Hz. This should only be changed by developers. This only takes effect on restart. Values over 400 are considered highly experimental.
     // @Range: 50 400
@@ -67,7 +67,7 @@ const AP_Param::GroupInfo AP_Scheduler::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LOOP_RATE",  1, AP_Scheduler, _loop_rate_hz, SCHEDULER_DEFAULT_LOOP_RATE),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Scheduling options
     // @Description: This controls optional aspects of the scheduler.
     // @Bitmask: 0:Enable per-task perf info

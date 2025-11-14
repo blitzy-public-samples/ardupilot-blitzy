@@ -8,7 +8,7 @@
     LOG_VISUALPOS_MSG, \
     LOG_VISUALVEL_MSG
 
-// @LoggerMessage: VISO
+// `@LoggerMessage`: VISO
 // @Description: Visual Odometry
 // @Field: TimeUS: System time
 // @Field: dt: Time period this data covers
@@ -32,7 +32,7 @@ struct PACKED log_VisualOdom {
     float confidence;
 };
 
-// @LoggerMessage: VISP
+// `@LoggerMessage`: VISP
 // @Description: Vision Position
 // @Field: TimeUS: System time
 // @Field: RTimeUS: Remote system time
@@ -66,7 +66,7 @@ struct PACKED log_VisualPosition {
     int8_t quality;
 };
 
-// @LoggerMessage: VISV
+// `@LoggerMessage`: VISV
 // @Description: Vision Velocity
 // @Field: TimeUS: System time
 // @Field: RTimeUS: Remote system time

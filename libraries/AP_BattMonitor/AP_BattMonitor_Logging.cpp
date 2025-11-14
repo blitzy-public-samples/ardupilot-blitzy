@@ -68,7 +68,7 @@ void AP_BattMonitor_Backend::Log_Write_BCL(const uint8_t instance, const uint64_
 #if AP_BATT_MONITOR_CELLS_MAX > 12
     if (_state.cell_voltages.cells[12] != UINT16_MAX || _state.cell_voltages.cells[13] != UINT16_MAX)
     {
-// @LoggerMessage: BCL2
+// `@LoggerMessage`: BCL2
 // @Description: Battery cell voltage information
 // @Field: TimeUS: Time since system startup
 // @Field: Instance: battery instance number

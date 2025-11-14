@@ -876,7 +876,7 @@ void AP_GPS_UBLOX::log_tim_tm2(void)
         return;
     }
 
-// @LoggerMessage: UBXT
+// `@LoggerMessage`: UBXT
 // @Description: uBlox specific UBX-TIM-TM2 logging, see uBlox interface description
 // @Field: TimeUS: Time since system startup
 // @Field: I: GPS instance number

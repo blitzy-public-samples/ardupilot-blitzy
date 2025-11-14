@@ -276,7 +276,7 @@ public:
      *          callback is typically used to detect loss of control input or other critical
      *          failures that require immediate safety action.
      * 
-     * @param[in] proc Function pointer (AP_HAL::Proc) to call as failsafe callback
+     * @param[in] failsafe Function pointer (AP_HAL::Proc) to call as failsafe callback
      * @param[in] period_us Period in microseconds between failsafe callback invocations
      * 
      * @note Only one failsafe callback can be registered (subsequent calls override previous).
@@ -285,7 +285,7 @@ public:
      * @warning Failsafe callbacks must execute extremely quickly as they may be called from
      *          high-priority contexts. Blocking or slow operations can cause system instability.
      */
-    void     register_timer_failsafe(AP_HAL::Proc, uint32_t period_us) override;
+    void     register_timer_failsafe(AP_HAL::Proc failsafe, uint32_t period_us) override;
     
     /**
      * @brief Reboot the ESP32 system

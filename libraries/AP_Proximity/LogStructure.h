@@ -7,7 +7,7 @@
     LOG_PROXIMITY_MSG, \
     LOG_RAW_PROXIMITY_MSG
 
-// @LoggerMessage: PRX
+// `@LoggerMessage`: PRX
 // @Description: Proximity Filtered sensor data
 // @Field: TimeUS: Time since system startup
 // @Field: Layer: Pitch(instance) at which the obstacle is at. 0th layer {-75,-45} degrees. 1st layer {-45,-15} degrees. 2nd layer {-15, 15} degrees. 3rd layer {15, 45} degrees. 4th layer {45,75} degrees. Minimum distance in each layer will be logged.
@@ -43,7 +43,7 @@ struct PACKED log_Proximity {
     float closest_dist;
 };
 
-// @LoggerMessage: PRXR
+// `@LoggerMessage`: PRXR
 // @Description: Proximity Raw sensor data
 // @Field: TimeUS: Time since system startup
 // @Field: Layer: Pitch(instance) at which the obstacle is at. 0th layer {-75,-45} degrees. 1st layer {-45,-15} degrees. 2nd layer {-15, 15} degrees. 3rd layer {15, 45} degrees. 4th layer {45,75} degrees. Minimum distance in each layer will be logged.

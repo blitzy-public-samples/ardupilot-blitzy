@@ -194,7 +194,7 @@ public:
     /**
      * @brief Register a failsafe callback with specified period
      * 
-     * @param[in] proc Function pointer for failsafe callback
+     * @param[in] failsafe Function pointer for failsafe callback
      * @param[in] period_us Execution period in microseconds (simulation time)
      * 
      * @details Registers a high-priority failsafe function that executes
@@ -207,7 +207,7 @@ public:
      * @note Failsafe timing is based on simulation time, which may differ from
      *       real-time hardware behavior
      */
-    void register_timer_failsafe(AP_HAL::Proc, uint32_t period_us) override;
+    void register_timer_failsafe(AP_HAL::Proc failsafe, uint32_t period_us) override;
 
     /**
      * @brief Check if currently executing in the main thread

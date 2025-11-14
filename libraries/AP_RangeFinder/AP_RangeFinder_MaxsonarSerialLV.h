@@ -15,7 +15,7 @@
  *          - Resolution: 1cm
  *          - Update Rate: 6-10 Hz depending on configuration
  *          - Interface: TTL Serial (3.3V or 5V depending on model)
- *          - Protocol: ASCII text output (e.g., "R0125\r" for 125cm)
+ *          - Protocol: ASCII text output (e.g., "R0125`\r`" for 125cm)
  *          
  *          Supported Models: MB1000, MB1010, MB1020, MB1030, MB1040, and other MB1xxx-LV variants
  *          
@@ -50,12 +50,12 @@
  *          The driver reads ASCII formatted distance data from the serial port, parses
  *          the messages, and extracts range measurements. The MB1xxx-LV sensors output
  *          simple ASCII strings containing range values, typically in the format:
- *          "Rxxxx\r" where xxxx is the range in centimeters.
+ *          "Rxxxx`\r`" where xxxx is the range in centimeters.
  *          
  *          Protocol Details:
  *          - Message Format: ASCII text string starting with 'R' followed by digits
- *          - Example Output: "R0125\r" indicates 125cm distance
- *          - Line Termination: Carriage return (\r)
+ *          - Example Output: "R0125`\r`" indicates 125cm distance
+ *          - Line Termination: Carriage return (`\r`)
  *          - Baud Rate: Typically 9600 (configurable via parameters)
  *          - Update Rate: Continuous output at 6-10 Hz
  *          
@@ -200,9 +200,9 @@ private:
      *          
      *          Protocol Parsing:
      *          - Reads characters from serial port into line buffer
-     *          - Accumulates characters until line terminator (typically '\r') is received
+     *          - Accumulates characters until line terminator (typically `\r`) is received
      *          - Parses complete messages starting with 'R' followed by digits
-     *          - Example: "R0125\r" is parsed as 125cm (1.25 meters)
+     *          - Example: "R0125`\r`" is parsed as 125cm (1.25 meters)
      *          - Converts centimeters to meters for output
      *          
      *          Message Validation:
@@ -273,13 +273,13 @@ private:
      * 
      * @details Line buffer used to accumulate characters received from the serial port
      *          until a complete message is received. MaxBotix sensors send messages in
-     *          the format "Rxxxx\r" where xxxx is 4 digits, requiring approximately
+     *          the format "Rxxxx`\r`" where xxxx is 4 digits, requiring approximately
      *          6-7 bytes including the terminator.
      *          
      *          Buffer Size: 10 bytes provides adequate space for:
      *          - Message leader: 'R' (1 byte)
      *          - Range value: Up to 4 digits (4 bytes)
-     *          - Terminator: '\r' or '\n' (1 byte)
+     *          - Terminator: `\r` or `\n` (1 byte)
      *          - Safety margin: Extra bytes for parsing (3-4 bytes)
      *          
      *          The buffer is managed as a simple accumulator, with linebuf_len tracking

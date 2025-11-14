@@ -8,7 +8,7 @@
 
 const AP_Param::GroupInfo AP_NotchFilter_params::var_info[] = {
   
-    // @Param: NOTCH_FREQ
+    // `@Param`: NOTCH_FREQ
     // @DisplayName: Notch Filter center frequency
     // @Description: Notch Filter center frequency in Hz.
     // @Range: 10 495
@@ -16,14 +16,14 @@ const AP_Param::GroupInfo AP_NotchFilter_params::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("NOTCH_FREQ", 1, AP_NotchFilter_params, _center_freq_hz, 0),
 
-    // @Param: NOTCH_Q
+    // `@Param`: NOTCH_Q
     // @DisplayName: Notch Filter quality factor
     // @Description: Notch Filter quality factor given by the notch centre frequency divided by its bandwidth.
     // @Range: 1 10
     // @User: Advanced
     AP_GROUPINFO("NOTCH_Q", 2, AP_NotchFilter_params, _quality, 2),
 
-    // @Param: NOTCH_ATT
+    // `@Param`: NOTCH_ATT
     // @DisplayName: Notch Filter attenuation
     // @Description: Notch Filter attenuation in dB.
     // @Range: 5 50

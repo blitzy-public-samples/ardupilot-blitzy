@@ -132,7 +132,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
 
     // 1 was GPS_TYPE2
 
-    // @Param: _NAVFILTER
+    // `@Param`: _NAVFILTER
     // @DisplayName: Navigation filter setting
     // @Description: Navigation filter engine setting
     // @Values: 0:Portable,2:Stationary,3:Pedestrian,4:Automotive,5:Sea,6:Airborne1G,7:Airborne2G,8:Airborne4G
@@ -140,7 +140,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     AP_GROUPINFO("_NAVFILTER", 2, AP_GPS, _navfilter, GPS_ENGINE_AIRBORNE_4G),
 
 #if GPS_MAX_RECEIVERS > 1
-    // @Param: _AUTO_SWITCH
+    // `@Param`: _AUTO_SWITCH
     // @DisplayName: Automatic Switchover Setting
     // @Description: Automatic switchover to GPS reporting best lock, 1:UseBest selects the GPS with highest status, if both are equal the GPS with highest satellite count is used 4:Use primary if 3D fix or better, will revert to 'UseBest' behaviour if 3D fix is lost on primary
     // @Values: 0:Use primary, 1:UseBest, 2:Blend, 4:Use primary if 3D fix or better
@@ -150,14 +150,14 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
 
     // 4 was _MIN_GPS, removed Feb 2024
 
-    // @Param: _SBAS_MODE
+    // `@Param`: _SBAS_MODE
     // @DisplayName: SBAS Mode
     // @Description: This sets the SBAS (satellite based augmentation system) mode if available on this GPS. If set to 2 then the SBAS mode is not changed in the GPS. Otherwise the GPS will be reconfigured to enable/disable SBAS. Disabling SBAS may be worthwhile in some parts of the world where an SBAS signal is available but the baseline is too long to be useful.
     // @Values: 0:Disabled,1:Enabled,2:NoChange
     // @User: Advanced
     AP_GROUPINFO("_SBAS_MODE", 5, AP_GPS, _sbas_mode, 2),
 
-    // @Param: _MIN_ELEV
+    // `@Param`: _MIN_ELEV
     // @DisplayName: Minimum elevation
     // @Description: This sets the minimum elevation of satellites above the horizon for them to be used for navigation. Setting this to -100 leaves the minimum elevation set to the GPS modules default.
     // @Range: -100 90
@@ -165,7 +165,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_MIN_ELEV", 6, AP_GPS, _min_elevation, -100),
 
-    // @Param: _INJECT_TO
+    // `@Param`: _INJECT_TO
     // @DisplayName: Destination for GPS_INJECT_DATA MAVLink packets
     // @Description: The GGS can send raw serial packets to inject data to multiple GPSes.
     // @Values: 0:send to first GPS,1:send to 2nd GPS,127:send to all
@@ -173,7 +173,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     AP_GROUPINFO("_INJECT_TO",   7, AP_GPS, _inject_to, GPS_RTK_INJECT_TO_ALL),
 
 #if AP_GPS_SBP2_ENABLED || AP_GPS_SBP_ENABLED
-    // @Param: _SBP_LOGMASK
+    // `@Param`: _SBP_LOGMASK
     // @DisplayName: Swift Binary Protocol Logging Mask
     // @Description: Masked with the SBP msg_type field to determine whether SBR1/SBR2 data is logged
     // @Values: 0:None (0x0000),-1:All (0xFFFF),-256:External only (0xFF00)
@@ -181,7 +181,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     AP_GROUPINFO("_SBP_LOGMASK", 8, AP_GPS, _sbp_logmask, -256),
 #endif //AP_GPS_SBP2_ENABLED || AP_GPS_SBP_ENABLED
 
-    // @Param: _RAW_DATA
+    // `@Param`: _RAW_DATA
     // @DisplayName: Raw data logging
     // @Description: Handles logging raw data; on uBlox chips that support raw data this will log RXM messages into logger; on Septentrio this will log on the equipment's SD card and when set to 2, the autopilot will try to stop logging after disarming and restart after arming
     // @Values: 0:Ignore,1:Always log,2:Stop logging when disarmed (SBF only),5:Only log every five samples (uBlox only)
@@ -191,7 +191,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
 
     // 10 was GPS_GNSS_MODE
 
-    // @Param: _SAVE_CFG
+    // `@Param`: _SAVE_CFG
     // @DisplayName: Save GPS configuration
     // @Description: Determines whether the configuration for this GPS should be written to non-volatile memory on the GPS. Currently working for UBlox 6 series and above.
     // @Values: 0:Do not save config,1:Save config,2:Save only when needed
@@ -200,7 +200,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
 
     // 12 was GPS_GNSS_MODE2
 
-    // @Param: _AUTO_CONFIG
+    // `@Param`: _AUTO_CONFIG
     // @DisplayName: Automatic GPS configuration
     // @Description: Controls if the autopilot should automatically configure the GPS based on the parameters and default settings
     // @Values: 0:Disables automatic configuration,1:Enable automatic configuration for Serial GPSes only,2:Enable automatic configuration for DroneCAN as well
@@ -220,14 +220,14 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // 19 was GPS_DELAY_MS2
 
 #if AP_GPS_BLENDED_ENABLED
-    // @Param: _BLEND_MASK
+    // `@Param`: _BLEND_MASK
     // @DisplayName: Multi GPS Blending Mask
     // @Description: Determines which of the accuracy measures Horizontal position, Vertical Position and Speed are used to calculate the weighting on each GPS receiver when soft switching has been selected by setting GPS_AUTO_SWITCH to 2(Blend)
     // @Bitmask: 0:Horiz Pos,1:Vert Pos,2:Speed
     // @User: Advanced
     AP_GROUPINFO("_BLEND_MASK", 20, AP_GPS, _blend_mask, 5),
 
-    // @Param: _BLEND_TC
+    // `@Param`: _BLEND_TC
     // @DisplayName: Blending time constant
     // @Description: Controls the slowest time constant applied to the calculation of GPS position and height offsets used to adjust different GPS receivers for steady state position differences.
     // @Units: s
@@ -236,7 +236,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // Had key 21, no longer used
 #endif
 
-    // @Param: _DRV_OPTIONS
+    // `@Param`: _DRV_OPTIONS
     // @DisplayName: driver options
     // @Description: Additional backend specific options
     // @Bitmask: 0:Use UART2 for moving baseline on ublox,1:Use base station for GPS yaw on SBF,2:Use baudrate 115200 on ublox,3:Use dedicated CAN port b/w GPSes for moving baseline,4:Use ellipsoid height instead of AMSL, 5:Override GPS satellite health of L5 band from L1 health, 6:Enable RTCM full parse even for a single channel, 7:Disable automatic full RTCM parsing when RTCM seen on more than one channel
@@ -252,7 +252,7 @@ const AP_Param::GroupInfo AP_GPS::var_info[] = {
     // 26 was GPS_MB2_*
 
 #if GPS_MAX_RECEIVERS > 1
-    // @Param: _PRIMARY
+    // `@Param`: _PRIMARY
     // @DisplayName: Primary GPS
     // @Description: This GPS will be used when GPS_AUTO_SWITCH is 0 and used preferentially with GPS_AUTO_SWITCH = 4.
     // @Increment: 1
@@ -1642,7 +1642,7 @@ bool AP_GPS::parse_rtcm_injection(mavlink_channel_t chan, const mavlink_gps_rtcm
             const uint32_t crc = crc_crc32(0, buf, len);
 
 #if HAL_LOGGING_ENABLED
-// @LoggerMessage: RTCM
+// `@LoggerMessage`: RTCM
 // @Description: GPS atmospheric perturbation data
 // @Field: TimeUS: Time since system startup
 // @Field: Chan: mavlink channel number this data was received on
@@ -2010,7 +2010,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
  * period.
  */
 
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: 1st GPS type
     // @Description: GPS type of 1st GPS.Renamed in 4.6 and later to GPS1_TYPE
     // @Values: 0:None,1:AUTO,2:uBlox,5:NMEA,6:SiRF,7:HIL,8:SwiftNav,9:DroneCAN,10:SBF,11:GSOF,13:ERB,14:MAV,15:NOVA,16:HemisphereNMEA,17:uBlox-MovingBaseline-Base,18:uBlox-MovingBaseline-Rover,19:MSP,20:AllyStar,21:ExternalAHRS,22:DroneCAN-MovingBaseline-Base,23:DroneCAN-MovingBaseline-Rover,24:UnicoreNMEA,25:UnicoreMovingBaselineNMEA,26:SBF-DualAntenna
@@ -2018,27 +2018,27 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @User: Advanced
     // @Legacy: only included here so GCSs running stable can get the description.  Omitted in the Wiki.
 
-    // @Param: _TYPE2
+    // `@Param`: _TYPE2
     // @CopyFieldsFrom: GPS_TYPE
     // @DisplayName: 2nd GPS type.Renamed in 4.6 to GPS2_TYPE
     // @Description: GPS type of 2nd GPS
     // @Legacy: 4.5 param
 
-    // @Param: _GNSS_MODE
+    // `@Param`: _GNSS_MODE
     // @DisplayName: GNSS system configuration
     // @Description: Bitmask for what GNSS system to use on the first GPS (all unchecked or zero to leave GPS as configured).Renamed in 4.6 and later to GPS1_GNSS_MODE.
     // @Legacy: 4.5 param
     // @Bitmask: 0:GPS,1:SBAS,2:Galileo,3:Beidou,4:IMES,5:QZSS,6:GLONASS
     // @User: Advanced
 
-    // @Param: _GNSS_MODE2
+    // `@Param`: _GNSS_MODE2
     // @DisplayName: GNSS system configuration.
     // @Description: Bitmask for what GNSS system to use on the second GPS (all unchecked or zero to leave GPS as configured). Renamed in 4.6 and later to GPS2_GNSS_MODE
     // @Legacy: 4.5 param
     // @Bitmask: 0:GPS,1:SBAS,2:Galileo,3:Beidou,4:IMES,5:QZSS,6:GLONASS
     // @User: Advanced
 
-    // @Param: _RATE_MS
+    // `@Param`: _RATE_MS
     // @DisplayName: GPS update rate in milliseconds
     // @Description: Controls how often the GPS should provide a position update. Lowering below 5Hz(default) is not allowed. Raising the rate above 5Hz usually provides little benefit and for some GPS (eg Ublox M9N) can severely impact performance.Renamed in 4.6 and later to GPS1_RATE_MS
     // @Legacy: 4.5 param
@@ -2047,7 +2047,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Range: 50 200
     // @User: Advanced
 
-    // @Param: _RATE_MS2
+    // `@Param`: _RATE_MS2
     // @DisplayName: GPS 2 update rate in milliseconds
     // @Description: Controls how often the GPS should provide a position update. Lowering below 5Hz(default) is not allowed. Raising the rate above 5Hz usually provides little benefit and for some GPS (eg Ublox M9N) can severely impact performance.Renamed in 4.6 and later to GPS2_RATE_MS
     // @Legacy: 4.5 param
@@ -2056,7 +2056,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Range: 50 200
     // @User: Advanced
 
-    // @Param: _POS1_X
+    // `@Param`: _POS1_X
     // @DisplayName: Antenna X position offset
     // @Description: X position of the first GPS antenna in body frame. Positive X is forward of the origin. Use antenna phase centroid location if provided by the manufacturer.Renamed in 4.6 and later to GPS1_POS_X.
     // @Legacy: 4.5 param
@@ -2065,7 +2065,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS1_Y
+    // `@Param`: _POS1_Y
     // @DisplayName: Antenna Y position offset
     // @Description: Y position of the first GPS antenna in body frame. Positive Y is to the right of the origin. Use antenna phase centroid location if provided by the manufacturer.Renamed in 4.6 and later to GPS1_POS_Y.
     // @Legacy: 4.5 param
@@ -2074,7 +2074,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS1_Z
+    // `@Param`: _POS1_Z
     // @DisplayName: Antenna Z position offset
     // @Description: Z position of the first GPS antenna in body frame. Positive Z is down from the origin. Use antenna phase centroid location if provided by the manufacturer.Renamed in 4.6 and later to GPS1_POS_Z.
     // @Legacy: 4.5 param
@@ -2083,7 +2083,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS2_X
+    // `@Param`: _POS2_X
     // @DisplayName: Antenna X position offset
     // @Description: X position of the second GPS antenna in body frame. Positive X is forward of the origin. Use antenna phase centroid location if provided by the manufacturer.Renamed in 4.6 and later to GPS2_POS_X.
     // @Legacy: 4.5 param
@@ -2092,7 +2092,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS2_Y
+    // `@Param`: _POS2_Y
     // @DisplayName: Antenna Y position offset
     // @Description: Y position of the second GPS antenna in body frame. Positive Y is to the right of the origin. Use antenna phase centroid location if provided by the manufacturer.Renamed in 4.6 and later to GPS2_POS_Y.
     // @Legacy: 4.5 param
@@ -2101,7 +2101,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _POS2_Z
+    // `@Param`: _POS2_Z
     // @DisplayName: Antenna Z position offset
     // @Description: Z position of the second GPS antenna in body frame. Positive Z is down from the origin. Use antenna phase centroid location if provided by the manufacturer.Renamed in 4.6 and later to GPS2_POS_Z.
     // @Legacy: 4.5 param
@@ -2110,7 +2110,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _DELAY_MS
+    // `@Param`: _DELAY_MS
     // @DisplayName: GPS delay in milliseconds
     // @Description: Controls the amount of GPS  measurement delay that the autopilot compensates for. Set to zero to use the default delay for the detected GPS type.Renamed in 4.6 and later to GPS1_DELAY_MS.
     // @Legacy: 4.5 param
@@ -2119,7 +2119,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @User: Advanced
     // @RebootRequired: True
 
-    // @Param: _DELAY_MS2
+    // `@Param`: _DELAY_MS2
     // @DisplayName: GPS 2 delay in milliseconds
     // @Description: Controls the amount of GPS  measurement delay that the autopilot compensates for. Set to zero to use the default delay for the detected GPS type.Renamed in 4.6 and later to GPS2_DELAY_MS.
     // @Legacy: 4.5 param
@@ -2128,7 +2128,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @User: Advanced
     // @RebootRequired: True
 
-    // @Param: _COM_PORT
+    // `@Param`: _COM_PORT
     // @DisplayName: GPS physical COM port
     // @Description: The physical COM port on the connected device, currently only applies to SBF and GSOF GPS,Renamed in 4.6 and later to GPS1_COM_PORT.
     // @Legacy: 4.5 param
@@ -2138,7 +2138,7 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Values: 0:COM1(RS232) on GSOF, 1:COM2(TTL) on GSOF
     // @RebootRequired: True
 
-    // @Param: _COM_PORT2
+    // `@Param`: _COM_PORT2
     // @DisplayName: GPS physical COM port
     // @Description: The physical COM port on the connected device, currently only applies to SBF and GSOF GPS.Renamed in 4.6 and later to GPS1_COM_PORT.
     // @Legacy: 4.5 param
@@ -2155,14 +2155,14 @@ bool AP_GPS::gps_yaw_deg(uint8_t instance, float &yaw_deg, float &accuracy_deg, 
     // @Path: MovingBase.cpp
     // @Legacy: 4.5 param
 
-    // @Param: _CAN_NODEID1
+    // `@Param`: _CAN_NODEID1
     // @DisplayName: GPS Node ID 1
     // @Description: GPS Node id for first-discovered GPS.Renamed in 4.6 and later to GPS1_CAN_NODEID.
     // @Legacy: 4.5 param
     // @ReadOnly: True
     // @User: Advanced
 
-    // @Param: _CAN_NODEID2
+    // `@Param`: _CAN_NODEID2
     // @DisplayName: GPS Node ID 2
     // @Description: GPS Node id for second-discovered GPS.Renamed in 4.6 and later to GPS2_CAN_NODEID.
     // @Legacy: 4.5 param

@@ -240,11 +240,10 @@ public:
     /**
      * @brief Register high-priority timer task for periodic execution
      * 
-     * @param[in] proc Member function pointer to execute periodically
-     * 
-     * @details Registers a task to run at high frequency, typically 1kHz. Timer tasks
-     *          execute in a dedicated timer thread or from timer interrupt context with
-     *          higher priority than main thread and I/O tasks.
+     * @details Registers a task to run at high frequency, typically 1kHz. The parameter
+     *          is an AP_HAL::MemberProc member function pointer to execute periodically.
+     *          Timer tasks execute in a dedicated timer thread or from timer interrupt 
+     *          context with higher priority than main thread and I/O tasks.
      *          
      *          Typical use cases:
      *          - High-frequency sensor sampling (IMU at 1kHz+)
@@ -268,10 +267,9 @@ public:
     /**
      * @brief Register low-priority I/O task for background execution
      * 
-     * @param[in] proc Member function pointer to execute periodically
-     * 
      * @details Registers a task to run at lower priority than the main thread, typically
      *          for background I/O operations that should not block flight control.
+     *          The parameter is an AP_HAL::MemberProc member function pointer to execute periodically.
      *          
      *          Typical use cases:
      *          - Sensor polling and data collection
@@ -295,12 +293,12 @@ public:
     /**
      * @brief Register periodic failsafe callback
      * 
-     * @param[in] proc Function pointer to failsafe callback
      * @param[in] period_us Execution period in microseconds
      * 
      * @details Registers a failsafe function that executes periodically at the specified
-     *          interval. Failsafe callbacks are typically used for critical safety checks
-     *          that must execute reliably even if the main loop hangs.
+     *          interval. The first parameter is an AP_HAL::Proc function pointer to the
+     *          failsafe callback. Failsafe callbacks are typically used for critical safety 
+     *          checks that must execute reliably even if the main loop hangs.
      *          
      *          Typical use cases:
      *          - Watchdog feeding
@@ -468,7 +466,7 @@ public:
      * 
      * @see disable_interrupts_save() to disable interrupts and get state
      */
-    virtual void restore_interrupts(void *) {}
+    virtual void restore_interrupts(void *state) {}
 
     /**
      * @brief Internal method called by subclasses during delays

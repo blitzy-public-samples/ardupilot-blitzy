@@ -97,21 +97,21 @@
 // allows us to go beyond the 64 parameter limit
 const AP_Param::GroupInfo AC_AutoTune_Multi::var_info[] = {
 
-    // @Param: AXES
+    // `@Param`: AXES
     // @DisplayName: Autotune axis bitmask
     // @Description: 1-byte bitmap of axes to autotune
     // @Bitmask: 0:Roll,1:Pitch,2:Yaw,3:YawD
     // @User: Standard
     AP_GROUPINFO("AXES", 1, AC_AutoTune_Multi, axis_bitmask,  7),  // AUTOTUNE_AXIS_BITMASK_DEFAULT
 
-    // @Param: AGGR
+    // `@Param`: AGGR
     // @DisplayName: Autotune aggressiveness
     // @Description: Autotune aggressiveness. Defines the bounce back used to detect size of the D term.
     // @Range: 0.05 0.10
     // @User: Standard
     AP_GROUPINFO("AGGR", 2, AC_AutoTune_Multi, aggressiveness, 0.075f),
 
-    // @Param: MIN_D
+    // `@Param`: MIN_D
     // @DisplayName: AutoTune minimum D
     // @Description: Defines the minimum D gain
     // @Range: 0.0001 0.005
@@ -1245,7 +1245,7 @@ void AC_AutoTune_Multi::Log_AutoTuneDetails()
     Log_Write_AutoTuneDetails(lean_angle, rotation_rate);
 }
 
-// @LoggerMessage: ATUN
+// `@LoggerMessage`: ATUN
 // @Description: Copter/QuadPlane AutoTune
 // @Vehicles: Copter, Plane
 // @Field: TimeUS: Time since system startup
@@ -1283,7 +1283,7 @@ void AC_AutoTune_Multi::Log_Write_AutoTune(AxisType _axis, TuneType tune_step, f
 // Write an Autotune data packet
 void AC_AutoTune_Multi::Log_Write_AutoTuneDetails(float angle_cd, float rate_cds)
 {
-    // @LoggerMessage: ATDE
+    // `@LoggerMessage`: ATDE
     // @Description: AutoTune data packet
     // @Field: TimeUS: Time since system startup
     // @Field: Angle: current angle

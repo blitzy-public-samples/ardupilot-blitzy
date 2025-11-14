@@ -30,7 +30,7 @@
     LOG_BAT_MSG, \
     LOG_BCL_MSG
 
-// @LoggerMessage: BAT
+// `@LoggerMessage`: BAT
 // @Description: Gathered battery data
 // @Field: TimeUS: Time since system startup
 // @Field: Inst: battery instance number
@@ -75,7 +75,7 @@ struct PACKED log_BAT {
     uint8_t  state_of_health_pct;  ///< Degradation metric percentage (0-100, 0=unknown)
 };
 
-// @LoggerMessage: BCL
+// `@LoggerMessage`: BCL
 // @Description: Battery cell voltage information
 // @Field: TimeUS: Time since system startup
 // @Field: Instance: battery instance number

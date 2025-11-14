@@ -56,7 +56,7 @@ extern const AP_HAL::HAL& hal;
 #define SBUS_MIN 875
 
 const AP_Param::GroupInfo AP_SBusOut::var_info[] = {
-    // @Param: RATE
+    // `@Param`: RATE
     // @DisplayName: SBUS default output rate
     // @Description: This sets the SBUS output frame rate in Hz.
     // @Range: 25 250

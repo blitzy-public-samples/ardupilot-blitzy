@@ -70,7 +70,7 @@
  *          - Optionally extracts water temperature from MTW sentences
  *          
  *          **NMEA Sentence Parsing**:
- *          NMEA sentences follow format: $AABBB,field1,field2,...*CS<CR><LF>
+ *          NMEA sentences follow format: $AABBB,field1,field2,...*CS`<CR><LF>`
  *          - AA: Talker ID (e.g., SD for depth sounder)
  *          - BBB: Sentence formatter (e.g., DBT for depth below transducer)
  *          - Fields: Comma-separated data values
@@ -355,14 +355,14 @@ private:
      *          
      *          **NMEA-0183 Format**:
      *          Standard sentences follow this structure:
-     *          $AABBB,field1,field2,...,fieldN*CS<CR><LF>
+     *          $AABBB,field1,field2,...,fieldN*CS`<CR><LF>`
      *          - '$': Start delimiter
      *          - 'AA': Two-character talker ID (e.g., 'SD' for depth sounder)
      *          - 'BBB': Three-character sentence formatter (e.g., 'DBT' for depth below transducer)
      *          - ',': Field separator
      *          - '*': Checksum delimiter
      *          - 'CS': Two hex digits (XOR of all bytes between $ and *)
-     *          - <CR><LF>: Carriage return + line feed terminators
+     *          - `<CR><LF>`: Carriage return + line feed terminators
      *          
      *          **State Machine Operation**:
      *          1. **Waiting for '$'**: Discard characters until sentence start

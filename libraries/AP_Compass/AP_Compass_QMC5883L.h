@@ -177,8 +177,6 @@ public:
      *          3. Rotation matrix applied to transform sensor frame to body frame
      *          4. Accumulated data passed to frontend via publish_field()
      * 
-     * @return void
-     * 
      * @note This method executes in the main thread context, while timer()
      *       executes in scheduler callback context. Thread safety is maintained
      *       through the HAL's semaphore mechanisms.

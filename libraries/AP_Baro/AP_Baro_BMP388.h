@@ -166,19 +166,19 @@ private:
     
     /**
      * @brief Update compensated temperature from raw ADC value
-     * @param[in] raw_temp Raw 24-bit temperature ADC reading from sensor
+     * @param[in] data Raw 24-bit temperature ADC reading from sensor
      * @details Applies 3-parameter compensation algorithm using par_t1, par_t2, par_t3
      *          and stores linearized temperature value (t_lin) for pressure compensation
      */
-    void update_temperature(uint32_t);
+    void update_temperature(uint32_t data);
     
     /**
      * @brief Update compensated pressure from raw ADC value
-     * @param[in] raw_press Raw 24-bit pressure ADC reading from sensor
+     * @param[in] data Raw 24-bit pressure ADC reading from sensor
      * @details Applies 11-parameter compensation algorithm using par_p1 through par_p11
      *          with temperature linearization (t_lin). Result accumulated in pressure_sum.
      */
-    void update_pressure(uint32_t);
+    void update_pressure(uint32_t data);
 
     /** @brief HAL device interface (I2C or SPI) - ownership held by this driver */
     AP_HAL::OwnPtr<AP_HAL::Device> dev;

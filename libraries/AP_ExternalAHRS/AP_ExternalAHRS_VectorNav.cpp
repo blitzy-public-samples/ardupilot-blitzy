@@ -495,7 +495,7 @@ struct AP_ExternalAHRS_VectorNav::VNAT {
 void AP_ExternalAHRS_VectorNav::write_vnat(const VNAT& data_to_log) const {
 
 #if HAL_LOGGING_ENABLED
-    // @LoggerMessage: VNAT
+    // `@LoggerMessage`: VNAT
     // @Description: VectorNav Attitude data
     // @Field: TimeUS: Time since system startup
     // @Field: Q1: Attitude quaternion 1
@@ -573,7 +573,7 @@ void AP_ExternalAHRS_VectorNav::process_imu_packet(const uint8_t *b)
     }
 
 #if HAL_LOGGING_ENABLED
-    // @LoggerMessage: VNIM
+    // `@LoggerMessage`: VNIM
     // @Description: VectorNav IMU data
     // @Field: TimeUS: Time since system startup
     // @Field: Temp: Temprature
@@ -646,7 +646,7 @@ void AP_ExternalAHRS_VectorNav::process_ins_ekf_packet(const uint8_t *b) {
     memcpy(data_to_log.yprU, pkt.yprU, sizeof(pkt.yprU));
     write_vnat(data_to_log);
 
-    // @LoggerMessage: VNKF
+    // `@LoggerMessage`: VNKF
     // @Description: VectorNav INS Kalman Filter data
     // @Field: TimeUS: Time since system startup
     // @Field: InsStatus: VectorNav INS health status

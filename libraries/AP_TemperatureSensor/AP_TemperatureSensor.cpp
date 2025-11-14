@@ -45,7 +45,7 @@ const AP_Param::GroupInfo AP_TemperatureSensor::var_info[] = {
     // SKIP INDEX 0
 
 #if HAL_LOGGING_ENABLED
-    // @Param: _LOG
+    // `@Param`: _LOG
     // @DisplayName: Logging
     // @Description: Enables temperature sensor logging
     // @Values: 0:Disabled, 1:Log all instances, 2: Log only instances with sensor source set to None

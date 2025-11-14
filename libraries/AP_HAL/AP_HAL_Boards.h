@@ -103,7 +103,7 @@
  *          
  *          Design philosophy:
  *          Most boards do NOT need a subtype. Subtypes are only defined when
- *          platform-specific #ifdef code is required to handle hardware differences
+ *          platform-specific `#ifdef` code is required to handle hardware differences
  *          that cannot be detected at runtime. For ChibiOS boards, the hwdef system
  *          handles most configuration, making subtypes rarely necessary.
  *          
@@ -283,7 +283,7 @@
  *          - Larger parameter sets
  *          
  * @note Memory class set in board-specific configuration (hwdef.dat for ChibiOS)
- * @note Features test memory class: #if HAL_MEM_CLASS >= HAL_MEM_CLASS_300
+ * @note Features test memory class: `#if HAL_MEM_CLASS >= HAL_MEM_CLASS_300`
  * 
  * @warning Underestimating memory class can cause out-of-memory crashes
  * @see HAL_MEM_CLASS in board configuration files
@@ -319,7 +319,7 @@
  *          - Disabled on platforms without network stack
  *          
  * @note These flags are set by platform headers (sitl.h, linux.h, chibios.h, etc.)
- * @note Check flags with: #if HAL_OS_POSIX_IO ... #endif
+ * @note Check flags with: `#if HAL_OS_POSIX_IO ... #endif`
  * 
  * @see AP_HAL/board/sitl.h for SITL OS feature definitions
  * @see AP_HAL/board/linux.h for Linux OS feature definitions
@@ -882,7 +882,7 @@
  * 
  * @note Prefer compile-time checks (#if) for features to reduce binary size
  * @note Use runtime checks (if) for board identification when behavior varies per board
- * @note Capability macros are computed from board-specific headers (board/*.h files)
+ * @note Capability macros are computed from board-specific headers (board/\*.h files)
  * 
  * @warning Changing capability macros requires full rebuild of all source files
  * @warning Board-specific #ifdef code should be minimized - prefer runtime detection

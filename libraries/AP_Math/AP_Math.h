@@ -112,20 +112,7 @@ template <typename Arithmetic1, typename Arithmetic2>
 typename std::enable_if<std::is_integral<typename std::common_type<Arithmetic1, Arithmetic2>::type>::value ,bool>::type
 is_equal(const Arithmetic1 v_1, const Arithmetic2 v_2);
 
-/**
- * @brief Floating-point equality test with epsilon tolerance (floating-point specialization)
- * 
- * @details Template specialization for floating-point types. Uses epsilon tolerance
- *          to handle numerical precision issues common in floating-point arithmetic.
- * 
- * @tparam Arithmetic1 First floating-point type
- * @tparam Arithmetic2 Second floating-point type
- * @param[in] v_1 First value to compare
- * @param[in] v_2 Second value to compare
- * @return true if values are equal within FLT_EPSILON tolerance, false otherwise
- * 
- * @note Epsilon tolerance prevents issues with rounding errors in sensor fusion and control loops
- */
+/// Floating-point specialization of is_equal() - see integral version above for full documentation
 template <typename Arithmetic1, typename Arithmetic2>
 typename std::enable_if<std::is_floating_point<typename std::common_type<Arithmetic1, Arithmetic2>::type>::value, bool>::type
 is_equal(const Arithmetic1 v_1, const Arithmetic2 v_2);

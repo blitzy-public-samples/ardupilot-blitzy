@@ -18,7 +18,7 @@
  *          DCM matrices represent rotation from NED frame to body frame.
  * 
  * @copyright Copyright (c) 2010-2025 ArduPilot.org
- * @license GNU General Public License v3.0 or later
+ * License: GNU General Public License v3.0 or later
  */
 
 #pragma once

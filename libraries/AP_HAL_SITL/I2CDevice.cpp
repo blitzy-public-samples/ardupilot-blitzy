@@ -211,7 +211,7 @@ AP_HAL::Device::PeriodicHandle I2CDevice::register_periodic_callback(uint32_t pe
     return _bus.register_periodic_callback(period_usec, cb);
 }
 
-bool I2CDevice::adjust_periodic_callback(Device::PeriodicHandle h, uint32_t period_usec)
+bool I2CDevice::adjust_periodic_callback(AP_HAL::Device::PeriodicHandle h, uint32_t period_usec)
 {
     return false;
 }

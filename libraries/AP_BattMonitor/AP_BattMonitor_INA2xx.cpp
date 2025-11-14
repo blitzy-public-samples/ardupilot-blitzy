@@ -77,7 +77,7 @@ const uint8_t AP_BattMonitor_INA2XX::i2c_probe_addresses[] { 0x41, 0x44, 0x45 };
 
 const AP_Param::GroupInfo AP_BattMonitor_INA2XX::var_info[] = {
 
-    // @Param: I2C_BUS
+    // `@Param`: I2C_BUS
     // @DisplayName: Battery monitor I2C bus number
     // @Description: Battery monitor I2C bus number
     // @Range: 0 3
@@ -85,7 +85,7 @@ const AP_Param::GroupInfo AP_BattMonitor_INA2XX::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("I2C_BUS", 25, AP_BattMonitor_INA2XX, i2c_bus, HAL_BATTMON_INA2XX_BUS),
 
-    // @Param: I2C_ADDR
+    // `@Param`: I2C_ADDR
     // @DisplayName: Battery monitor I2C address
     // @Description: Battery monitor I2C address. If this is zero then probe list of supported addresses
     // @Range: 0 127
@@ -93,7 +93,7 @@ const AP_Param::GroupInfo AP_BattMonitor_INA2XX::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("I2C_ADDR", 26, AP_BattMonitor_INA2XX, i2c_address, HAL_BATTMON_INA2XX_ADDR),
 
-    // @Param: MAX_AMPS
+    // `@Param`: MAX_AMPS
     // @DisplayName: Battery monitor max current
     // @Description: This controls the maximum current the INS2XX sensor will work with.
     // @Range: 1 400
@@ -101,7 +101,7 @@ const AP_Param::GroupInfo AP_BattMonitor_INA2XX::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAX_AMPS", 27, AP_BattMonitor_INA2XX, max_amps, DEFAULT_BATTMON_INA2XX_MAX_AMPS),
 
-    // @Param: SHUNT
+    // `@Param`: SHUNT
     // @DisplayName: Battery monitor shunt resistor
     // @Description: This sets the shunt resistor used in the device
     // @Range: 0.0001 0.01

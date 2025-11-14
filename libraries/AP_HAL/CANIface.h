@@ -744,17 +744,12 @@ public:
     virtual bool is_initialized() const = 0;
 
     /**
-     * @typedef FrameCb
-     * @brief Callback function type for frame reception notification
+     * Callback function type for frame reception notification.
      * 
-     * @details Signature: void callback(uint8_t iface_num, const CANFrame& frame, CanIOFlags flags)
+     * Signature: void callback(uint8_t iface_num, const CANFrame& frame, CanIOFlags flags)
      *          
-     *          Callbacks are invoked when frames are received, allowing protocol
-     *          handlers to process frames directly without polling receive queue.
-     * 
-     * @param iface_num CAN interface number (0-based)
-     * @param frame Received CAN frame
-     * @param flags Reception flags
+     * Callbacks are invoked when frames are received, allowing protocol
+     * handlers to process frames directly without polling receive queue.
      */
     FUNCTOR_TYPEDEF(FrameCb, void, uint8_t, const AP_HAL::CANFrame &, CanIOFlags);
 

@@ -11,7 +11,7 @@
 
 const AP_Param::GroupInfo AP_CustomRotations::var_info[] = {
 
-    // @Param: _ENABLE
+    // `@Param`: _ENABLE
     // @DisplayName: Enable Custom rotations
     // @Values: 0:Disable, 1:Enable
     // @Description: This enables custom rotations

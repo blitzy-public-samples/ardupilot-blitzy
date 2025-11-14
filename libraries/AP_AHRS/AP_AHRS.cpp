@@ -61,7 +61,7 @@
 const AP_Param::GroupInfo AP_AHRS::var_info[] = {
     // index 0 and 1 are for old parameters that are no longer not used
 
-    // @Param: GPS_GAIN
+    // `@Param`: GPS_GAIN
     // @DisplayName: AHRS GPS gain
     // @Description: This controls how much to use the GPS to correct the attitude. This should never be set to zero for a plane as it would result in the plane losing control in turns. For a plane please use the default value of 1.0.
     // @Range: 0.0 1.0
@@ -69,14 +69,14 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("GPS_GAIN",  2, AP_AHRS, gps_gain, 1.0f),
 
-    // @Param: GPS_USE
+    // `@Param`: GPS_USE
     // @DisplayName: AHRS use GPS for DCM navigation and position-down
     // @Description: This controls whether to use dead-reckoning or GPS based navigation. If set to 0 then the GPS won't be used for navigation, and only dead reckoning will be used. A value of zero should never be used for normal flight. Currently this affects only the DCM-based AHRS: the EKF uses GPS according to its own parameters. A value of 2 means to use GPS for height as well as position - both in DCM estimation and when determining altitude-above-home.
     // @Values: 0:Disabled,1:Use GPS for DCM position,2:Use GPS for DCM position and height
     // @User: Advanced
     AP_GROUPINFO("GPS_USE",  3, AP_AHRS, _gps_use, float(GPSUse::Enable)),
 
-    // @Param: YAW_P
+    // `@Param`: YAW_P
     // @DisplayName: Yaw P
     // @Description: This controls the weight the compass or GPS has on the heading. A higher value means the heading will track the yaw source (GPS or compass) more rapidly.
     // @Range: 0.1 0.4
@@ -84,7 +84,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("YAW_P", 4,    AP_AHRS, _kp_yaw, 0.2f),
 
-    // @Param: RP_P
+    // `@Param`: RP_P
     // @DisplayName: AHRS RP_P
     // @Description: This controls how fast the accelerometers correct the attitude
     // @Range: 0.1 0.4
@@ -92,7 +92,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RP_P",  5,    AP_AHRS, _kp, 0.2f),
 
-    // @Param: WIND_MAX
+    // `@Param`: WIND_MAX
     // @DisplayName: Maximum wind
     // @Description: This sets the maximum allowable difference between ground speed and airspeed. A value of zero means to use the airspeed as is. This allows the plane to cope with a failing airspeed sensor by clipping it to groundspeed plus/minus this limit. See ARSPD_OPTIONS and ARSPD_WIND_MAX to disable airspeed sensors.
     // @Range: 0 127
@@ -103,7 +103,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
 
     // NOTE: 7 was BARO_USE
 
-    // @Param: TRIM_X
+    // `@Param`: TRIM_X
     // @DisplayName: AHRS Trim Roll
     // @Description: Compensates for the roll angle difference between the control board and the frame. Positive values make the vehicle roll right.
     // @Units: rad
@@ -111,7 +111,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
     // @Increment: 0.01
     // @User: Standard
 
-    // @Param: TRIM_Y
+    // `@Param`: TRIM_Y
     // @DisplayName: AHRS Trim Pitch
     // @Description: Compensates for the pitch angle difference between the control board and the frame. Positive values make the vehicle pitch up/back.
     // @Units: rad
@@ -119,7 +119,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
     // @Increment: 0.01
     // @User: Standard
 
-    // @Param: TRIM_Z
+    // `@Param`: TRIM_Z
     // @DisplayName: AHRS Trim Yaw
     // @Description: Not Used
     // @Units: rad
@@ -128,14 +128,14 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TRIM", 8, AP_AHRS, _trim, 0),
 
-    // @Param: ORIENTATION
+    // `@Param`: ORIENTATION
     // @DisplayName: Board Orientation
     // @Description: Overall board orientation relative to the standard orientation for the board type. This rotates the IMU and compass readings to allow the board to be oriented in your vehicle at any 90 or 45 degree angle. The label for each option is specified in the order of rotations for that orientation. This option takes affect on next boot. After changing you will need to re-level your vehicle. Firmware versions 4.2 and prior can use a CUSTOM (100) rotation to set the AHRS_CUSTOM_ROLL/PIT/YAW angles for AHRS orientation. Later versions provide two general custom rotations which can be used, Custom 1 and Custom 2, with CUST_ROT1_ROLL/PIT/YAW or CUST_ROT2_ROLL/PIT/YAW angles.
     // @Values: 0:None,1:Yaw45,2:Yaw90,3:Yaw135,4:Yaw180,5:Yaw225,6:Yaw270,7:Yaw315,8:Roll180,9:Yaw45Roll180,10:Yaw90Roll180,11:Yaw135Roll180,12:Pitch180,13:Yaw225Roll180,14:Yaw270Roll180,15:Yaw315Roll180,16:Roll90,17:Yaw45Roll90,18:Yaw90Roll90,19:Yaw135Roll90,20:Roll270,21:Yaw45Roll270,22:Yaw90Roll270,23:Yaw135Roll270,24:Pitch90,25:Pitch270,26:Yaw90Pitch180,27:Yaw270Pitch180,28:Pitch90Roll90,29:Pitch90Roll180,30:Pitch90Roll270,31:Pitch180Roll90,32:Pitch180Roll270,33:Pitch270Roll90,34:Pitch270Roll180,35:Pitch270Roll270,36:Yaw90Pitch180Roll90,37:Yaw270Roll90,38:Yaw293Pitch68Roll180,39:Pitch315,40:Pitch315Roll90,42:Roll45,43:Roll315,100:Custom 4.1 and older,101:Custom 1,102:Custom 2
     // @User: Advanced
     AP_GROUPINFO("ORIENTATION", 9, AP_AHRS, _board_orientation, 0),
 
-    // @Param: COMP_BETA
+    // `@Param`: COMP_BETA
     // @DisplayName: AHRS Velocity Complementary Filter Beta Coefficient
     // @Description: This controls the time constant for the cross-over frequency used to fuse AHRS (airspeed and heading) and GPS data to estimate ground velocity. Time constant is 0.1/beta. A larger time constant will use GPS data less and a small time constant will use air data less.
     // @Range: 0.001 0.5
@@ -143,7 +143,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("COMP_BETA",  10, AP_AHRS, beta, 0.1f),
 
-    // @Param: GPS_MINSATS
+    // `@Param`: GPS_MINSATS
     // @DisplayName: AHRS GPS Minimum satellites
     // @Description: Minimum number of satellites visible to use GPS for velocity based corrections attitude correction. This defaults to 6, which is about the point at which the velocity numbers from a GPS become too unreliable for accurate correction of the accelerometers.
     // @Range: 0 10
@@ -156,14 +156,14 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
 
     // 13 was the old EKF_USE
 
-    // @Param: EKF_TYPE
+    // `@Param`: EKF_TYPE
     // @DisplayName: Use NavEKF Kalman filter for attitude and position estimation
     // @Description: This controls which NavEKF Kalman filter version is used for attitude and position estimation
     // @Values: 0:Disabled,2:Enable EKF2,3:Enable EKF3, 10:Sim, 11:ExternalAHRS
     // @User: Advanced
     AP_GROUPINFO("EKF_TYPE",  14, AP_AHRS, _ekf_type, HAL_AHRS_EKF_TYPE_DEFAULT),
 
-    // @Param: CUSTOM_ROLL
+    // `@Param`: CUSTOM_ROLL
     // @DisplayName: Board orientation roll offset
     // @Description: Autopilot mounting position roll offset. Positive values = roll right, negative values = roll left. This parameter is only used when AHRS_ORIENTATION is set to CUSTOM.
     // @Range: -180 180
@@ -173,7 +173,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
 
     // index 15
 
-    // @Param: CUSTOM_PIT
+    // `@Param`: CUSTOM_PIT
     // @DisplayName: Board orientation pitch offset
     // @Description: Autopilot mounting position pitch offset. Positive values = pitch up, negative values = pitch down. This parameter is only used when AHRS_ORIENTATION is set to CUSTOM.
     // @Range: -180 180
@@ -183,7 +183,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
 
     // index 16
 
-    // @Param: CUSTOM_YAW
+    // `@Param`: CUSTOM_YAW
     // @DisplayName: Board orientation yaw offset
     // @Description: Autopilot mounting position yaw offset. Positive values = yaw right, negative values = yaw left. This parameter is only used when AHRS_ORIENTATION is set to CUSTOM.
     // @Range: -180 180
@@ -193,7 +193,7 @@ const AP_Param::GroupInfo AP_AHRS::var_info[] = {
 
     // index 17
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Optional AHRS behaviour
     // @Description: This controls optional AHRS behaviour. Setting DisableDCMFallbackFW will change the AHRS behaviour for fixed wing aircraft in fly-forward flight to not fall back to DCM when the EKF stops navigating. Setting DisableDCMFallbackVTOL will change the AHRS behaviour for fixed wing aircraft in non fly-forward (VTOL) flight to not fall back to DCM when the EKF stops navigating. Setting DontDisableAirspeedUsingEKF disables the EKF based innovation check for airspeed consistency
     // @Bitmask: 0:DisableDCMFallbackFW, 1:DisableDCMFallbackVTOL, 2:DontDisableAirspeedUsingEKF

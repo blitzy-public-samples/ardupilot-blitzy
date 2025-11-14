@@ -168,7 +168,7 @@ void dump_stack_trace();
  * @note Platform-specific (primarily SITL/Linux)
  * @note Generates core file for gdb analysis
  * @note May be no-op on embedded targets without filesystem
- * @note Core file can be analyzed with: gdb <binary> <corefile>
+ * @note Core file can be analyzed with: gdb `<binary>` `<corefile>`
  */
 void dump_core_file();
 

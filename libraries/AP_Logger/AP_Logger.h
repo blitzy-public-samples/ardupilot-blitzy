@@ -570,10 +570,9 @@ class AP_Logger
 
 public:
     /**
-     * @typedef vehicle_startup_message_Writer
      * @brief Function pointer type for vehicle-specific startup message callback
      * 
-     * @details Allows vehicle code to register custom startup message writer
+     * @details vehicle_startup_message_Writer allows vehicle code to register custom startup message writer
      * that executes during log file initialization. Used to log vehicle-specific
      * state that must be captured at log start (mode, configuration, versions).
      * 
@@ -1987,9 +1986,10 @@ private:
      * - LOG_ERASE → handle_log_request_erase()
      * - LOG_REQUEST_END → handle_log_request_end()
      * 
-     * @param msg  MAVLink message to process
+     * @param[in] link GCS_MAVLINK connection to use for response messages
+     * @param[in] msg  MAVLink message to process
      */
-    void handle_log_message(class GCS_MAVLINK &, const mavlink_message_t &msg);
+    void handle_log_message(class GCS_MAVLINK &link, const mavlink_message_t &msg);
 
     /**
      * @brief Handle LOG_REQUEST_LIST - enumerate available logs

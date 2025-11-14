@@ -19,7 +19,7 @@
 
 const AP_Param::GroupInfo AP_Camera::var_info[] = {
 
-    // @Param: _MAX_ROLL
+    // `@Param`: _MAX_ROLL
     // @DisplayName: Maximum photo roll angle.
     // @Description: Postpone shooting if roll is greater than limit. (0=Disable, will shoot regardless of roll).
     // @User: Standard
@@ -27,7 +27,7 @@ const AP_Param::GroupInfo AP_Camera::var_info[] = {
     // @Range: 0 180
     AP_GROUPINFO("_MAX_ROLL",  7, AP_Camera, _max_roll, 0),
 
-    // @Param: _AUTO_ONLY
+    // `@Param`: _AUTO_ONLY
     // @DisplayName: Distance-trigging in AUTO mode only
     // @Description: When enabled, trigging by distance is done in AUTO mode only.
     // @Values: 0:Always,1:Only when in AUTO

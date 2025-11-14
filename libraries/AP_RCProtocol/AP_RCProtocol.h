@@ -860,6 +860,8 @@ public:
         return _detected_with_bytes;
     }
 
+    // handle mavlink radio
+#if AP_RCPROTOCOL_MAVLINK_RADIO_ENABLED
     /**
      * @brief Handle RC channels received via MAVLink radio_rc_channels message
      * 
@@ -877,8 +879,6 @@ public:
      * @note Only available if AP_RCPROTOCOL_MAVLINK_RADIO_ENABLED
      * @warning MAVLink RC has higher latency than direct receiver - use for backup only
      */
-    // handle mavlink radio
-#if AP_RCPROTOCOL_MAVLINK_RADIO_ENABLED
     void handle_radio_rc_channels(const mavlink_radio_rc_channels_t* packet);
 #endif
 

@@ -81,7 +81,7 @@ void Variometer::update(const float thermal_bank)
     _expected_thermalling_sink = calculate_aircraft_sinkrate(radians(thermal_bank));
 
 #if HAL_LOGGING_ENABLED
-// @LoggerMessage: VAR
+// `@LoggerMessage`: VAR
 // @Vehicles: Plane
 // @Description: Variometer data
 // @Field: TimeUS: Time since system startup

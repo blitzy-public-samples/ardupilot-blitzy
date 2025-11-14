@@ -28,33 +28,33 @@ AP_VideoTX *AP_VideoTX::singleton;
 
 const AP_Param::GroupInfo AP_VideoTX::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Is the Video Transmitter enabled or not
     // @Description: Toggles the Video Transmitter on and off
     // @Values: 0:Disable,1:Enable
     AP_GROUPINFO_FLAGS("ENABLE", 1, AP_VideoTX, _enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: POWER
+    // `@Param`: POWER
     // @DisplayName: Video Transmitter Power Level
     // @Description: Video Transmitter Power Level. Different VTXs support different power levels, the power level chosen will be rounded down to the nearest supported power level
     // @Range: 1 1000
     AP_GROUPINFO("POWER",    2, AP_VideoTX, _power_mw, 0),
 
-    // @Param: CHANNEL
+    // `@Param`: CHANNEL
     // @DisplayName: Video Transmitter Channel
     // @Description: Video Transmitter Channel
     // @User: Standard
     // @Range: 0 7
     AP_GROUPINFO("CHANNEL",  3, AP_VideoTX, _channel, 0),
 
-    // @Param: BAND
+    // `@Param`: BAND
     // @DisplayName: Video Transmitter Band
     // @Description: Video Transmitter Band
     // @User: Standard
     // @Values: 0:Band A,1:Band B,2:Band E,3:Airwave,4:RaceBand,5:Low RaceBand,6:1G3 Band A,7:1G3 Band B,8:Band X,9:3G3 Band A,10:3G3 Band B
     AP_GROUPINFO("BAND",  4, AP_VideoTX, _band, 0),
 
-    // @Param: FREQ
+    // `@Param`: FREQ
     // @DisplayName: Video Transmitter Frequency
     // @Description: Video Transmitter Frequency. The frequency is derived from the setting of BAND and CHANNEL
     // @User: Standard
@@ -62,14 +62,14 @@ const AP_Param::GroupInfo AP_VideoTX::var_info[] = {
     // @Range: 1000 6000
     AP_GROUPINFO("FREQ",  5, AP_VideoTX, _frequency_mhz, 0),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Video Transmitter Options
     // @Description: Video Transmitter Options. Pitmode puts the VTX in a low power state. Unlocked enables certain restricted frequencies and power levels. Do not enable the Unlocked option unless you have appropriate permissions in your jurisdiction to transmit at high power levels. One stop-bit may be required for VTXs that erroneously mimic iNav behaviour.
     // @User: Advanced
     // @Bitmask: 0:Pitmode,1:Pitmode until armed,2:Pitmode when disarmed,3:Unlocked,4:Add leading zero byte to requests,5:Use 1 stop-bit in SmartAudio,6:Ignore CRC in SmartAudio,7:Ignore status updates in CRSF and blindly set VTX options
     AP_GROUPINFO("OPTIONS",  6, AP_VideoTX, _options, 0),
 
-    // @Param: MAX_POWER
+    // `@Param`: MAX_POWER
     // @DisplayName: Video Transmitter Max Power Level
     // @Description: Video Transmitter Maximum Power Level. Different VTXs support different power levels, this prevents the power aux switch from requesting too high a power level. The switch supports 6 power levels and the selected power will be a subdivision between 0 and this setting.
     // @Range: 25 1000

@@ -44,12 +44,12 @@
  *          - Allows parameter saves and clean driver shutdown before exit
  *          
  *          Command-line arguments (Linux/SITL only):
- *          - -A <connection>: Primary telemetry (e.g., udp:192.168.1.100:14550)
- *          - -B <connection>: Secondary telemetry
- *          - -C <connection>: Tertiary telemetry
- *          - -D <connection>: Quaternary telemetry
+ *          - -A `<connection>`: Primary telemetry (e.g., udp:192.168.1.100:14550)
+ *          - -B `<connection>`: Secondary telemetry
+ *          - -C `<connection>`: Tertiary telemetry
+ *          - -D `<connection>`: Quaternary telemetry
  *          - --daemon: Run as background daemon
- *          - --log-directory <path>: Custom log directory
+ *          - --log-directory `<path>`: Custom log directory
  *          
  *          Real-time performance:
  *          - Main loop thread runs with SCHED_FIFO priority (typically 15)

@@ -73,7 +73,7 @@ AP_Follow *AP_Follow::_singleton;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_Follow::var_info[] = {
 
-    // @Param: _ENABLE
+    // `@Param`: _ENABLE
     // @DisplayName: Follow enable/disable
     // @Description: Enabled/disable following a target
     // @Values: 0:Disabled,1:Enabled
@@ -82,7 +82,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
 
     // 2 is reserved for TYPE parameter
 
-    // @Param: _SYSID
+    // `@Param`: _SYSID
     // @DisplayName: Follow target's mavlink system id
     // @Description: Follow target's mavlink system id
     // @Range: 0 255
@@ -91,7 +91,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
 
     // 4 is reserved for MARGIN parameter
 
-    // @Param: _DIST_MAX
+    // `@Param`: _DIST_MAX
     // @DisplayName: Follow distance maximum
     // @Description: Follow distance maximum. If exceeded, the follow estimate will be considered invalid.
     // @Units: m
@@ -99,14 +99,14 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_DIST_MAX", 5, AP_Follow, _dist_max_m, AP_FOLLOW_DIST_MAX_DEFAULT),
 
-    // @Param: _OFS_TYPE
+    // `@Param`: _OFS_TYPE
     // @DisplayName: Follow offset type
     // @Description: Follow offset type
     // @Values: 0:North-East-Down, 1:Relative to lead vehicle heading
     // @User: Standard
     AP_GROUPINFO("_OFS_TYPE", 6, AP_Follow, _offset_type, AP_FOLLOW_OFFSET_TYPE_NED),
 
-    // @Param: _OFS_X
+    // `@Param`: _OFS_X
     // @DisplayName: Follow offsets in meters north/forward
     // @Description: Follow offsets in meters north/forward. If positive, this vehicle fly ahead or north of lead vehicle.  Depends on FOLL_OFS_TYPE
     // @Range: -100 100
@@ -114,7 +114,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @Increment: 1
     // @User: Standard
 
-    // @Param: _OFS_Y
+    // `@Param`: _OFS_Y
     // @DisplayName: Follow offsets in meters east/right
     // @Description: Follow offsets in meters east/right. If positive, this vehicle will fly to the right or east of lead vehicle.  Depends on FOLL_OFS_TYPE
     // @Range: -100 100
@@ -122,7 +122,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @Increment: 1
     // @User: Standard
 
-    // @Param: _OFS_Z
+    // `@Param`: _OFS_Z
     // @DisplayName: Follow offsets in meters down
     // @Description: Follow offsets in meters down. If positive, this vehicle will fly below the lead vehicle
     // @Range: -100 100
@@ -132,7 +132,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     AP_GROUPINFO("_OFS", 7, AP_Follow, _offset_m, 0),
 
 #if !(APM_BUILD_TYPE(APM_BUILD_Rover))
-    // @Param: _YAW_BEHAVE
+    // `@Param`: _YAW_BEHAVE
     // @DisplayName: Follow yaw behaviour
     // @Description: Follow yaw behaviour
     // @Values: 0:None,1:Face Lead Vehicle,2:Same as Lead vehicle,3:Direction of Flight
@@ -140,7 +140,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     AP_GROUPINFO("_YAW_BEHAVE", 8, AP_Follow, _yaw_behave, 1),
 #endif
 
-    // @Param: _POS_P
+    // `@Param`: _POS_P
     // @DisplayName: Follow position error P gain
     // @Description: Follow position error P gain. Converts the difference between desired vertical speed and actual speed into a desired acceleration that is passed to the throttle acceleration controller
     // @Range: 0.01 1.00
@@ -149,7 +149,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     AP_SUBGROUPINFO(_p_pos, "_POS_", 9, AP_Follow, AC_P),
 
 #if !(APM_BUILD_TYPE(APM_BUILD_Rover)) 
-    // @Param: _ALT_TYPE
+    // `@Param`: _ALT_TYPE
     // @DisplayName: Follow altitude type
     // @Description: Follow altitude type
     // @Values: 0:absolute, 1:relative
@@ -157,14 +157,14 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     AP_GROUPINFO("_ALT_TYPE", 10, AP_Follow, _alt_type, AP_FOLLOW_ALT_TYPE_DEFAULT),
 #endif
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: Follow options
     // @Description: Follow options bitmask
     // @Values: 0:None,1: Mount Follows lead vehicle on mode enter
     // @User: Standard
     AP_GROUPINFO("_OPTIONS", 11, AP_Follow, _options, 0),
 
-    // @Param: _ACCEL_NE
+    // `@Param`: _ACCEL_NE
     // @DisplayName: Acceleration limit for the horizontal kinematic input shaping
     // @Description: Acceleration limit of the horizontal kinematic path generation used to determine how quickly the estimate varies in velocity
     // @Range: 0 5
@@ -172,7 +172,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_ACCEL_NE", 12, AP_Follow, _accel_max_ne_mss, 2.5),
 
-    // @Param: _JERK_NE
+    // `@Param`: _JERK_NE
     // @DisplayName: Jerk limit for the horizontal kinematic input shaping
     // @Description: Jerk limit of the horizontal kinematic path generation used to determine how quickly the estimate varies in acceleration
     // @Range: 0 20
@@ -180,7 +180,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_JERK_NE", 13, AP_Follow, _jerk_max_ne_msss, 5.0),
 
-    // @Param: _ACCEL_D
+    // `@Param`: _ACCEL_D
     // @DisplayName: Acceleration limit for the vertical kinematic input shaping
     // @Description: Acceleration limit of the vertical kinematic path generation used to determine how quickly the estimate varies in velocity
     // @Range: 0 2.5
@@ -188,7 +188,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_ACCEL_D", 14, AP_Follow, _accel_max_d_mss, 2.5),
 
-    // @Param: _JERK_D
+    // `@Param`: _JERK_D
     // @DisplayName: Jerk limit for the vertical kinematic input shaping
     // @Description: Jerk limit of the vertical kinematic path generation used to determine how quickly the estimate varies in acceleration
     // @Range: 0 5
@@ -196,7 +196,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_JERK_D", 15, AP_Follow, _jerk_max_d_msss, 5.0),
 
-    // @Param: _ACCEL_H
+    // `@Param`: _ACCEL_H
     // @DisplayName: Angular acceleration limit for the heading kinematic input shaping
     // @Description: Angular acceleration limit of the heading kinematic path generation used to determine how quickly the estimate varies in angular velocity
     // @Range: 0 90
@@ -204,7 +204,7 @@ const AP_Param::GroupInfo AP_Follow::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_ACCEL_H", 16, AP_Follow, _accel_max_h_degss, 90.0),
 
-    // @Param: _JERK_H
+    // `@Param`: _JERK_H
     // @DisplayName: Angular jerk limit for the heading kinematic input shaping
     // @Description: Angular jerk limit of the heading kinematic path generation used to determine how quickly the estimate varies in angular acceleration
     // @Range: 0 360
@@ -874,7 +874,7 @@ void AP_Follow::Log_Write_FOLL()
     UNUSED_RESULT(AP::ahrs().get_location_from_origin_offset_NED(_target_location, _target_pos_ned_m));
 
     // log the lead target's reported position and vehicle's estimated position
-    // @LoggerMessage: FOLL
+    // `@LoggerMessage`: FOLL
     // @Description: Follow library diagnostic data
     // @Field: TimeUS: Time since system startup (microseconds)
     // @Field: Lat: Target latitude (degrees * 1E7)

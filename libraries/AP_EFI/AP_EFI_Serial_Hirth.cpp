@@ -359,7 +359,7 @@ void AP_EFI_Serial_Hirth::decode_data()
 #if HAL_LOGGING_ENABLED
 void AP_EFI_Serial_Hirth::log_status(void)
 {
-    // @LoggerMessage: EFIS
+    // `@LoggerMessage`: EFIS
     // @Description: Electronic Fuel Injection data - Hirth specific Status information
     // @Field: TimeUS: Time since system startup
     // @Field: EET: Error Excess Temperature Bitfield

@@ -45,14 +45,14 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo Buzzer::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Buzzer enable/disable
     // @Description: Allows you to enable (1) or disable (0) the simulated buzzer
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENABLE", 0, Buzzer, _enable, 0),
 
-    // @Param: PIN
+    // `@Param`: PIN
     // @DisplayName: buzzer pin
     // @Description: The pin number that the Buzzer is connected to (start at 1)
     // @Range: 0 15

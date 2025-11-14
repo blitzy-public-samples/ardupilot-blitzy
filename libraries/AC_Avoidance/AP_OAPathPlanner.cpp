@@ -36,7 +36,7 @@ static constexpr int16_t OA_TIMEOUT_MS = 3000;     // results over 3 seconds old
 
 const AP_Param::GroupInfo AP_OAPathPlanner::var_info[] = {
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Object Avoidance Path Planning algorithm to use
     // @Description: Enabled/disable path planning around obstacles
     // @Values: 0:Disabled,1:BendyRuler,2:Dijkstra,3:Dijkstra with BendyRuler
@@ -46,7 +46,7 @@ const AP_Param::GroupInfo AP_OAPathPlanner::var_info[] = {
     // Note: Do not use Index "2" for any new parameter
     //       It was being used by _LOOKAHEAD which was later moved to AP_OABendyRuler 
 
-    // @Param: MARGIN_MAX
+    // `@Param`: MARGIN_MAX
     // @DisplayName: Object Avoidance wide margin distance
     // @Description: Object Avoidance will ignore objects more than this many meters from vehicle
     // @Units: m
@@ -59,7 +59,7 @@ const AP_Param::GroupInfo AP_OAPathPlanner::var_info[] = {
     // @Path: AP_OADatabase.cpp
     AP_SUBGROUPINFO(_oadatabase, "DB_", 4, AP_OAPathPlanner, AP_OADatabase),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Options while recovering from Object Avoidance
     // @Description: Bitmask which will govern vehicles behaviour while recovering from Obstacle Avoidance (i.e Avoidance is turned off after the path ahead is clear).   
     // @Bitmask{Rover}: 0: Reset the origin of the waypoint to the present location, 1: log Dijkstra points

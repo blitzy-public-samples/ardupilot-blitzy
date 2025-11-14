@@ -180,14 +180,14 @@ private:
      *          compensated temperature in Celsius and the intermediate value
      *          _t_fine which is required for pressure compensation.
      * 
-     * @param[in] adc_T Raw 20-bit temperature ADC value from sensor
+     * @param[in] temp_raw Raw 20-bit temperature ADC value from sensor
      * 
      * @note Updates _temperature (Celsius) and _t_fine (intermediate value)
      * @note Must be called before _update_pressure() to calculate _t_fine
      * 
      * @see BMP280 datasheet section 3.11.3 for compensation formula
      */
-    void _update_temperature(int32_t);
+    void _update_temperature(int32_t temp_raw);
 
     /**
      * @brief Apply pressure compensation algorithm
@@ -197,14 +197,14 @@ private:
      *          temperature value _t_fine. Calculates compensated pressure
      *          in Pascals and accumulates samples for averaging.
      * 
-     * @param[in] adc_P Raw 20-bit pressure ADC value from sensor
+     * @param[in] press_raw Raw 20-bit pressure ADC value from sensor
      * 
      * @note Requires _t_fine to be set by prior _update_temperature() call
      * @note Accumulates result in _pressure_sum/_pressure_count for averaging
      * 
      * @see BMP280 datasheet section 3.11.3 for compensation formula
      */
-    void _update_pressure(int32_t);
+    void _update_pressure(int32_t press_raw);
 
     AP_HAL::OwnPtr<AP_HAL::Device> _dev;  ///< I2C or SPI device interface handle
 

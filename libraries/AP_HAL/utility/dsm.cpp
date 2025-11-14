@@ -100,6 +100,7 @@ dsm_decode_channel(uint16_t raw, unsigned shift, unsigned *channel, unsigned *va
  * Attempt to guess if receiving 10 or 11 bit channel values
  *
  * @param[in] reset true=reset the 10/11 bit state to unknown
+ * @param[in] dsm_frame DSM frame buffer containing 16 bytes of frame data
  */
 static void
 dsm_guess_format(bool reset, const uint8_t dsm_frame[16])

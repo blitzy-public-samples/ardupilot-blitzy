@@ -301,7 +301,7 @@ void GCS_MAVLINK::ftp_worker(void) {
                         put_le32_ptr(reply.data, (uint32_t)file_size);
 
                         // provide compatibility with old protocol banner download
-                        if (strncmp((const char *)request.data, "@PARAM/param.pck", 16) == 0) {
+                        if (strncmp((const char *)request.data, "`@PARAM`/param.pck", 16) == 0) {
                             ftp.need_banner_send_mask |= 1U<<reply.chan;
                         }
                         break;

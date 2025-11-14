@@ -372,7 +372,7 @@ private:
     RangeFinder::Type rftype;
     
     /**
-     * @enum Measurement cycle state machine phases
+     * @brief Measurement cycle state machine phases
      * 
      * @details Two-phase asynchronous measurement cycle:
      *          

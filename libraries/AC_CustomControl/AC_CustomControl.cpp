@@ -12,7 +12,7 @@
 
 // table of user settable parameters
 const AP_Param::GroupInfo AC_CustomControl::var_info[] = {
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: Custom control type
     // @Description: Custom control type to be used
     // @Values: 0:None, 1:Empty, 2:PID
@@ -20,7 +20,7 @@ const AP_Param::GroupInfo AC_CustomControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO_FLAGS("_TYPE", 1, AC_CustomControl, _controller_type, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _AXIS_MASK
+    // `@Param`: _AXIS_MASK
     // @DisplayName: Custom Controller bitmask
     // @Description: Custom Controller bitmask to chose which axis to run
     // @Bitmask: 0:Roll, 1:Pitch, 2:Yaw
@@ -178,7 +178,7 @@ bool AC_CustomControl::is_safe_to_run(void) {
 
 // log when the custom controller is switch into
 void AC_CustomControl::log_switch(void) {
-    // @LoggerMessage: CC
+    // `@LoggerMessage`: CC
     // @Description: Custom Controller data
     // @Field: TimeUS: Time since system startup
     // @Field: Type: controller type

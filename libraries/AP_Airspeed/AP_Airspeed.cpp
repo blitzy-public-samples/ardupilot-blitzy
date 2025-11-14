@@ -98,7 +98,7 @@ extern const AP_HAL::HAL &hal;
 const AP_Param::GroupInfo AP_Airspeed::var_info[] = {
 
 #if ENABLE_PARAMETER
-    // @Param: _ENABLE
+    // `@Param`: _ENABLE
     // @DisplayName: Airspeed Enable
     // @Description: Enable airspeed sensor support
     // @Values: 0:Disable, 1:Enable
@@ -107,7 +107,7 @@ const AP_Param::GroupInfo AP_Airspeed::var_info[] = {
 #endif
     // slots 0-9 (and 63) were previously used by params before being refactored into AP_Airspeed_Params
 
-    // @Param: _TUBE_ORDER
+    // `@Param`: _TUBE_ORDER
     // @DisplayName: Control pitot tube order
     // @Description: This parameter allows you to control whether the order in which the tubes are attached to your pitot tube matters. If you set this to 0 then the first (often the top) connector on the sensor needs to be the stagnation pressure (the pressure at the tip of the pitot tube). If set to 1 then the second (often the bottom) connector needs to be the stagnation pressure. If set to 2 (the default) then the airspeed driver will accept either order. The reason you may wish to specify the order is it will allow your airspeed sensor to detect if the aircraft is receiving excessive pressure on the static port compared to the stagnation port such as during a stall, which would otherwise be seen as a positive airspeed.
     // @User: Advanced
@@ -116,7 +116,7 @@ const AP_Param::GroupInfo AP_Airspeed::var_info[] = {
     // tube order param had to be shortened so is not preserved in per group descriptions 
 
 #if AIRSPEED_MAX_SENSORS > 1
-    // @Param: _PRIMARY
+    // `@Param`: _PRIMARY
     // @DisplayName: Primary airspeed sensor
     // @Description: This selects which airspeed sensor will be the primary if multiple sensors are found
     // @Values: 0:FirstSensor,1:2ndSensor
@@ -127,7 +127,7 @@ const AP_Param::GroupInfo AP_Airspeed::var_info[] = {
     // 11-20 were previously used by second sensor params before being refactored into AP_Airspeed_Params
 
 #ifndef HAL_BUILD_AP_PERIPH
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: Airspeed options bitmask
     // @Description: Bitmask of options to use with airspeed. 0:Disable use based on airspeed/groundspeed mismatch (see ARSPD_WIND_MAX), 1:Automatically reenable use based on airspeed/groundspeed mismatch recovery (see ARSPD_WIND_MAX) 2:Disable voltage correction, 3:Check that the airspeed is statistically consistent with the navigation EKF vehicle and wind velocity estimates using EKF3 (requires AHRS_EKF_TYPE = 3), 4:Report cal offset to GCS
     // @Description{Copter, Blimp, Rover, Sub}: This parameter and function is not used by this vehicle. Always set to 0.
@@ -135,7 +135,7 @@ const AP_Param::GroupInfo AP_Airspeed::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_OPTIONS", 21, AP_Airspeed, _options, OPTIONS_DEFAULT),
 
-    // @Param: _WIND_MAX
+    // `@Param`: _WIND_MAX
     // @DisplayName: Maximum airspeed and ground speed difference
     // @Description: If the difference between airspeed and ground speed is greater than this value the sensor will be marked unhealthy. Using ARSPD_OPTIONS this health value can be used to disable the sensor.
     // @Description{Copter, Blimp, Rover, Sub}: This parameter and function is not used by this vehicle. Always set to 0.
@@ -143,7 +143,7 @@ const AP_Param::GroupInfo AP_Airspeed::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_WIND_MAX", 22, AP_Airspeed, _wind_max, 0),
 
-    // @Param: _WIND_WARN
+    // `@Param`: _WIND_WARN
     // @DisplayName: Airspeed and GPS speed difference that gives a warning
     // @Description: If the difference between airspeed and GPS speed is greater than this value the sensor will issue a warning. If 0 ARSPD_WIND_MAX is used.
     // @Description{Copter, Blimp, Rover, Sub}: This parameter and function is not used by this vehicle. Always set to 0.
@@ -151,7 +151,7 @@ const AP_Param::GroupInfo AP_Airspeed::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_WIND_WARN", 23, AP_Airspeed, _wind_warn, 0),
 
-    // @Param: _WIND_GATE
+    // `@Param`: _WIND_GATE
     // @DisplayName: Re-enable Consistency Check Gate Size
     // @Description: Number of standard deviations applied to the re-enable EKF consistency check that is used when ARSPD_OPTIONS bit position 3 is set. Larger values will make the re-enabling of the airspeed sensor faster, but increase the likelihood of re-enabling a degraded sensor. The value can be tuned by using the ARSP.TR log message by setting ARSPD_WIND_GATE to a value that is higher than the value for ARSP.TR observed with a healthy airspeed sensor. Occasional transients in ARSP.TR above the value set by ARSPD_WIND_GATE can be tolerated provided they are less than 5 seconds in duration and less than 10% duty cycle.
     // @Description{Copter, Blimp, Rover, Sub}: This parameter and function is not used by this vehicle.
@@ -159,7 +159,7 @@ const AP_Param::GroupInfo AP_Airspeed::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_WIND_GATE", 26, AP_Airspeed, _wind_gate, 5.0f),
     
-    // @Param: _OFF_PCNT
+    // `@Param`: _OFF_PCNT
     // @DisplayName: Maximum offset cal speed error 
     // @Description: The maximum percentage speed change in airspeed reports that is allowed due to offset changes between calibrations before a warning is issued. This potential speed error is in percent of AIRSPEED_MIN. 0 disables. Helps warn of calibrations without pitot being covered.
     // @Range: 0.0 10.0
@@ -772,7 +772,7 @@ void AP_Airspeed::handle_external(const AP_ExternalAHRS::airspeed_data_message_t
 #endif 
 
 #if HAL_LOGGING_ENABLED
-// @LoggerMessage: HYGR
+// `@LoggerMessage`: HYGR
 // @Description: Hygrometer data
 // @Field: TimeUS: Time since system startup
 // @Field: Id: sensor ID

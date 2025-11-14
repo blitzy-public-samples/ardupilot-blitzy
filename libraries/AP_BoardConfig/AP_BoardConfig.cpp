@@ -112,7 +112,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 
 #if AP_FEATURE_RTSCTS
 #ifdef HAL_HAVE_RTSCTS_SERIAL1
-    // @Param: SER1_RTSCTS
+    // `@Param`: SER1_RTSCTS
     // @DisplayName: Serial 1 flow control
     // @Description: Enable flow control on serial 1 (telemetry 1). You must have the RTS and CTS pins connected to your radio. The standard DF13 6 pin connector for a 3DR radio does have those pins connected. If this is set to 2 then flow control will be auto-detected by checking for the output buffer filling on startup. Note that the PX4v1 does not have hardware flow control pins on this port, so you should leave this disabled.
     // @Values: 0:Disabled,1:Enabled,2:Auto,3:RS-485 Driver enable RTS pin
@@ -122,7 +122,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_HAVE_RTSCTS_SERIAL2
-    // @Param: SER2_RTSCTS
+    // `@Param`: SER2_RTSCTS
     // @CopyFieldsFrom: BRD_SER1_RTSCTS
     // @DisplayName: Serial 2 flow control
     // @Description: Enable flow control on serial 2 (telemetry 2). You must have the RTS and CTS pins connected to your radio. The standard DF13 6 pin connector for a 3DR radio does have those pins connected. If this is set to 2 then flow control will be auto-detected by checking for the output buffer filling on startup.
@@ -130,7 +130,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_HAVE_RTSCTS_SERIAL3
-    // @Param: SER3_RTSCTS
+    // `@Param`: SER3_RTSCTS
     // @CopyFieldsFrom: BRD_SER1_RTSCTS
     // @DisplayName: Serial 3 flow control
     // @Description: Enable flow control on serial 3. You must have the RTS and CTS pins connected to your radio. The standard DF13 6 pin connector for a 3DR radio does have those pins connected. If this is set to 2 then flow control will be auto-detected by checking for the output buffer filling on startup.
@@ -138,7 +138,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_HAVE_RTSCTS_SERIAL4
-    // @Param: SER4_RTSCTS
+    // `@Param`: SER4_RTSCTS
     // @CopyFieldsFrom: BRD_SER1_RTSCTS
     // @DisplayName: Serial 4 flow control
     // @Description: Enable flow control on serial 4. You must have the RTS and CTS pins connected to your radio. The standard DF13 6 pin connector for a 3DR radio does have those pins connected. If this is set to 2 then flow control will be auto-detected by checking for the output buffer filling on startup.
@@ -146,7 +146,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_HAVE_RTSCTS_SERIAL5
-    // @Param: SER5_RTSCTS
+    // `@Param`: SER5_RTSCTS
     // @CopyFieldsFrom: BRD_SER1_RTSCTS
     // @DisplayName: Serial 5 flow control
     // @Description: Enable flow control on serial 5. You must have the RTS and CTS pins connected to your radio. The standard DF13 6 pin connector for a 3DR radio does have those pins connected. If this is set to 2 then flow control will be auto-detected by checking for the output buffer filling on startup.
@@ -154,7 +154,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_HAVE_RTSCTS_SERIAL6
-    // @Param: SER6_RTSCTS
+    // `@Param`: SER6_RTSCTS
     // @CopyFieldsFrom: BRD_SER1_RTSCTS
     // @DisplayName: Serial 6 flow control
     // @Description: Enable flow control on serial 6. You must have the RTS and CTS pins connected to your radio. The standard DF13 6 pin connector for a 3DR radio does have those pins connected. If this is set to 2 then flow control will be auto-detected by checking for the output buffer filling on startup.
@@ -162,7 +162,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_HAVE_RTSCTS_SERIAL7
-    // @Param: SER7_RTSCTS
+    // `@Param`: SER7_RTSCTS
     // @CopyFieldsFrom: BRD_SER1_RTSCTS
     // @DisplayName: Serial 7 flow control
     // @Description: Enable flow control on serial 7. You must have the RTS and CTS pins connected to your radio. The standard DF13 6 pin connector for a 3DR radio does have those pins connected. If this is set to 2 then flow control will be auto-detected by checking for the output buffer filling on startup.
@@ -170,7 +170,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_HAVE_RTSCTS_SERIAL8
-    // @Param: SER8_RTSCTS
+    // `@Param`: SER8_RTSCTS
     // @CopyFieldsFrom: BRD_SER8_RTSCTS
     // @DisplayName: Serial 8 flow control
     // @Description: Enable flow control on serial 8. You must have the RTS and CTS pins connected to your radio. The standard DF13 6 pin connector for a 3DR radio does have those pins connected. If this is set to 2 then flow control will be auto-detected by checking for the output buffer filling on startup.
@@ -178,7 +178,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 #endif
 
-    // @Param: SAFETY_DEFLT
+    // `@Param`: SAFETY_DEFLT
     // @DisplayName: Sets default state of the safety switch
     // @Description: This controls the default state of the safety switch at startup. When set to 1 the safety switch will start in the safe state (flashing) at boot. When set to zero the safety switch will start in the unsafe state (solid) at startup. Note that if a safety switch is fitted the user can still control the safety state after startup using the switch. The safety state can also be controlled in software using a MAVLink message.
     // @Values: 0:Disabled,1:Enabled
@@ -187,7 +187,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
     AP_GROUPINFO("SAFETY_DEFLT",   3, AP_BoardConfig, state.safety_enable, BOARD_SAFETY_ENABLE_DEFAULT),
 
 #if AP_FEATURE_SBUS_OUT
-    // @Param: SBUS_OUT
+    // `@Param`: SBUS_OUT
     // @DisplayName:  SBUS output rate
     // @Description: This sets the SBUS output frame rate in Hz
     // @Values: 0:Disabled,1:50Hz,2:75Hz,3:100Hz,4:150Hz,5:200Hz,6:250Hz,7:300Hz
@@ -196,14 +196,14 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
     AP_GROUPINFO("SBUS_OUT",   4, AP_BoardConfig, state.sbus_out_rate, 0),
 #endif
 
-    // @Param: SERIAL_NUM
+    // `@Param`: SERIAL_NUM
     // @DisplayName: User-defined serial number
     // @Description: User-defined serial number of this vehicle, it can be any arbitrary number you want and has no effect on the autopilot
     // @Range: -8388608 8388607
     // @User: Standard
     AP_GROUPINFO("SERIAL_NUM", 5, AP_BoardConfig, vehicleSerialNumber, 0),
 
-    // @Param: SAFETY_MASK
+    // `@Param`: SAFETY_MASK
     // @DisplayName: Outputs which ignore the safety switch state
     // @Description: A bitmask which controls what outputs can move while the safety switch has not been pressed
     // @Bitmask: 0:Output1
@@ -243,7 +243,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
     AP_GROUPINFO("SAFETY_MASK", 7, AP_BoardConfig, state.ignore_safety_channels, 0),
 
 #if HAL_HAVE_IMU_HEATER
-    // @Param: HEAT_TARG
+    // `@Param`: HEAT_TARG
     // @DisplayName: Board heater temperature target
     // @Description: Board heater target temperature for boards with controllable heating units. Set to -1 to disable the heater, please reboot after setting to -1.
     // @Range: -1 80
@@ -253,7 +253,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #if AP_FEATURE_BOARD_DETECT
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Board type
     // @Description: This allows selection of a PX4 or VRBRAIN board type. If set to zero then the board type is auto-detected (PX4)
     // @Values: 0:AUTO,1:PX4V1,2:Pixhawk,3:Cube/Pixhawk2,5:PixhawkMini,6:Pixhawk2Slim,13:Intel Aero FC,14:Pixhawk Pro,20:AUAV2.1,22:MINDPXV2,24:CUAVv5/FMUV5,39:PX4 FMUV6,100:PX4 OLDDRIVERS
@@ -263,7 +263,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #if HAL_WITH_IO_MCU
-    // @Param: IO_ENABLE
+    // `@Param`: IO_ENABLE
     // @DisplayName: Enable IO co-processor
     // @Description: This allows for the IO co-processor on boards with an IOMCU to be disabled. Setting to 2 will enable the IOMCU but not attempt to update firmware on startup
     // @Values: 0:Disabled,1:Enabled,2:EnableNoFWUpdate
@@ -278,7 +278,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
     AP_SUBGROUPINFO(_radio, "RADIO", 11, AP_BoardConfig, AP_Radio),
 #endif
 
-    // @Param: SAFETYOPTION
+    // `@Param`: SAFETYOPTION
     // @DisplayName: Options for safety button behavior
     // @Description: This controls the activation of the safety button. It allows you to control if the safety button can be used for safety enable and/or disable, and whether the button is only active when disarmed
     // @Bitmask: 0:ActiveForSafetyDisable,1:ActiveForSafetyEnable,2:ActiveWhenArmed,3:Force safety on when the aircraft disarms
@@ -292,7 +292,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #if HAL_HAVE_BOARD_VOLTAGE
-    // @Param: VBUS_MIN
+    // `@Param`: VBUS_MIN
     // @DisplayName: Autopilot board voltage requirement
     // @Description: Minimum voltage on the autopilot power rail to allow the aircraft to arm. 0 to disable the check.
     // @Units: V
@@ -304,7 +304,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #if HAL_HAVE_SERVO_VOLTAGE
-    // @Param: VSERVO_MIN
+    // `@Param`: VSERVO_MIN
     // @DisplayName: Servo voltage requirement
     // @Description: Minimum voltage on the servo rail to allow the aircraft to arm. 0 to disable the check.
     // @Units: V
@@ -315,7 +315,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-    // @Param: SD_SLOWDOWN
+    // `@Param`: SD_SLOWDOWN
     // @DisplayName: microSD slowdown
     // @Description: This is a scaling factor to slow down microSD operation. It can be used on flight board and microSD card combinations where full speed is not reliable. For normal full speed operation a value of 0 should be used.
     // @Range: 0 32
@@ -325,7 +325,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_GPIO_PWM_VOLT_PIN
-    // @Param: PWM_VOLT_SEL
+    // `@Param`: PWM_VOLT_SEL
     // @DisplayName: Set PWM Out Voltage
     // @Description: This sets the voltage max for PWM output pulses. 0 for 3.3V and 1 for 5V output. On boards with an IOMCU that support this parameter this option only affects the 8 main outputs, not the 6 auxiliary outputs. Using 5V output can help to reduce the impact of ESC noise interference corrupting signals to the ESCs.
     // @Values: 0:3.3V,1:5V
@@ -333,14 +333,14 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
     AP_GROUPINFO("PWM_VOLT_SEL", 18, AP_BoardConfig, _pwm_volt_sel, 0),
 #endif
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Board options
     // @Description: Board specific option flags
     // @Bitmask: 0:Enable hardware watchdog, 1:Disable MAVftp, 2:Enable set of internal parameters, 3:Enable Debug Pins, 4:Unlock flash on reboot, 5:Write protect firmware flash on reboot, 6:Write protect bootloader flash on reboot, 7:Skip board validation, 8:Disable board arming gpio output change on arm/disarm, 9:Use safety pins as profiled
     // @User: Advanced
     AP_GROUPINFO("OPTIONS", 19, AP_BoardConfig, _options, HAL_BRD_OPTIONS_DEFAULT),
 
-    // @Param: BOOT_DELAY
+    // `@Param`: BOOT_DELAY
     // @DisplayName: Boot delay
     // @Description: This adds a delay in milliseconds to boot to ensure peripherals initialise fully
     // @Range: 0 10000
@@ -349,21 +349,21 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
     AP_GROUPINFO("BOOT_DELAY", 20, AP_BoardConfig, _boot_delay_ms, HAL_DEFAULT_BOOT_DELAY),
 
 #if HAL_HAVE_IMU_HEATER
-    // @Param: HEAT_P
+    // `@Param`: HEAT_P
     // @DisplayName: Board Heater P gain
     // @Description: Board Heater P gain
     // @Range: 1 500
     // @Increment: 1
     // @User: Advanced
 
-    // @Param: HEAT_I
+    // `@Param`: HEAT_I
     // @DisplayName: Board Heater I gain
     // @Description: Board Heater integrator gain
     // @Range: 0 1
     // @Increment: 0.1
     // @User: Advanced
 
-    // @Param: HEAT_IMAX
+    // `@Param`: HEAT_IMAX
     // @DisplayName: Board Heater IMAX
     // @Description: Board Heater integrator maximum
     // @Range: 0 100
@@ -373,7 +373,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #ifdef HAL_PIN_ALT_CONFIG
-    // @Param: ALT_CONFIG
+    // `@Param`: ALT_CONFIG
     // @DisplayName: Alternative HW config
     // @Description: Select an alternative hardware configuration. A value of zero selects the default configuration for this board. Other values are board specific. Please see the documentation for your board for details on any alternative configuration values that may be available.
     // @Range: 0 10
@@ -384,7 +384,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif // HAL_PIN_ALT_CONFIG
 
 #if HAL_HAVE_IMU_HEATER
-    // @Param: HEAT_LOWMGN
+    // `@Param`: HEAT_LOWMGN
     // @DisplayName: Board heater temp lower margin
     // @Description: Arming check will fail if temp is lower than this margin below BRD_HEAT_TARG. 0 disables the low temperature check
     // @Range: 0 20
@@ -394,7 +394,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 #endif
 
 #if AP_SDCARD_STORAGE_ENABLED
-    // @Param: SD_MISSION
+    // `@Param`: SD_MISSION
     // @DisplayName:  SDCard Mission size
     // @Description: This sets the amount of storage in kilobytes reserved on the microsd card in mission.stg for waypoint storage. Each waypoint uses 15 bytes.
     // @Range: 0 64
@@ -402,7 +402,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SD_MISSION", 24, AP_BoardConfig, sdcard_storage.mission_kb, 0),
 
-    // @Param: SD_FENCE
+    // `@Param`: SD_FENCE
     // @DisplayName:  SDCard Fence size
     // @Description: This sets the amount of storage in kilobytes reserved on the microsd card in fence.stg for fence storage.
     // @Range: 0 64
@@ -417,7 +417,7 @@ const AP_Param::GroupInfo AP_BoardConfig::var_info[] = {
 
     
 #if HAL_WITH_IO_MCU_DSHOT
-    // @Param: IO_DSHOT
+    // `@Param`: IO_DSHOT
     // @DisplayName: Load DShot FW on IO
     // @Description: This loads the DShot firmware on the IO co-processor
     // @Values: 0:StandardFW,1:DshotFW

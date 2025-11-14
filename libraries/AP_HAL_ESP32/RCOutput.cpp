@@ -220,7 +220,7 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
     }
 }
 
-void RCOutput::set_default_rate(uint16_t freq_hz)
+void RCOutput::set_default_rate(uint16_t rate_hz)
 {
     if (!_initialized) {
         return;
@@ -229,7 +229,7 @@ void RCOutput::set_default_rate(uint16_t freq_hz)
     for (auto &group : pwm_group_list) {
         // only set frequency of groups without fast channels
         if (!(group.ch_mask & fast_channel_mask) && group.ch_mask) {
-            set_freq(group.ch_mask, freq_hz);
+            set_freq(group.ch_mask, rate_hz);
             // setting a high default frequency mustn't make channels fast
             fast_channel_mask &= ~group.ch_mask;
         }

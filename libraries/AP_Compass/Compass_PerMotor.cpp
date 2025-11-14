@@ -9,14 +9,14 @@
 extern const AP_HAL::HAL &hal;
 
 const AP_Param::GroupInfo Compass_PerMotor::var_info[] = {
-    // @Param: _EN
+    // `@Param`: _EN
     // @DisplayName: per-motor compass correction enable
     // @Description: This enables per-motor compass corrections
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("_EN",  1, Compass_PerMotor, enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _EXP
+    // `@Param`: _EXP
     // @DisplayName: per-motor exponential correction
     // @Description: This is the exponential correction for the power output of the motor for per-motor compass correction
     // @Range: 0 2
@@ -24,65 +24,65 @@ const AP_Param::GroupInfo Compass_PerMotor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_EXP", 2, Compass_PerMotor, expo, 0.65),
 
-    // @Param: 1_X
+    // `@Param`: 1_X
     // @DisplayName: Compass per-motor1 X
     // @Description: Compensation for X axis of motor1
     // @User: Advanced
 
-    // @Param: 1_Y
+    // `@Param`: 1_Y
     // @DisplayName: Compass per-motor1 Y
     // @Description: Compensation for Y axis of motor1
     // @User: Advanced
 
-    // @Param: 1_Z
+    // `@Param`: 1_Z
     // @DisplayName: Compass per-motor1 Z
     // @Description: Compensation for Z axis of motor1
     // @User: Advanced
     AP_GROUPINFO("1",  3, Compass_PerMotor, compensation[0], 0),
 
-    // @Param: 2_X
+    // `@Param`: 2_X
     // @DisplayName: Compass per-motor2 X
     // @Description: Compensation for X axis of motor2
     // @User: Advanced
 
-    // @Param: 2_Y
+    // `@Param`: 2_Y
     // @DisplayName: Compass per-motor2 Y
     // @Description: Compensation for Y axis of motor2
     // @User: Advanced
 
-    // @Param: 2_Z
+    // `@Param`: 2_Z
     // @DisplayName: Compass per-motor2 Z
     // @Description: Compensation for Z axis of motor2
     // @User: Advanced
     AP_GROUPINFO("2",  4, Compass_PerMotor, compensation[1], 0),
 
-    // @Param: 3_X
+    // `@Param`: 3_X
     // @DisplayName: Compass per-motor3 X
     // @Description: Compensation for X axis of motor3
     // @User: Advanced
 
-    // @Param: 3_Y
+    // `@Param`: 3_Y
     // @DisplayName: Compass per-motor3 Y
     // @Description: Compensation for Y axis of motor3
     // @User: Advanced
 
-    // @Param: 3_Z
+    // `@Param`: 3_Z
     // @DisplayName: Compass per-motor3 Z
     // @Description: Compensation for Z axis of motor3
     // @User: Advanced
     AP_GROUPINFO("3",  5, Compass_PerMotor, compensation[2], 0),
 
-    // @Param: 4_X
+    // `@Param`: 4_X
     // @DisplayName: Compass per-motor4 X
     // @Description: Compensation for X axis of motor4
     // @User: Advanced
 
-    // @Param: 4_Y
+    // `@Param`: 4_Y
     // @DisplayName: Compass per-motor4 Y
     // @Description: Compensation for Y axis of motor4
     // @User: Advanced
 
-    // @Param: 4_Z
+    // `@Param`: 4_Z
     // @DisplayName: Compass per-motor4 Z
     // @Description: Compensation for Z axis of motor4
     // @User: Advanced

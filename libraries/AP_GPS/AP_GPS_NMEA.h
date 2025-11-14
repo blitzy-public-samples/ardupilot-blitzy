@@ -315,9 +315,9 @@ private:
         _GPS_SENTENCE_PHD = 138,         ///< $PHD: AllyStar extension - vertical velocity and accuracy (maps ublox UBX to NMEA)
         _GPS_SENTENCE_THS = 160,         ///< $GPTHS: True heading with quality indicator (Trimble MB-Two)
         _GPS_SENTENCE_KSXT = 170,        ///< $KSXT: Unicore extension - 3D velocity and yaw (21 fields)
-        _GPS_SENTENCE_AGRICA = 193,      ///< #AGRICA: Unicore extension - RTK position and heading (65 fields)
-        _GPS_SENTENCE_VERSIONA = 270,    ///< #VERSIONA: Unicore extension - firmware version (10 fields)
-        _GPS_SENTENCE_UNIHEADINGA = 290, ///< #UNIHEADINGA: Unicore extension - dual-antenna heading (20 fields)
+        _GPS_SENTENCE_AGRICA = 193,      ///< `#AGRICA`: Unicore extension - RTK position and heading (65 fields)
+        _GPS_SENTENCE_VERSIONA = 270,    ///< `#VERSIONA`: Unicore extension - firmware version (10 fields)
+        _GPS_SENTENCE_UNIHEADINGA = 290, ///< `#UNIHEADINGA`: Unicore extension - dual-antenna heading (20 fields)
         _GPS_SENTENCE_OTHER = 0          ///< Unrecognized or unsupported sentence type
     };
 
@@ -341,7 +341,7 @@ private:
      *          - '$' or '#': Reset state, start new sentence
      *          - ',': Term separator, process accumulated term
      *          - '*': Checksum follows (standard NMEA)
-     *          - '\r' or '\n': End of sentence, validate and process
+     *          - `\r` or `\n`: End of sentence, validate and process
      *          - Other: Accumulate into current term or checksum
      * 
      * @param[in] c Next character from GPS serial stream
@@ -486,7 +486,7 @@ private:
     /**
      * @brief Parse Unicore AGRICA sentence field
      * 
-     * @details Processes individual fields from Unicore #AGRICA proprietary sentence
+     * @details Processes individual fields from Unicore `#AGRICA` proprietary sentence
      *          providing RTK position, velocity, heading, and accuracy data. AGRICA
      *          contains 65 comma-separated fields with comprehensive GNSS solution data.
      *          
@@ -509,7 +509,7 @@ private:
     /**
      * @brief Parse Unicore VERSIONA sentence field
      * 
-     * @details Extracts firmware version information from Unicore #VERSIONA sentence.
+     * @details Extracts firmware version information from Unicore `#VERSIONA` sentence.
      *          Used to identify GPS receiver model and firmware version for logging
      *          and compatibility checking.
      *          
@@ -530,7 +530,7 @@ private:
     /**
      * @brief Parse Unicore UNIHEADINGA sentence field for dual-antenna heading
      * 
-     * @details Processes Unicore #UNIHEADINGA sentence containing dual-antenna
+     * @details Processes Unicore `#UNIHEADINGA` sentence containing dual-antenna
      *          baseline heading and pitch measurements. Provides accurate heading
      *          independent of vehicle motion (unlike magnetic compass or GPS course).
      *          
@@ -611,7 +611,7 @@ private:
      *          Provides vertical velocity and accuracy estimates not available in
      *          standard NMEA sentences.
      *          
-     *          PHD Message Structure: $PHD,<class>,<id>,<format>,<blank>,<fields>*<checksum>
+     *          PHD Message Structure: $PHD,&lt;class&gt;,&lt;id&gt;,&lt;format&gt;,&lt;blank&gt;,&lt;fields&gt;*&lt;checksum&gt;
      *          
      *          Supported Mappings:
      *          - Class 01, ID 12: NAV-VELNED (velocity NED frame, accuracy estimates)

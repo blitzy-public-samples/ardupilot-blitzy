@@ -33,7 +33,7 @@ extern const AP_HAL::HAL& hal;
 #endif
 
 const AP_Param::GroupInfo AP_Networking::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Networking Enable
     // @Description: Networking Enable
     // @Values: 0:Disable,1:Enable
@@ -46,7 +46,7 @@ const AP_Param::GroupInfo AP_Networking::var_info[] = {
     // @Path: AP_Networking_address.cpp
     AP_SUBGROUPINFO(param.ipaddr, "IPADDR", 2,  AP_Networking, AP_Networking_IPV4),
 
-    // @Param: NETMASK
+    // `@Param`: NETMASK
     // @DisplayName: IP Subnet mask
     // @Description: Allows setting static subnet mask. The value is a count of consecutive bits. Examples: 24 = 255.255.255.0, 16 = 255.255.0.0
     // @Range: 0 32
@@ -55,7 +55,7 @@ const AP_Param::GroupInfo AP_Networking::var_info[] = {
     AP_GROUPINFO("NETMASK", 3,  AP_Networking,    param.netmask,   AP_NETWORKING_DEFAULT_NETMASK),
 
 #if AP_NETWORKING_DHCP_AVAILABLE
-    // @Param: DHCP
+    // `@Param`: DHCP
     // @DisplayName: DHCP client
     // @Description: Enable/Disable DHCP client
     // @Values: 0:Disable, 1:Enable
@@ -74,7 +74,7 @@ const AP_Param::GroupInfo AP_Networking::var_info[] = {
 #endif // AP_NETWORKING_CONTROLS_HOST_IP_SETTINGS_ENABLED
 
 #if AP_NETWORKING_TESTS_ENABLED
-    // @Param: TESTS
+    // `@Param`: TESTS
     // @DisplayName: Test enable flags
     // @Description: Enable/Disable networking tests
     // @Bitmask: 0:UDP echo test,1:TCP echo test, 2:TCP discard test, 3:TCP reflect test
@@ -87,7 +87,7 @@ const AP_Param::GroupInfo AP_Networking::var_info[] = {
     AP_SUBGROUPINFO(param.test_ipaddr, "TEST_IP", 8,  AP_Networking, AP_Networking_IPV4),
 #endif
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Networking options
     // @Description: Networking options
     // @Bitmask: 0:EnablePPP Ethernet gateway, 1:Enable CAN1 multicast endpoint, 2:Enable CAN2 multicast endpoint, 3:Enable CAN1 multicast bridged, 4:Enable CAN2 multicast bridged, 5:DisablePPPTimeout, 6:DisablePPPEchoLimit

@@ -89,7 +89,7 @@ void AP_BoardConfig::set_imu_temp(float current)
 
 #if HAL_LOGGING_ENABLED
     if (now - heater.last_log_ms >= 1000) {
-// @LoggerMessage: HEAT
+// `@LoggerMessage`: HEAT
 // @Description: IMU Heater data
 // @Field: TimeUS: Time since system startup
 // @Field: Temp: Current IMU temperature

@@ -51,7 +51,7 @@ public:
     void disable_ch(uint8_t chan) override;
 
     void write(uint8_t chan, uint16_t period_us) override;
-    uint16_t read(uint8_t ch) override;
+    uint16_t read(uint8_t chan) override;
     void read(uint16_t* period_us, uint8_t len) override;
 
     void set_output_mode(uint32_t mask, const enum output_mode mode) override;

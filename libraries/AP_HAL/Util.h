@@ -495,7 +495,7 @@ public:
      *          - CPU time consumed
      *          - Current state (running, blocked, sleeping)
      * 
-     * @note Used by THREADS MAVLink message and @SYS/threads.txt logging
+     * @note Used by THREADS MAVLink message and `@SYS`/threads.txt logging
      */
     virtual void thread_info(ExpandingString &str) {}
 

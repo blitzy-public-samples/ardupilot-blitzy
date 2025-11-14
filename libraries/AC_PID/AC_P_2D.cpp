@@ -5,7 +5,7 @@
 #include "AC_P_2D.h"
 
 const AP_Param::GroupInfo AC_P_2D::var_info[] = {
-    // @Param: P
+    // `@Param`: P
     // @DisplayName: Proportional Gain
     // @Description: Proportional gain that generates output based on the current error value
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("P",    0, AC_P_2D, _kp, default_kp),

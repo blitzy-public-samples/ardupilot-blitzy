@@ -17,7 +17,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AC_Loiter::var_info[] = {
 
-    // @Param: ANG_MAX
+    // `@Param`: ANG_MAX
     // @DisplayName: Loiter pilot angle max
     // @Description{Copter, Sub}: Loiter maximum pilot requested lean angle. Set to zero for 2/3 of PSC_ANGLE_MAX/ANGLE_MAX. The maximum vehicle lean angle is still limited by PSC_ANGLE_MAX/ANGLE_MAX
     // @Description: Loiter maximum pilot requested lean angle. Set to zero for 2/3 of Q_P_ANGLE_MAX/Q_ANGLE_MAX. The maximum vehicle lean angle is still limited by Q_P_ANGLE_MAX/Q_ANGLE_MAX
@@ -27,7 +27,7 @@ const AP_Param::GroupInfo AC_Loiter::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ANG_MAX",  1, AC_Loiter, _angle_max_deg, 0.0f),
 
-    // @Param: SPEED
+    // `@Param`: SPEED
     // @DisplayName: Loiter Horizontal Maximum Speed
     // @Description: Defines the maximum speed in cm/s which the aircraft will travel horizontally while in loiter mode
     // @Units: cm/s
@@ -36,7 +36,7 @@ const AP_Param::GroupInfo AC_Loiter::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPEED", 2, AC_Loiter, _speed_max_ne_cms, LOITER_SPEED_DEFAULT),
 
-    // @Param: ACC_MAX
+    // `@Param`: ACC_MAX
     // @DisplayName: Loiter maximum correction acceleration
     // @Description: Loiter maximum correction acceleration in cm/s/s.  Higher values cause the copter to correct position errors more aggressively.
     // @Units: cm/s/s
@@ -45,7 +45,7 @@ const AP_Param::GroupInfo AC_Loiter::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ACC_MAX", 3, AC_Loiter, _accel_max_ne_cmss, LOITER_ACCEL_MAX_DEFAULT),
 
-    // @Param: BRK_ACCEL
+    // `@Param`: BRK_ACCEL
     // @DisplayName: Loiter braking acceleration
     // @Description: Loiter braking acceleration in cm/s/s. Higher values stop the copter more quickly when the stick is centered.
     // @Units: cm/s/s
@@ -54,7 +54,7 @@ const AP_Param::GroupInfo AC_Loiter::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("BRK_ACCEL", 4, AC_Loiter, _brake_accel_max_cmss, LOITER_BRAKE_ACCEL_DEFAULT),
 
-    // @Param: BRK_JERK
+    // `@Param`: BRK_JERK
     // @DisplayName: Loiter braking jerk
     // @Description: Loiter braking jerk in cm/s/s/s. Higher values will remove braking faster if the pilot moves the sticks during a braking maneuver.
     // @Units: cm/s/s/s
@@ -63,7 +63,7 @@ const AP_Param::GroupInfo AC_Loiter::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("BRK_JERK", 5, AC_Loiter, _brake_jerk_max_cmsss, LOITER_BRAKE_JERK_DEFAULT),
 
-    // @Param: BRK_DELAY
+    // `@Param`: BRK_DELAY
     // @DisplayName: Loiter brake start delay (in seconds)
     // @Description: Loiter brake start delay (in seconds)
     // @Units: s

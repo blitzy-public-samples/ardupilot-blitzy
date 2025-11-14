@@ -32,14 +32,14 @@ extern const AP_HAL::HAL& hal;
 // table of user settable parameters
 const AP_Param::GroupInfo RichenPower::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: RichenPower Generator sim enable/disable
     // @Description: Allows you to enable (1) or disable (0) the RichenPower simulator
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENABLE", 0, RichenPower, _enabled, 0),
 
-    // @Param: CTRL
+    // `@Param`: CTRL
     // @DisplayName: Pin RichenPower is connectred to
     // @Description: The pin number that the RichenPower spinner servo is connected to. (start at 1)
     // @Range: 0 15

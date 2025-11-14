@@ -24,7 +24,7 @@
  * - Default value management with optional external defaults files
  * - Parameter conversion/migration between firmware versions
  * - Nested parameter groups for structured organization
- * - Metadata system (@Param tags) for auto-documentation and ground station integration
+ * - Metadata system (`@Param` tags) for auto-documentation and ground station integration
  * 
  * Architecture:
  * - Storage backend: StorageManager provides abstraction over EEPROM/Flash/FRAM
@@ -1147,7 +1147,7 @@ public:
         uint8_t type; // AP_PARAM_*
     };
     /**
-     * @struct ConversionInfo  
+     * @struct ConversionInfo
      * @brief Descriptor for parameter migration from old firmware to new
      * 
      * @details Specifies how to locate and convert a parameter from previous
@@ -1707,8 +1707,9 @@ public:
     }
 
     /**
-     * @enum Conversion flags for convert_old_parameter()
-     * @brief Control parameter conversion behavior during firmware upgrades
+     * @brief Conversion flags for convert_old_parameter()
+     * 
+     * @details Control parameter conversion behavior during firmware upgrades
      */
     enum {
         CONVERT_FLAG_REVERSE=1, ///< Handle _REV suffix to _REVERSED suffix renaming
@@ -1775,7 +1776,6 @@ public:
      * 
      * @param[in,out] token Opaque iterator state from previous first() or next() call
      * @param[out] ptype Parameter type (AP_PARAM_INT8/INT16/INT32/FLOAT/VECTOR3F/GROUP)
-     * @param[out] default_val Optional default value for parameter
      * 
      * @return AP_Param* Pointer to next parameter, or nullptr when enumeration complete
      * 
@@ -1889,7 +1889,7 @@ public:
      * @return bool true if parameter cannot be modified via GCS/MAVLink
      * 
      * @details Read-only parameters:
-     *          - Set via defaults file with @READONLY directive
+     *          - Set via defaults file with `@READONLY` directive
      *          - Can be modified by firmware but not by ground station
      *          - Useful for locking safety-critical or factory-set parameters
      *          - Enforced in set_and_save() and MAVLink PARAM_SET handlers
@@ -2125,15 +2125,15 @@ public:
      *          File format supports:
      *          - Comments: Lines starting with #
      *          - Parameters: PARAM_NAME,value
-     *          - Metadata: @READONLY, @FORCED, @ENABLE, @DEFAULT
-     *          - Conditionals: @include, @define
+     *          - Metadata: `@READONLY`, `@FORCED`, `@ENABLE`, `@DEFAULT`
+     *          - Conditionals: `@include`, `@define`
      *          
      *          Two-pass loading:
      *          - First pass (last_pass=false): Sets default values
      *          - Second pass (last_pass=true): Applies forced overrides
      * 
      * @note Requires AP_PARAM_DEFAULTS_FILE_PARSING_ENABLED
-     * @note Supports @ROMFS paths and filesystem paths
+     * @note Supports `@ROMFS` paths and filesystem paths
      * @see AP_Filesystem for path resolution
      */
     static bool load_defaults_file(const char *filename, bool last_pass);

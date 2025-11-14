@@ -16,43 +16,43 @@ const AP_Param::GroupInfo AP_Generator_Loweheiser::var_info[] = {
 
     // Param indexes must be between 10 and 19 to avoid conflict with other generator param tables loaded by pointer
 
-    // @Param: MNT_TIME
+    // `@Param`: MNT_TIME
     // @DisplayName: Seconds until maintenance required
     // @Description: Seconds until maintenance required
     // @User: Advanced
     AP_GROUPINFO("MNT_TIME", 10, AP_Generator_Loweheiser, time_until_maintenance, 0),
 
-    // @Param: RUNTIME
+    // `@Param`: RUNTIME
     // @DisplayName: Total runtime
     // @Description: Total time this generator has run in seconds
     // @User: Advanced
     AP_GROUPINFO("RUNTIME", 11, AP_Generator_Loweheiser, total_runtime, 0),
 
-    // @Param: IDLE_TH_H
+    // `@Param`: IDLE_TH_H
     // @DisplayName: High Idle throttle
     // @Description: throttle value to use when warming up or cooling down
     // @User: Advanced
     AP_GROUPINFO("IDLE_TH_H", 12, AP_Generator_Loweheiser, high_idle_throttle, 15),
 
-    // @Param: IDLE_TH
+    // `@Param`: IDLE_TH
     // @DisplayName: Idle throttle
     // @Description: throttle value to use when idling
     // @User: Advanced
     AP_GROUPINFO("IDLE_TH", 13, AP_Generator_Loweheiser, idle_throttle, 15),
 
-    // @Param: RUN_TEMP
+    // `@Param`: RUN_TEMP
     // @DisplayName: Run Temperature
     // @Description: temperature required for generator to start producing power in deg celsius
     // @User: Advanced
     AP_GROUPINFO("RUN_TEMP", 14, AP_Generator_Loweheiser, temp_required_for_run, 60),
 
-    // @Param: IDLE_TEMP
+    // `@Param`: IDLE_TEMP
     // @DisplayName: Idle Temperature
     // @Description: temperature required for generator to return to idle after having run
     // @User: Advanced
     AP_GROUPINFO("IDLE_TEMP", 15, AP_Generator_Loweheiser, temp_required_for_idle, 110),
 
-    // @Param: OVER_TEMP
+    // `@Param`: OVER_TEMP
     // @DisplayName: Cylinder Head Over Temperature Warning Level
     // @Description: threshold temperature for the cylinder head above which the mavlink over temperature message gets sent
     // @Units: degC
@@ -486,7 +486,7 @@ void AP_Generator_Loweheiser::command_generator()
 #if HAL_LOGGING_ENABLED
     // log all commands to dataflash:
 
-// @LoggerMessage: LOEC
+// `@LoggerMessage`: LOEC
 // @Description: Gathered Loweheiser EFI/Governor telemetry
 // @Field: TimeUS: Time since system startup
 // @Field: SI: target system ID
@@ -799,7 +799,7 @@ void AP_Generator_Loweheiser::Log_Write()
     }
     last_logged_reading_ms = last_packet_received_ms;
 
-// @LoggerMessage: LOEG
+// `@LoggerMessage`: LOEG
 // @Description: Gathered Loweheiser EFI/Governor telemetry
 // @Field: TimeUS: Time since system startup
 // @Field: I: EFI/Gov sensor instance number

@@ -42,7 +42,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_OADatabase::var_info[] = {
 
-    // @Param: SIZE
+    // `@Param`: SIZE
     // @DisplayName: OADatabase maximum number of points
     // @Description: OADatabase maximum number of points. Set to 0 to disable the OA Database. Larger means more points but is more cpu intensive to process
     // @Range: 0 10000
@@ -50,7 +50,7 @@ const AP_Param::GroupInfo AP_OADatabase::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("SIZE", 1, AP_OADatabase, _database_size_param, AP_OADATABASE_SIZE_DEFAULT),
 
-    // @Param: EXPIRE
+    // `@Param`: EXPIRE
     // @DisplayName: OADatabase item timeout
     // @Description: OADatabase item timeout. The time an item will linger without any updates before it expires. Zero means never expires which is useful for a sent-once static environment but terrible for dynamic ones.
     // @Units: s
@@ -59,7 +59,7 @@ const AP_Param::GroupInfo AP_OADatabase::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("EXPIRE", 2, AP_OADatabase, _database_expiry_seconds, AP_OADATABASE_TIMEOUT_SECONDS_DEFAULT),
 
-    // @Param: QUEUE_SIZE
+    // `@Param`: QUEUE_SIZE
     // @DisplayName: OADatabase queue maximum number of points
     // @Description: OADatabase queue maximum number of points. This in an input buffer size. Larger means it can handle larger bursts of incoming data points to filter into the database. No impact on cpu, only RAM. Recommend larger for faster datalinks or for sensors that generate a lot of data.
     // @Range: 1 200
@@ -67,14 +67,14 @@ const AP_Param::GroupInfo AP_OADatabase::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("QUEUE_SIZE", 3, AP_OADatabase, _queue_size_param, AP_OADATABASE_QUEUE_SIZE_DEFAULT),
 
-    // @Param: OUTPUT
+    // `@Param`: OUTPUT
     // @DisplayName: OADatabase output level
     // @Description: OADatabase output level to configure which database objects are sent to the ground station. All data is always available internally for avoidance algorithms.
     // @Values: 0:Disabled,1:Send only HIGH importance items,2:Send HIGH and NORMAL importance items,3:Send all items
     // @User: Advanced
     AP_GROUPINFO("OUTPUT", 4, AP_OADatabase, _output_level, (float)OutputLevel::HIGH),
 
-    // @Param: BEAM_WIDTH
+    // `@Param`: BEAM_WIDTH
     // @DisplayName: OADatabase beam width
     // @Description: Beam width of incoming lidar data, used to calculate a object radius if none is provided by the data source.
     // @Units: deg
@@ -83,7 +83,7 @@ const AP_Param::GroupInfo AP_OADatabase::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("BEAM_WIDTH", 5, AP_OADatabase, _beam_width, 5.0f),
 
-    // @Param: RADIUS_MIN
+    // `@Param`: RADIUS_MIN
     // @DisplayName: OADatabase Minimum  radius
     // @Description: Minimum radius of objects held in database
     // @Units: m
@@ -91,7 +91,7 @@ const AP_Param::GroupInfo AP_OADatabase::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RADIUS_MIN", 6, AP_OADatabase, _radius_min, 0.01f),
 
-    // @Param: DIST_MAX
+    // `@Param`: DIST_MAX
     // @DisplayName: OADatabase Distance Maximum
     // @Description: Maximum distance of objects held in database.  Set to zero to disable the limits
     // @Units: m
@@ -99,7 +99,7 @@ const AP_Param::GroupInfo AP_OADatabase::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DIST_MAX", 7, AP_OADatabase, _dist_max, 0.0f),
 
-    // @Param{Copter}: ALT_MIN
+    // `@Param`{Copter}: ALT_MIN
     // @DisplayName: OADatabase minimum altitude above home before storing obstacles
     // @Description: OADatabase will reject obstacles if vehicle's altitude above home is below this parameter, in a 3 meter radius around home. Set 0 to disable this feature.
     // @Units: m

@@ -37,7 +37,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AR_WPNav::var_info[] = {
 
-    // @Param: SPEED
+    // `@Param`: SPEED
     // @DisplayName: Waypoint speed default
     // @Description: Waypoint speed default
     // @Units: m/s
@@ -46,7 +46,7 @@ const AP_Param::GroupInfo AR_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPEED", 1, AR_WPNav, _speed_max, AR_WPNAV_SPEED_DEFAULT),
 
-    // @Param: RADIUS
+    // `@Param`: RADIUS
     // @DisplayName: Waypoint radius
     // @Description: The distance in meters from a waypoint when we consider the waypoint has been reached. This determines when the vehicle will turn toward the next waypoint.
     // @Units: m
@@ -66,7 +66,7 @@ const AP_Param::GroupInfo AR_WPNav::var_info[] = {
     // @Path: AR_PivotTurn.cpp
     AP_SUBGROUPINFO(_pivot, "PIVOT_", 8, AR_WPNav, AR_PivotTurn),
 
-    // @Param: ACCEL
+    // `@Param`: ACCEL
     // @DisplayName: Waypoint acceleration
     // @Description: Waypoint acceleration.  If zero then ATC_ACCEL_MAX is used
     // @Units: m/s/s
@@ -75,7 +75,7 @@ const AP_Param::GroupInfo AR_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ACCEL", 9, AR_WPNav, _accel_max, 0),
 
-    // @Param: JERK
+    // `@Param`: JERK
     // @DisplayName: Waypoint jerk
     // @Description: Waypoint jerk (change in acceleration).  If zero then jerk is same as acceleration
     // @Units: m/s/s/s

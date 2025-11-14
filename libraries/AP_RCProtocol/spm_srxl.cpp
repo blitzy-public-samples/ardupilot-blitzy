@@ -369,15 +369,7 @@ static SrxlDevEntry* srxlAddDeviceEntry(SrxlBus* pBus, SrxlDevEntry devEntry)
 
 /// PUBLIC FUNCTIONS ///
 
-/**
-    @brief  Initialize common SRXL info for this device
-
-    @param  deviceID:   SRXL Device ID (see section 7.1.1 of SRXL2 Spec)
-    @param  priority:   Requested telemetry priority (1-100; typical is 10 per unique message type)
-    @param  info:       Device info bits (see SRXL_DEVINFO_XXX bits in spm_srxl.h)
-    @param  uid:        Unique 32-bit id to avoid device ID collision during handshake
-    @return bool:       True if device info was successfully initialized
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 bool srxlInitDevice(uint8_t deviceID, uint8_t priority, uint8_t info, uint32_t uid)
 {
     if(deviceID < 0x10 || deviceID > 0xEF)
@@ -415,14 +407,7 @@ bool srxlInitDevice(uint8_t deviceID, uint8_t priority, uint8_t info, uint32_t u
     return true;
 }
 
-/**
-    @brief  Initialize bus settings for the given SRXL bus
-
-    @param  busIndex:       Index into srxlBus array of bus entries
-    @param  uart:           Number to identify UART to which this SRXL bus should be connected
-    @param  baudSupported:  0 = 115200 baud, 1 = 400000 baud
-    @return bool:           True if SRXL bus was successfully initialized
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 bool srxlInitBus(uint8_t busIndex, uint8_t uart, uint8_t baudSupported)
 {
     if(busIndex >= SRXL_NUM_OF_BUSES || !srxlThisDev.devEntry.deviceID)
@@ -447,34 +432,19 @@ bool srxlInitBus(uint8_t busIndex, uint8_t uart, uint8_t baudSupported)
     return true;
 }
 
-/**
-    @brief  See if this device is the bus master on the given bus
-
-    @param  busIndex:   Index into srxlBus array for the desired SRXL bus
-    @return bool:       True if this device is the bus master on the given SRXL bus
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 bool srxlIsBusMaster(uint8_t busIndex)
 {
     return (busIndex < SRXL_NUM_OF_BUSES && srxlBus[busIndex].master);
 }
 
-/**
-    @brief  Get the current SRXL state machine timeout count for the given bus
-
-    @param  busIndex:   Index into srxlBus array for the desired SRXL bus
-    @return uint16_t:    Timeout count in ms for the given SRXL bus
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 uint16_t srxlGetTimeoutCount_ms(uint8_t busIndex)
 {
     return (busIndex < SRXL_NUM_OF_BUSES) ? srxlBus[busIndex].timeoutCount_ms : 0;
 }
 
-/**
-    @brief  Get the Device ID of this device on the given bus
-
-    @param  busIndex:   Index into srxlBus array for the desired SRXL bus
-    @return uint8_t:    Device ID of this device on the given SRXL bus
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 uint8_t srxlGetDeviceID(uint8_t busIndex)
 {
     return (busIndex < SRXL_NUM_OF_BUSES) ? srxlBus[busIndex].fullID.deviceID : 0;
@@ -665,14 +635,7 @@ static void srxlSend(SrxlBus* pBus, SRXL_CMD srxlCmd, uint8_t replyID)
     srxlSendOnUart(pBus->uart, pBus->srxlOut.raw, pBus->srxlOut.header.length);
 }
 
-/**
-    @brief  Parse an SRXL packet received on the given SRXL bus UART
-
-    @param  busIndex:   Index of SRXL bus state information entry in the srxlBus array
-    @param  packet:     Pointer to received packet data
-    @param  length:     Length in bytes of received packet data
-    @return bool:       True if a valid packet was received, else false
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 bool srxlParsePacket(uint8_t busIndex, uint8_t* packet, uint8_t length)
 {
     // Validate parameters
@@ -1032,13 +995,7 @@ bool srxlParsePacket(uint8_t busIndex, uint8_t* packet, uint8_t length)
     return true;
 }
 
-/**
-    @brief  Run the SRXL state machine after each receive or rx timeout
-
-    @param  busIndex:           Index of SRXL bus state information entry in the srxlBus array
-    @param  timeoutDelta_ms:    Number of milliseconds to increment receive timeout if a timeout
-                                occured, or <= 0 to clear timeout count upon packet receive.
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 void srxlRun(uint8_t busIndex, int16_t timeoutDelta_ms)
 {
     SrxlBus* pBus = &srxlBus[busIndex];
@@ -1145,13 +1102,7 @@ void srxlRun(uint8_t busIndex, int16_t timeoutDelta_ms)
 #endif  // SRXL_INCLUDE_MASTER_CODE
 }
 
-/**
-    @brief  Tell the "best" receiver to enter bind mode, either locally or via SRXL command
-
-    @param  bindType: One of the possible bind status types to use when binding -- NOTE: The transmitter may ignore this
-    @param  broadcast: True if this is a local request that should tell all connected receivers to enter bind
-    @return bool: True if a receiver was told to enter bind mode; else false
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 bool srxlEnterBind(uint8_t bindType, bool broadcast)
 {
     srxlRx.pBindRcvr = 0;
@@ -1208,14 +1159,7 @@ bool srxlEnterBind(uint8_t bindType, bool broadcast)
     return false;
 }
 
-/**
-    @brief  Public function to set bind info for the system, either locally or via SRXL commands
-
-    @param  bindType: Type of bind requested for this receiver or all receivers
-    @param  guid: Transmitter GUID to bind the receiver to
-    @param  uid: Unique ID provided by transmitter upon initial bind (can be 0 if unknown)
-    @return bool: True if bind info was successfully set for the destination device; else false
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 bool srxlSetBindInfo(uint8_t bindType, uint64_t guid, uint32_t uid)
 {
     if(guid == 0)
@@ -1246,11 +1190,7 @@ bool srxlSetBindInfo(uint8_t bindType, uint64_t guid, uint32_t uid)
     return true;
 }
 
-/**
-    @brief  Public function to call from the user UART code when a UART frame error occurs
-
-    @param  busIndex: Index of SRXL bus state information entry in the srxlBus array
-*/
+/** Implementation - see declaration in spm_srxl.h for documentation */
 void srxlOnFrameError(uint8_t busIndex)
 {
     SrxlBus* pBus = &srxlBus[busIndex];

@@ -6,7 +6,7 @@
     LOG_MON_MSG,                 \
     LOG_WDOG_MSG
 
-// @LoggerMessage: MON
+// `@LoggerMessage`: MON
 // @Description: Main loop performance monitoring message.
 // @Field: TimeUS: Time since system startup
 // @Field: Dly: Loop delay so far
@@ -34,7 +34,7 @@ struct PACKED log_MON {
     uint32_t i2ccnt;
 };
 
-// @LoggerMessage: WDOG
+// `@LoggerMessage`: WDOG
 // @Description: Watchdog diagnostics
 // @Field: TimeUS: Time since system startup
 // @Field: Tsk: current task number

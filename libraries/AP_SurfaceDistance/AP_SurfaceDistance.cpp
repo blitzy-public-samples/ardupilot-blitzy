@@ -157,7 +157,7 @@ bool AP_SurfaceDistance::get_rangefinder_height_interpolated_cm(int32_t& ret) co
 #if HAL_LOGGING_ENABLED
 void AP_SurfaceDistance::Log_Write(void) const
 {
-    // @LoggerMessage: SURF
+    // `@LoggerMessage`: SURF
     // @Vehicles: Copter
     // @Description: Surface distance measurement
     // @Field: TimeUS: Time since system startup

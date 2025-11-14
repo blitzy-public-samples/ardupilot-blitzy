@@ -142,7 +142,7 @@ bool AP_InertialSensor::BatchSampler::Write_ISBD() const
 #endif
 
 #if AP_INERTIALSENSOR_HARMONICNOTCH_ENABLED
-// @LoggerMessage: FTN
+// `@LoggerMessage`: FTN
 // @Description: Filter Tuning Message - per motor
 // @Field: TimeUS: microseconds since system startup
 // @Field: I: instance
@@ -160,7 +160,7 @@ bool AP_InertialSensor::BatchSampler::Write_ISBD() const
 // @Field: NF11: desired harmonic notch centre frequency for motor 11
 // @Field: NF12: desired harmonic notch centre frequency for motor 12
 
-// @LoggerMessage: FTNS
+// `@LoggerMessage`: FTNS
 // @Description: Filter Tuning Message
 // @Field: TimeUS: microseconds since system startup
 // @Field: I: instance

@@ -103,7 +103,7 @@ private:
  *          operations (e.g., ROMFS returns -EROFS for write operations). 
  *          
  *          The router (AP_Filesystem.cpp) selects the appropriate backend based on 
- *          file path prefixes (e.g., @PARAM/, @SYS/, @MISSIONS/) or file descriptor 
+ *          file path prefixes (e.g., `@PARAM`/, `@SYS`/, `@MISSION`S/) or file descriptor 
  *          encoding for physical storage (SD card, internal flash).
  *          
  *          All methods have default implementations returning failure (-1/nullptr),
@@ -127,7 +127,7 @@ public:
     /**
      * @brief Open or create file
      * 
-     * @param[in] fname File path (may include backend prefix like @PARAM/)
+     * @param[in] fname File path (may include backend prefix like `@PARAM`/)
      * @param[in] flags POSIX flags (O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_TRUNC, O_APPEND)
      * @param[in] allow_absolute_paths Allow unmodified absolute paths (default: false)
      * 
@@ -550,7 +550,7 @@ protected:
      *          armed and caller is main thread (HAL safety gating). This prevents
      *          SD card or flash access from stalling flight-critical code.
      *          
-     *          Always returns true for virtual backends (@PARAM, @SYS, @MISSION)
+     *          Always returns true for virtual backends (`@PARAM`, `@SYS`, `@MISSION`)
      *          which don't access physical storage hardware.
      *          
      *          Used by FS_CHECK_ALLOWED macro at entry of all file operation methods.

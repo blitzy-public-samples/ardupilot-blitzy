@@ -400,7 +400,7 @@ void AP_Relay::set_pin_by_instance(uint8_t instance, bool value)
     if (initial_value != value) {
         set_pin(pin, value);
 #if HAL_LOGGING_ENABLED
-// @LoggerMessage: RELY
+// `@LoggerMessage`: RELY
 // @Description: Relay state
 // @Field: TimeUS: Time since system startup
 // @Field: Instance: relay instance number

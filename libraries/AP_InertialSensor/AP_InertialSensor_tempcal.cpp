@@ -48,7 +48,7 @@ extern const AP_HAL::HAL& hal;
 // temperature calibration parameters, per IMU
 const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable temperature calibration
     // @Description: Enable the use of temperature calibration parameters for this IMU. For automatic learning set to 2 and also set the INS_TCALn_TMAX to the target temperature, then reboot
     // @Values: 0:Disabled,1:Enabled,2:LearnCalibration
@@ -56,7 +56,7 @@ const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO_FLAGS("ENABLE", 1, AP_InertialSensor_TCal, enable,  float(Enable::Disabled), AP_PARAM_FLAG_ENABLE),
 
-    // @Param: TMIN
+    // `@Param`: TMIN
     // @DisplayName: Temperature calibration min
     // @Description: The minimum temperature that the calibration is valid for
     // @Range: -70 80
@@ -65,7 +65,7 @@ const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
     // @Calibration: 1
     AP_GROUPINFO("TMIN", 2, AP_InertialSensor_TCal, temp_min,  0),
 
-    // @Param: TMAX
+    // `@Param`: TMAX
     // @DisplayName: Temperature calibration max
     // @Description: The maximum temperature that the calibration is valid for. This must be at least 10 degrees above TMIN for calibration
     // @Range: -70 80
@@ -74,19 +74,19 @@ const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
     // @Calibration: 1
     AP_GROUPINFO("TMAX", 3, AP_InertialSensor_TCal, temp_max,  70),
 
-    // @Param: ACC1_X
+    // `@Param`: ACC1_X
     // @DisplayName: Accelerometer 1st order temperature coefficient X axis
     // @Description: This is the 1st order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: ACC1_Y
+    // `@Param`: ACC1_Y
     // @DisplayName: Accelerometer 1st order temperature coefficient Y axis
     // @Description: This is the 1st order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: ACC1_Z
+    // `@Param`: ACC1_Z
     // @DisplayName: Accelerometer 1st order temperature coefficient Z axis
     // @Description: This is the 1st order temperature coefficient from a temperature calibration
     // @User: Advanced
@@ -94,19 +94,19 @@ const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
     
     AP_GROUPINFO("ACC1", 4, AP_InertialSensor_TCal, accel_coeff[0], 0),
 
-    // @Param: ACC2_X
+    // `@Param`: ACC2_X
     // @DisplayName: Accelerometer 2nd order temperature coefficient X axis
     // @Description: This is the 2nd order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: ACC2_Y
+    // `@Param`: ACC2_Y
     // @DisplayName: Accelerometer 2nd order temperature coefficient Y axis
     // @Description: This is the 2nd order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: ACC2_Z
+    // `@Param`: ACC2_Z
     // @DisplayName: Accelerometer 2nd order temperature coefficient Z axis
     // @Description: This is the 2nd order temperature coefficient from a temperature calibration
     // @User: Advanced
@@ -114,19 +114,19 @@ const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
 
     AP_GROUPINFO("ACC2", 5, AP_InertialSensor_TCal, accel_coeff[1], 0),
 
-    // @Param: ACC3_X
+    // `@Param`: ACC3_X
     // @DisplayName: Accelerometer 3rd order temperature coefficient X axis
     // @Description: This is the 3rd order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: ACC3_Y
+    // `@Param`: ACC3_Y
     // @DisplayName: Accelerometer 3rd order temperature coefficient Y axis
     // @Description: This is the 3rd order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: ACC3_Z
+    // `@Param`: ACC3_Z
     // @DisplayName: Accelerometer 3rd order temperature coefficient Z axis
     // @Description: This is the 3rd order temperature coefficient from a temperature calibration
     // @User: Advanced
@@ -134,19 +134,19 @@ const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
 
     AP_GROUPINFO("ACC3", 6, AP_InertialSensor_TCal, accel_coeff[2], 0),
 
-    // @Param: GYR1_X
+    // `@Param`: GYR1_X
     // @DisplayName: Gyroscope 1st order temperature coefficient X axis
     // @Description: This is the 1st order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: GYR1_Y
+    // `@Param`: GYR1_Y
     // @DisplayName: Gyroscope 1st order temperature coefficient Y axis
     // @Description: This is the 1st order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: GYR1_Z
+    // `@Param`: GYR1_Z
     // @DisplayName: Gyroscope 1st order temperature coefficient Z axis
     // @Description: This is the 1st order temperature coefficient from a temperature calibration
     // @User: Advanced
@@ -154,19 +154,19 @@ const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
     
     AP_GROUPINFO("GYR1", 7, AP_InertialSensor_TCal, gyro_coeff[0], 0),
 
-    // @Param: GYR2_X
+    // `@Param`: GYR2_X
     // @DisplayName: Gyroscope 2nd order temperature coefficient X axis
     // @Description: This is the 2nd order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: GYR2_Y
+    // `@Param`: GYR2_Y
     // @DisplayName: Gyroscope 2nd order temperature coefficient Y axis
     // @Description: This is the 2nd order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: GYR2_Z
+    // `@Param`: GYR2_Z
     // @DisplayName: Gyroscope 2nd order temperature coefficient Z axis
     // @Description: This is the 2nd order temperature coefficient from a temperature calibration
     // @User: Advanced
@@ -174,19 +174,19 @@ const AP_Param::GroupInfo AP_InertialSensor_TCal::var_info[] = {
 
     AP_GROUPINFO("GYR2", 8, AP_InertialSensor_TCal, gyro_coeff[1], 0),
 
-    // @Param: GYR3_X
+    // `@Param`: GYR3_X
     // @DisplayName: Gyroscope 3rd order temperature coefficient X axis
     // @Description: This is the 3rd order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: GYR3_Y
+    // `@Param`: GYR3_Y
     // @DisplayName: Gyroscope 3rd order temperature coefficient Y axis
     // @Description: This is the 3rd order temperature coefficient from a temperature calibration
     // @User: Advanced
     // @Calibration: 1
 
-    // @Param: GYR3_Z
+    // `@Param`: GYR3_Z
     // @DisplayName: Gyroscope 3rd order temperature coefficient Z axis
     // @Description: This is the 3rd order temperature coefficient from a temperature calibration
     // @User: Advanced
@@ -307,7 +307,7 @@ void AP_InertialSensor_TCal::Learn::add_sample(const Vector3f &sample, float tem
 
     const float tdiff = T - TEMP_REFERENCE;
 #if HAL_LOGGING_ENABLED
-    // @LoggerMessage: TCLR
+    // `@LoggerMessage`: TCLR
     // @Description: Temperature Calibration Information
     // @Field: TimeUS: Time since system startup
     // @Field: I: temperature calibration instance number

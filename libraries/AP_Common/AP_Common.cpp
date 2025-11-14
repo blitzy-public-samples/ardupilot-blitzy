@@ -47,7 +47,7 @@ bool is_bounded_int32(int32_t value, int32_t lower_bound, int32_t upper_bound)
  * @param [out] res uint8 value
  * @retval true  Conversion OK
  * @retval false Input value error
- * @Note Input character is 0-9, A-F, a-f
+ * @note Input character is 0-9, A-F, a-f
  *  A 0x41, a 0x61, 0 0x30
  */
 bool hex_to_uint8(uint8_t a, uint8_t &res)

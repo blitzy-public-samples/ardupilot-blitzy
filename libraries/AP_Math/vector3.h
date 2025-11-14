@@ -1103,22 +1103,17 @@ public:
  *          floating-point precision issues. More robust than exact comparison
  *          for accumulation errors and numerical calculations.
  */
+/// @cond TEMPLATE_SPECIALIZATIONS
+// Template specialization: is_zero() for float
 template<> inline bool Vector3<float>::is_zero(void) const {
     return ::is_zero(x) && ::is_zero(y) && ::is_zero(z);
 }
 
-/**
- * @brief Template specialization: is_zero() for double precision
- * 
- * @return true if all components are within epsilon of zero, false otherwise
- * 
- * @details Uses epsilon-based comparison via ::is_zero() helper to handle
- *          floating-point precision issues. More robust than exact comparison
- *          for accumulation errors and numerical calculations.
- */
+// Template specialization: is_zero() for double precision
 template<> inline bool Vector3<double>::is_zero(void) const {
     return ::is_zero(x) && ::is_zero(y) && ::is_zero(z);
 }
+/// @endcond
 
 /**
  * @brief Inline vector operations for performance-critical code paths

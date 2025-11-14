@@ -26,7 +26,7 @@
 // table of user settable parameters
 const AP_Param::GroupInfo AP_Landing::var_info[] = {
 
-    // @Param: SLOPE_RCALC
+    // `@Param`: SLOPE_RCALC
     // @DisplayName: Landing slope re-calc threshold
     // @Description: This parameter is used when using a rangefinder during landing for altitude correction from baro drift (RNGFND_LANDING=1) and the altitude correction indicates your altitude is lower than the intended slope path. This value is the threshold of the correction to re-calculate the landing approach slope. Set to zero to keep the original slope all the way down and any detected baro drift will be corrected by pitching/throttling up to snap back to resume the original slope path. Otherwise, when a rangefinder altitude correction exceeds this threshold it will trigger a slope re-calculate to give a shallower slope. This also smoothes out the approach when flying over objects such as trees. Recommend a value of 2m.
     // @Range: 0 5
@@ -35,7 +35,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SLOPE_RCALC", 1, AP_Landing, slope_recalc_shallow_threshold, 2.0f),
 
-    // @Param: ABORT_DEG
+    // `@Param`: ABORT_DEG
     // @DisplayName: Landing auto-abort slope threshold
     // @Description: This parameter is used when using a rangefinder during landing for altitude correction from baro drift (RNGFND_LANDING=1) and the altitude correction indicates your actual altitude is higher than the intended slope path. Normally it would pitch down steeply but that can result in a crash with high airspeed so this allows remembering the baro offset and self-abort the landing and come around for another landing with the correct baro offset applied for a perfect slope. An auto-abort go-around will only happen once, next attempt will not auto-abort again. This operation happens entirely automatically in AUTO mode. This value is the delta degrees threshold to trigger the go-around compared to the original slope. Example: if set to 5 deg and the mission planned slope is 15 deg then if the new slope is 21 then it will go-around. Set to 0 to disable. Requires LAND_SLOPE_RCALC > 0.
     // @Range: 0 90
@@ -44,7 +44,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ABORT_DEG", 2, AP_Landing, slope_recalc_steep_threshold_to_abort, 0),
 
-    // @Param: PITCH_DEG
+    // `@Param`: PITCH_DEG
     // @DisplayName: Landing Pitch
     // @Description: Used in autoland to give the minimum pitch in the final stage of landing (after the flare). This parameter can be used to ensure that the final landing attitude is appropriate for the type of undercarriage on the aircraft. Note that it is a minimum pitch only - the landing code will control pitch above this value to try to achieve the configured landing sink rate.
     // @Units: deg
@@ -53,7 +53,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("PITCH_DEG", 3, AP_Landing, pitch_deg, 0),
 
-    // @Param: FLARE_ALT
+    // `@Param`: FLARE_ALT
     // @DisplayName: Landing flare altitude
     // @Description: Altitude in autoland at which to lock heading and flare to the LAND_PITCH_DEG pitch. Note that this option is secondary to LAND_FLARE_SEC. For a good landing it preferable that the flare is triggered by LAND_FLARE_SEC.
     // @Units: m
@@ -62,7 +62,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("FLARE_ALT", 4, AP_Landing, flare_alt, 3.0f),
 
-    // @Param: FLARE_SEC
+    // `@Param`: FLARE_SEC
     // @DisplayName: Landing flare time
     // @Description: Vertical time before landing point at which to lock heading and flare with the motor stopped. This is vertical time, and is calculated based solely on the current height above the ground and the current descent rate.  Set to 0 if you only wish to flare based on altitude (see LAND_FLARE_ALT).
     // @Units: s
@@ -71,7 +71,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("FLARE_SEC", 5, AP_Landing, flare_sec, 2.0f),
 
-    // @Param: PF_ALT
+    // `@Param`: PF_ALT
     // @DisplayName: Landing pre-flare altitude
     // @Description: Altitude to trigger pre-flare flight stage where LAND_PF_ARSPD controls airspeed. The pre-flare flight stage trigger works just like LAND_FLARE_ALT but higher. Disabled when LAND_PF_ARSPD is 0.
     // @Units: m
@@ -80,7 +80,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("PF_ALT", 6, AP_Landing, pre_flare_alt, 10.0f),
 
-    // @Param: PF_SEC
+    // `@Param`: PF_SEC
     // @DisplayName: Landing pre-flare time
     // @Description: Vertical time to ground to trigger pre-flare flight stage where LAND_PF_ARSPD controls airspeed. This pre-flare flight stage trigger works just like LAND_FLARE_SEC but earlier. Disabled when LAND_PF_ARSPD is 0.
     // @Units: s
@@ -89,7 +89,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("PF_SEC", 7, AP_Landing, pre_flare_sec, 6.0f),
 
-    // @Param: PF_ARSPD
+    // `@Param`: PF_ARSPD
     // @DisplayName: Landing pre-flare airspeed
     // @Description: Desired airspeed during pre-flare flight stage. This is useful to reduce airspeed just before the flare. Use 0 to disable.
     // @Units: m/s
@@ -98,7 +98,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("PF_ARSPD", 8, AP_Landing, pre_flare_airspeed, 0),
 
-    // @Param: THR_SLEW
+    // `@Param`: THR_SLEW
     // @DisplayName: Landing throttle slew rate
     // @Description: This parameter sets the slew rate for the throttle during auto landing. When this is zero the THR_SLEWRATE parameter is used during landing. The value is a percentage throttle change per second, so a value of 20 means to advance the throttle over 5 seconds on landing. Values below 50 are not recommended as it may cause a stall when airspeed is low and you can not throttle up fast enough.
     // @Units: %
@@ -107,7 +107,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("THR_SLEW", 9, AP_Landing, throttle_slewrate, 0),
 
-    // @Param: DISARMDELAY
+    // `@Param`: DISARMDELAY
     // @DisplayName: Landing disarm delay
     // @Description: After a landing has completed using a LAND waypoint, automatically disarm after this many seconds have passed. Use 0 to not disarm.
     // @Units: s
@@ -116,21 +116,21 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DISARMDELAY", 10, AP_Landing, disarm_delay, 20),
 
-    // @Param: THEN_NEUTRL
+    // `@Param`: THEN_NEUTRL
     // @DisplayName: Set servos to neutral after landing
     // @Description: When enabled, after an autoland and auto-disarm via LAND_DISARMDELAY happens then set all servos to neutral. This is helpful when an aircraft has a rough landing upside down or a crazy angle causing the servos to strain.
     // @Values: 0:Disabled, 1:Servos to Neutral, 2:Servos to Zero PWM
     // @User: Advanced
     AP_GROUPINFO("THEN_NEUTRL", 11, AP_Landing, then_servos_neutral, 0),
 
-    // @Param: ABORT_THR
+    // `@Param`: ABORT_THR
     // @DisplayName: Landing abort using throttle
     // @Description: Allow a landing abort to trigger with an input throttle >= 90%. This works with or without stick-mixing enabled.
     // @Values: 0:Disabled, 1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ABORT_THR", 12, AP_Landing, abort_throttle_enable, 0),
 
-    // @Param: FLAP_PERCNT
+    // `@Param`: FLAP_PERCNT
     // @DisplayName: Landing flap percentage
     // @Description: The amount of flaps (as a percentage) to apply in the landing approach and flare of an automatic landing
     // @Range: 0 100
@@ -139,14 +139,14 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("FLAP_PERCNT", 13, AP_Landing, flap_percent, 0),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Landing options bitmask
     // @Description: Bitmask of options to use with landing.
     // @Bitmask: 0: honor min throttle during landing flare,1: Increase Target landing airspeed constraint From Trim Airspeed to AIRSPEED_MAX
     // @User: Advanced
     AP_GROUPINFO("OPTIONS", 16, AP_Landing, _options, 0),
 
-    // @Param: FLARE_AIM
+    // `@Param`: FLARE_AIM
     // @DisplayName: Flare aim point adjustment percentage.
     // @Description: This parameter controls how much the aim point is moved to allow for the time spent in the flare manoeuvre. When set to 100% the aim point is adjusted on the assumption that the flare sink rate controller instantly achieves the sink rate set by TECS_LAND_SINK. when set to 0%, no aim point adjustment is made. If the plane consistently touches down short of the aim point reduce the parameter and vice verse.
     // @Range: 0 100
@@ -155,7 +155,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("FLARE_AIM", 17, AP_Landing, flare_effectivness_pct, 50),
 
-    // @Param: WIND_COMP
+    // `@Param`: WIND_COMP
     // @DisplayName: Headwind Compensation when Landing
     // @Description: This param controls how much headwind compensation is used when landing.  Headwind speed component multiplied by this parameter is added to TECS_LAND_ARSPD command.  Set to Zero to disable.  Note:  The target landing airspeed command is still limited to AIRSPEED_MAX.
     // @Range: 0 100
@@ -164,7 +164,7 @@ const AP_Param::GroupInfo AP_Landing::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("WIND_COMP", 18, AP_Landing, wind_comp, 50),
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Auto-landing type
     // @Description: Specifies the auto-landing type to use
     // @Values: 0:Standard Glide Slope, 1:Deepstall

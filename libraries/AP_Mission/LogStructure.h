@@ -6,7 +6,7 @@
     LOG_MISE_MSG,            \
     LOG_CMD_MSG
 
-// @LoggerMessage: CMD
+// `@LoggerMessage`: CMD
 // @Description: Uploaded mission command information
 // @Field: TimeUS: Time since system startup
 // @Field: CTot: Total number of mission commands
@@ -36,7 +36,7 @@ struct PACKED log_CMD {
     uint8_t frame;
 };
 
-// @LoggerMessage: MISE
+// `@LoggerMessage`: MISE
 // @Description: Executed mission command information; emitted when we start to run an item
 // @Field: TimeUS: Time since system startup
 // @Field: CTot: Total number of mission commands

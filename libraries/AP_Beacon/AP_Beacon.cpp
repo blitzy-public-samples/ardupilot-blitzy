@@ -35,14 +35,14 @@ extern const AP_HAL::HAL &hal;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_Beacon::var_info[] = {
 
-    // @Param: _TYPE
+    // `@Param`: _TYPE
     // @DisplayName: Beacon based position estimation device type
     // @Description: What type of beacon based position estimation device is connected
     // @Values: 0:None,1:Pozyx,2:Marvelmind,3:Nooploop,10:SITL
     // @User: Advanced
     AP_GROUPINFO_FLAGS("_TYPE",    0, AP_Beacon, _type, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _LATITUDE
+    // `@Param`: _LATITUDE
     // @DisplayName: Beacon origin's latitude
     // @Description: Beacon origin's latitude
     // @Units: deg
@@ -51,7 +51,7 @@ const AP_Param::GroupInfo AP_Beacon::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_LATITUDE", 1, AP_Beacon, origin_lat, 0),
 
-    // @Param: _LONGITUDE
+    // `@Param`: _LONGITUDE
     // @DisplayName: Beacon origin's longitude
     // @Description: Beacon origin's longitude
     // @Units: deg
@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AP_Beacon::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_LONGITUDE", 2, AP_Beacon, origin_lon, 0),
 
-    // @Param: _ALT
+    // `@Param`: _ALT
     // @DisplayName: Beacon origin's altitude above sealevel in meters
     // @Description: Beacon origin's altitude above sealevel in meters
     // @Units: m
@@ -69,7 +69,7 @@ const AP_Param::GroupInfo AP_Beacon::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_ALT", 3, AP_Beacon, origin_alt, 0),
 
-    // @Param: _ORIENT_YAW
+    // `@Param`: _ORIENT_YAW
     // @DisplayName: Beacon systems rotation from north in degrees
     // @Description: Beacon systems rotation from north in degrees
     // @Units: deg

@@ -6,7 +6,7 @@
 #define LOG_IDS_FROM_RPM \
     LOG_RPM_MSG
 
-// @LoggerMessage: RPM
+// `@LoggerMessage`: RPM
 // @Description: Data from RPM sensors
 // @Field: TimeUS: Time since system startup
 // @Field: I: Instance

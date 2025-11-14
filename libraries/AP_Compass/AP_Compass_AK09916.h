@@ -465,7 +465,7 @@ public:
      * 
      * @return Handle to periodic callback for later cancellation
      */
-    virtual AP_HAL::Device::PeriodicHandle register_periodic_callback(uint32_t, AP_HAL::Device::PeriodicCb) = 0;
+    virtual AP_HAL::Device::PeriodicHandle register_periodic_callback(uint32_t period_usec, AP_HAL::Device::PeriodicCb cb) = 0;
 
     /**
      * @brief Set device type identifier within device class

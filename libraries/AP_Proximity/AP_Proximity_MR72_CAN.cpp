@@ -22,7 +22,7 @@
 
 const AP_Param::GroupInfo AP_Proximity_MR72_CAN::var_info[] = {
 
-    // @Param: RECV_ID
+    // `@Param`: RECV_ID
     // @DisplayName: CAN receive ID
     // @Description: The receive ID of the CAN frames. A value of zero means all IDs are accepted.
     // @Range: 0 65535

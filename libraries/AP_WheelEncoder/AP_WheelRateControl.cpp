@@ -3,14 +3,14 @@
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
-    // @Param: _ENABLE
+    // `@Param`: _ENABLE
     // @DisplayName: Wheel rate control enable/disable
     // @Description: Enable or disable wheel rate control
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS("_ENABLE", 1, AP_WheelRateControl, _enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _RATE_MAX
+    // `@Param`: _RATE_MAX
     // @DisplayName: Wheel max rotation rate
     // @Description: Wheel max rotation rate
     // @Units: rad/s
@@ -18,44 +18,44 @@ const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_RATE_MAX", 2, AP_WheelRateControl, _rate_max, AP_WHEEL_RATE_MAX_DEFAULT),
 
-    // @Param: _RATE_FF
+    // `@Param`: _RATE_FF
     // @DisplayName: Wheel rate control feed forward gain
     // @Description: Wheel rate control feed forward gain.  Desired rate (in radians/sec) is multiplied by this constant and output to output (in the range -1 to +1)
     // @Range: 0.100 2.000
     // @User: Standard
 
-    // @Param: _RATE_P
+    // `@Param`: _RATE_P
     // @DisplayName: Wheel rate control P gain
     // @Description: Wheel rate control P gain.  Converts rate error (in radians/sec) to output (in the range -1 to +1)
     // @Range: 0.100 2.000
     // @User: Standard
 
-    // @Param: _RATE_I
+    // `@Param`: _RATE_I
     // @DisplayName: Wheel rate control I gain
     // @Description: Wheel rate control I gain.  Corrects long term error between the desired rate (in rad/s) and actual
     // @Range: 0.000 2.000
     // @User: Standard
 
-    // @Param: _RATE_IMAX
+    // `@Param`: _RATE_IMAX
     // @DisplayName: Wheel rate control I gain maximum
     // @Description: Wheel rate control I gain maximum.  Constrains the output (range -1 to +1) that the I term will generate
     // @Range: 0.000 1.000
     // @User: Standard
 
-    // @Param: _RATE_D
+    // `@Param`: _RATE_D
     // @DisplayName: Wheel rate control D gain
     // @Description: Wheel rate control D gain.  Compensates for short-term change in desired rate vs actual
     // @Range: 0.000 0.400
     // @User: Standard
 
-    // @Param: _RATE_FILT
+    // `@Param`: _RATE_FILT
     // @DisplayName: Wheel rate control filter frequency
     // @Description: Wheel rate control input filter.  Lower values reduce noise but add delay.
     // @Range: 1.000 100.000
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _RATE_FLTT
+    // `@Param`: _RATE_FLTT
     // @DisplayName: Wheel rate control target frequency in Hz
     // @Description: Wheel rate control target frequency in Hz
     // @Range: 1 50
@@ -63,7 +63,7 @@ const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _RATE_FLTE
+    // `@Param`: _RATE_FLTE
     // @DisplayName: Wheel rate control error frequency in Hz
     // @Description: Wheel rate control error frequency in Hz
     // @Range: 1 50
@@ -71,7 +71,7 @@ const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _RATE_FLTD
+    // `@Param`: _RATE_FLTD
     // @DisplayName: Wheel rate control derivative frequency in Hz
     // @Description: Wheel rate control derivative frequency in Hz
     // @Range: 1 50
@@ -79,32 +79,32 @@ const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _RATE_SMAX
+    // `@Param`: _RATE_SMAX
     // @DisplayName: Wheel rate slew rate limit
     // @Description: Sets an upper limit on the slew rate produced by the combined P and D gains. If the amplitude of the control action produced by the rate feedback exceeds this value, then the D+P gain is reduced to respect the limit. This limits the amplitude of high frequency oscillations caused by an excessive gain. The limit should be set to no more than 25% of the actuators maximum slew rate to allow for load effects. Note: The gain will not be reduced to less than 10% of the nominal value. A value of zero will disable this feature.
     // @Range: 0 200
     // @Increment: 0.5
     // @User: Advanced
 
-    // @Param: _RATE_PDMX
+    // `@Param`: _RATE_PDMX
     // @DisplayName: Wheel rate control PD sum maximum
     // @Description: Wheel rate control PD sum maximum.  The maximum/minimum value that the sum of the P and D term can output
     // @Range: 0.000 1.000
 
-    // @Param: _RATE_D_FF
+    // `@Param`: _RATE_D_FF
     // @DisplayName: Wheel rate Derivative FeedForward Gain
     // @Description: FF D Gain which produces an output that is proportional to the rate of change of the error
     // @Range: 0.000 0.400
     // @Increment: 0.001
     // @User: Advanced
 
-    // @Param: _RATE_NTF
+    // `@Param`: _RATE_NTF
     // @DisplayName: Wheel rate Target notch filter index
     // @Description: Wheel rate Target notch filter index
     // @Range: 1 8
     // @User: Advanced
 
-    // @Param: _RATE_NEF
+    // `@Param`: _RATE_NEF
     // @DisplayName: Wheel rate Error notch filter index
     // @Description: Wheel rate Error notch filter index
     // @Range: 1 8
@@ -112,44 +112,44 @@ const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
 
     AP_SUBGROUPINFO(_rate_pid0, "_RATE_", 3, AP_WheelRateControl, AC_PID),
 
-    // @Param: 2_RATE_FF
+    // `@Param`: 2_RATE_FF
     // @DisplayName: Wheel rate control feed forward gain
     // @Description: Wheel rate control feed forward gain.  Desired rate (in radians/sec) is multiplied by this constant and output to output (in the range -1 to +1)
     // @Range: 0.100 2.000
     // @User: Standard
 
-    // @Param: 2_RATE_P
+    // `@Param`: 2_RATE_P
     // @DisplayName: Wheel rate control P gain
     // @Description: Wheel rate control P gain.  Converts rate error (in radians/sec) to output (in the range -1 to +1)
     // @Range: 0.100 2.000
     // @User: Standard
 
-    // @Param: 2_RATE_I
+    // `@Param`: 2_RATE_I
     // @DisplayName: Wheel rate control I gain
     // @Description: Wheel rate control I gain.  Corrects long term error between the desired rate (in rad/s) and actual
     // @Range: 0.000 2.000
     // @User: Standard
 
-    // @Param: 2_RATE_IMAX
+    // `@Param`: 2_RATE_IMAX
     // @DisplayName: Wheel rate control I gain maximum
     // @Description: Wheel rate control I gain maximum.  Constrains the output (range -1 to +1) that the I term will generate
     // @Range: 0.000 1.000
     // @User: Standard
 
-    // @Param: 2_RATE_D
+    // `@Param`: 2_RATE_D
     // @DisplayName: Wheel rate control D gain
     // @Description: Wheel rate control D gain.  Compensates for short-term change in desired rate vs actual
     // @Range: 0.000 0.400
     // @User: Standard
 
-    // @Param: 2_RATE_FILT
+    // `@Param`: 2_RATE_FILT
     // @DisplayName: Wheel rate control filter frequency
     // @Description: Wheel rate control input filter.  Lower values reduce noise but add delay.
     // @Range: 1.000 100.000
     // @Units: Hz
     // @User: Standard
 
-    // @Param: 2_RATE_FLTT
+    // `@Param`: 2_RATE_FLTT
     // @DisplayName: Wheel rate control target frequency in Hz
     // @Description: Wheel rate control target frequency in Hz
     // @Range: 1 50
@@ -157,7 +157,7 @@ const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: 2_RATE_FLTE
+    // `@Param`: 2_RATE_FLTE
     // @DisplayName: Wheel rate control error frequency in Hz
     // @Description: Wheel rate control error frequency in Hz
     // @Range: 1 50
@@ -165,7 +165,7 @@ const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: 2_RATE_FLTD
+    // `@Param`: 2_RATE_FLTD
     // @DisplayName: Wheel rate control derivative frequency in Hz
     // @Description: Wheel rate control derivative frequency in Hz
     // @Range: 1 50
@@ -173,32 +173,32 @@ const AP_Param::GroupInfo AP_WheelRateControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: 2_RATE_SMAX
+    // `@Param`: 2_RATE_SMAX
     // @DisplayName: Wheel rate slew rate limit
     // @Description: Sets an upper limit on the slew rate produced by the combined P and D gains. If the amplitude of the control action produced by the rate feedback exceeds this value, then the D+P gain is reduced to respect the limit. This limits the amplitude of high frequency oscillations caused by an excessive gain. The limit should be set to no more than 25% of the actuators maximum slew rate to allow for load effects. Note: The gain will not be reduced to less than 10% of the nominal value. A value of zero will disable this feature.
     // @Range: 0 200
     // @Increment: 0.5
     // @User: Advanced
 
-    // @Param: 2_RATE_PDMX
+    // `@Param`: 2_RATE_PDMX
     // @DisplayName: Wheel rate control PD sum maximum
     // @Description: Wheel rate control PD sum maximum.  The maximum/minimum value that the sum of the P and D term can output
     // @Range: 0.000 1.000
 
-    // @Param: 2_RATE_D_FF
+    // `@Param`: 2_RATE_D_FF
     // @DisplayName: Wheel rate Derivative FeedForward Gain
     // @Description: FF D Gain which produces an output that is proportional to the rate of change of the target
     // @Range: 0.000 0.400
     // @Increment: 0.001
     // @User: Advanced
 
-    // @Param: 2_RATE_NTF
+    // `@Param`: 2_RATE_NTF
     // @DisplayName: Wheel rate Target notch filter index
     // @Description: Wheel rate Target notch filter index
     // @Range: 1 8
     // @User: Advanced
 
-    // @Param: 2_RATE_NEF
+    // `@Param`: 2_RATE_NEF
     // @DisplayName: Wheel rate Error notch filter index
     // @Description: Wheel rate Error notch filter index
     // @Range: 1 8

@@ -40,35 +40,35 @@ AR_PosControl *AR_PosControl::_singleton;
 
 const AP_Param::GroupInfo AR_PosControl::var_info[] = {
 
-    // @Param: _POS_P
+    // `@Param`: _POS_P
     // @DisplayName: Position controller P gain
     // @Description: Position controller P gain.  Converts the distance to the target location into a desired speed which is then passed to the loiter latitude rate controller
     // @Range: 0.500 2.000
     // @User: Standard
     AP_SUBGROUPINFO(_p_pos, "_POS_", 1, AR_PosControl, AC_P_2D),
 
-    // @Param: _VEL_P
+    // `@Param`: _VEL_P
     // @DisplayName: Velocity (horizontal) P gain
     // @Description: Velocity (horizontal) P gain.  Converts the difference between desired and actual velocity to a target acceleration
     // @Range: 0.1 6.0
     // @Increment: 0.1
     // @User: Advanced
 
-    // @Param: _VEL_I
+    // `@Param`: _VEL_I
     // @DisplayName: Velocity (horizontal) I gain
     // @Description: Velocity (horizontal) I gain.  Corrects long-term difference between desired and actual velocity to a target acceleration
     // @Range: 0.00 1.00
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _VEL_D
+    // `@Param`: _VEL_D
     // @DisplayName: Velocity (horizontal) D gain
     // @Description: Velocity (horizontal) D gain.  Corrects short-term changes in velocity
     // @Range: 0.00 1.00
     // @Increment: 0.001
     // @User: Advanced
 
-    // @Param: _VEL_IMAX
+    // `@Param`: _VEL_IMAX
     // @DisplayName: Velocity (horizontal) integrator maximum
     // @Description: Velocity (horizontal) integrator maximum.  Constrains the target acceleration that the I gain will output
     // @Range: 0 4500
@@ -76,21 +76,21 @@ const AP_Param::GroupInfo AR_PosControl::var_info[] = {
     // @Units: cm/s/s
     // @User: Advanced
 
-    // @Param: _VEL_FLTE
+    // `@Param`: _VEL_FLTE
     // @DisplayName: Velocity (horizontal) input filter
     // @Description: Velocity (horizontal) input filter.  This filter (in Hz) is applied to the input for P and I terms
     // @Range: 0 100
     // @Units: Hz
     // @User: Advanced
 
-    // @Param: _VEL_FLTD
+    // `@Param`: _VEL_FLTD
     // @DisplayName: Velocity (horizontal) input filter
     // @Description: Velocity (horizontal) input filter.  This filter (in Hz) is applied to the input for D term
     // @Range: 0 100
     // @Units: Hz
     // @User: Advanced
 
-    // @Param: _VEL_FF
+    // `@Param`: _VEL_FF
     // @DisplayName: Velocity (horizontal) feed forward gain
     // @Description: Velocity (horizontal) feed forward gain.  Converts the difference between desired velocity to a target acceleration
     // @Range: 0 6

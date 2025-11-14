@@ -15,7 +15,7 @@ extern const AP_HAL::HAL& hal;
 const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // index 0 was used for the old orientation matrix
 
-    // @Param: SPEED
+    // `@Param`: SPEED
     // @DisplayName: Waypoint Horizontal Speed Target
     // @Description: Defines the speed in cm/s which the aircraft will attempt to maintain horizontally during a WP mission
     // @Units: cm/s
@@ -24,7 +24,7 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPEED",       0, AC_WPNav, _wp_speed_cms, WPNAV_WP_SPEED_CMS),
 
-    // @Param: RADIUS
+    // `@Param`: RADIUS
     // @DisplayName: Waypoint Radius
     // @Description: Defines the distance from a waypoint, that when crossed indicates the wp has been hit.
     // @Units: cm
@@ -33,7 +33,7 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RADIUS",      1, AC_WPNav, _wp_radius_cm, WPNAV_WP_RADIUS_CM),
 
-    // @Param: SPEED_UP
+    // `@Param`: SPEED_UP
     // @DisplayName: Waypoint Climb Speed Target
     // @Description: Defines the speed in cm/s which the aircraft will attempt to maintain while climbing during a WP mission
     // @Units: cm/s
@@ -42,7 +42,7 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPEED_UP",    2, AC_WPNav, _wp_speed_up_cms, WPNAV_WP_SPEED_UP_CMS),
 
-    // @Param: SPEED_DN
+    // `@Param`: SPEED_DN
     // @DisplayName: Waypoint Descent Speed Target
     // @Description: Defines the speed in cm/s which the aircraft will attempt to maintain while descending during a WP mission
     // @Units: cm/s
@@ -51,7 +51,7 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPEED_DN",    3, AC_WPNav, _wp_speed_down_cms, WPNAV_WP_SPEED_DOWN_CMS),
 
-    // @Param: ACCEL
+    // `@Param`: ACCEL
     // @DisplayName: Waypoint Acceleration 
     // @Description: Defines the horizontal acceleration in cm/s/s used during missions
     // @Units: cm/s/s
@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ACCEL",       5, AC_WPNav, _wp_accel_cmss, WPNAV_ACCELERATION),
 
-    // @Param: ACCEL_Z
+    // `@Param`: ACCEL_Z
     // @DisplayName: Waypoint Vertical Acceleration
     // @Description: Defines the vertical acceleration in cm/s/s used during missions
     // @Units: cm/s/s
@@ -69,14 +69,14 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ACCEL_Z",     6, AC_WPNav, _wp_accel_z_cmss, WPNAV_WP_ACCEL_Z_DEFAULT_CMSS),
 
-    // @Param: RFND_USE
+    // `@Param`: RFND_USE
     // @DisplayName: Waypoint missions use rangefinder for terrain following
     // @Description: This controls if waypoint missions use rangefinder for terrain following
     // @Values: 0:Disable,1:Enable
     // @User: Advanced
     AP_GROUPINFO("RFND_USE",   10, AC_WPNav, _rangefinder_use, 1),
 
-    // @Param: JERK
+    // `@Param`: JERK
     // @DisplayName: Waypoint Jerk
     // @Description: Defines the horizontal jerk in m/s/s used during missions
     // @Units: m/s/s/s
@@ -84,7 +84,7 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("JERK",   11, AC_WPNav, _wp_jerk_msss, 1.0f),
 
-    // @Param: TER_MARGIN
+    // `@Param`: TER_MARGIN
     // @DisplayName: Waypoint Terrain following altitude margin
     // @Description: Waypoint Terrain following altitude margin.  Vehicle will stop if distance from target altitude is larger than this margin (in meters)
     // @Units: m
@@ -92,7 +92,7 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TER_MARGIN",  12, AC_WPNav, _terrain_margin_m, 10.0),
 
-    // @Param: ACCEL_C
+    // `@Param`: ACCEL_C
     // @DisplayName: Waypoint Cornering Acceleration
     // @Description: Defines the maximum cornering acceleration in cm/s/s used during missions.  If zero uses 2x accel value.
     // @Units: cm/s/s

@@ -21,12 +21,7 @@
 
 #include <AP_HAL/AP_HAL_Boards.h>
 
-/**
- * crc4 method from datasheet for 16 bytes (8 short values)
- * 
- * @param [in] data
- * @return crc4 
- */
+// crc4 method from datasheet for 16 bytes (8 short values) - see crc.h for documentation
 uint16_t crc_crc4(uint16_t *data)
 {
     uint16_t n_rem = 0;
@@ -457,13 +452,7 @@ uint16_t crc16_ccitt_GDL90(const uint8_t *buf, uint32_t len, uint16_t crc)
     return crc;
 }
 
-/**
- * Calculate Modbus CRC16 for array of bytes
- * 
- * @param [in] buf input buffer
- * @param [in] len size of buffer
- * @return CRC value
- */
+// Calculate Modbus CRC16 for array of bytes - see crc.h for documentation
 uint16_t calc_crc_modbus(const uint8_t *buf, uint16_t len)
 {
     uint16_t crc = 0xFFFF;

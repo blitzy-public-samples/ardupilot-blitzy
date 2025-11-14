@@ -8,14 +8,14 @@
 // settings for throttle linearisation
 const AP_Param::GroupInfo AP_EFI_ThrLin::var_info[] = {
 
-    // @Param: _EN
+    // `@Param`: _EN
     // @DisplayName: Enable throttle linearisation
     // @Description: Enable EFI throttle linearisation
     // @Values: 0:Disabled, 1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("_EN", 1, AP_EFI_ThrLin, enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: _COEF1
+    // `@Param`: _COEF1
     // @DisplayName: Throttle linearisation - First Order
     // @Description: First Order Polynomial Coefficient. (=1, if throttle is first order polynomial trendline)
     // @Range: -1 1
@@ -23,7 +23,7 @@ const AP_Param::GroupInfo AP_EFI_ThrLin::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("_COEF1", 2, AP_EFI_ThrLin, coefficient[0], 1),
 
-    // @Param: _COEF2
+    // `@Param`: _COEF2
     // @DisplayName: Throttle linearisation - Second Order
     // @Description: Second Order Polynomial Coefficient (=0, if throttle is second order polynomial trendline)
     // @Range: -1 1
@@ -31,7 +31,7 @@ const AP_Param::GroupInfo AP_EFI_ThrLin::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("_COEF2", 3, AP_EFI_ThrLin, coefficient[1], 0),
 
-    // @Param: _COEF3
+    // `@Param`: _COEF3
     // @DisplayName: Throttle linearisation - Third Order
     // @Description: Third Order Polynomial Coefficient. (=0, if throttle is third order polynomial trendline)
     // @Range: -1 1
@@ -39,7 +39,7 @@ const AP_Param::GroupInfo AP_EFI_ThrLin::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("_COEF3", 4, AP_EFI_ThrLin, coefficient[2], 0),
 
-    // @Param: _OFS
+    // `@Param`: _OFS
     // @DisplayName: throttle linearization offset
     // @Description: Offset for throttle linearization 
     // @Range: 0 100

@@ -676,17 +676,6 @@ bool AP_FlashIface_JEDEC::send_cmd(uint8_t ins)
 //////////////////////////////////////////////////////
 ////////////////////PUBLIC METHODS////////////////////
 //////////////////////////////////////////////////////
-/**
- * @details Sends command to erase the entire chips.
- *
- * @param[out] delay_ms     Time to wait until next is_device_busy call
- * @param[out] timeout_ms   Time by which the erase should have timedout
- *
- * @return                  The operation status.
- * @retval false            if the operation failed.
- * @retval true             if the operation succeeded.
- *
- */
 bool AP_FlashIface_JEDEC::start_mass_erase(uint32_t &delay_ms, uint32_t &timeout_ms)
 {
     write_enable();

@@ -461,8 +461,9 @@ public:
     /**
      * @brief Register a periodic callback for sample collection
      * 
-     * @param[in] period_usec Period in microseconds between callbacks
-     * @param[in] cb          Callback function to execute periodically
+     * @details Registers a callback to be executed periodically. The first parameter
+     *          is the period in microseconds, and the second is an AP_HAL::Device::PeriodicCb
+     *          functor (created with FUNCTOR_BIND_MEMBER).
      * 
      * @return Handle to the registered callback
      * 

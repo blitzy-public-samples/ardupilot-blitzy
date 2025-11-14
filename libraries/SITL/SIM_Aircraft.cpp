@@ -171,7 +171,7 @@ void Aircraft::update_position(void)
 
     // logging of raw sitl data
     Vector3f accel_ef = dcm * accel_body;
-// @LoggerMessage: SITL
+// `@LoggerMessage`: SITL
 // @Description: Simulation data
 // @Field: TimeUS: Time since system startup
 // @Field: VN: Velocity - North component
@@ -492,7 +492,7 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
     uint16_t ticks = scheduler->ticks();
     if (last_ticks != ticks) {
         last_ticks = ticks;
-// @LoggerMessage: SIM2
+// `@LoggerMessage`: SIM2
 // @Description: Additional simulator state
 // @Field: TimeUS: Time since system startup
 // @Field: PN: North position from home
@@ -963,7 +963,7 @@ void Aircraft::smooth_sensors(void)
     dcm.to_euler(&R2, &P2, &Y2);
 
 #if 0
-// @LoggerMessage: SMOO
+// `@LoggerMessage`: SMOO
 // @Description: Smoothed sensor data fed to EKF to avoid inconsistencies
 // @Field: TimeUS: Time since system startup
 // @Field: AEx: Angular Velocity (around x-axis)

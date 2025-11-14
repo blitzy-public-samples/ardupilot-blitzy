@@ -1,8 +1,8 @@
 /**
  * @copyright Copyright (c) 2020 SoftSolutions, Inc. All rights reserved.
  *
- * @File:   target.c
- * @Author: jim billmeyer
+ * @file   target.c
+ * @author jim billmeyer
  *
  * @date    December 11, 2020, 12:50 AM
  */

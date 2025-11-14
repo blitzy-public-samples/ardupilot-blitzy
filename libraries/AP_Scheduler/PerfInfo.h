@@ -198,7 +198,7 @@ public:
      * @param[in] num_tasks Number of tasks to track
      * 
      * @details Allocates memory for task-level performance tracking. This array
-     *          is used by @SYS/tasks.txt to provide detailed per-task statistics
+     *          is used by `@SYS`/tasks.txt to provide detailed per-task statistics
      *          for performance analysis and debugging.
      */
     void allocate_task_info(uint8_t num_tasks);

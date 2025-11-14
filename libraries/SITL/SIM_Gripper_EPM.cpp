@@ -28,14 +28,14 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo Gripper_EPM::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Gripper servo Sim enable/disable
     // @Description: Allows you to enable (1) or disable (0) the gripper servo simulation
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENABLE", 0, Gripper_EPM, gripper_emp_enable, 0),
 
-    // @Param: PIN
+    // `@Param`: PIN
     // @DisplayName: Gripper emp pin
     // @Description: The pin number that the gripper emp is connected to. (start at 1)
     // @Range: 0 15

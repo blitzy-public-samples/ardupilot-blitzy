@@ -22,14 +22,14 @@
 
 const AP_Param::GroupInfo AP_RangeFinder_Backend_CAN::var_info[] = {
 
-    // @Param: RECV_ID
+    // `@Param`: RECV_ID
     // @DisplayName: RangeFinder CAN receive ID
     // @Description: The receive ID of the CAN frames. A value of zero means all IDs are accepted.
     // @Range: 0 65535
     // @User: Advanced
     AP_GROUPINFO("RECV_ID", 10, AP_RangeFinder_Backend_CAN, receive_id, 0),
 
-    // @Param: SNR_MIN
+    // `@Param`: SNR_MIN
     // @DisplayName: RangeFinder Minimum signal strength
     // @Description: RangeFinder Minimum signal strength (SNR) to accept distance
     // @Range: 0 65535

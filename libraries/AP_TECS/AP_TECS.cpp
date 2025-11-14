@@ -18,7 +18,7 @@ extern const AP_HAL::HAL& hal;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_TECS::var_info[] = {
 
-    // @Param: CLMB_MAX
+    // `@Param`: CLMB_MAX
     // @DisplayName: Maximum Climb Rate (metres/sec)
     // @Description: Maximum demanded climb rate. Do not set higher than the climb speed at THR_MAX at AIRSPEED_CRUISE when the battery is at low voltage. Reduce value if airspeed cannot be maintained on ascent. Increase value if throttle does not increase significantly to ascend.
     // @Increment: 0.1
@@ -26,7 +26,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("CLMB_MAX",    0, AP_TECS, _maxClimbRate, 5.0f),
 
-    // @Param: SINK_MIN
+    // `@Param`: SINK_MIN
     // @DisplayName: Minimum Sink Rate (metres/sec)
     // @Description: Minimum sink rate when at THR_MIN and AIRSPEED_CRUISE.
     // @Increment: 0.1
@@ -34,7 +34,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SINK_MIN",    1, AP_TECS, _minSinkRate, 2.0f),
 
-    // @Param: TIME_CONST
+    // `@Param`: TIME_CONST
     // @DisplayName: Controller time constant (sec)
     // @Description: Time constant of the TECS control algorithm. Small values make faster altitude corrections but can cause overshoot and aggressive behavior.
     // @Range: 3.0 10.0
@@ -42,7 +42,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TIME_CONST",  2, AP_TECS, _timeConst, 5.0f),
 
-    // @Param: THR_DAMP
+    // `@Param`: THR_DAMP
     // @DisplayName: Controller throttle damping
     // @Description: Damping gain for throttle demand loop. Increase to add throttle activity to dampen oscillations in speed and height.
     // @Range: 0.1 1.0
@@ -50,7 +50,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("THR_DAMP",    3, AP_TECS, _thrDamp, 0.5f),
 
-    // @Param: INTEG_GAIN
+    // `@Param`: INTEG_GAIN
     // @DisplayName: Controller integrator
     // @Description: Integrator gain to trim out long-term speed and height errors.
     // @Range: 0.0 0.5
@@ -58,7 +58,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("INTEG_GAIN", 4, AP_TECS, _integGain, 0.3f),
 
-    // @Param: VERT_ACC
+    // `@Param`: VERT_ACC
     // @DisplayName: Vertical Acceleration Limit (metres/sec^2)
     // @Description: Maximum vertical acceleration used to correct speed or height errors.
     // @Range: 1.0 10.0
@@ -66,7 +66,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("VERT_ACC",  5, AP_TECS, _vertAccLim, 7.0f),
 
-    // @Param: HGT_OMEGA
+    // `@Param`: HGT_OMEGA
     // @DisplayName: Height complementary filter frequency (radians/sec)
     // @Description: This is the cross-over frequency of the complementary filter used to fuse vertical acceleration and baro alt to obtain an estimate of height rate and height.
     // @Range: 1.0 5.0
@@ -74,7 +74,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("HGT_OMEGA", 6, AP_TECS, _hgtCompFiltOmega, 3.0f),
 
-    // @Param: SPD_OMEGA
+    // `@Param`: SPD_OMEGA
     // @DisplayName: Speed complementary filter frequency (radians/sec)
     // @Description: This is the cross-over frequency of the complementary filter used to fuse longitudinal acceleration and airspeed to obtain a lower noise and lag estimate of airspeed.
     // @Range: 0.5 2.0
@@ -82,7 +82,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SPD_OMEGA", 7, AP_TECS, _spdCompFiltOmega, 2.0f),
 
-    // @Param: RLL2THR
+    // `@Param`: RLL2THR
     // @DisplayName: Bank angle compensation gain
     // @Description: Gain from bank angle to throttle to compensate for loss of airspeed from drag in turns. Set to approximately 10x the sink rate in m/s caused by a 45-degree turn. High efficiency models may need less while less efficient aircraft may need more. Should be tuned in an automatic mission with waypoints and turns greater than 90 degrees. Tune with PTCH2SRV_RLL and KFF_RDDRMIX to achieve constant airspeed, constant altitude turns.
     // @Range: 5.0 30.0
@@ -90,7 +90,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RLL2THR",  8, AP_TECS, _rollComp, 10.0f),
 
-    // @Param: SPDWEIGHT
+    // `@Param`: SPDWEIGHT
     // @DisplayName: Weighting applied to speed control
     // @Description: Mixing of pitch and throttle correction for height and airspeed errors. Pitch controls altitude and throttle controls airspeed if set to 0. Pitch controls airspeed and throttle controls altitude if set to 2 (good for gliders). Blended if set to 1.
     // @Range: 0.0 2.0
@@ -98,7 +98,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SPDWEIGHT", 9, AP_TECS, _spdWeight, 1.0f),
 
-    // @Param: PTCH_DAMP
+    // `@Param`: PTCH_DAMP
     // @DisplayName: Controller pitch damping
     // @Description: Damping gain for pitch control from TECS control.  Increasing may correct for oscillations in speed and height, but too much may cause additional oscillation and degraded control.
     // @Range: 0.1 1.0
@@ -106,7 +106,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("PTCH_DAMP", 10, AP_TECS, _ptchDamp, 0.3f),
 
-    // @Param: SINK_MAX
+    // `@Param`: SINK_MAX
     // @DisplayName: Maximum Descent Rate (metres/sec)
     // @Description: Maximum demanded descent rate. Do not set higher than the vertical speed the aircraft can maintain at THR_MIN, TECS_PITCH_MIN, and AIRSPEED_MAX.
     // @Increment: 0.1
@@ -114,7 +114,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SINK_MAX",  11, AP_TECS, _maxSinkRate, 5.0f),
 
-    // @Param: LAND_ARSPD
+    // `@Param`: LAND_ARSPD
     // @DisplayName: Airspeed during landing approach (m/s)
     // @Description: When performing an autonomous landing, this value is used as the goal airspeed during approach.  Max airspeed allowed is Trim Airspeed or AIRSPEED_MAX as defined by LAND_OPTIONS bitmask.  Note that this parameter is not useful if your platform does not have an airspeed sensor (use TECS_LAND_THR instead).  If negative then this value is halfway between AIRSPEED_MIN and AIRSPEED_CRUISE speed for fixed wing autolandings.
     // @Range: -1 127
@@ -122,7 +122,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("LAND_ARSPD", 12, AP_TECS, _landAirspeed, -1),
 
-    // @Param: LAND_THR
+    // `@Param`: LAND_THR
     // @DisplayName: Cruise throttle during landing approach (percentage)
     // @Description: Use this parameter instead of LAND_ARSPD if your platform does not have an airspeed sensor.  It is the cruise throttle during landing approach.  If this value is negative then it is disabled and TECS_LAND_ARSPD is used instead.
     // @Range: -1 100
@@ -130,7 +130,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("LAND_THR", 13, AP_TECS, _landThrottle, -1),
 
-    // @Param: LAND_SPDWGT
+    // `@Param`: LAND_SPDWGT
     // @DisplayName: Weighting applied to speed control during landing.
     // @Description: Same as SPDWEIGHT parameter, with the exception that this parameter is applied during landing flight stages.  A value closer to 2 will result in the plane ignoring height error during landing and our experience has been that the plane will therefore keep the nose up -- sometimes good for a glider landing (with the side effect that you will likely glide a ways past the landing point).  A value closer to 0 results in the plane ignoring speed error -- use caution when lowering the value below 1 -- ignoring speed could result in a stall. Values between 0 and 2 are valid values for a fixed landing weight. When using -1 the weight will be scaled during the landing. At the start of the landing approach it starts with TECS_SPDWEIGHT and scales down to 0 by the time you reach the land point. Example: Halfway down the landing approach you'll effectively have a weight of TECS_SPDWEIGHT/2.
     // @Range: -1.0 2.0
@@ -138,7 +138,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_SPDWGT", 14, AP_TECS, _spdWeightLand, -1.0f),
 
-    // @Param: PITCH_MAX
+    // `@Param`: PITCH_MAX
     // @DisplayName: Maximum pitch in auto flight
     // @Description: Overrides PTCH_LIM_MAX_DEG in automatic throttle modes to reduce climb rates. Uses PTCH_LIM_MAX_DEG if set to 0. For proper TECS tuning, set to the angle that the aircraft can climb at AIRSPEED_CRUISE and THR_MAX.
     // @Range: 0 45
@@ -146,7 +146,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("PITCH_MAX", 15, AP_TECS, _pitch_max, 15),
 
-    // @Param: PITCH_MIN
+    // `@Param`: PITCH_MIN
     // @DisplayName: Minimum pitch in auto flight
     // @Description: Overrides PTCH_LIM_MIN_DEG in automatic throttle modes to reduce descent rates. Uses PTCH_LIM_MIN_DEG if set to 0. For proper TECS tuning, set to the angle that the aircraft can descend at without overspeeding.
     // @Range: -45 0
@@ -154,7 +154,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("PITCH_MIN", 16, AP_TECS, _pitch_min, 0),
 
-    // @Param: LAND_SINK
+    // `@Param`: LAND_SINK
     // @DisplayName: Sink rate for final landing stage
     // @Description: The sink rate in meters/second for the final stage of landing.
     // @Range: 0.0 2.0
@@ -162,7 +162,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_SINK", 17, AP_TECS, _land_sink, 0.25f),
 
-    // @Param: LAND_TCONST
+    // `@Param`: LAND_TCONST
     // @DisplayName: Land controller time constant (sec)
     // @Description: This is the time constant of the TECS control algorithm when in final landing stage of flight. It should be smaller than TECS_TIME_CONST to allow for faster flare
     // @Range: 1.0 5.0
@@ -170,7 +170,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_TCONST", 18, AP_TECS, _landTimeConst, 2.0f),
 
-    // @Param: LAND_DAMP
+    // `@Param`: LAND_DAMP
     // @DisplayName: Controller sink rate to pitch gain during flare
     // @Description: This is the sink rate gain for the pitch demand loop when in final landing stage of flight. It should be larger than TECS_PTCH_DAMP to allow for better sink rate control during flare.
     // @Range: 0.1 1.0
@@ -178,7 +178,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_DAMP", 19, AP_TECS, _landDamp, 0.5f),
 
-    // @Param: LAND_PMAX
+    // `@Param`: LAND_PMAX
     // @DisplayName: Maximum pitch during final stage of landing
     // @Description: This limits the pitch used during the final stage of automatic landing. During the final landing stage most planes need to keep their pitch small to avoid stalling. A maximum of 10 degrees is usually good. A value of zero means to use the normal pitch limits.
     // @Range: -5 40
@@ -186,7 +186,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_PMAX", 20, AP_TECS, _land_pitch_max, 10),
 
-    // @Param: APPR_SMAX
+    // `@Param`: APPR_SMAX
     // @DisplayName: Sink rate max for landing approach stage
     // @Description: The sink rate max for the landing approach stage of landing. This will need to be large for steep landing approaches especially when using reverse thrust. If 0, then use TECS_SINK_MAX.
     // @Range: 0.0 20.0
@@ -195,7 +195,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("APPR_SMAX", 21, AP_TECS, _maxSinkRate_approach, 0),
 
-    // @Param: LAND_SRC
+    // `@Param`: LAND_SRC
     // @DisplayName: Land sink rate change
     // @Description: When zero, the flare sink rate (TECS_LAND_SINK) is a fixed sink demand. With this enabled the flare sink rate will increase/decrease the flare sink demand as you get further beyond the LAND waypoint. Has no effect before the waypoint. This value is added to TECS_LAND_SINK proportional to distance traveled after wp. With an increasing sink rate you can still land in a given distance if you're traveling too fast and cruise passed the land point. A positive value will force the plane to land sooner proportional to distance passed land point. A negative number will tell the plane to slowly climb allowing for a pitched-up stall landing. Recommend 0.2 as initial value.
     // @Range: -2.0 2.0
@@ -204,7 +204,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_SRC", 22, AP_TECS, _land_sink_rate_change, 0),
 
-    // @Param: LAND_TDAMP
+    // `@Param`: LAND_TDAMP
     // @DisplayName: Controller throttle damping when landing
     // @Description: Damping gain for the throttle demand loop during an auto-landing. Same as TECS_THR_DAMP but only in effect during an auto-land. Increase to add throttle activity to dampen oscillations in speed and height. When set to 0 landing throttle damping is controlled by TECS_THR_DAMP.
     // @Range: 0.1 1.0
@@ -212,7 +212,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_TDAMP", 23, AP_TECS, _land_throttle_damp, 0),
 
-    // @Param: LAND_IGAIN
+    // `@Param`: LAND_IGAIN
     // @DisplayName: Controller integrator during landing
     // @Description: This is the integrator gain on the control loop during landing. When set to 0 then TECS_INTEG_GAIN is used. Increase to increase the rate at which speed and height offsets are trimmed out. Typically values lower than TECS_INTEG_GAIN work best
     // @Range: 0.0 0.5
@@ -220,7 +220,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_IGAIN", 24, AP_TECS, _integGain_land, 0),
 
-    // @Param: TKOFF_IGAIN
+    // `@Param`: TKOFF_IGAIN
     // @DisplayName: Controller integrator during takeoff
     // @Description: This is the integrator gain on the control loop during takeoff. Increase to increase the rate at which speed and height offsets are trimmed out.
     // @Range: 0.0 0.5
@@ -228,7 +228,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TKOFF_IGAIN", 25, AP_TECS, _integGain_takeoff, 0),
 
-    // @Param: LAND_PDAMP
+    // `@Param`: LAND_PDAMP
     // @DisplayName: Pitch damping gain when landing
     // @Description: This is the damping gain for the pitch demand loop during landing. Increase to add damping  to correct for oscillations in speed and height. If set to 0 then TECS_PTCH_DAMP will be used instead.
     // @Range: 0.1 1.0
@@ -236,28 +236,28 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAND_PDAMP", 26, AP_TECS, _land_pitch_damp, 0),
 
-    // @Param: SYNAIRSPEED
+    // `@Param`: SYNAIRSPEED
     // @DisplayName: Enable the use of synthetic airspeed
     // @Description: This enables the use of synthetic airspeed in TECS for aircraft that don't have a real airspeed sensor. This is useful for development testing where the user is aware of the considerable limitations of the synthetic airspeed system, such as very poor estimates when a wind estimate is not accurate. Do not enable this option unless you fully understand the limitations of a synthetic airspeed estimate. This option has no effect if a healthy airspeed sensor is being used for airspeed measurements.
     // @Values: 0:Disable,1:Enable
     // @User: Advanced
     AP_GROUPINFO("SYNAIRSPEED", 27, AP_TECS, _use_synthetic_airspeed, 0),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Extra TECS options
     // @Description: This allows the enabling of special features in the speed/height controller.
     // @Bitmask: 0:GliderOnly,1:AllowDescentSpeedup
     // @User: Advanced
     AP_GROUPINFO("OPTIONS", 28, AP_TECS, _options, 0),
 
-    // @Param: PTCH_FF_V0
+    // `@Param`: PTCH_FF_V0
     // @DisplayName: Baseline airspeed for pitch feed-forward.
     // @Description: This parameter sets the airspeed at which no feed-forward is applied between demanded airspeed and pitch. It should correspond to the airspeed in metres per second at which the plane glides at neutral pitch including STAB_PITCH_DOWN.
     // @Range: 5.0 50.0
     // @User: Advanced
     AP_GROUPINFO("PTCH_FF_V0", 29, AP_TECS, _pitch_ff_v0, 12.0),
 
-    // @Param: PTCH_FF_K
+    // `@Param`: PTCH_FF_K
     // @DisplayName: Gain for pitch feed-forward.
     // @Description: This parameter sets the gain between demanded airspeed and pitch. It has units of radians per metre per second and should generally be negative. A good starting value is -0.04 for gliders and -0.08 for draggy airframes. The default (0.0) disables this feed-forward.
     // @Range: -5.0 0.0
@@ -266,7 +266,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
 
     // 31 previously used by AP_Int8 TECS_LAND_PTRIM which was removed in November 2022
 
-    // @Param: THR_ERATE
+    // `@Param`: THR_ERATE
     // @DisplayName: Forward throttle external limit slew rate
     // @Description: The externally set forward throttle lower limit applied within TECS will be reduced by this many percentage points per second after being set. Set to a non positive value to hold the lower limit for one frame only.
     // @Units: %/s
@@ -274,7 +274,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("THR_ERATE", 31, AP_TECS, _thr_min_pct_ext_rate_lim, 20),
 
-    // @Param: FLARE_HGT
+    // `@Param`: FLARE_HGT
     // @DisplayName: Flare holdoff height
     // @Description: When height above ground is below this, the sink rate will be held at TECS_LAND_SINK. Use this to perform a hold-off manoeuvre when combined with small values for TECS_LAND_SINK.
     // @Range: 0 15
@@ -282,7 +282,7 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("FLARE_HGT", 32, AP_TECS, _flare_holdoff_hgt, 1.0f),
 
-    // @Param: HDEM_TCONST
+    // `@Param`: HDEM_TCONST
     // @DisplayName: Height Demand Time Constant
     // @Description: This sets the time constant of the low pass filter that is applied to the height demand input when bit 0 of TECS_OPTIONS is not selected.
     // @Range: 1.0 5.0
@@ -819,7 +819,7 @@ void AP_TECS::_update_throttle_with_airspeed(void)
 
 #if HAL_LOGGING_ENABLED
         if (AP::logger().should_log(_log_bitmask)){
-            // @LoggerMessage: TEC3
+            // `@LoggerMessage`: TEC3
             // @Vehicles: Plane
             // @Description: Additional additional information about the Total Energy Control System
             // @URL: http://ardupilot.org/plane/docs/tecs-total-energy-control-system-for-speed-height-tuning-guide.html
@@ -855,7 +855,7 @@ void AP_TECS::_update_throttle_with_airspeed(void)
                 (double)SPE_err_max
             );
         }
-        // @LoggerMessage: TEC4
+        // `@LoggerMessage`: TEC4
         // @Vehicles: Plane
         // @Description: Additional additional additional information about the Total Energy Control System
         // @URL: http://ardupilot.org/plane/docs/tecs-total-energy-control-system-for-speed-height-tuning-guide.html
@@ -1124,7 +1124,7 @@ void AP_TECS::_update_pitch(void)
 #if HAL_LOGGING_ENABLED
     if (AP::logger().should_log(_log_bitmask)){
         // log to AP_Logger
-        // @LoggerMessage: TEC2
+        // `@LoggerMessage`: TEC2
         // @Vehicles: Plane
         // @Description: Additional information about the Total Energy Control System
         // @URL: http://ardupilot.org/plane/docs/tecs-total-energy-control-system-for-speed-height-tuning-guide.html
@@ -1364,7 +1364,7 @@ void AP_TECS::update_pitch_throttle(int32_t hgt_dem_cm,
 #if HAL_LOGGING_ENABLED
     if (AP::logger().should_log(_log_bitmask)){
         // log to AP_Logger
-        // @LoggerMessage: TECS
+        // `@LoggerMessage`: TECS
         // @Vehicles: Plane
         // @Description: Information about the Total Energy Control System
         // @URL: http://ardupilot.org/plane/docs/tecs-total-energy-control-system-for-speed-height-tuning-guide.html

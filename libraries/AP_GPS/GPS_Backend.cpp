@@ -423,7 +423,7 @@ good_yaw:
 
 #if HAL_LOGGING_ENABLED
     // this log message helps diagnose GPS yaw issues
-    // @LoggerMessage: GPYW
+    // `@LoggerMessage`: GPYW
     // @Description: GPS Yaw
     // @Field: TimeUS: Time since system startup
     // @Field: Id: instance

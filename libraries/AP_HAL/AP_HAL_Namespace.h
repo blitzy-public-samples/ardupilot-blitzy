@@ -250,7 +250,7 @@ namespace AP_HAL {
 } // namespace AP_HAL
 
 /**
- * @example Typical HAL usage pattern
+ * @par HAL Usage Pattern Example:
  * 
  * Most ArduPilot code uses an extern declaration to access the HAL singleton:
  * 

@@ -29,7 +29,7 @@ extern const AP_HAL::HAL &hal;
 
 const AP_Param::GroupInfo AP_TemperatureSensor_DroneCAN::var_info[] = {
 
-    // @Param: MSG_ID
+    // `@Param`: MSG_ID
     // @DisplayName: Temperature sensor DroneCAN message ID
     // @Description: Sets the message device ID this backend listens for
     // @Range: 0 65535

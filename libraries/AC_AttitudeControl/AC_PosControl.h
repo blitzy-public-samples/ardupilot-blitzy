@@ -235,14 +235,14 @@ public:
      * @brief Set 3D position target with jerk-limited trajectory (centimeters)
      * 
      * @param[in] pos_neu_cm Position target in NED frame in centimeters relative to EKF origin
-     * @param[in] pos_terrain_target_alt_cm Terrain altitude at target location in centimeters
+     * @param[in] pos_terrain_target_u_cm Terrain altitude at target location in centimeters
      * @param[in] terrain_buffer_cm Required vertical clearance above terrain in centimeters
      * 
      * @details Wrapper for input_pos_NEU_m() with unit conversion from centimeters to meters.
      * 
      * @see input_pos_NEU_m()
      */
-    void input_pos_NEU_cm(const Vector3p& pos_neu_cm, float pos_terrain_target_alt_cm, float terrain_buffer_cm);
+    void input_pos_NEU_cm(const Vector3p& pos_neu_cm, float pos_terrain_target_u_cm, float terrain_buffer_cm);
 
     /**
      * @brief Set 3D position target with jerk-limited trajectory (meters)
@@ -293,14 +293,14 @@ public:
     /**
      * @brief Set horizontal speed and acceleration limits (centimeters)
      * 
-     * @param[in] speed_cms Maximum horizontal speed in cm/s
-     * @param[in] accel_cmss Maximum horizontal acceleration in cm/s²
+     * @param[in] speed_ne_cms Maximum horizontal speed in cm/s
+     * @param[in] accel_ne_cmss Maximum horizontal acceleration in cm/s²
      * 
      * @details Wrapper for set_max_speed_accel_NE_m() with unit conversion.
      * 
      * @see set_max_speed_accel_NE_m()
      */
-    void set_max_speed_accel_NE_cm(float speed_cms, float accel_cmss);
+    void set_max_speed_accel_NE_cm(float speed_ne_cms, float accel_ne_cmss);
 
     /**
      * @brief Set horizontal speed and acceleration limits (meters)

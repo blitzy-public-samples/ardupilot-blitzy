@@ -107,7 +107,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
   Vector3f rot_T{0,0,0};
 
 #if HAL_LOGGING_ENABLED
-  // @LoggerMessage: SFT
+  // `@LoggerMessage`: SFT
   // @Description: Simulated Blimp Fin Thrust
   // @Field: TimeUS: Time since system startup
   // @Field: f0: Fin 0 tangential thrust
@@ -118,7 +118,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qffff",
                               AP_HAL::micros64(),
                               fin[0].T, fin[1].T, fin[2].T, fin[3].T);
-  // @LoggerMessage: SFN
+  // `@LoggerMessage`: SFN
   // @Description: Simulated Blimp Fin Forces
   // @Field: TimeUS: Time since system startup
   // @Field: n0: Fin 0 normal force
@@ -129,7 +129,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qffff",
                               AP_HAL::micros64(),
                               fin[0].N, fin[1].N, fin[2].N, fin[3].N);
-  // @LoggerMessage: SBA1
+  // `@LoggerMessage`: SBA1
   // @Description: Simulated Blimp Body-Frame accelerations
   // @Field: TimeUS: Time since system startup
   // @Field: ax: x-axis acceleration
@@ -139,7 +139,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qfff",
                               AP_HAL::micros64(),
                               body_acc.x, body_acc.y, body_acc.z);
-  // @LoggerMessage: SFA1
+  // `@LoggerMessage`: SFA1
   // @Description: Simulated Blimp Fin Angles
   // @Field: TimeUS: Time since system startup
   // @Field: f0: fin 0 angle
@@ -150,7 +150,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qffff",
                               AP_HAL::micros64(),
                               fin[0].angle, fin[1].angle, fin[2].angle, fin[3].angle);
-  // @LoggerMessage: SFAN
+  // `@LoggerMessage`: SFAN
   // @Description: Simulated Blimp Servo Angles
   // @Field: TimeUS: Time since system startup
   // @Field: f0: fin 0 servo angle
@@ -161,7 +161,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qffff",
                               AP_HAL::micros64(),
                               fin[0].servo_angle, fin[1].servo_angle, fin[2].servo_angle, fin[3].servo_angle);
-  // @LoggerMessage: SSAN
+  // `@LoggerMessage`: SSAN
   // @Description: Simulated Blimp Servo Inputs
   // @Field: TimeUS: Time since system startup
   // @Field: f0: fin 0 servo angle input
@@ -172,7 +172,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "QHHHH",
                               AP_HAL::micros64(),
                               input.servos[0], input.servos[1], input.servos[2], input.servos[3]);
-  // @LoggerMessage: SFV1
+  // `@LoggerMessage`: SFV1
   // @Description: Simulated Blimp Fin Velocities
   // @Field: TimeUS: Time since system startup
   // @Field: f0: fin 0 velocity
@@ -183,7 +183,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qffff",
                               AP_HAL::micros64(),
                               fin[0].vel, fin[1].vel, fin[2].vel, fin[3].vel);
-  // @LoggerMessage: SRT1
+  // `@LoggerMessage`: SRT1
   // @Description: Simulated Blimp Rotational forces
   // @Field: TimeUS: Time since system startup
   // @Field: rtx: zero
@@ -197,7 +197,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
 
 #if 0 //"Wobble" attempt
   rot_T.y = fin[0].Fz * radius + fin[1].Fz * radius;
-  // @LoggerMessage: SRT2
+  // `@LoggerMessage`: SRT2
   // @Description: Transformed Simulated Blimp Rotational forces
   // @Field: TimeUS: Time since system startup
   // @Field: rtx: x-axis wobble rotational force
@@ -213,7 +213,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
   Vector3f ang_ef = dcm * ang;
   rot_T.x -= mass*GRAVITY_MSS*sinf(M_PI-ang_ef.x)/cog.z;
   rot_T.y -= mass*GRAVITY_MSS*sinf(M_PI-ang_ef.y)/cog.z;
-  // @LoggerMessage: SRT3
+  // `@LoggerMessage`: SRT3
   // @Description: Simulated Blimp Torques
   // @Field: TimeUS: Time since system startup
   // @Field: rtx: torque around x axis
@@ -223,7 +223,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qfff",
                               AP_HAL::micros64(),
                               rot_T.x, rot_T.y, rot_T.z);
-  // @LoggerMessage: SAN1
+  // `@LoggerMessage`: SAN1
   // @Description: Simulated Blimp Angles
   // @Field: TimeUS: Time since system startup
   // @Field: anx: x angle
@@ -233,7 +233,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qfff",
                               AP_HAL::micros64(),
                               ang.x, ang.y, ang.z);
-  // @LoggerMessage: SAN2
+  // `@LoggerMessage`: SAN2
   // @Description: Simulated Blimp Angles
   // @Field: TimeUS: Time since system startup
   // @Field: anx: x earth-frame angle
@@ -243,7 +243,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qfff",
                               AP_HAL::micros64(),
                               ang_ef.x, ang_ef.y, ang_ef.z);
-  // @LoggerMessage: SAF1
+  // `@LoggerMessage`: SAF1
   // @Description: Simulated Blimp Sin-Angles
   // @Field: TimeUS: Time since system startup
   // @Field: afx: sin(x angle)
@@ -253,7 +253,7 @@ void Blimp::calculate_forces(const struct sitl_input &input, Vector3f &body_acc,
                               "Qfff",
                               AP_HAL::micros64(),
                               sinf(ang.x), sinf(ang.y), sinf(ang.z));
-  // @LoggerMessage: SMGC
+  // `@LoggerMessage`: SMGC
   // @Description: Simulated Blimp Mass and COG
   // @Field: TimeUS: Time since system startup
   // @Field: m: mass
@@ -294,7 +294,7 @@ void Blimp::update(const struct sitl_input &input)
   }
 
 #if 0
-  // @LoggerMessage: SBLM
+  // `@LoggerMessage`: SBLM
   // @Description: Simulated Blimp Rotational Accelerations
   // @Field: TimeUS: Time since system startup
   // @Field: RAx: acceleration around X axis

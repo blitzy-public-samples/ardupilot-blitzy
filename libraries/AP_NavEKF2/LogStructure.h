@@ -115,7 +115,7 @@
  * 
  * Source: libraries/AP_NavEKF2/LogStructure.h:36-53
  */
-// @LoggerMessage: NKF0
+// `@LoggerMessage`: NKF0
 // @Description: EKF2 beacon sensor diagnostics
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF2 core this data is for
@@ -200,7 +200,7 @@ struct PACKED log_NKF0 {
  * 
  * Source: libraries/AP_NavEKF2/LogStructure.h:74-92
  */
-// @LoggerMessage: NKF1
+// `@LoggerMessage`: NKF1
 // @Description: EKF2 estimator outputs
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF2 core this data is for
@@ -284,7 +284,7 @@ struct PACKED log_NKF1 {
  * 
  * Source: libraries/AP_NavEKF2/LogStructure.h:112-129
  */
-// @LoggerMessage: NKF2
+// `@LoggerMessage`: NKF2
 // @Description: EKF2 estimator secondary outputs
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF2 core this data is for
@@ -370,7 +370,7 @@ struct PACKED log_NKF2 {
  * 
  * Source: libraries/AP_NavEKF2/LogStructure.h:149-166
  */
-// @LoggerMessage: NKF3
+// `@LoggerMessage`: NKF3
 // @Description: EKF2 innovations
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF2 core this data is for
@@ -458,7 +458,7 @@ struct PACKED log_NKF3 {
  * 
  * Source: libraries/AP_NavEKF2/LogStructure.h:187-204
  */
-// @LoggerMessage: NKF4
+// `@LoggerMessage`: NKF4
 // @Description: EKF2 variances  SV, SP, SH and SM are probably best described as 'Squared Innovation Test Ratios' where values <1 tells us the measurement was accepted and >1 tells us it was rejected. They represent the square of the (innovation / maximum allowed innovation) where the innovation is the difference between predicted and measured value and the maximum allowed innovation is determined from the uncertainty of the measurement, uncertainty of the prediction and scaled using the number of standard deviations set by the innovation gate parameter for that measurement, eg EK2_MAG_I_GATE, EK2_HGT_I_GATE, etc
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF2 core this data is for
@@ -549,7 +549,7 @@ struct PACKED log_NKF4 {
  * 
  * Source: libraries/AP_NavEKF2/LogStructure.h:223-239
  */
-// @LoggerMessage: NKF5
+// `@LoggerMessage`: NKF5
 // @Description: EKF2 Sensor innovations (primary core) and general dumping ground
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF2 core this data is for
@@ -625,7 +625,7 @@ struct PACKED log_NKF5 {
  * 
  * Source: libraries/AP_NavEKF2/LogStructure.h:250-258
  */
-// @LoggerMessage: NKQ
+// `@LoggerMessage`: NKQ
 // @Description: EKF2 quaternion defining the rotation from NED to XYZ (autopilot) axes
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF2 core this data is for
@@ -692,7 +692,7 @@ struct PACKED log_NKQ {
  * 
  * Source: libraries/AP_NavEKF2/LogStructure.h:273-286
  */
-// @LoggerMessage: NKT
+// `@LoggerMessage`: NKT
 // @Description: EKF2 timing information
 // @Field: TimeUS: Time since system startup
 // @Field: C: EKF core this message instance applies to

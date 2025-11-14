@@ -65,8 +65,9 @@ public:
     /**
      * @brief Callback function type for transmitting MAVlite response messages
      * 
-     * @param[in] message The MAVlite message to send (const AP_Frsky_MAVlite_Message&)
-     * @return true if message was successfully queued for transmission, false otherwise
+     * @details Callback signature: bool sender(const AP_Frsky_MAVlite_Message &message)
+     *          - message: The MAVlite message to send
+     *          - Returns: true if message was successfully queued for transmission, false otherwise
      * 
      * @note This callback is invoked to send responses back to the FrSky transmitter
      * @note Implementation must handle message serialization and transport

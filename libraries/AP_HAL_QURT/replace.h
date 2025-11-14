@@ -63,14 +63,14 @@ extern "C" {
  * @brief Get the length of a string, limited to maximum length
  * 
  * @param[in] s String to measure
- * @param[in] maxlen Maximum length to check
+ * @param[in] max Maximum length to check
  * 
- * @return Length of string or maxlen, whichever is smaller
+ * @return Length of string or max, whichever is smaller
  * 
  * @note Standard C function normally provided by string.h
  * @note Missing from QURT libc despite being POSIX standard
  */
-size_t strnlen(const char *s, size_t maxlen);
+size_t strnlen(const char *s, size_t max);
 
 /**
  * @brief Duplicate string with length limit

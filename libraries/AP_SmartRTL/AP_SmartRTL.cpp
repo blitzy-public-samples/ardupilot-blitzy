@@ -20,7 +20,7 @@
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_SmartRTL::var_info[] = {
-    // @Param: ACCURACY
+    // `@Param`: ACCURACY
     // @DisplayName: SmartRTL accuracy
     // @Description: SmartRTL accuracy. The minimum distance between points.
     // @Units: m
@@ -28,7 +28,7 @@ const AP_Param::GroupInfo AP_SmartRTL::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ACCURACY", 0, AP_SmartRTL, _accuracy, SMARTRTL_ACCURACY_DEFAULT),
 
-    // @Param: POINTS
+    // `@Param`: POINTS
     // @DisplayName: SmartRTL maximum number of points on path
     // @Description: SmartRTL maximum number of points on path. Set to 0 to disable SmartRTL.  100 points consumes about 3k of memory.
     // @Range: 0 500
@@ -36,7 +36,7 @@ const AP_Param::GroupInfo AP_SmartRTL::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("POINTS", 1, AP_SmartRTL, _points_max, SMARTRTL_POINTS_DEFAULT),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: SmartRTL options
     // @Description: Bitmask of SmartRTL options.
     // @Bitmask: 2:Ignore pilot yaw

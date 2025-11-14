@@ -82,7 +82,7 @@ AC_PosControl *AC_PosControl::_singleton;
 const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // 0 was used for HOVER
 
-    // @Param: _ACC_XY_FILT
+    // `@Param`: _ACC_XY_FILT
     // @DisplayName: XY Acceleration filter cutoff frequency
     // @Description: Lower values will slow the response of the navigation controller and reduce twitchiness
     // @Units: Hz
@@ -90,54 +90,54 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @Increment: 0.1
     // @User: Advanced
 
-    // @Param: _POSZ_P
+    // `@Param`: _POSZ_P
     // @DisplayName: Position (vertical) controller P gain
     // @Description: Position (vertical) controller P gain.  Converts the difference between the desired altitude and actual altitude into a climb or descent rate which is passed to the throttle rate controller
     // @Range: 1.000 3.000
     // @User: Standard
     AP_SUBGROUPINFO(_p_pos_u_m, "_POSZ_", 2, AC_PosControl, AC_P_1D),
 
-    // @Param: _VELZ_P
+    // `@Param`: _VELZ_P
     // @DisplayName: Velocity (vertical) controller P gain
     // @Description: Velocity (vertical) controller P gain.  Converts the difference between desired vertical speed and actual speed into a desired acceleration that is passed to the throttle acceleration controller
     // @Range: 1.000 8.000
     // @User: Standard
 
-    // @Param: _VELZ_I
+    // `@Param`: _VELZ_I
     // @DisplayName: Velocity (vertical) controller I gain
     // @Description: Velocity (vertical) controller I gain.  Corrects long-term difference in desired velocity to a target acceleration
     // @Range: 0.02 1.00
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _VELZ_IMAX
+    // `@Param`: _VELZ_IMAX
     // @DisplayName: Velocity (vertical) controller I gain maximum
     // @Description: Velocity (vertical) controller I gain maximum.  Constrains the target acceleration that the I gain will output
     // @Range: 1.000 8.000
     // @User: Standard
 
-    // @Param: _VELZ_D
+    // `@Param`: _VELZ_D
     // @DisplayName: Velocity (vertical) controller D gain
     // @Description: Velocity (vertical) controller D gain.  Corrects short-term changes in velocity
     // @Range: 0.00 1.00
     // @Increment: 0.001
     // @User: Advanced
 
-    // @Param: _VELZ_FF
+    // `@Param`: _VELZ_FF
     // @DisplayName: Velocity (vertical) controller Feed Forward gain
     // @Description: Velocity (vertical) controller Feed Forward gain.  Produces an output that is proportional to the magnitude of the target
     // @Range: 0 1
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _VELZ_FLTE
+    // `@Param`: _VELZ_FLTE
     // @DisplayName: Velocity (vertical) error filter
     // @Description: Velocity (vertical) error filter.  This filter (in Hz) is applied to the input for P and I terms
     // @Range: 0 100
     // @Units: Hz
     // @User: Advanced
 
-    // @Param: _VELZ_FLTD
+    // `@Param`: _VELZ_FLTD
     // @DisplayName: Velocity (vertical) input filter for D term
     // @Description: Velocity (vertical) input filter for D term.  This filter (in Hz) is applied to the input for D terms
     // @Range: 0 100
@@ -145,40 +145,40 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @User: Advanced
     AP_SUBGROUPINFO(_pid_vel_u_cm, "_VELZ_", 3, AC_PosControl, AC_PID_Basic),
 
-    // @Param: _ACCZ_P
+    // `@Param`: _ACCZ_P
     // @DisplayName: Acceleration (vertical) controller P gain
     // @Description: Acceleration (vertical) controller P gain.  Converts the difference between desired vertical acceleration and actual acceleration into a motor output
     // @Range: 0.200 1.500
     // @Increment: 0.05
     // @User: Standard
 
-    // @Param: _ACCZ_I
+    // `@Param`: _ACCZ_I
     // @DisplayName: Acceleration (vertical) controller I gain
     // @Description: Acceleration (vertical) controller I gain.  Corrects long-term difference in desired vertical acceleration and actual acceleration
     // @Range: 0.000 3.000
     // @User: Standard
 
-    // @Param: _ACCZ_IMAX
+    // `@Param`: _ACCZ_IMAX
     // @DisplayName: Acceleration (vertical) controller I gain maximum
     // @Description: Acceleration (vertical) controller I gain maximum.  Constrains the maximum pwm that the I term will generate
     // @Range: 0 1000
     // @Units: d%
     // @User: Standard
 
-    // @Param: _ACCZ_D
+    // `@Param`: _ACCZ_D
     // @DisplayName: Acceleration (vertical) controller D gain
     // @Description: Acceleration (vertical) controller D gain.  Compensates for short-term change in desired vertical acceleration vs actual acceleration
     // @Range: 0.000 0.400
     // @User: Standard
 
-    // @Param: _ACCZ_FF
+    // `@Param`: _ACCZ_FF
     // @DisplayName: Acceleration (vertical) controller feed forward
     // @Description: Acceleration (vertical) controller feed forward
     // @Range: 0 0.5
     // @Increment: 0.001
     // @User: Standard
 
-    // @Param: _ACCZ_FLTT
+    // `@Param`: _ACCZ_FLTT
     // @DisplayName: Acceleration (vertical) controller target frequency in Hz
     // @Description: Acceleration (vertical) controller target frequency in Hz
     // @Range: 1 50
@@ -186,7 +186,7 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _ACCZ_FLTE
+    // `@Param`: _ACCZ_FLTE
     // @DisplayName: Acceleration (vertical) controller error frequency in Hz
     // @Description: Acceleration (vertical) controller error frequency in Hz
     // @Range: 1 100
@@ -194,7 +194,7 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _ACCZ_FLTD
+    // `@Param`: _ACCZ_FLTD
     // @DisplayName: Acceleration (vertical) controller derivative frequency in Hz
     // @Description: Acceleration (vertical) controller derivative frequency in Hz
     // @Range: 1 100
@@ -202,33 +202,33 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @Units: Hz
     // @User: Standard
 
-    // @Param: _ACCZ_SMAX
+    // `@Param`: _ACCZ_SMAX
     // @DisplayName: Accel (vertical) slew rate limit
     // @Description: Sets an upper limit on the slew rate produced by the combined P and D gains. If the amplitude of the control action produced by the rate feedback exceeds this value, then the D+P gain is reduced to respect the limit. This limits the amplitude of high frequency oscillations caused by an excessive gain. The limit should be set to no more than 25% of the actuators maximum slew rate to allow for load effects. Note: The gain will not be reduced to less than 10% of the nominal value. A value of zero will disable this feature.
     // @Range: 0 200
     // @Increment: 0.5
     // @User: Advanced
 
-    // @Param: _ACCZ_PDMX
+    // `@Param`: _ACCZ_PDMX
     // @DisplayName: Acceleration (vertical) controller PD sum maximum
     // @Description: Acceleration (vertical) controller PD sum maximum.  The maximum/minimum value that the sum of the P and D term can output
     // @Range: 0 1000
     // @Units: d%
 
-    // @Param: _ACCZ_D_FF
+    // `@Param`: _ACCZ_D_FF
     // @DisplayName: Accel (vertical) Derivative FeedForward Gain
     // @Description: FF D Gain which produces an output that is proportional to the rate of change of the target
     // @Range: 0 0.02
     // @Increment: 0.0001
     // @User: Advanced
 
-    // @Param: _ACCZ_NTF
+    // `@Param`: _ACCZ_NTF
     // @DisplayName: Accel (vertical) Target notch filter index
     // @Description: Accel (vertical) Target notch filter index
     // @Range: 1 8
     // @User: Advanced
 
-    // @Param: _ACCZ_NEF
+    // `@Param`: _ACCZ_NEF
     // @DisplayName: Accel (vertical) Error notch filter index
     // @Description: Accel (vertical) Error notch filter index
     // @Range: 1 8
@@ -236,35 +236,35 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
 
     AP_SUBGROUPINFO(_pid_accel_u_cm_to_kt, "_ACCZ_", 4, AC_PosControl, AC_PID),
 
-    // @Param: _POSXY_P
+    // `@Param`: _POSXY_P
     // @DisplayName: Position (horizontal) controller P gain
     // @Description: Position controller P gain.  Converts the distance (in the latitude direction) to the target location into a desired speed which is then passed to the loiter latitude rate controller
     // @Range: 0.500 2.000
     // @User: Standard
     AP_SUBGROUPINFO(_p_pos_ne_m, "_POSXY_", 5, AC_PosControl, AC_P_2D),
 
-    // @Param: _VELXY_P
+    // `@Param`: _VELXY_P
     // @DisplayName: Velocity (horizontal) P gain
     // @Description: Velocity (horizontal) P gain.  Converts the difference between desired and actual velocity to a target acceleration
     // @Range: 0.1 6.0
     // @Increment: 0.1
     // @User: Advanced
 
-    // @Param: _VELXY_I
+    // `@Param`: _VELXY_I
     // @DisplayName: Velocity (horizontal) I gain
     // @Description: Velocity (horizontal) I gain.  Corrects long-term difference between desired and actual velocity to a target acceleration
     // @Range: 0.02 1.00
     // @Increment: 0.01
     // @User: Advanced
 
-    // @Param: _VELXY_D
+    // `@Param`: _VELXY_D
     // @DisplayName: Velocity (horizontal) D gain
     // @Description: Velocity (horizontal) D gain.  Corrects short-term changes in velocity
     // @Range: 0.00 1.00
     // @Increment: 0.001
     // @User: Advanced
 
-    // @Param: _VELXY_IMAX
+    // `@Param`: _VELXY_IMAX
     // @DisplayName: Velocity (horizontal) integrator maximum
     // @Description: Velocity (horizontal) integrator maximum.  Constrains the target acceleration that the I gain will output
     // @Range: 0 4500
@@ -272,21 +272,21 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @Units: cm/s/s
     // @User: Advanced
 
-    // @Param: _VELXY_FLTE
+    // `@Param`: _VELXY_FLTE
     // @DisplayName: Velocity (horizontal) input filter
     // @Description: Velocity (horizontal) input filter.  This filter (in Hz) is applied to the input for P and I terms
     // @Range: 0 100
     // @Units: Hz
     // @User: Advanced
 
-    // @Param: _VELXY_FLTD
+    // `@Param`: _VELXY_FLTD
     // @DisplayName: Velocity (horizontal) input filter
     // @Description: Velocity (horizontal) input filter.  This filter (in Hz) is applied to the input for D term
     // @Range: 0 100
     // @Units: Hz
     // @User: Advanced
 
-    // @Param: _VELXY_FF
+    // `@Param`: _VELXY_FF
     // @DisplayName: Velocity (horizontal) feed forward gain
     // @Description: Velocity (horizontal) feed forward gain.  Converts the difference between desired velocity to a target acceleration
     // @Range: 0 6
@@ -294,7 +294,7 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @User: Advanced
     AP_SUBGROUPINFO(_pid_vel_ne_cm, "_VELXY_", 6, AC_PosControl, AC_PID_2D),
 
-    // @Param: _ANGLE_MAX
+    // `@Param`: _ANGLE_MAX
     // @DisplayName: Position Control Angle Max
     // @Description: Maximum lean angle autopilot can request.  Set to zero to use ANGLE_MAX parameter value
     // @Units: deg
@@ -305,7 +305,7 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
 
     // IDs 8,9 used for _TC_XY and _TC_Z in beta release candidate
 
-    // @Param: _JERK_XY
+    // `@Param`: _JERK_XY
     // @DisplayName: Jerk limit for the horizontal kinematic input shaping
     // @Description: Jerk limit of the horizontal kinematic path generation used to determine how quickly the aircraft varies the acceleration target
     // @Units: m/s/s/s
@@ -314,7 +314,7 @@ const AP_Param::GroupInfo AC_PosControl::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("_JERK_XY", 10, AC_PosControl, _shaping_jerk_ne_msss, POSCONTROL_JERK_NE_MSSS),
 
-    // @Param: _JERK_Z
+    // `@Param`: _JERK_Z
     // @DisplayName: Jerk limit for the vertical kinematic input shaping
     // @Description: Jerk limit of the vertical kinematic path generation used to determine how quickly the aircraft varies the acceleration target
     // @Units: m/s/s/s

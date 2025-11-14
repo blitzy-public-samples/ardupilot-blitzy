@@ -77,7 +77,7 @@ struct PACKED log_AIS_msg5 {
     uint8_t dte;
 };
 
-// @LoggerMessage: AISR
+// `@LoggerMessage`: AISR
 // @Description: Raw AIS AVDIM messages contents, see: https://gpsd.gitlab.io/gpsd/AIVDM.html#_aivdmaivdo_sentence_layer
 // @Field: TimeUS: Time since system startup
 // @Field: num: count of fragments in the currently accumulating message
@@ -85,7 +85,7 @@ struct PACKED log_AIS_msg5 {
 // @Field: ID: sequential message ID for multi-sentence messages
 // @Field: payload: data payload
 
-// @LoggerMessage: AIS1
+// `@LoggerMessage`: AIS1
 // @Description: Contents of 'position report' AIS message, see: https://gpsd.gitlab.io/gpsd/AIVDM.html#_types_1_2_and_3_position_report_class_a
 // @Field: US: Time since system startup
 // @Field: typ: Message Type
@@ -104,7 +104,7 @@ struct PACKED log_AIS_msg5 {
 // @Field: raim: RAIM flag
 // @Field: rad: Radio status
 
-// @LoggerMessage: AIS4
+// `@LoggerMessage`: AIS4
 // @Description: Contents of 'Base Station Report' AIS message, see: https://gpsd.gitlab.io/gpsd/AIVDM.html#_type_4_base_station_report
 // @Field: US: Time since system startup
 // @Field: rep: Repeat Indicator
@@ -122,7 +122,7 @@ struct PACKED log_AIS_msg5 {
 // @Field: raim: RAIM flag
 // @Field: rad: Radio status
 
-// @LoggerMessage: AIS5
+// `@LoggerMessage`: AIS5
 // @Description: Contents of 'static and voyage related data' AIS message, see: https://gpsd.gitlab.io/gpsd/AIVDM.html#_type_5_static_and_voyage_related_data
 // @Field: US: Time since system startup
 // @Field: rep: Repeat Indicator

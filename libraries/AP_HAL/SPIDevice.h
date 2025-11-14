@@ -167,8 +167,8 @@ public:
      * @brief Perform simultaneous SPI transmit and receive (full-duplex)
      * 
      * @details Executes true full-duplex SPI transfer where data is transmitted and received
-     *          simultaneously. Each clock cycle sends one bit from @send while receiving one
-     *          bit into @recv. This is the native SPI operation mode.
+     *          simultaneously. Each clock cycle sends one bit from `@send` while receiving one
+     *          bit into `@recv`. This is the native SPI operation mode.
      *          
      *          Typical usage pattern for sensor reads:
      *          - send[0]: Register address with read bit set (e.g., 0x80 | reg_addr)
@@ -319,9 +319,10 @@ public:
      *          - Must not call functions that may block
      * 
      * @param[in] period_usec Period in microseconds between callback invocations
-     * @param[in] cb Callback function to invoke (Device::PeriodicCb type)
      * 
      * @return Handle for callback (used with adjust_periodic_callback()), or nullptr on failure
+     * 
+     * @note The second parameter is a Device::PeriodicCb functor (use FUNCTOR_BIND_MEMBER)
      * 
      * @note Callback runs with semaphore automatically held
      * @note Multiple callbacks can be registered on same device

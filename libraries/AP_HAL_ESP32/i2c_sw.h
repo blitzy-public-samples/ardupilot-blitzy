@@ -215,7 +215,7 @@ typedef struct {
  * The bus MUST not be acquired before initializing it, as this is handled
  * internally by the i2c_init function!
  *
- * @param[in] dev       the device to initialize
+ * @param[in] bus       the device to initialize
  */
 void i2c_init(_i2c_bus_t* bus);
 
@@ -228,10 +228,10 @@ void i2c_init(_i2c_bus_t* bus);
  *
  * @pre     i2c_acquire must be called before accessing the bus
  *
- * @param[in]  dev          I2C peripheral device
+ * @param[in]  bus          I2C peripheral device
+ * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[in]  reg          register address to read from (8- or 16-bit,
  *                          right-aligned)
- * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[out] data         memory location to store received data
  * @param[in]  flags        optional flags (see @ref i2c_flags_t)
  *
@@ -256,10 +256,10 @@ int i2c_read_reg(_i2c_bus_t* bus, uint16_t addr, uint16_t reg,
  *
  * @pre     i2c_acquire must be called before accessing the bus
  *
- * @param[in]  dev          I2C peripheral device
+ * @param[in]  bus          I2C peripheral device
+ * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[in]  reg          register address to read from (8- or 16-bit,
  *                          right-aligned)
- * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[out] data         memory location to store received data
  * @param[in]  len          the number of bytes to read into @p data
  * @param[in]  flags        optional flags (see @ref i2c_flags_t)
@@ -283,7 +283,7 @@ int i2c_read_regs(_i2c_bus_t* bus, uint16_t addr, uint16_t reg,
  *
  * @pre     i2c_acquire must be called before accessing the bus
  *
- * @param[in]  dev          I2C peripheral device
+ * @param[in]  bus          I2C peripheral device
  * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[out] data         memory location to store received data
  * @param[in]  flags        optional flags (see @ref i2c_flags_t)
@@ -307,7 +307,7 @@ int i2c_read_byte(_i2c_bus_t* bus, uint16_t addr, void *data, uint8_t flags);
  *
  * @pre     i2c_acquire must be called before accessing the bus
  *
- * @param[in]  dev          I2C peripheral device
+ * @param[in]  bus          I2C peripheral device
  * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[out] data         memory location to store received data
  * @param[in]  len          the number of bytes to read into @p data
@@ -330,7 +330,7 @@ int i2c_read_bytes(_i2c_bus_t* bus, uint16_t addr,
  *
  * @pre     i2c_acquire must be called before accessing the bus
  *
- * @param[in] dev           I2C peripheral device
+ * @param[in] bus           I2C peripheral device
  * @param[in] addr          7-bit or 10-bit device address (right-aligned)
  * @param[in] data          byte to write to the device
  * @param[in] flags         optional flags (see @ref i2c_flags_t)
@@ -350,7 +350,7 @@ int i2c_write_byte(_i2c_bus_t* bus, uint16_t addr, uint8_t data, uint8_t flags);
  *
  * @pre     i2c_acquire must be called before accessing the bus
  *
- * @param[in] dev           I2C peripheral device
+ * @param[in] bus           I2C peripheral device
  * @param[in] addr          7-bit or 10-bit device address (right-aligned)
  * @param[in] data          array holding the bytes to write to the device
  * @param[in] len           the number of bytes to write
@@ -376,10 +376,10 @@ int i2c_write_bytes(_i2c_bus_t* bus, uint16_t addr, const void *data,
  *
  * @pre     i2c_acquire must be called before accessing the bus
  *
- * @param[in]  dev          I2C peripheral device
+ * @param[in]  bus          I2C peripheral device
+ * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[in]  reg          register address to read from (8- or 16-bit,
  *                          right-aligned)
- * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[in]  data         byte to write
  * @param[in]  flags        optional flags (see @ref i2c_flags_t)
  *
@@ -402,11 +402,11 @@ int i2c_write_reg(_i2c_bus_t* bus, uint16_t addr, uint16_t reg,
  *
  * @pre     i2c_acquire must be called before accessing the bus
  *
- * @param[in]  dev          I2C peripheral device
+ * @param[in]  bus          I2C peripheral device
+ * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
  * @param[in]  reg          register address to read from (8- or 16-bit,
  *                          right-aligned)
- * @param[in]  addr         7-bit or 10-bit device address (right-aligned)
- * @param[out] data         memory location to store received data
+ * @param[in]  data         memory location containing data to write
  * @param[in]  len          the number of bytes to write
  * @param[in]  flags        optional flags (see @ref i2c_flags_t)
  *

@@ -27,9 +27,9 @@
  *          - Real-time: Deterministic interrupt priorities, microsecond timing
  *          
  *          Board selection and configuration:
- *          - Boards defined in libraries/AP_HAL_ChibiOS/hwdef/<boardname>/ directories
+ *          - Boards defined in libraries/AP_HAL_ChibiOS/hwdef/`<boardname>`/ directories
  *          - Each board has hwdef.dat file specifying MCU, pins, peripherals, features
- *          - Build system (waf) selects board via --board=<boardname> argument
+ *          - Build system (waf) selects board via --board=`<boardname>` argument
  *          - Conditional compilation via HAL_BOARD_CHIBIOS and board-specific feature flags
  *          
  *          Key implementation classes (inherit from AP_HAL interfaces):
@@ -45,7 +45,7 @@
  *          
  *          Global HAL access pattern:
  *          ```cpp
- *          #include <AP_HAL/AP_HAL.h>
+ *          \#include <AP_HAL/AP_HAL.h>
  *          extern const AP_HAL::HAL& hal;  // Defined as HAL_ChibiOS singleton
  *          
  *          void example() {

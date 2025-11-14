@@ -143,7 +143,7 @@ public:
 };
 
 /**
- * @example Typical AP_CANDriver implementation pattern
+ * @par Typical AP_CANDriver implementation pattern:
  * 
  * @code
  * class MyProtocolDriver : public AP_CANDriver {

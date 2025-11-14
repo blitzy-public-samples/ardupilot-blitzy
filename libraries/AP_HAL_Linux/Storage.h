@@ -93,7 +93,7 @@ namespace Linux {
  *          // Actual file write happens asynchronously in _timer_tick()
  *          ```
  * 
- * @note File location: <datadir>/storage (e.g., /tmp/storage for SITL)
+ * @note File location: `<datadir>`/storage (e.g., /tmp/storage for SITL)
  * @note File created if not exists, zero-filled
  * @warning Data loss possible on power failure (no fsync by default)
  * @warning Limited to 32 lines (16KB) due to 32-bit dirty mask

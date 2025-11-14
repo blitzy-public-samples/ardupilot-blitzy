@@ -14,14 +14,14 @@ static constexpr uint32_t NVF_PUBLISHER_DELAY_MS = 250;
 
 // ArduSoar parameters
 const AP_Param::GroupInfo SoaringController::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Is the soaring mode enabled or not
     // @Description: Toggles the soaring mode on and off
     // @Values: 0:Disable,1:Enable
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE", 1, SoaringController, soar_active, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: VSPEED
+    // `@Param`: VSPEED
     // @DisplayName: Vertical v-speed
     // @Description: Rate of climb to trigger themalling speed
     // @Units: m/s
@@ -29,21 +29,21 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("VSPEED", 2, SoaringController, thermal_vspeed, 0.7f),
 
-    // @Param: Q1
+    // `@Param`: Q1
     // @DisplayName: Process noise
     // @Description: Standard deviation of noise in process for strength
     // @Range: 0.0001 0.01
     // @User: Advanced
     AP_GROUPINFO("Q1", 3, SoaringController, thermal_q1, 0.001f),
 
-    // @Param: Q2
+    // `@Param`: Q2
     // @DisplayName: Process noise
     // @Description: Standard deviation of noise in process for position and radius
     // @Range: 0.01 1
     // @User: Advanced
     AP_GROUPINFO("Q2", 4, SoaringController, thermal_q2, 0.03f),
 
-    // @Param: R
+    // `@Param`: R
     // @DisplayName: Measurement noise
     // @Description: Standard deviation of noise in measurement
     // @Range: 0.01 1
@@ -51,7 +51,7 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
 
     AP_GROUPINFO("R", 5, SoaringController, thermal_r, 0.45f),
 
-    // @Param: DIST_AHEAD
+    // `@Param`: DIST_AHEAD
     // @DisplayName: Distance to thermal center
     // @Description: Initial guess of the distance to the thermal center
     // @Units: m
@@ -59,7 +59,7 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DIST_AHEAD", 6, SoaringController, thermal_distance_ahead, 5.0f),
 
-    // @Param: MIN_THML_S
+    // `@Param`: MIN_THML_S
     // @DisplayName: Minimum thermalling time
     // @Description: Minimum number of seconds to spend thermalling
     // @Units: s
@@ -67,7 +67,7 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MIN_THML_S", 7, SoaringController, min_thermal_s, 20),
 
-    // @Param: MIN_CRSE_S
+    // `@Param`: MIN_CRSE_S
     // @DisplayName: Minimum cruising time
     // @Description: Minimum number of seconds to spend cruising
     // @Units: s
@@ -75,21 +75,21 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MIN_CRSE_S", 8, SoaringController, min_cruise_s, 10),
 
-    // @Param: POLAR_CD0
+    // `@Param`: POLAR_CD0
     // @DisplayName: Zero lift drag coef.
     // @Description: Zero lift drag coefficient
     // @Range: 0.005 0.5
     // @User: Advanced
     AP_GROUPINFO("POLAR_CD0", 9, SoaringController, _polarParams.CD0, 0.027),
 
-    // @Param: POLAR_B
+    // `@Param`: POLAR_B
     // @DisplayName: Induced drag coeffient
     // @Description: Induced drag coeffient
     // @Range: 0.005 0.05
     // @User: Advanced
     AP_GROUPINFO("POLAR_B", 10, SoaringController, _polarParams.B, 0.031),
 
-    // @Param: POLAR_K
+    // `@Param`: POLAR_K
     // @DisplayName: Cl factor
     // @Description: Cl factor 2*m*g/(rho*S)
     // @Units: m.m/s/s
@@ -97,7 +97,7 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("POLAR_K", 11, SoaringController, _polarParams.K, 25.6),
 
-    // @Param: ALT_MAX
+    // `@Param`: ALT_MAX
     // @DisplayName: Maximum soaring altitude, relative to the home location
     // @Description: Don't thermal any higher than this.
     // @Units: m
@@ -105,7 +105,7 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ALT_MAX", 12, SoaringController, alt_max, 350.0),
 
-    // @Param: ALT_MIN
+    // `@Param`: ALT_MIN
     // @DisplayName: Minimum soaring altitude, relative to the home location
     // @Description: Don't get any lower than this.
     // @Units: m
@@ -113,7 +113,7 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ALT_MIN", 13, SoaringController, alt_min, 50.0),
 
-    // @Param: ALT_CUTOFF
+    // `@Param`: ALT_CUTOFF
     // @DisplayName: Maximum power altitude, relative to the home location
     // @Description: Cut off throttle at this alt.
     // @Units: m
@@ -123,21 +123,21 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
     
     // 15 was SOAR_ENABLE_CH, now RCX_OPTION
 
-    // @Param: MAX_DRIFT
+    // `@Param`: MAX_DRIFT
     // @DisplayName: (Optional) Maximum drift distance to allow when thermalling.
     // @Description: The previous mode will be restored if the horizontal distance to the thermalling start location exceeds this value. -1 to disable.
     // @Range: 0 1000
     // @User: Advanced
     AP_GROUPINFO("MAX_DRIFT", 16, SoaringController, max_drift, -1),
 
-    // @Param: MAX_RADIUS
+    // `@Param`: MAX_RADIUS
     // @DisplayName: (Optional) Maximum distance from home
     // @Description: RTL will be entered when a thermal is exited and the plane is more than this distance from home. -1 to disable.
     // @Range: 0 1000
     // @User: Advanced
     AP_GROUPINFO("MAX_RADIUS", 17, SoaringController, max_radius, -1),
 
-    // @Param: THML_BANK
+    // `@Param`: THML_BANK
     // @DisplayName: Thermalling bank angle
     // @Description: This parameter sets the bank angle to use when thermalling. Typically 30 - 45 degrees works well.
     // @Range: 20 50
@@ -147,21 +147,21 @@ const AP_Param::GroupInfo SoaringController::var_info[] = {
 
     // 19 reserved for POLAR_LEARN.
 
-    // @Param: THML_ARSPD
+    // `@Param`: THML_ARSPD
     // @DisplayName: Specific setting for airspeed when soaring in THERMAL mode.
     // @Description: If non-zero this airspeed will be used when thermalling. A value of 0 will use AIRSPEED_CRUISE.
     // @Range: 0 50
     // @User: Advanced
     AP_GROUPINFO("THML_ARSPD", 20, SoaringController, soar_thermal_airspeed, 0),
 
-    // @Param: CRSE_ARSPD
+    // `@Param`: CRSE_ARSPD
     // @DisplayName: Specific setting for airspeed when soaring in AUTO mode.
     // @Description: If non-zero this airspeed will be used when cruising between thermals in AUTO. If set to -1, airspeed will be selected based on speed-to-fly theory. If set to 0, then AIRSPEED_CRUISE will be used while cruising between thermals.
     // @Range: -1 50
     // @User: Advanced
     AP_GROUPINFO("CRSE_ARSPD", 21, SoaringController, soar_cruise_airspeed, 0),
 
-    // @Param: THML_FLAP
+    // `@Param`: THML_FLAP
     // @DisplayName: Flap percent to be used during thermalling flight.
     // @Description: This sets the flap when in LOITER with soaring active. Overrides the usual auto flap behaviour.
     // @Range: 0 100
@@ -344,7 +344,7 @@ void SoaringController::update_thermalling()
 
 #if HAL_LOGGING_ENABLED
     // write log - save the data.
-    // @LoggerMessage: SOAR
+    // `@LoggerMessage`: SOAR
     // @Vehicles: Plane
     // @Description: Logged data from soaring feature
     // @URL: https://ardupilot.org/plane/docs/soaring.html
@@ -407,7 +407,7 @@ void SoaringController::update_cruising()
     _speedToFly.update(wx, wz, thermal_vspeed, CLmin, CLmax);
 
 #if HAL_LOGGING_ENABLED
-    // @LoggerMessage: SORC
+    // `@LoggerMessage`: SORC
     // @Vehicles: Plane
     // @Description: Soaring Cruise-phase data
     // @URL: https://ardupilot.org/plane/docs/soaring.html

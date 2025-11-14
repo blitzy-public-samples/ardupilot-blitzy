@@ -8,7 +8,7 @@
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AC_Circle::var_info[] = {
-    // @Param: RADIUS
+    // `@Param`: RADIUS
     // @DisplayName: Circle Radius
     // @Description: Defines the radius of the circle the vehicle will fly when in Circle flight mode
     // @Units: cm
@@ -17,7 +17,7 @@ const AP_Param::GroupInfo AC_Circle::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RADIUS",  0,  AC_Circle, _radius_parm_cm, AC_CIRCLE_RADIUS_DEFAULT),
 
-    // @Param: RATE
+    // `@Param`: RATE
     // @DisplayName: Circle rate
     // @Description: Circle mode's turn rate in deg/sec.  Positive to turn clockwise, negative for counter clockwise. Circle rate must be less than ATC_SLEW_YAW parameter.
     // @Units: deg/s
@@ -26,7 +26,7 @@ const AP_Param::GroupInfo AC_Circle::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("RATE",    1, AC_Circle, _rate_parm_degs,    AC_CIRCLE_RATE_DEFAULT),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Circle options
     // @Description: 0:Enable or disable using the pitch/roll stick control circle mode's radius and rate
     // @Bitmask: 0:manual control, 1:face direction of travel, 2:Start at center rather than on perimeter, 3:Make Mount ROI the center of the circle

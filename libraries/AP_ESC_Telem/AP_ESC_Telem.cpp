@@ -34,7 +34,7 @@ extern const AP_HAL::HAL& hal;
 // table of user settable parameters
 const AP_Param::GroupInfo AP_ESC_Telem::var_info[] = {
 
-    // @Param: _MAV_OFS
+    // `@Param`: _MAV_OFS
     // @DisplayName: ESC Telemetry mavlink offset
     // @Description: Offset to apply to ESC numbers when reporting as ESC_TELEMETRY packets over MAVLink. This allows high numbered motors to be displayed as low numbered ESCs for convenience on GCS displays. A value of 4 would send ESC on output 5 as ESC number 1 in ESC_TELEMETRY packets
     // @Increment: 1
@@ -726,7 +726,7 @@ void AP_ESC_Telem::update()
                          AP_ESC_Telem_Backend::TelemetryType::FLAGS |
                          AP_ESC_Telem_Backend::TelemetryType::POWER_PERCENTAGE);
                 if (has_ext_data) {
-                    // @LoggerMessage: ESCX
+                    // `@LoggerMessage`: ESCX
                     // @Description: ESC extended telemetry data
                     // @Field: TimeUS: Time since system startup
                     // @Field: Instance: starts from 0

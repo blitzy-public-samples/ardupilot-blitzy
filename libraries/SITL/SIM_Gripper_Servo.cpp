@@ -28,21 +28,21 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo Gripper_Servo::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Gripper servo Sim enable/disable
     // @Description: Allows you to enable (1) or disable (0) the gripper servo simulation
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENABLE", 0, Gripper_Servo, gripper_enable, 0),
 
-    // @Param: PIN
+    // `@Param`: PIN
     // @DisplayName: Gripper servo pin
     // @Description: The pin number that the gripper servo is connected to. (start at 1)
     // @Range: 0 15
     // @User: Advanced
     AP_GROUPINFO("PIN", 1, Gripper_Servo, gripper_servo_pin, -1),
 
-    // @Param: GRAB
+    // `@Param`: GRAB
     // @DisplayName: Gripper Grab PWM
     // @Description: PWM value in microseconds sent to Gripper to initiate grabbing the cargo
     // @User: Advanced
@@ -50,7 +50,7 @@ const AP_Param::GroupInfo Gripper_Servo::var_info[] = {
     // @Units: PWM
     AP_GROUPINFO("GRAB", 2, Gripper_Servo, grab_pwm, SIM_GRIPPER_GRAB_PWM_DEFAULT),
 
-    // @Param: RELEASE
+    // `@Param`: RELEASE
     // @DisplayName: Gripper Release PWM
     // @Description: PWM value in microseconds sent to Gripper to release the cargo
     // @User: Advanced
@@ -58,7 +58,7 @@ const AP_Param::GroupInfo Gripper_Servo::var_info[] = {
     // @Units: PWM
     AP_GROUPINFO("RELEASE", 3, Gripper_Servo, release_pwm, SIM_GRIPPER_RELEASE_PWM_DEFAULT),
 
-    // @Param: REVERSE
+    // `@Param`: REVERSE
     // @DisplayName: Gripper close direction
     // @Description: Reverse the closing direction.
     // @User: Advanced

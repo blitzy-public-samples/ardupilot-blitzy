@@ -27,7 +27,7 @@ extern const AP_HAL::HAL& hal;
 SRV_Channel::servo_mask_t SRV_Channel::have_pwm_mask;
 
 const AP_Param::GroupInfo SRV_Channel::var_info[] = {
-    // @Param: MIN
+    // `@Param`: MIN
     // @DisplayName: Minimum PWM
     // @Description: minimum PWM pulse width in microseconds. Typically 1000 is lower limit, 1500 is neutral and 2000 is upper limit.
     // @Units: PWM
@@ -36,7 +36,7 @@ const AP_Param::GroupInfo SRV_Channel::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("MIN",  1, SRV_Channel, servo_min, 1100),
 
-    // @Param: MAX
+    // `@Param`: MAX
     // @DisplayName: Maximum PWM
     // @Description: maximum PWM pulse width in microseconds. Typically 1000 is lower limit, 1500 is neutral and 2000 is upper limit.
     // @Units: PWM
@@ -45,7 +45,7 @@ const AP_Param::GroupInfo SRV_Channel::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("MAX",  2, SRV_Channel, servo_max, 1900),
 
-    // @Param: TRIM
+    // `@Param`: TRIM
     // @DisplayName: Trim PWM
     // @Description: Trim PWM pulse width in microseconds. Typically 1000 is lower limit, 1500 is neutral and 2000 is upper limit.
     // @Units: PWM
@@ -54,14 +54,14 @@ const AP_Param::GroupInfo SRV_Channel::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("TRIM",  3, SRV_Channel, servo_trim, 1500),
 
-    // @Param: REVERSED
+    // `@Param`: REVERSED
     // @DisplayName: Servo reverse
     // @Description: Reverse servo operation. Set to 0 for normal operation. Set to 1 to reverse this output channel.
     // @Values: 0:Normal,1:Reversed
     // @User: Standard
     AP_GROUPINFO("REVERSED",  4, SRV_Channel, reversed, 0),
 
-    // @Param: FUNCTION
+    // `@Param`: FUNCTION
     // @DisplayName: Servo output function
     // @Description: Function assigned to this servo. Setting this to Disabled(0) will setup this output for control by auto missions or MAVLink servo set commands. any other value will enable the corresponding function
     // @SortValues: AlphabeticalZeroAtTop

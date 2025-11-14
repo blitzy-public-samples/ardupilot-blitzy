@@ -6,21 +6,21 @@
 
 const AP_Param::GroupInfo AP_CustomRotation_params::var_info[] = {
 
-    // @Param: ROLL
+    // `@Param`: ROLL
     // @DisplayName: Custom roll
     // @Description: Custom euler roll, euler 321 (yaw, pitch, roll) ordering
     // @Units: deg
     // @RebootRequired: True
     AP_GROUPINFO("ROLL",  1, AP_CustomRotation_params, roll, 0),
 
-    // @Param: PITCH
+    // `@Param`: PITCH
     // @DisplayName: Custom pitch
     // @Description: Custom euler pitch, euler 321 (yaw, pitch, roll) ordering
     // @Units: deg
     // @RebootRequired: True
     AP_GROUPINFO("PITCH",  2, AP_CustomRotation_params, pitch, 0),
 
-    // @Param: YAW
+    // `@Param`: YAW
     // @DisplayName: Custom yaw
     // @Description: Custom euler yaw, euler 321 (yaw, pitch, roll) ordering
     // @Units: deg

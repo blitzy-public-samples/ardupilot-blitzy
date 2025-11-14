@@ -15,17 +15,17 @@
 
 /**
  * @file AP_Filesystem_Sys.h
- * @brief @SYS virtual filesystem exposing system diagnostics and internal state
+ * @brief `@SYS` virtual filesystem exposing system diagnostics and internal state
  * 
- * This file implements the @SYS virtual filesystem backend that provides
+ * This file implements the `@SYS` virtual filesystem backend that provides
  * read-only access to ArduPilot system diagnostics, crash dumps, and internal
  * state through a file-based interface. All files are generated on-demand at
  * open() time and stored in memory as snapshots.
  * 
- * The @SYS filesystem is accessible via MAVLink FTP protocol, enabling remote
+ * The `@SYS` filesystem is accessible via MAVLink FTP protocol, enabling remote
  * diagnostics and debugging without requiring shell access to the flight controller.
  * 
- * @note All @SYS files are read-only. Write operations are not supported.
+ * @note All `@SYS` files are read-only. Write operations are not supported.
  * @warning Reading large files (flash.bin) generates significant memory allocation
  * 
  * @see libraries/AP_Filesystem/README.md for MAVLink FTP protocol details
@@ -47,62 +47,62 @@ class ExpandingString;
  * @class AP_Filesystem_Sys
  * @brief Virtual filesystem backend providing system diagnostics as readable files
  * 
- * @details This backend implements the @SYS virtual filesystem, exposing ArduPilot
+ * @details This backend implements the `@SYS` virtual filesystem, exposing ArduPilot
  *          internal state and diagnostics through standard filesystem operations.
  *          Content is generated dynamically at open() time and stored in memory
  *          as a snapshot for subsequent read() operations.
  * 
  * **Available Virtual Files:**
  * 
- * - **@SYS/threads.txt**: Thread stack usage and health information
+ * - **``@SYS`/threads.txt`**: Thread stack usage and health information
  *   - Thread name, total stack size, free stack, used percentage
  *   - Platform: ChibiOS only (RTOS with thread tracking)
  *   - Use case: Identify stack overflow risks, tune thread stack sizes
  * 
- * - **@SYS/tasks.txt**: AP_Scheduler task information and timing statistics
+ * - **`@SYS`/tasks.txt**: AP_Scheduler task information and timing statistics
  *   - Task names, execution rates, timing overruns, budget usage
  *   - Platform: All platforms
  *   - Use case: Performance profiling, scheduler tuning
  * 
- * - **@SYS/dma.txt**: DMA controller allocation and usage information
+ * - **`@SYS`/dma.txt**: DMA controller allocation and usage information
  *   - Platform: ChibiOS on STM32
  *   - Use case: DMA conflict debugging, resource optimization
  * 
- * - **@SYS/memory.txt**: Memory allocation statistics and heap status
+ * - **`@SYS`/memory.txt**: Memory allocation statistics and heap status
  *   - Platform: All platforms
  *   - Use case: Memory leak detection, heap fragmentation analysis
  * 
- * - **@SYS/uarts.txt**: UART/serial port configuration and status
+ * - **`@SYS`/uarts.txt**: UART/serial port configuration and status
  *   - Platform: All platforms
  *   - Use case: Serial port debugging, baud rate verification
  * 
- * - **@SYS/timers.txt**: Hardware timer allocation and configuration
+ * - **`@SYS`/timers.txt**: Hardware timer allocation and configuration
  *   - Platform: ChibiOS on STM32
  *   - Use case: PWM conflict debugging, timer resource planning
  * 
- * - **@SYS/can_log.txt**: CAN bus protocol driver logs (if HAL_MAX_CAN_PROTOCOL_DRIVERS)
+ * - **`@SYS`/can_log.txt**: CAN bus protocol driver logs (if HAL_MAX_CAN_PROTOCOL_DRIVERS)
  *   - Platform: Boards with CAN support
  *   - Use case: DroneCAN/UAVCAN debugging
  * 
- * - **@SYS/can0_stats.txt, @SYS/can1_stats.txt**: CAN interface statistics
+ * - **`@SYS`/can0_stats.txt, `@SYS`/can1_stats.txt**: CAN interface statistics
  *   - Platform: Boards with CAN hardware (HAL_NUM_CAN_IFACES > 0)
  *   - Use case: CAN bus health monitoring, error rate analysis
  * 
- * - **@SYS/persistent.parm**: Persistent parameters from crash-safe storage
+ * - **`@SYS`/persistent.parm**: Persistent parameters from crash-safe storage
  *   - Platform: STM32F7/H7 non-bootloader builds
  *   - Use case: Recover parameters after crash or corruption
  * 
- * - **@SYS/crash_dump.bin**: Binary crash dump from last fault
+ * - **`@SYS`/crash_dump.bin**: Binary crash dump from last fault
  *   - Crash context: registers, backtrace, fault address, exception type
  *   - Platform: Platforms with crash detection support
  *   - Use case: Post-crash analysis, fault diagnosis
  * 
- * - **@SYS/storage.bin**: Raw byte dump of parameter storage area
+ * - **`@SYS`/storage.bin**: Raw byte dump of parameter storage area
  *   - Complete parameter EEPROM/flash contents
  *   - Platform: All platforms
  *   - Use case: Parameter corruption analysis, storage debugging
  * 
- * - **@SYS/flash.bin**: Complete flash memory dump (if AP_FILESYSTEM_SYS_FLASH_ENABLED)
+ * - **`@SYS`/flash.bin**: Complete flash memory dump (if AP_FILESYSTEM_SYS_FLASH_ENABLED)
  *   - WARNING: Very large file (multiple megabytes)
  *   - Platform: ChibiOS only
  *   - Use case: Firmware verification, low-level debugging
@@ -131,7 +131,7 @@ class ExpandingString;
  * 
  * @see AP_Filesystem_Backend for base filesystem interface
  * @see ExpandingString for dynamic string buffer implementation
- * @see libraries/AP_Filesystem/README.md for complete @SYS documentation
+ * @see libraries/AP_Filesystem/README.md for complete `@SYS` documentation
  * 
  * Source: libraries/AP_Filesystem/AP_Filesystem_Sys.h, AP_Filesystem_Sys.cpp
  */
@@ -139,9 +139,9 @@ class AP_Filesystem_Sys : public AP_Filesystem_Backend
 {
 public:
     /**
-     * @brief Open a virtual @SYS file and generate its diagnostic content
+     * @brief Open a virtual `@SYS` file and generate its diagnostic content
      * 
-     * @details Opens a virtual diagnostic file from the @SYS filesystem. The file
+     * @details Opens a virtual diagnostic file from the `@SYS` filesystem. The file
      *          content is generated immediately at open time by calling the appropriate
      *          diagnostic function and storing the output in an ExpandingString buffer.
      *          The generated content is a snapshot and remains static for the lifetime
@@ -153,9 +153,9 @@ public:
      *          Only read-only access is supported (O_RDONLY flag). Write attempts will
      *          fail with EROFS error.
      * 
-     * @param[in] fname File path within @SYS filesystem (e.g., "threads.txt", "crash_dump.bin")
+     * @param[in] fname File path within `@SYS` filesystem (e.g., "threads.txt", "crash_dump.bin")
      * @param[in] flags File open flags (only O_RDONLY supported, O_WRONLY/O_RDWR return EROFS)
-     * @param[in] allow_absolute_paths Ignored for @SYS filesystem (not used)
+     * @param[in] allow_absolute_paths Ignored for `@SYS` filesystem (not used)
      * 
      * @return File descriptor (0-3) on success, -1 on error with errno set
      * 
@@ -164,7 +164,7 @@ public:
      *         - errno = EROFS: Write access requested (only read allowed)
      *         - errno = ENFILE: All file slots in use (max_open_file=4 limit reached)
      *         - errno = ENOMEM: Failed to allocate ExpandingString buffer
-     *         - errno = ENOENT: File not found in @SYS filesystem
+     *         - errno = ENOENT: File not found in `@SYS` filesystem
      * 
      * @note Maximum 4 files can be open simultaneously (max_open_file limit)
      * @note Content is generated at open time, not lazily during read
@@ -180,7 +180,7 @@ public:
     /**
      * @brief Close virtual file and release memory buffer
      * 
-     * @details Closes a previously opened @SYS file and deallocates the ExpandingString
+     * @details Closes a previously opened `@SYS` file and deallocates the ExpandingString
      *          buffer holding the generated diagnostic content. This releases memory
      *          allocated during open().
      * 
@@ -250,14 +250,14 @@ public:
     int32_t lseek(int fd, int32_t offset, int whence) override;
     
     /**
-     * @brief Get file status information for virtual @SYS file
+     * @brief Get file status information for virtual `@SYS` file
      * 
-     * @details Returns metadata for a virtual @SYS file. Generates the file content
+     * @details Returns metadata for a virtual `@SYS` file. Generates the file content
      *          internally to determine size, then discards it. This is necessary
      *          because file sizes are dynamic (threads.txt size depends on number
      *          of threads, etc.).
      * 
-     * @param[in] pathname @SYS file path (e.g., "threads.txt", "crash_dump.bin")
+     * @param[in] pathname `@SYS` file path (e.g., "threads.txt", "crash_dump.bin")
      * @param[out] stbuf Stat structure to populate with file information
      * 
      * @return 0 on success, -1 on error with errno set
@@ -266,7 +266,7 @@ public:
      *         - st_size: File size in bytes
      *         - st_mode: S_IFREG | 0444 (regular file, read-only)
      * @retval -1 Error:
-     *         - errno = ENOENT: File not found in @SYS filesystem
+     *         - errno = ENOENT: File not found in `@SYS` filesystem
      *         - errno = ENOMEM: Failed to generate content for size calculation
      * 
      * @note Temporarily generates entire file content to determine size
@@ -280,12 +280,12 @@ public:
     int stat(const char *pathname, struct stat *stbuf) override;
     
     /**
-     * @brief Open directory for enumerating @SYS virtual files
+     * @brief Open directory for enumerating `@SYS` virtual files
      * 
-     * @details Opens the @SYS directory to enable listing all available virtual files
-     *          using readdir(). Currently only the root @SYS directory is supported.
+     * @details Opens the `@SYS` directory to enable listing all available virtual files
+     *          using readdir(). Currently only the root `@SYS` directory is supported.
      * 
-     * @param[in] pathname Directory path (typically "" or "/" for @SYS root)
+     * @param[in] pathname Directory path (typically "" or "/" for `@SYS` root)
      * 
      * @return Directory handle pointer on success, nullptr on error with errno set
      * 
@@ -302,9 +302,9 @@ public:
     void *opendir(const char *pathname) override;
     
     /**
-     * @brief Read next directory entry from @SYS virtual filesystem
+     * @brief Read next directory entry from `@SYS` virtual filesystem
      * 
-     * @details Returns the next file entry from the @SYS directory listing.
+     * @details Returns the next file entry from the `@SYS` directory listing.
      *          Iterates through the sysfs_file_list[] array.
      * 
      * @param[in] dirp Directory handle from opendir()
@@ -344,7 +344,7 @@ public:
 
 private:
     /**
-     * @brief Maximum number of simultaneously open @SYS files
+     * @brief Maximum number of simultaneously open `@SYS` files
      * 
      * @details Limits concurrent file opens to conserve memory and file descriptor slots.
      *          Each open file maintains an ExpandingString buffer with full file content,
@@ -353,17 +353,17 @@ private:
     static constexpr uint8_t max_open_file = 4;
     
     /**
-     * @brief Check if filename exists in @SYS virtual filesystem
+     * @brief Check if filename exists in `@SYS` virtual filesystem
      * 
      * @details Searches the sysfs_file_list[] array for the specified filename.
      *          Used during open() to validate file existence before generating content.
      * 
-     * @param[in] fname Filename to search for (without @SYS/ prefix)
+     * @param[in] fname Filename to search for (without `@SYS`/ prefix)
      * 
      * @return Array index (0-based) if found, -1 if not found
      * 
      * @retval >=0 Index in sysfs_file_list[] array
-     * @retval -1 File not in @SYS filesystem
+     * @retval -1 File not in `@SYS` filesystem
      * 
      * @note Case-sensitive string comparison
      * @note Platform-conditional files (flash.bin) are in list even if not available
@@ -386,9 +386,9 @@ private:
 
     /**
      * @struct rfile
-     * @brief Open file state for @SYS virtual file handle
+     * @brief Open file state for `@SYS` virtual file handle
      * 
-     * @details Maintains state for each open @SYS file. The ExpandingString buffer
+     * @details Maintains state for each open `@SYS` file. The ExpandingString buffer
      *          holds the complete generated file content as a snapshot from open() time.
      */
     struct rfile {

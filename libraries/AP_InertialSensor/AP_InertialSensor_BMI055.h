@@ -145,8 +145,6 @@ public:
      *          different sample rates. FIFO buffering ensures no samples are lost
      *          between update() calls even at high data rates.
      * 
-     * @return void
-     * 
      * @note Called automatically by AP_InertialSensor after successful probe/init
      * @note Callbacks run in scheduler interrupt context - must be fast and non-blocking
      * @note This method implements the AP_InertialSensor_Backend::start() interface
@@ -329,8 +327,6 @@ private:
      *          FIFO format: Each sample is 6 bytes (2 bytes per axis, LSB first).
      *          Overflow detection uses frame counter wraparound to identify lost data.
      * 
-     * @return void
-     * 
      * @note Registered as periodic callback by start() method
      * @note Executes in scheduler context - must be fast (<100µs typical)
      * @note FIFO depth: 32 samples, overflow if not read before buffer full
@@ -361,8 +357,6 @@ private:
      *          
      *          FIFO format: Each sample is 6 bytes (2 bytes per axis, LSB first).
      *          Gyroscope FIFO is deeper (100 vs 32 samples) to handle higher ODR.
-     * 
-     * @return void
      * 
      * @note Registered as periodic callback by start() method
      * @note Executes in scheduler context - must be fast (<100µs typical)

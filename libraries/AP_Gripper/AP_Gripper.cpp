@@ -15,21 +15,21 @@ extern const AP_HAL::HAL& hal;
 #define GRIPPER_AUTOCLOSE_DEFAULT       0.0         // default automatic close time (in seconds)
 
 const AP_Param::GroupInfo AP_Gripper::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Gripper Enable/Disable
     // @Description: Gripper enable/disable
     // @User: Standard
     // @Values: 0:Disabled, 1:Enabled
     AP_GROUPINFO_FLAGS("ENABLE", 0, AP_Gripper, _enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Gripper Type
     // @Description: Gripper enable/disable
     // @User: Standard
     // @Values: 0:None,1:Servo,2:EPM
     AP_GROUPINFO("TYPE", 1, AP_Gripper, config.type, 0),
 
-    // @Param: GRAB
+    // `@Param`: GRAB
     // @DisplayName: Gripper Grab PWM
     // @Description: PWM value in microseconds sent to Gripper to initiate grabbing the cargo
     // @User: Advanced
@@ -37,7 +37,7 @@ const AP_Param::GroupInfo AP_Gripper::var_info[] = {
     // @Units: PWM
     AP_GROUPINFO("GRAB",    2, AP_Gripper, config.grab_pwm, GRIPPER_GRAB_PWM_DEFAULT),
 
-    // @Param: RELEASE
+    // `@Param`: RELEASE
     // @DisplayName: Gripper Release PWM
     // @Description: PWM value in microseconds sent to Gripper to release the cargo
     // @User: Advanced
@@ -45,7 +45,7 @@ const AP_Param::GroupInfo AP_Gripper::var_info[] = {
     // @Units: PWM
     AP_GROUPINFO("RELEASE", 3, AP_Gripper, config.release_pwm, GRIPPER_RELEASE_PWM_DEFAULT),
 
-    // @Param: NEUTRAL
+    // `@Param`: NEUTRAL
     // @DisplayName: Neutral PWM
     // @Description: PWM value in microseconds sent to grabber when not grabbing or releasing
     // @User: Advanced
@@ -53,7 +53,7 @@ const AP_Param::GroupInfo AP_Gripper::var_info[] = {
     // @Units: PWM
     AP_GROUPINFO("NEUTRAL", 4, AP_Gripper, config.neutral_pwm, GRIPPER_NEUTRAL_PWM_DEFAULT),
 
-    // @Param: REGRAB
+    // `@Param`: REGRAB
     // @DisplayName: EPM Gripper Regrab interval
     // @Description: Time in seconds that EPM gripper will regrab the cargo to ensure grip has not weakened; 0 to disable
     // @User: Advanced
@@ -61,14 +61,14 @@ const AP_Param::GroupInfo AP_Gripper::var_info[] = {
     // @Units: s
     AP_GROUPINFO("REGRAB",  5, AP_Gripper, config.regrab_interval, GRIPPER_REGRAB_DEFAULT),
 
-    // @Param: CAN_ID
+    // `@Param`: CAN_ID
     // @DisplayName: EPM UAVCAN Hardpoint ID
     // @Description: Refer to https://docs.zubax.com/opengrab_epm_v3#UAVCAN_interface
     // @User: Standard
     // @Range: 0 255
     AP_GROUPINFO("CAN_ID", 6, AP_Gripper, config.uavcan_hardpoint_id, 0),
 
-    // @Param: AUTOCLOSE
+    // `@Param`: AUTOCLOSE
     // @DisplayName: Gripper Autoclose time
     // @Description: Time in seconds that gripper close the gripper after opening; 0 to disable
     // @User: Advanced

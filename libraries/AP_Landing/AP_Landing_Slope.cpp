@@ -416,7 +416,7 @@ bool AP_Landing::type_slope_is_complete(void) const
 #if HAL_LOGGING_ENABLED
 void AP_Landing::type_slope_log(void) const
 {
-// @LoggerMessage: LAND
+// `@LoggerMessage`: LAND
 // @Description: Slope Landing data
 // @Field: TimeUS: Time since system startup
 // @Field: stage: progress through landing sequence

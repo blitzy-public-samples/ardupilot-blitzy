@@ -626,7 +626,7 @@ public:
      * 
      * @details Tracks TX/RX byte counts and dropped bytes for monitoring
      *          and diagnostics. Used by uart_info() to report statistics
-     *          to @SYS/uarts.txt for ground station display.
+     *          to \@SYS/uarts.txt for ground station display.
      */
     struct StatsTracker {
         /**
@@ -660,7 +660,7 @@ public:
      * @brief Generate UART statistics for diagnostics
      * 
      * @details Appends human-readable UART statistics to string for
-     *          @SYS/uarts.txt MAVLink file. Includes baud rate, buffer usage,
+     *          \@SYS/uarts.txt MAVLink file. Includes baud rate, buffer usage,
      *          throughput, and error counts.
      * 
      * @param[out] str    ExpandingString to append statistics to
@@ -672,12 +672,13 @@ public:
      */
     virtual void uart_info(ExpandingString &str, StatsTracker &stats, const uint32_t dt_ms) {}
 
-#if HAL_LOGGING_ENABLED
     /**
      * @brief Log UART statistics to dataflash
      * 
      * @details Writes UART performance metrics to binary log for post-flight
      *          analysis. Logs throughput, buffer usage, and error rates.
+     * 
+     * @note Only available when HAL_LOGGING_ENABLED is defined
      * 
      * @param[in] inst  UART instance number (0-based)
      * @param[in,out] stats StatsTracker for calculating deltas
@@ -685,6 +686,7 @@ public:
      * 
      * @see StatsTracker, uart_info()
      */
+#if HAL_LOGGING_ENABLED || defined(__DOXYGEN__)
     void log_stats(const uint8_t inst, StatsTracker &stats, const uint32_t dt_ms);
 #endif
 #endif // HAL_UART_STATS_ENABLED

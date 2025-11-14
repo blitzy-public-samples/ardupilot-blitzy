@@ -7,7 +7,7 @@
     LOG_MSG_SBPHEALTH,                          \
     LOG_MSG_SBPEVENT
 
-// @LoggerMessage: SBPH
+// `@LoggerMessage`: SBPH
 // @Description: Swift Health Data
 // @Field: TimeUS: Time since system startup
 // @Field: CrcError: Number of packet CRC errors on serial connection
@@ -22,7 +22,7 @@ struct PACKED log_SbpHealth {
     uint32_t last_iar_num_hypotheses;
 };
 
-// @LoggerMessage: SBRE
+// `@LoggerMessage`: SBRE
 // @Description: Swift Time Data
 // @Field: TimeUS: Time since system startup
 // @Field: GWk: GPS week number

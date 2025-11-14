@@ -7,7 +7,7 @@
     LOG_CAMERA_MSG, \
     LOG_TRIGGER_MSG
 
-// @LoggerMessage: CAM,TRIG
+// `@LoggerMessage`: CAM,TRIG
 // @Description: Camera shutter information
 // @Field: TimeUS: Time since system startup
 // @Field: I: Instance number

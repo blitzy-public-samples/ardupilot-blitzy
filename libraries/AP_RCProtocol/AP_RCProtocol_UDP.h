@@ -113,8 +113,6 @@ public:
      *          - Socket read errors (other than EAGAIN/EWOULDBLOCK) are logged
      *          - Maintains last known good RC values on packet loss
      * 
-     * @return void
-     * 
      * @note This method must be called regularly to maintain RC input responsiveness
      * @note Lazy initialization defers socket creation until first update() call
      * @warning Socket operations may fail in constrained environments - no RC failsafe triggered
@@ -134,8 +132,6 @@ public:
      *          separate UDP RC packets.
      * 
      * @param[in] _fdm_backend Pointer to the FDM backend instance to use for fallback
-     * 
-     * @return void
      * 
      * @note Only available when AP_RCPROTOCOL_FDM_ENABLED is defined
      * @see AP_RCProtocol_FDM for FDM backend implementation
@@ -175,8 +171,6 @@ private:
      *          processing each packet to extract PWM channel values. Continues
      *          reading until socket buffer is empty (EAGAIN/EWOULDBLOCK).
      *          Handles endianness conversion and channel count extraction.
-     * 
-     * @return void
      * 
      * @note Processes multiple packets per call to avoid buffer overflow
      * @see update() which calls this method
@@ -224,8 +218,6 @@ private:
      * @details Sets all 16 channels to 1500μs (neutral/center position).
      *          Called during initialization and when resetting RC state.
      *          Ensures safe default values for channels not provided in packets.
-     * 
-     * @return void
      */
     void set_default_pwm_input_values();
 

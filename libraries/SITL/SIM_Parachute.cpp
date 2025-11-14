@@ -26,14 +26,14 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo Parachute::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Parachute Sim enable/disable
     // @Description: Allows you to enable (1) or disable (0) the Parachute simulation
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENABLE", 0, Parachute, parachute_enable, 0),
 
-    // @Param: PIN
+    // `@Param`: PIN
     // @DisplayName: Parachute pin
     // @Description: The pin number that the Parachute pyrotechnics are connected to. (start at 1)
     // @Range: 0 15

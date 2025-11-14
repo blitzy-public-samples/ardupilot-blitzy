@@ -39,7 +39,7 @@
 #endif
 
 const AP_Param::GroupInfo AP_DAC_Params::var_info[] = {
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: DAC Type
     // @Description: DAC Type
     // @Values: 0:Disabled, 1:TIx3204, 2:MCP401x
@@ -47,7 +47,7 @@ const AP_Param::GroupInfo AP_DAC_Params::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO_FLAGS("TYPE", 1, AP_DAC_Params, type, AP_DAC_DEFAULT_TYPE, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: BUS
+    // `@Param`: BUS
     // @DisplayName: I2C bus
     // @Description: I2C bus number
     // @Range: 0 3
@@ -55,7 +55,7 @@ const AP_Param::GroupInfo AP_DAC_Params::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("BUS", 2, AP_DAC_Params, bus, AP_DAC_DEFAULT_BUS),
 
-    // @Param: ADDR
+    // `@Param`: ADDR
     // @DisplayName: I2C address
     // @Description: I2C address
     // @Range: 0 127
@@ -63,14 +63,14 @@ const AP_Param::GroupInfo AP_DAC_Params::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("ADDR", 3, AP_DAC_Params, bus_address, AP_DAC_DEFAULT_ADDR),
 
-    // @Param: VREF
+    // `@Param`: VREF
     // @DisplayName: Voltage reference
     // @Description: Voltage reference
     // @Range: 0 1000
     // @User: Standard
     AP_GROUPINFO("VREF", 4, AP_DAC_Params, voltage_reference, AP_DAC_DEFAULT_VREF),
     
-    // @Param: VOLTS
+    // `@Param`: VOLTS
     // @DisplayName: Voltage
     // @Description: Voltage
     // @Range: 0 1000

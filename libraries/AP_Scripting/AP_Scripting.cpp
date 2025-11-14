@@ -63,7 +63,7 @@ static_assert(SCRIPTING_STACK_SIZE <= SCRIPTING_STACK_MAX_SIZE, "Scripting requi
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_Scripting::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable Scripting
     // @Description: Controls if scripting is enabled
     // @Values: 0:None,1:Lua Scripts
@@ -71,7 +71,7 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE", 1, AP_Scripting, _enable, SCRIPTING_ENABLE_DEFAULT, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: VM_I_COUNT
+    // `@Param`: VM_I_COUNT
     // @DisplayName: Scripting Virtual Machine Instruction Count
     // @Description: The number virtual machine instructions that can be run before considering a script to have taken an excessive amount of time
     // @Range: 1000 1000000
@@ -79,7 +79,7 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("VM_I_COUNT", 2, AP_Scripting, _script_vm_exec_count, 10000),
 
-    // @Param: HEAP_SIZE
+    // `@Param`: HEAP_SIZE
     // @DisplayName: Scripting Heap Size
     // @Description: Amount of memory available for scripting
     // @Range: 1024 1048576
@@ -88,7 +88,7 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("HEAP_SIZE", 3, AP_Scripting, _script_heap_size, SCRIPTING_HEAP_SIZE),
 
-    // @Param: DEBUG_OPTS
+    // `@Param`: DEBUG_OPTS
     // @DisplayName: Scripting Debug Level
     // @Description: Debugging options
     // @Bitmask: 0: No Scripts to run message if all scripts have stopped
@@ -101,43 +101,43 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DEBUG_OPTS", 4, AP_Scripting, _debug_options, 0),
 
-    // @Param: USER1
+    // `@Param`: USER1
     // @DisplayName: Scripting User Parameter1
     // @Description: General purpose user variable input for scripts
     // @User: Standard
     AP_GROUPINFO("USER1", 5, AP_Scripting, _user[0], 0.0),
 
-    // @Param: USER2
+    // `@Param`: USER2
     // @DisplayName: Scripting User Parameter2
     // @Description: General purpose user variable input for scripts
     // @User: Standard
     AP_GROUPINFO("USER2", 6, AP_Scripting, _user[1], 0.0),
 
-    // @Param: USER3
+    // `@Param`: USER3
     // @DisplayName: Scripting User Parameter3
     // @Description: General purpose user variable input for scripts
     // @User: Standard
     AP_GROUPINFO("USER3", 7, AP_Scripting, _user[2], 0.0),
 
-    // @Param: USER4
+    // `@Param`: USER4
     // @DisplayName: Scripting User Parameter4
     // @Description: General purpose user variable input for scripts
     // @User: Standard
     AP_GROUPINFO("USER4", 8, AP_Scripting, _user[3], 0.0),
 
-    // @Param: USER5
+    // `@Param`: USER5
     // @DisplayName: Scripting User Parameter5
     // @Description: General purpose user variable input for scripts
     // @User: Standard
     AP_GROUPINFO("USER5", 10, AP_Scripting, _user[4], 0.0),
 
-    // @Param: USER6
+    // `@Param`: USER6
     // @DisplayName: Scripting User Parameter6
     // @Description: General purpose user variable input for scripts
     // @User: Standard
     AP_GROUPINFO("USER6", 11, AP_Scripting, _user[5], 0.0),
     
-    // @Param: DIR_DISABLE
+    // `@Param`: DIR_DISABLE
     // @DisplayName: Directory disable
     // @Description: This will stop scripts being loaded from the given locations
     // @Bitmask: 0:ROMFS, 1:APM/scripts
@@ -145,19 +145,19 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DIR_DISABLE", 9, AP_Scripting, _dir_disable, 0),
 
-    // @Param: LD_CHECKSUM
+    // `@Param`: LD_CHECKSUM
     // @DisplayName: Loaded script checksum
     // @Description: Required XOR of CRC32 checksum of loaded scripts, vehicle will not arm with incorrect scripts loaded, -1 disables
     // @User: Advanced
     AP_GROUPINFO("LD_CHECKSUM", 12, AP_Scripting, _required_loaded_checksum, -1),
 
-    // @Param: RUN_CHECKSUM
+    // `@Param`: RUN_CHECKSUM
     // @DisplayName: Running script checksum
     // @Description: Required XOR of CRC32 checksum of running scripts, vehicle will not arm with incorrect scripts running, -1 disables
     // @User: Advanced
     AP_GROUPINFO("RUN_CHECKSUM", 13, AP_Scripting, _required_running_checksum, -1),
 
-    // @Param: THD_PRIORITY
+    // `@Param`: THD_PRIORITY
     // @DisplayName: Scripting thread priority
     // @Description: This sets the priority of the scripting thread. This is normally set to a low priority to prevent scripts from interfering with other parts of the system. Advanced users can change this priority if scripting needs to be prioritised for realtime applications. WARNING: changing this parameter can impact the stability of your flight controller. The scipting thread priority in this parameter is chosen based on a set of system level priorities for other subsystems. It is strongly recommended that you use the lowest priority that is sufficient for your application. Note that all scripts run at the same priority, so if you raise this priority you must carefully audit all lua scripts for behaviour that does not interfere with the operation of the system.
     // @Values: 0:Normal, 1:IO Priority, 2:Storage Priority, 3:UART Priority, 4:I2C Priority, 5:SPI Priority, 6:Timer Priority, 7:Main Priority, 8:Boost Priority
@@ -166,7 +166,7 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     AP_GROUPINFO("THD_PRIORITY", 14, AP_Scripting, _thd_priority, uint8_t(ThreadPriority::NORMAL)),
 
 #if AP_SCRIPTING_SERIALDEVICE_ENABLED
-    // @Param: SDEV_EN
+    // `@Param`: SDEV_EN
     // @DisplayName: Scripting serial device enable
     // @Description: Enable scripting serial devices
     // @Values: 0:Disabled, 1:Enabled
@@ -174,7 +174,7 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO_FLAGS("SDEV_EN", 15,  AP_Scripting, _serialdevice.enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: SDEV1_PROTO
+    // `@Param`: SDEV1_PROTO
     // @DisplayName: Serial protocol of scripting serial device
     // @Description: Serial protocol of scripting serial device
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
@@ -183,7 +183,7 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
     AP_GROUPINFO("SDEV1_PROTO", 16,  AP_Scripting, _serialdevice.ports[0].state.protocol, -1),
 
 #if AP_SCRIPTING_SERIALDEVICE_NUM_PORTS > 1
-    // @Param: SDEV2_PROTO
+    // `@Param`: SDEV2_PROTO
     // @DisplayName: Serial protocol of scripting serial device
     // @Description: Serial protocol of scripting serial device
     // @CopyFieldsFrom: SCR_SDEV1_PROTO
@@ -191,7 +191,7 @@ const AP_Param::GroupInfo AP_Scripting::var_info[] = {
 #endif
 
 #if AP_SCRIPTING_SERIALDEVICE_NUM_PORTS > 2
-    // @Param: SDEV3_PROTO
+    // `@Param`: SDEV3_PROTO
     // @DisplayName: Serial protocol of scripting serial device
     // @Description: Serial protocol of scripting serial device
     // @CopyFieldsFrom: SCR_SDEV1_PROTO

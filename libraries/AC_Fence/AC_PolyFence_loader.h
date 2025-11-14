@@ -1300,6 +1300,8 @@ private:
      */
     uint8_t _old_total;
 
+    // Callback function type for scanning fence storage
+    FUNCTOR_TYPEDEF(scan_fn_t, void, const AC_PolyFenceType, uint16_t);
 
     /**
      * @brief Scan fence storage and call callback for each fence found
@@ -1325,7 +1327,6 @@ private:
      * @note This is the foundation for indexing and counting operations
      * @warning Caller must handle corrupt storage gracefully (may require format)
      */
-    FUNCTOR_TYPEDEF(scan_fn_t, void, const AC_PolyFenceType, uint16_t);
     bool scan_eeprom(scan_fn_t scan_fn) WARN_IF_UNUSED;
     
     /**

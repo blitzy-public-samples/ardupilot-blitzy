@@ -108,7 +108,7 @@ AP_AHRS_DCM::update()
         // log DCM at 10Hz
         last_log_ms = now_ms;
 
-// @LoggerMessage: DCM
+// `@LoggerMessage`: DCM
 // @Description: DCM Estimator Data
 // @Field: TimeUS: Time since system startup
 // @Field: Roll: estimated roll

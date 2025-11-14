@@ -21,14 +21,14 @@
 
 const AP_Param::GroupInfo AC_WeatherVane::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable
     // @Description: Enable weather vaning.  When active, the aircraft will automatically yaw into wind when in a VTOL position controlled mode. Pilot yaw commands override the weathervaning action.
     // @Values: -1:Only use during takeoffs or landing see weathervane takeoff and land override parameters,0:Disabled,1:Nose into wind,2:Nose or tail into wind,3:Side into wind,4:tail into wind
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLE", 1, AC_WeatherVane, _direction, WVANE_PARAM_ENABLED, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: GAIN
+    // `@Param`: GAIN
     // @DisplayName: Weathervaning gain
     // @Description: This converts the target roll/pitch angle of the aircraft into the correcting (into wind) yaw rate. e.g. Gain = 2, roll = 30 deg, pitch = 0 deg, yaw rate = 60 deg/s.
     // @Range: 0.5 4
@@ -36,7 +36,7 @@ const AP_Param::GroupInfo AC_WeatherVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("GAIN", 2, AC_WeatherVane, _gain, WVANE_PARAM_GAIN_DEFAULT),
 
-    // @Param: ANG_MIN
+    // `@Param`: ANG_MIN
     // @DisplayName: Weathervaning min angle
     // @Description: The minimum target roll/pitch angle before active weathervaning will start.  This provides a dead zone that is particularly useful for poorly trimmed quadplanes.
     // @Units: deg
@@ -45,7 +45,7 @@ const AP_Param::GroupInfo AC_WeatherVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ANG_MIN", 3, AC_WeatherVane, _min_dz_ang_deg, 1.0),
 
-    // @Param: HGT_MIN
+    // `@Param`: HGT_MIN
     // @DisplayName: Weathervaning min height
     // @Description: Above this height weathervaning is permitted.  If a range finder is fitted or if terrain is enabled, this parameter sets height AGL.  Otherwise, this parameter sets height above home.  Set zero to ignore minimum height requirement to activate weathervaning.
     // @Description{Plane}: Above this height weathervaning is permitted.  If RNGFND_LANDING is enabled or terrain is enabled then this parameter sets height AGL. Otherwise this parameter sets height above home.  Set zero to ignore minimum height requirement to activate weathervaning
@@ -55,7 +55,7 @@ const AP_Param::GroupInfo AC_WeatherVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("HGT_MIN", 4, AC_WeatherVane, _min_height, 0.0),
 
-    // @Param: SPD_MAX
+    // `@Param`: SPD_MAX
     // @DisplayName: Weathervaning max ground speed
     // @Description: Below this ground speed weathervaning is permitted. Set to 0 to ignore this condition when checking if vehicle should weathervane.
     // @Units: m/s
@@ -64,7 +64,7 @@ const AP_Param::GroupInfo AC_WeatherVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SPD_MAX", 5, AC_WeatherVane, _max_vel_xy, WVANE_PARAM_SPD_MAX_DEFAULT),
 
-    // @Param: VELZ_MAX
+    // `@Param`: VELZ_MAX
     // @DisplayName: Weathervaning max vertical speed
     // @Description: The maximum climb or descent speed that the vehicle will still attempt to weathervane. Set to 0 to ignore this condition to get the aircraft to weathervane at any climb/descent rate.  This is particularly useful for aircraft with low disc loading that struggle with yaw control in decent.
     // @Units: m/s
@@ -73,21 +73,21 @@ const AP_Param::GroupInfo AC_WeatherVane::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("VELZ_MAX", 6, AC_WeatherVane, _max_vel_z, WVANE_PARAM_VELZ_MAX_DEFAULT),
 
-    // @Param: TAKEOFF
+    // `@Param`: TAKEOFF
     // @DisplayName: Takeoff override
     // @Description: Override the weather vaning behaviour when in takeoffs
     // @Values: -1:No override,0:Disabled,1:Nose into wind,2:Nose or tail into wind,3:Side into wind,4:tail into wind
     // @User: Standard
     AP_GROUPINFO("TAKEOFF", 7, AC_WeatherVane, _takeoff_direction, -1),
 
-    // @Param: LAND
+    // `@Param`: LAND
     // @DisplayName: Landing override
     // @Description: Override the weather vaning behaviour when in landing
     // @Values: -1:No override,0:Disabled,1:Nose into wind,2:Nose or tail into wind,3:Side into wind,4:tail into wind
     // @User: Standard
     AP_GROUPINFO("LAND", 8, AC_WeatherVane, _landing_direction, -1),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Weathervaning options
     // @Description: Options impacting weathervaning behaviour
     // @Bitmask: 0:Use pitch when nose or tail-in for faster weathervaning

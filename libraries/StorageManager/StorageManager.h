@@ -64,6 +64,7 @@
 #include <AP_HAL/AP_HAL.h>
 #include <AP_BoardConfig/AP_BoardConfig_config.h>
 
+#if HAL_STORAGE_SIZE >= 32768
 /**
  * @def STORAGE_NUM_AREAS
  * @brief Number of storage areas allocated based on available storage size
@@ -85,7 +86,6 @@
  * @note Actual area definitions are in StorageManager.cpp layout table
  * @warning Boards with < 4KB storage may have limited functionality
  */
-#if HAL_STORAGE_SIZE >= 32768
 #define STORAGE_NUM_AREAS 18
 #elif HAL_STORAGE_SIZE >= 16384
 #define STORAGE_NUM_AREAS 15

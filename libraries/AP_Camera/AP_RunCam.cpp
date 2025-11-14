@@ -32,38 +32,38 @@
 #include <AP_SerialManager/AP_SerialManager.h>
 
 const AP_Param::GroupInfo AP_RunCam::var_info[] = {
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: RunCam device type
     // @Description: RunCam device type used to determine OSD menu structure and shutter options.
     // @Values: 0:Disabled, 1:RunCam Split Micro/RunCam with UART, 2:RunCam Split, 3:RunCam Split4 4k, 4:RunCam Hybrid/RunCam Thumb Pro, 5:Runcam 2 4k
     AP_GROUPINFO_FLAGS("TYPE", 1, AP_RunCam, _cam_type, int(DeviceModel::SplitMicro), AP_PARAM_FLAG_ENABLE),
 
-    // @Param: FEATURES
+    // `@Param`: FEATURES
     // @DisplayName: RunCam features available
     // @Description: The available features of the attached RunCam device. If 0 then the RunCam device will be queried for the features it supports, otherwise this setting is used.
     // @User: Advanced
     // @Bitmask: 0:Power Button,1:WiFi Button,2:Change Mode,3:5-Key OSD,4:Settings Access,5:DisplayPort,6:Start Recording,7:Stop Recording
     AP_GROUPINFO("FEATURES", 2, AP_RunCam, _features, 0),
 
-    // @Param: BT_DELAY
+    // `@Param`: BT_DELAY
     // @DisplayName: RunCam boot delay before allowing updates
     // @Description: Time it takes for the RunCam to become fully ready in ms. If this is too short then commands can get out of sync.
     // @User: Advanced
     AP_GROUPINFO("BT_DELAY", 3, AP_RunCam, _boot_delay_ms, 7000),
 
-    // @Param: BTN_DELAY
+    // `@Param`: BTN_DELAY
     // @DisplayName: RunCam button delay before allowing further button presses
     // @Description: Time it takes for the a RunCam button press to be actived in ms. If this is too short then commands can get out of sync.
     // @User: Advanced
     AP_GROUPINFO("BTN_DELY", 4, AP_RunCam, _button_delay_ms, RUNCAM_DEFAULT_BUTTON_PRESS_DELAY),
 
-    // @Param: MDE_DELAY
+    // `@Param`: MDE_DELAY
     // @DisplayName: RunCam mode delay before allowing further button presses
     // @Description: Time it takes for the a RunCam mode button press to be actived in ms. If a mode change first requires a video recording change then double this value is used. If this is too short then commands can get out of sync.
     // @User: Advanced
     AP_GROUPINFO("MDE_DELY", 5, AP_RunCam, _mode_delay_ms, 800),
 
-    // @Param: CONTROL
+    // `@Param`: CONTROL
     // @DisplayName: RunCam control option
     // @Description: Specifies the allowed actions required to enter the OSD menu and other option like autorecording
     // @Bitmask: 0:Stick yaw right,1:Stick roll right,2:3-position switch,3:2-position switch,4:Autorecording enabled

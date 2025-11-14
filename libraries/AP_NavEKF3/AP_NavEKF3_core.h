@@ -211,7 +211,7 @@
  * - Error scoring: Compute consolidated health score for frontend selection
  * 
  * **Compile-Time Feature Gating:**
- * Various features can be disabled via #if EK3_FEATURE_* directives to reduce
+ * Various features can be disabled via `#if EK3_FEATURE_*` directives to reduce
  * code size for platforms with limited flash memory:
  * - EK3_FEATURE_BEACON_FUSION: Range beacon support
  * - EK3_FEATURE_DRAG_FUSION: Multicopter wind estimation via drag model

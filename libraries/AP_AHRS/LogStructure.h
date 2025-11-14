@@ -11,7 +11,7 @@
     LOG_RATE_MSG, \
     LOG_ATSC_MSG
 
-// @LoggerMessage: AHR2
+// `@LoggerMessage`: AHR2
 // @Description: Backup AHRS data
 // @Field: TimeUS: Time since system startup
 // @Field: Roll: Estimated roll
@@ -36,7 +36,7 @@ struct PACKED log_AHRS {
     float q1, q2, q3, q4;
 };
 
-// @LoggerMessage: AOA
+// `@LoggerMessage`: AOA
 // @Description: Angle of attack and Side Slip Angle values
 // @Field: TimeUS: Time since system startup
 // @Field: AOA: Angle of Attack calculated from airspeed, wind vector,velocity vector 
@@ -48,7 +48,7 @@ struct PACKED log_AOA_SSA {
     float SSA;
 };
 
-// @LoggerMessage: ATT
+// `@LoggerMessage`: ATT
 // @Description: Canonical vehicle attitude
 // @Field: TimeUS: Time since system startup
 // @Field: DesRoll: vehicle desired roll
@@ -70,7 +70,7 @@ struct PACKED log_Attitude {
     uint8_t  active;
 };
 
-// @LoggerMessage: ORGN
+// `@LoggerMessage`: ORGN
 // @Description: Vehicle navigation origin or other notable position
 // @Field: TimeUS: Time since system startup
 // @Field: Type: Position type
@@ -87,7 +87,7 @@ struct PACKED log_ORGN {
     int32_t altitude;
 };
 
-// @LoggerMessage: POS
+// `@LoggerMessage`: POS
 // @Description: Canonical vehicle position
 // @Field: TimeUS: Time since system startup
 // @Field: Lat: Canonical vehicle latitude
@@ -105,7 +105,7 @@ struct PACKED log_POS {
     float rel_origin_alt;
 };
 
-// @LoggerMessage: VSTB
+// `@LoggerMessage`: VSTB
 // @Description: Log message for video stabilisation software such as Gyroflow
 // @Field: TimeUS: Time since system startup
 // @Field: GyrX: measured rotation rate about X axis
@@ -134,7 +134,7 @@ struct PACKED log_Video_Stabilisation {
     float Q4;
 };
 
-// @LoggerMessage: ATSC
+// `@LoggerMessage`: ATSC
 // @Description: Scale factors for attitude controller
 // @Field: TimeUS: Time since system startup
 // @Field: AngPScX: Angle P scale X

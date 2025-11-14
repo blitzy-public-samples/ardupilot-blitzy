@@ -5,22 +5,22 @@
 #include "AC_PI_2D.h"
 
 const AP_Param::GroupInfo AC_PI_2D::var_info[] = {
-    // @Param: P
+    // `@Param`: P
     // @DisplayName: PI Proportional Gain
     // @Description: P Gain which produces an output value that is proportional to the current error value
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("P",    0, AC_PI_2D, _kp, default_kp),
 
-    // @Param: I
+    // `@Param`: I
     // @DisplayName: PI Integral Gain
     // @Description: I Gain which produces an output that is proportional to both the magnitude and the duration of the error
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("I",    1, AC_PI_2D, _ki, default_ki),
 
-    // @Param: IMAX
+    // `@Param`: IMAX
     // @DisplayName: PI Integral Maximum
     // @Description: The maximum/minimum value that the I term can output
     AP_GROUPINFO_FLAGS_DEFAULT_POINTER("IMAX", 2, AC_PI_2D, _imax, default_imax),
 
-    // @Param: FILT_HZ
+    // `@Param`: FILT_HZ
     // @DisplayName: PI Input filter frequency in Hz
     // @Description: Input filter frequency in Hz
     // @Units: Hz

@@ -41,7 +41,7 @@ const float OA_BENDYRULER_LOW_SPEED_SQUARED = (0.2f * 0.2f);    // when ground c
 
 const AP_Param::GroupInfo AP_OABendyRuler::var_info[] = {
 
-    // @Param: LOOKAHEAD
+    // `@Param`: LOOKAHEAD
     // @DisplayName: Object Avoidance look ahead distance maximum
     // @Description: Object Avoidance will look this many meters ahead of vehicle
     // @Units: m
@@ -50,7 +50,7 @@ const AP_Param::GroupInfo AP_OABendyRuler::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("LOOKAHEAD", 1, AP_OABendyRuler, _lookahead, OA_BENDYRULER_LOOKAHEAD_DEFAULT),
 
-    // @Param: CONT_RATIO
+    // `@Param`: CONT_RATIO
     // @DisplayName: Obstacle Avoidance margin ratio for BendyRuler to change bearing significantly 
     // @Description:  BendyRuler will avoid changing bearing unless ratio of previous margin from obstacle (or fence) to present calculated margin is atleast this much.
     // @Range: 1.1 2
@@ -58,7 +58,7 @@ const AP_Param::GroupInfo AP_OABendyRuler::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("CONT_RATIO", 2, AP_OABendyRuler, _bendy_ratio, OA_BENDYRULER_RATIO_DEFAULT),
 
-    // @Param: CONT_ANGLE
+    // `@Param`: CONT_ANGLE
     // @DisplayName: BendyRuler's bearing change resistance threshold angle   
     // @Description:  BendyRuler will resist changing current bearing if the change in bearing is over this angle
     // @Range: 20 180
@@ -66,7 +66,7 @@ const AP_Param::GroupInfo AP_OABendyRuler::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("CONT_ANGLE", 3, AP_OABendyRuler, _bendy_angle, OA_BENDYRULER_ANGLE_DEFAULT),
 
-    // @Param{Copter}: TYPE
+    // `@Param`{Copter}: TYPE
     // @DisplayName: Type of BendyRuler
     // @Description: BendyRuler will search for clear path along the direction defined by this parameter
     // @Values: 1:Horizontal search, 2:Vertical search

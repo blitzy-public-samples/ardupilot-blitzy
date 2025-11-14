@@ -724,23 +724,22 @@ public:
 
 
     /**
-     * @typedef mission_cmd_fn_t
      * @brief Callback function type for command execution
      * 
-     * @param cmd Mission command to execute or verify
-     * @return true if command started successfully or verification passed, false otherwise
-     * 
-     * @details Vehicle code provides two callbacks of this type:
+     * @details mission_cmd_fn_t: Vehicle code provides two callbacks of this type:
      * - cmd_start_fn: Called once when command becomes active, initializes command execution
      * - cmd_verify_fn: Called repeatedly (typically 10Hz+) to check if command is complete
+     * 
+     * Function signature: bool callback(const Mission_Command& cmd)
+     * - cmd: Mission command to execute or verify
+     * - Returns: true if command started successfully or verification passed, false otherwise
      */
     FUNCTOR_TYPEDEF(mission_cmd_fn_t, bool, const Mission_Command&);
     
     /**
-     * @typedef mission_complete_fn_t
      * @brief Callback function type for mission completion notification
      * 
-     * @details Called once when mission reaches the end or is explicitly completed.
+     * @details mission_complete_fn_t: Called once when mission reaches the end or is explicitly completed.
      *          Vehicle code should handle post-mission behavior (e.g., loiter, land, disarm).
      */
     FUNCTOR_TYPEDEF(mission_complete_fn_t, void);

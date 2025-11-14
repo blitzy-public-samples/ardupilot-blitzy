@@ -46,21 +46,21 @@ const AP_Param::GroupInfo AP_Proximity::var_info[] = {
     // 3 was _YAW_CORR
     // 4 to 15 was _IGN_ANG1 to _IGN_WID6
 
-    // @Param{Copter}: _IGN_GND
+    // `@Param`{Copter}: _IGN_GND
     // @DisplayName: Proximity sensor land detection
     // @Description: Ignore proximity data that is within 1 meter of the ground below the vehicle. This requires a downward facing rangefinder
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     AP_GROUPINFO_FRAME("_IGN_GND", 16, AP_Proximity, _ign_gnd_enable, 0, AP_PARAM_FRAME_COPTER | AP_PARAM_FRAME_HELI | AP_PARAM_FRAME_TRICOPTER),
 
-    // @Param: _LOG_RAW
+    // `@Param`: _LOG_RAW
     // @DisplayName: Proximity raw distances log
     // @Description: Set this parameter to one if logging unfiltered(raw) distances from sensor should be enabled
     // @Values: 0:Off, 1:On
     // @User: Advanced
     AP_GROUPINFO("_LOG_RAW", 17, AP_Proximity, _raw_log_enable, 0),
 
-    // @Param: _FILT
+    // `@Param`: _FILT
     // @DisplayName: Proximity filter cutoff frequency
     // @Description: Cutoff frequency for low pass filter applied to each face in the proximity boundary
     // @Units: Hz
@@ -71,7 +71,7 @@ const AP_Param::GroupInfo AP_Proximity::var_info[] = {
     // 19 was _MIN
     // 20 was _MAX
 
-    // @Param{Copter}: _ALT_MIN
+    // `@Param`{Copter}: _ALT_MIN
     // @DisplayName: Proximity lowest altitude.
     // @Description: Minimum altitude below which proximity should not work.
     // @Units: m

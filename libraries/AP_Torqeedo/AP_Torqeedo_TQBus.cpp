@@ -462,7 +462,7 @@ void AP_Torqeedo_TQBus::parse_message()
 #if HAL_LOGGING_ENABLED
                 // log data
                 if (option_enabled(AP_Torqeedo::options::LOG)) {
-                    // @LoggerMessage: TRST
+                    // `@LoggerMessage`: TRST
                     // @Description: Torqeedo System State
                     // @Field: TimeUS: Time since system startup
                     // @Field: I: instance
@@ -531,7 +531,7 @@ void AP_Torqeedo_TQBus::parse_message()
 #if HAL_LOGGING_ENABLED
                 // log data
                 if (option_enabled(AP_Torqeedo::options::LOG)) {
-                    // @LoggerMessage: TRSE
+                    // `@LoggerMessage`: TRSE
                     // @Description: Torqeedo System Setup
                     // @Field: TimeUS: Time since system startup
                     // @Field: I: instance
@@ -608,7 +608,7 @@ void AP_Torqeedo_TQBus::parse_message()
 #if HAL_LOGGING_ENABLED
                 // log data
                 if (option_enabled(AP_Torqeedo::options::LOG)) {
-                    // @LoggerMessage: TRMP
+                    // `@LoggerMessage`: TRMP
                     // @Description: Torqeedo Motor Param
                     // @Field: TimeUS: Time since system startup
                     // @Field: I: instance
@@ -658,7 +658,7 @@ void AP_Torqeedo_TQBus::parse_message()
 #if HAL_LOGGING_ENABLED
                 // log data
                 if (option_enabled(AP_Torqeedo::options::LOG)) {
-                    // @LoggerMessage: TRMS
+                    // `@LoggerMessage`: TRMS
                     // @Description: Torqeedo Motor Status
                     // @Field: TimeUS: Time since system startup
                     // @Field: I: instance
@@ -1014,7 +1014,7 @@ void AP_Torqeedo_TQBus::log_TRQD(bool force_logging)
 
 #if HAL_LOGGING_ENABLED
     if (option_enabled(AP_Torqeedo::options::LOG)) {
-        // @LoggerMessage: TRQD
+        // `@LoggerMessage`: TRQD
         // @Description: Torqeedo Status
         // @Field: TimeUS: Time since system startup
         // @Field: I: instance

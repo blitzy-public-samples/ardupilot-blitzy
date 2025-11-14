@@ -45,7 +45,7 @@
  *          dummy values. No navigation, PID tuning, or mode information
  *          is provided.
  * 
- * @note Used by example programs in libraries/*/examples/ and development
+ * @note Used by example programs in libraries/\*/examples/ and development
  *       tools that instantiate GCS for API compatibility but don't need
  *       real communication.
  * 
@@ -132,7 +132,7 @@ protected:
  *          vehicle identification (frame type and custom mode). Text messages
  *          can be sent but are handled by stub implementation.
  * 
- * @note Used by example sketches in libraries/*/examples/ and development
+ * @note Used by example sketches in libraries/\*/examples/ and development
  *       tools. NOT for production flight code.
  * 
  * @warning No actual telemetry, vehicle state, or flight control integration.

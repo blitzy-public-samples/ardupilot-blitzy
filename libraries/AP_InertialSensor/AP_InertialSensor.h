@@ -214,7 +214,6 @@ public:
      * 
      * @param[out] instance Allocated gyro instance number (0 to INS_MAX_INSTANCES-1)
      * @param[in] raw_sample_rate_hz Native sensor sample rate in Hz (e.g., 1000 for MPU6000)
-     * @param[in] raw_sample_rate_hz Native sensor sample rate in Hz
      * @param[in] id Unique sensor identifier (e.g., I2C address + chip ID)
      * 
      * @return true if registration successful, false if no instances available

@@ -135,9 +135,9 @@ bool Scheduler::thread_create(AP_HAL::MemberProc proc, const char *name, uint32_
     return true;
 }
 
-void Scheduler::delay_microseconds(uint16_t usec)
+void Scheduler::delay_microseconds(uint16_t us)
 {
-    qurt_timer_sleep(usec);
+    qurt_timer_sleep(us);
 }
 
 void Scheduler::delay(uint16_t ms)

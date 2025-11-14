@@ -28,14 +28,14 @@ using namespace SITL;
 // table of user settable parameters
 const AP_Param::GroupInfo SIM_Precland::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Preland device Sim enable/disable
     // @Description: Allows you to enable (1) or disable (0) the Preland simulation
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("ENABLE",  0, SIM_Precland, _enable, 0),
 
-    // @Param: LAT
+    // `@Param`: LAT
     // @DisplayName: Precland device center's latitude
     // @Description: Precland device center's latitude
     // @Units: deg
@@ -44,7 +44,7 @@ const AP_Param::GroupInfo SIM_Precland::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LAT", 1, SIM_Precland, _device_lat, 0),
 
-    // @Param: LON
+    // `@Param`: LON
     // @DisplayName: Precland device center's longitude
     // @Description: Precland device center's longitude
     // @Units: deg
@@ -53,7 +53,7 @@ const AP_Param::GroupInfo SIM_Precland::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LON", 2, SIM_Precland, _device_lon, 0),
 
-    // @Param: HEIGHT
+    // `@Param`: HEIGHT
     // @DisplayName: Precland device center's height SITL origin
     // @Description: Precland device center's height above SITL origin. Assumes a 2x2m square as station base
     // @Units: m
@@ -62,7 +62,7 @@ const AP_Param::GroupInfo SIM_Precland::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("HEIGHT", 3, SIM_Precland, _device_height, 0),
 
-    // @Param: YAW
+    // `@Param`: YAW
     // @DisplayName: Precland device systems rotation from north
     // @Description: Precland device systems rotation from north
     // @Units: deg
@@ -71,7 +71,7 @@ const AP_Param::GroupInfo SIM_Precland::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("YAW", 4, SIM_Precland, _orient_yaw, 0),
 
-    // @Param: RATE
+    // `@Param`: RATE
     // @DisplayName: Precland device update rate
     // @Description: Precland device rate. e.g led patter refresh rate, RF message rate, etc.
     // @Units: Hz
@@ -79,14 +79,14 @@ const AP_Param::GroupInfo SIM_Precland::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RATE", 5, SIM_Precland, _rate, 100),
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Precland device radiance type
     // @Description: Precland device radiance type: it can be a cylinder, a cone, or a sphere.
     // @Values: 0:cylinder,1:cone,2:sphere
     // @User: Advanced
     AP_GROUPINFO("TYPE", 6, SIM_Precland, _type, SIM_Precland::PRECLAND_TYPE_CYLINDER),
 
-    // @Param: ALT_LMT
+    // `@Param`: ALT_LMT
     // @DisplayName: Precland device alt range
     // @Description: Precland device maximum range altitude
     // @Units: m
@@ -94,7 +94,7 @@ const AP_Param::GroupInfo SIM_Precland::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("ALT_LMT", 7, SIM_Precland, _alt_limit, 15),
 
-    // @Param: DIST_LMT
+    // `@Param`: DIST_LMT
     // @DisplayName: Precland device lateral range
     // @Description: Precland device maximum lateral range
     // @Units: m
@@ -102,14 +102,14 @@ const AP_Param::GroupInfo SIM_Precland::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DIST_LMT", 8, SIM_Precland, _dist_limit, 10),
 
-    // @Param: ORIENT
+    // `@Param`: ORIENT
     // @DisplayName: Precland device orientation
     // @Description: Precland device orientation vector
     // @Values: 0:Front, 4:Back, 24:Up
     // @User: Advanced
     AP_GROUPINFO("ORIENT", 9, SIM_Precland, _orient, ROTATION_PITCH_90),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: SIM_Precland extra options
     // @Description: SIM_Precland extra options
     // @Bitmask: 0: Enable target distance
@@ -117,7 +117,7 @@ const AP_Param::GroupInfo SIM_Precland::var_info[] = {
     AP_GROUPINFO("OPTIONS",  10, SIM_Precland, _options, 0),
 
 #if AP_SIM_SHIP_ENABLED
-    // @Param: SHIP
+    // `@Param`: SHIP
     // @DisplayName: SIM_Precland follow ship
     // @Description: This makes the position of the landing beacon follow the simulated ship from SIM_SHIP. The ship movement is controlled with the SIM_SHIP parameters
     // @Values: 0:Disabled,1:Enabled

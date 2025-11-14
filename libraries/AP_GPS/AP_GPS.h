@@ -463,8 +463,6 @@ public:
      * Called at GPS_MAX_RATE - typically 10Hz for position data availability,
      * but may be called at higher rates (50Hz) for data availability checks by EKF.
      * 
-     * @return true if any GPS backend has new data available
-     * 
      * @note Must be called from main thread with consistent timing for EKF integration
      * @warning Delayed or irregular calls will affect EKF performance and increase
      * position lag compensation errors
@@ -1052,13 +1050,13 @@ public:
      * stops reading from port.
      * 
      * @param instance GPS instance number
-     * @param locked true to lock port (disable driver), false to unlock
+     * @param lock true to lock port (disable driver), false to unlock
      * 
      * @warning While port is locked, GPS data is unavailable and vehicle cannot arm
      * 
      * Source: libraries/AP_GPS/AP_GPS.h:500-501
      */
-    void lock_port(uint8_t instance, bool locked);
+    void lock_port(uint8_t instance, bool lock);
 
     /**
      * @brief Send MAVLink GPS_RAW_INT message for primary GPS

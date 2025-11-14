@@ -16,7 +16,7 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_BattMonitor_Synthetic_Current::var_info[] = {
 
-    // @Param: MAX_VOLT
+    // `@Param`: MAX_VOLT
     // @DisplayName: Maximum Battery Voltage
     // @Description: Maximum voltage of battery. Provides scaling of current versus voltage
     // @Range: 7 100

@@ -152,7 +152,7 @@
  * @see AP_HAL::UARTDriver for UART statistics collection
  * @see AP_Logger for logging subsystem
  */
-// @LoggerMessage: UART
+// `@LoggerMessage`: UART
 // @Description: UART stats
 // @Field: TimeUS: Time since system startup
 // @Field: I: instance

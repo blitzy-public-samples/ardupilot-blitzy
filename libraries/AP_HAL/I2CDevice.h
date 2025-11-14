@@ -229,9 +229,10 @@ public:
      *          @endcode
      * 
      * @param[in] period_usec Callback period in microseconds (1000 = 1ms, 1000000 = 1s)
-     * @param[in] cb Callback function pointer or functor (Device::PeriodicCb type)
      * 
      * @return Device::PeriodicHandle Handle for adjusting or unregistering callback
+     * 
+     * @note The second parameter is a Device::PeriodicCb functor (use FUNCTOR_BIND_MEMBER)
      * 
      * @note Callback frequency limited by scheduler resolution (typically 1kHz max)
      * @note Bus semaphore acquired automatically before callback execution

@@ -301,7 +301,7 @@ private:
  *          
  *          **Pin Numbering**:
  *          Pin numbers are HAL-specific identifiers defined in:
- *          - ChibiOS: Board hwdef files (libraries/AP_HAL_ChibiOS/hwdef/*)
+ *          - ChibiOS: Board hwdef files (libraries/AP_HAL_ChibiOS/hwdef/\*)
  *          - Linux: Platform-specific headers (GPIO chip + offset)
  *          - SITL: Simulated pin numbers
  *          - NOT Arduino pin numbers - direct hardware identifiers
@@ -641,11 +641,11 @@ public:
     /**
      * @brief Interrupt handler function signature with edge timestamp
      * 
-     * @details Callback signature for GPIO interrupts with detailed edge information:
-     * 
-     * @param pin GPIO pin number that triggered interrupt
-     * @param state Current pin state after edge: true=HIGH, false=LOW
-     * @param timestamp System time in microseconds when edge occurred (from AP_HAL::micros64())
+     * @details Callback signature for GPIO interrupts with detailed edge information.
+     * The resulting functor type `irq_handler_fn_t` takes three parameters:
+     * - uint8_t pin: GPIO pin number that triggered interrupt
+     * - bool state: Current pin state after edge (true=HIGH, false=LOW)
+     * - uint32_t timestamp: System time in microseconds when edge occurred (from AP_HAL::micros64())
      * 
      * **Callback Context**:
      * - Called from interrupt context (high priority, preempts normal code)

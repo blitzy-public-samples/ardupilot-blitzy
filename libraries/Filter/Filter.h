@@ -25,7 +25,7 @@
  *       - SlewLimiter.h - Slew rate limiting filters
  *       - AP_Filter.h - ArduPilot parameter integration and singleton manager
  * 
- * @usage
+ * Usage Example:
  * @code
  * #include <Filter/Filter.h>
  * 
@@ -42,7 +42,7 @@
  */
 
 /**
- * @mainpage ArduPilot Filter Library
+ * @page filter_library ArduPilot Filter Library
  * 
  * @section filter_overview Overview
  * 

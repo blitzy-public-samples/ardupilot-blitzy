@@ -32,21 +32,21 @@ using namespace SITL;
 
 // TetherSim parameters
 const AP_Param::GroupInfo TetherSim::var_info[] = {
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Tether Simulation Enable/Disable
     // @Description: Enable or disable the tether simulation
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE",  1, TetherSim,  enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: DENSITY
+    // `@Param`: DENSITY
     // @DisplayName: Tether Wire Density
     // @Description: Linear mass density of the tether wire
     // @Range: 0 1
     // @User: Advanced
     AP_GROUPINFO("DENSITY",  2, TetherSim,  tether_linear_density, 0.0167),
 
-    // @Param: LINELEN
+    // `@Param`: LINELEN
     // @DisplayName: Tether Maximum Line Length
     // @Description: Maximum length of the tether line in meters
     // @Units: m
@@ -54,28 +54,28 @@ const AP_Param::GroupInfo TetherSim::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("LINELEN", 3, TetherSim,  max_line_length, 100.0),
 
-    // @Param: SYSID
+    // `@Param`: SYSID
     // @DisplayName: Tether Simulation MAVLink System ID
     // @Description: MAVLink system ID for the tether simulation, used to distinguish it from other systems on the network
     // @Range: 0 255
     // @User: Advanced
     AP_GROUPINFO("SYSID",   4, TetherSim,  sys_id, 2),
 
-    // @Param: STUCK
+    // `@Param`: STUCK
     // @DisplayName: Tether Stuck Enable/Disable
     // @Description: Enable or disable a stuck tether simulation
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
     AP_GROUPINFO("STUCK",   5, TetherSim,  tether_stuck, 0),
 
-    // @Param: SPGCNST
+    // `@Param`: SPGCNST
     // @DisplayName: Tether Spring Constant
     // @Description: Spring constant for the tether to simulate elastic forces when stretched beyond its maximum length
     // @Range: 0 255
     // @User: Advanced
     AP_GROUPINFO("SPGCNST",   6, TetherSim,  tether_spring_constant, 100),
 
-    // @Param: DMPCNST
+    // `@Param`: DMPCNST
     // @DisplayName: Tether Damping Constant
     // @Description: Damping constant for the tether to simulate resistance based on change in stretch
     // @Range: 0 255
@@ -219,7 +219,7 @@ void TetherSim::write_log()
 {
 #if HAL_LOGGING_ENABLED
     // write log of tether state
-    // @LoggerMessage: TETH
+    // `@LoggerMessage`: TETH
     // @Description: Tether state
     // @Field: TimeUS: Time since system startup
     // @Field: Len: Tether length

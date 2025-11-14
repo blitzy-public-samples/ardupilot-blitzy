@@ -1,8 +1,8 @@
 /**
  * @copyright Copyright (c) 2020 Sagetech, Inc. All rights reserved.
  *
- * @File:   target.h
- * @Author: jim billmeyer
+ * @file   target.h
+ * @author jim billmeyer
  *
  * @date    December 11, 2020, 12:49 AM
  */

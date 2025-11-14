@@ -84,8 +84,7 @@ public:
      *          4. Call _update_frontend() with flow_x, flow_y, quality
      *          5. Reset integral accumulators
      * 
-     * @return via _update_frontend() callback to AP_OpticalFlow manager
-     * 
+     * @note Data passed to frontend via _update_frontend() callback to AP_OpticalFlow manager
      * @note Update rate depends on frontend scheduler (typically 10-20Hz)
      * @note Timer callback runs at ~100Hz, accumulating motion between update() calls
      */
@@ -123,8 +122,7 @@ private:
     AP_HAL::OwnPtr<AP_HAL::SPIDevice> _dev;
 
     /**
-     * @enum model
-     * @brief PixArt sensor model identifier
+     * @brief PixArt sensor model identifier (anonymous enum)
      * 
      * @details Determines which initialization sequence to use. Detected via product ID
      *          register during setup_sensor(). PMW3900 and PMW3901 require different

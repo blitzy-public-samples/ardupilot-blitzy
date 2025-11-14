@@ -566,6 +566,8 @@ bool srxlOnBind(SrxlFullID device, SrxlBindData info);
 // User-provided callback routine to handle reception of a VTX control packet.
 void srxlOnVtx(SrxlVtxData* pVtxData);
 
+// Optional user-provided callback routine to handle Forward Programming command locally if supported
+#ifdef SRXL_INCLUDE_FWD_PGM_CODE
 /**
  * @brief Process Forward Programming commands from transmitter (optional)
  * 
@@ -583,8 +585,6 @@ void srxlOnVtx(SrxlVtxData* pVtxData);
  * 
  * Source: libraries/AP_RCProtocol/spm_srxl_config.h:130-133
  */
-// Optional user-provided callback routine to handle Forward Programming command locally if supported
-#ifdef SRXL_INCLUDE_FWD_PGM_CODE
 static inline void srxlOnFwdPgm(uint8_t* pData, uint8_t dataLength)
 {
     // TODO: Pass data to Forward Programming library

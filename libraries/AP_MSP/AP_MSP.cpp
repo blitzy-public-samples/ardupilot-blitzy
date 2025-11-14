@@ -35,14 +35,14 @@ using namespace MSP;
 
 const AP_Param::GroupInfo AP_MSP::var_info[] = {
 
-    // @Param: _OSD_NCELLS
+    // `@Param`: _OSD_NCELLS
     // @DisplayName: Cell count override
     // @Description: Used for average cell voltage calculation
     // @Values: 0:Auto,1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,11:11,12:12,13:13,14:14
     // @User: Standard
     AP_GROUPINFO("_OSD_NCELLS", 1, AP_MSP, _cellcount, 0),
 
-    // @Param: _OPTIONS
+    // `@Param`: _OPTIONS
     // @DisplayName: MSP OSD Options
     // @Description: A bitmask to set some MSP specific options: EnableTelemetryMode-allows "push" mode telemetry when only rx line of OSD ic connected to autopilot,  EnableBTFLFonts-uses indexes corresponding to Betaflight fonts if OSD uses those instead of ArduPilot fonts. EnableINAVFonts uses INAV fonts and overrides EnableBTFLFonts if that option is enabled.
     // @Bitmask: 0:EnableTelemetryMode, 1: unused, 2:EnableBTFLFonts, 3:EnableINAVFonts

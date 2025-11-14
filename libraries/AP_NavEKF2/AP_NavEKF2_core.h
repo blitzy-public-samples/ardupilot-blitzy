@@ -1125,7 +1125,6 @@ public:
      * - Improves heading accuracy without re-calibration
      * - Particularly useful for aging compasses
      * 
-     * @param mag_idx Which magnetometer sensor (0, 1, 2, etc.)
      * @note Check return value before using offsets
      * @note Offsets require significant flight time to converge
      * @note Only valid if magnetic field states have been learned
@@ -4015,13 +4014,12 @@ private:
      * - Optimized to reduce matrix multiplications
      * - Selective state updates based on stateIndexLim (wind/mag learning)
      * - Uses ftype (float/double) for numerical precision
+     * - Time step dt is obtained internally (typically EKF_TARGET_DT = 0.01s)
      * 
      * Numerical Stability:
      * - Symmetry enforced after prediction (ForceSymmetry)
      * - Variance limits applied (ConstrainVariances)
      * - Covariance numerical corrections (CopyCovariances)
-     * 
-     * @param dt Time step for prediction (typically EKF_TARGET_DT = 0.01s)
      * 
      * @note Called once per EKF update cycle (typically 100Hz)
      * @note Computationally intensive - uses GCC O2 optimization
@@ -4548,8 +4546,7 @@ private:
      * @details Fuses true airspeed (TAS) measurements from pitot tube to estimate wind velocity
      *          and improve velocity/position estimates. Particularly valuable for fixed-wing
      *          aircraft and provides observability of wind states.
-     * 
-     * @param[in] tasDataDelayed True airspeed measurement at fusion time horizon (m/s)
+     *          The function uses the tasDataDelayed member variable for the TAS measurement at fusion time horizon (m/s).
      * 
      * Airspeed Measurement Model:
      * - TAS = ||velocity_air|| where velocity_air = velocity_ground - wind

@@ -168,9 +168,10 @@ public:
      * 
      * @details This callback is invoked when a battery failsafe condition changes. The vehicle
      *          code implements this to take appropriate action (mode changes, warnings, landing, etc.)
-     * 
-     * @param message Human-readable failsafe description for logging/notification
-     * @param failsafe_priority Failsafe severity level from vehicle's priority array
+     *          
+     *          Callback signature: void handler(const char *message, const int8_t failsafe_priority)
+     *          - message: Human-readable failsafe description for logging/notification
+     *          - failsafe_priority: Failsafe severity level from vehicle's priority array
      */
     FUNCTOR_TYPEDEF(battery_failsafe_handler_fn_t, void, const char *, const int8_t);
 

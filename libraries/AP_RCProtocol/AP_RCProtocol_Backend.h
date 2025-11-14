@@ -233,6 +233,7 @@ public:
      */
     virtual void update(void) {}
 
+#if AP_RCPROTOCOL_MAVLINK_RADIO_ENABLED
     /**
      * @brief Update RC channels from MAVLink radio_rc_channels message
      * 
@@ -247,7 +248,6 @@ public:
      * 
      * @note Only available when AP_RCPROTOCOL_MAVLINK_RADIO_ENABLED
      */
-#if AP_RCPROTOCOL_MAVLINK_RADIO_ENABLED
     virtual void update_radio_rc_channels(const mavlink_radio_rc_channels_t* packet) {}
 #endif
 

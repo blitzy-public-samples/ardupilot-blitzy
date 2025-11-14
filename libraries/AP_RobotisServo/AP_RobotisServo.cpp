@@ -110,14 +110,14 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_RobotisServo::var_info[] = {
 
-    // @Param: POSMIN
+    // `@Param`: POSMIN
     // @DisplayName: Robotis servo position min
     // @Description: Position minimum at servo min value. This should be within the position control range of the servos, normally 0 to 4095
     // @Range: 0 4095
     // @User: Standard
     AP_GROUPINFO("POSMIN",  1, AP_RobotisServo, pos_min, 0),
 
-    // @Param: POSMAX
+    // `@Param`: POSMAX
     // @DisplayName: Robotis servo position max
     // @Description: Position maximum at servo max value. This should be within the position control range of the servos, normally 0 to 4095
     // @Range: 0 4095

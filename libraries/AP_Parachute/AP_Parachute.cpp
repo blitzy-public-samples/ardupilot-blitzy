@@ -16,14 +16,14 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_Parachute::var_info[] = {
 
-    // @Param: ENABLED
+    // `@Param`: ENABLED
     // @DisplayName: Parachute release enabled or disabled
     // @Description: Parachute release enabled or disabled
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
     AP_GROUPINFO_FLAGS("ENABLED", 0, AP_Parachute, _enabled, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: TYPE
+    // `@Param`: TYPE
     // @DisplayName: Parachute release mechanism type (relay or servo)
     // @Description: Parachute release mechanism type (relay number in versions prior to 4.5, or servo). Values 0-3 all are relay. Relay number used for release is set by RELAYx_FUNCTION in 4.5 or later. 
     // @Values: 0: Relay,10:Servo 
@@ -31,7 +31,7 @@ const AP_Param::GroupInfo AP_Parachute::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("TYPE", 1, AP_Parachute, _release_type, AP_PARACHUTE_TRIGGER_TYPE_RELAY_0),
 
-    // @Param: SERVO_ON
+    // `@Param`: SERVO_ON
     // @DisplayName: Parachute Servo ON PWM value
     // @Description: Parachute Servo PWM value in microseconds when parachute is released
     // @Range: 1000 2000
@@ -40,7 +40,7 @@ const AP_Param::GroupInfo AP_Parachute::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SERVO_ON", 2, AP_Parachute, _servo_on_pwm, AP_PARACHUTE_SERVO_ON_PWM_DEFAULT),
 
-    // @Param: SERVO_OFF
+    // `@Param`: SERVO_OFF
     // @DisplayName: Servo OFF PWM value
     // @Description: Parachute Servo PWM value in microseconds when parachute is not released
     // @Range: 1000 2000
@@ -49,7 +49,7 @@ const AP_Param::GroupInfo AP_Parachute::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("SERVO_OFF", 3, AP_Parachute, _servo_off_pwm, AP_PARACHUTE_SERVO_OFF_PWM_DEFAULT),
 
-    // @Param: ALT_MIN
+    // `@Param`: ALT_MIN
     // @DisplayName: Parachute min altitude in meters above home
     // @Description: Parachute min altitude above home.  Parachute will not be released below this altitude.  0 to disable alt check.
     // @Range: 0 32000
@@ -58,7 +58,7 @@ const AP_Param::GroupInfo AP_Parachute::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ALT_MIN", 4, AP_Parachute, _alt_min, AP_PARACHUTE_ALT_MIN_DEFAULT),
 
-    // @Param: DELAY_MS
+    // `@Param`: DELAY_MS
     // @DisplayName: Parachute release delay
     // @Description: Delay in millseconds between motor stop and chute release
     // @Range: 0 5000
@@ -67,7 +67,7 @@ const AP_Param::GroupInfo AP_Parachute::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("DELAY_MS", 5, AP_Parachute, _delay_ms, AP_PARACHUTE_RELEASE_DELAY_MS),
 
-    // @Param: CRT_SINK
+    // `@Param`: CRT_SINK
     // @DisplayName: Critical sink speed rate in m/s to trigger emergency parachute
     // @Description: Release parachute when critical sink rate is reached
     // @Range: 0 15
@@ -76,7 +76,7 @@ const AP_Param::GroupInfo AP_Parachute::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("CRT_SINK", 6, AP_Parachute, _critical_sink, AP_PARACHUTE_CRITICAL_SINK_DEFAULT),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: Parachute options
     // @Description: Optional behaviour for parachute
     // @Bitmask: 0:hold open forever after release,1:skip disarm before parachute release

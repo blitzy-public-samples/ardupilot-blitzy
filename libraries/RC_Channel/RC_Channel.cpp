@@ -63,7 +63,7 @@ extern const AP_HAL::HAL& hal;
 #define SWITCH_DEBOUNCE_TIME_MS  200
 
 const AP_Param::GroupInfo RC_Channel::var_info[] = {
-    // @Param: MIN
+    // `@Param`: MIN
     // @DisplayName: RC min PWM
     // @Description: RC minimum PWM pulse width in microseconds. Typically 1000 is lower limit, 1500 is neutral and 2000 is upper limit.
     // @Units: PWM
@@ -72,7 +72,7 @@ const AP_Param::GroupInfo RC_Channel::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MIN",  1, RC_Channel, radio_min, 1100),
 
-    // @Param: TRIM
+    // `@Param`: TRIM
     // @DisplayName: RC trim PWM
     // @Description: RC trim (neutral) PWM pulse width in microseconds. Typically 1000 is lower limit, 1500 is neutral and 2000 is upper limit.
     // @Units: PWM
@@ -81,7 +81,7 @@ const AP_Param::GroupInfo RC_Channel::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TRIM", 2, RC_Channel, radio_trim, 1500),
 
-    // @Param: MAX
+    // `@Param`: MAX
     // @DisplayName: RC max PWM
     // @Description: RC maximum PWM pulse width in microseconds. Typically 1000 is lower limit, 1500 is neutral and 2000 is upper limit.
     // @Units: PWM
@@ -90,14 +90,14 @@ const AP_Param::GroupInfo RC_Channel::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAX",  3, RC_Channel, radio_max, 1900),
 
-    // @Param: REVERSED
+    // `@Param`: REVERSED
     // @DisplayName: RC reversed
     // @Description: Reverse channel input. Set to 0 for normal operation. Set to 1 to reverse this input channel.
     // @Values: 0:Normal,1:Reversed
     // @User: Advanced
     AP_GROUPINFO("REVERSED",  4, RC_Channel, reversed, 0),
 
-    // @Param: DZ
+    // `@Param`: DZ
     // @DisplayName: RC dead-zone
     // @Description: PWM dead zone in microseconds around trim or bottom
     // @Units: PWM
@@ -105,7 +105,7 @@ const AP_Param::GroupInfo RC_Channel::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DZ",   5, RC_Channel, dead_zone, 0),
 
-    // @Param: OPTION
+    // `@Param`: OPTION
     // @DisplayName: RC input option
     // @Description: Function assigned to this RC channel
     // @SortValues: AlphabeticalZeroAtTop
@@ -1382,6 +1382,7 @@ void RC_Channel::do_aux_function_fft_notch_tune(const AuxSwitchPos ch_flag)
 #endif
 }
 
+#if HAL_MOUNT_ENABLED
 /**
  * Perform the RETRACT_MOUNT 1/2 process.
  * 
@@ -1389,7 +1390,6 @@ void RC_Channel::do_aux_function_fft_notch_tune(const AuxSwitchPos ch_flag)
  * @param [in] instance 0: RETRACT MOUNT 1 <br>
  *                      1: RETRACT MOUNT 2
 */
-#if HAL_MOUNT_ENABLED
 void RC_Channel::do_aux_function_retract_mount(const AuxSwitchPos ch_flag, const uint8_t instance)
 {
     AP_Mount *mount = AP::mount();
@@ -1426,7 +1426,7 @@ bool RC_Channel::run_aux_function(AUX_FUNC ch_option, AuxSwitchPos pos, AuxFuncT
     const bool ret = do_aux_function(trigger);
 
 #if HAL_LOGGING_ENABLED
-    // @LoggerMessage: AUXF
+    // `@LoggerMessage`: AUXF
     // @Description: Auxiliary function invocation information
     // @Field: TimeUS: Time since system startup
     // @Field: function: ID of triggered function

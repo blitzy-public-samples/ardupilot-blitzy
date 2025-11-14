@@ -6,7 +6,7 @@
 #define LOG_IDS_FROM_BEACON \
     LOG_BEACON_MSG
 
-// @LoggerMessage: BCN
+// `@LoggerMessage`: BCN
 // @Description: Beacon information
 // @Field: TimeUS: Time since system startup
 // @Field: Health: True if beacon sensor is healthy

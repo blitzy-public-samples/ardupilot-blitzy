@@ -391,7 +391,7 @@ void JSON::recv_fdm(const struct sitl_input &input)
         yaw = state.attitude[2];
     }
 
-// @LoggerMessage: JSN1
+// `@LoggerMessage`: JSN1
 // @Description: Log data received from JSON simulator
 // @Field: TimeUS: Time since system startup (us)
 // @Field: TStamp: Simulation's timestamp (s)
@@ -416,7 +416,7 @@ void JSON::recv_fdm(const struct sitl_input &input)
 
     Vector3f accel_ef = dcm.transposed() * accel_body;
 
-// @LoggerMessage: JSN2
+// `@LoggerMessage`: JSN2
 // @Description: Log data received from JSON simulator
 // @Field: TimeUS: Time since system startup (us)
 // @Field: VN: simulation's velocity, North-axis (m/s)

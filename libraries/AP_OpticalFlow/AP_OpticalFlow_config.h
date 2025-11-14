@@ -133,9 +133,9 @@
  * 3. For boards without optical flow sensors, set AP_OPTICALFLOW_ENABLED to 0
  * 
  * Example - Enable only PX4Flow support:
- *   #define AP_OPTICALFLOW_ENABLED 1
- *   #define AP_OPTICALFLOW_BACKEND_DEFAULT_ENABLED 0
- *   #define AP_OPTICALFLOW_PX4FLOW_ENABLED 1
+ *   \#define AP_OPTICALFLOW_ENABLED 1
+ *   \#define AP_OPTICALFLOW_BACKEND_DEFAULT_ENABLED 0
+ *   \#define AP_OPTICALFLOW_PX4FLOW_ENABLED 1
  * 
  * @note Backend drivers are conditionally compiled based on these flags.
  *       Disabled backends are completely excluded from the binary.

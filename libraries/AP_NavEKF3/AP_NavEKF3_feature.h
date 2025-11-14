@@ -58,7 +58,7 @@
  *          enable features in analysis contexts regardless of board or vehicle type.
  * 
  * Usage Pattern:
- * - Other features use: EK3_FEATURE_ALL || <specific_conditions>
+ * - Other features use: EK3_FEATURE_ALL || `<specific_conditions>`
  * - Ensures replay and analysis tools can process all logged sensor data
  * - Allows offline algorithm testing with all fusion modes enabled
  * 

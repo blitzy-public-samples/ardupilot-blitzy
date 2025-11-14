@@ -56,5 +56,3 @@ bool string_contains(const char *haystack, const char *needle);
 #if defined(__cplusplus)
 }
 #endif
-    
-/** @} */

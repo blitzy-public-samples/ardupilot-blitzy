@@ -163,14 +163,14 @@ extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
 #if HAL_HAVE_SERIAL0_PARAMS
-    // @Param: 0_BAUD
+    // `@Param`: 0_BAUD
     // @DisplayName: Serial0 baud rate
     // @Description: The baud rate used on the USB console. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
     // @Values: 1:1200,2:2400,4:4800,9:9600,19:19200,38:38400,57:57600,111:111100,115:115200,230:230400,256:256000,460:460800,500:500000,921:921600,1500:1.5MBaud,2000:2MBaud,12500000:12.5MBaud
     // @User: Standard
     AP_GROUPINFO("0_BAUD",  0, AP_SerialManager, state[0].baud, DEFAULT_SERIAL0_BAUD/1000),
 
-    // @Param: 0_PROTOCOL
+    // `@Param`: 0_PROTOCOL
     // @DisplayName: Console protocol selection
     // @Description: Control what protocol to use on the console. 
     // @Values: 1:MAVLink1, 2:MAVLink2
@@ -180,7 +180,7 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
 #endif
 
 #if HAL_HAVE_SERIAL1_PARAMS
-    // @Param: 1_PROTOCOL
+    // `@Param`: 1_PROTOCOL
     // @DisplayName: Telem1 protocol selection
     // @Description: Control what protocol to use on the Telem1 port. Note that the Frsky options require external converter hardware. See the wiki for details.
     // @SortValues: AlphabeticalZeroAtTop
@@ -189,7 +189,7 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("1_PROTOCOL",  1, AP_SerialManager, state[1].protocol, DEFAULT_SERIAL1_PROTOCOL),
 
-    // @Param: 1_BAUD
+    // `@Param`: 1_BAUD
     // @DisplayName: Telem1 Baud Rate
     // @Description: The baud rate used on the Telem1 port. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
     // @Values: 1:1200,2:2400,4:4800,9:9600,19:19200,38:38400,57:57600,111:111100,115:115200,230:230400,256:256000,460:460800,500:500000,921:921600,1500:1.5MBaud,2000:2MBaud,12500000:12.5MBaud
@@ -198,13 +198,13 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
 #endif
 
 #if HAL_HAVE_SERIAL2_PARAMS
-    // @Param: 2_PROTOCOL
+    // `@Param`: 2_PROTOCOL
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
     // @DisplayName: Telemetry 2 protocol selection
     // @Description: Control what protocol to use on the Telem2 port. Note that the Frsky options require external converter hardware. See the wiki for details.
     AP_GROUPINFO("2_PROTOCOL",  3, AP_SerialManager, state[2].protocol, DEFAULT_SERIAL2_PROTOCOL),
 
-    // @Param: 2_BAUD
+    // `@Param`: 2_BAUD
     // @CopyFieldsFrom: SERIAL1_BAUD
     // @DisplayName: Telemetry 2 Baud Rate
     // @Description: The baud rate of the Telem2 port. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
@@ -212,13 +212,13 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
 #endif
 
 #if HAL_HAVE_SERIAL3_PARAMS
-    // @Param: 3_PROTOCOL
+    // `@Param`: 3_PROTOCOL
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
     // @DisplayName: Serial 3 (GPS) protocol selection
     // @Description: Control what protocol Serial 3 (GPS) should be used for. Note that the Frsky options require external converter hardware. See the wiki for details.
     AP_GROUPINFO("3_PROTOCOL",  5, AP_SerialManager, state[3].protocol, DEFAULT_SERIAL3_PROTOCOL),
 
-    // @Param: 3_BAUD
+    // `@Param`: 3_BAUD
     // @CopyFieldsFrom: SERIAL1_BAUD
     // @DisplayName: Serial 3 (GPS) Baud Rate
     // @Description: The baud rate used for the Serial 3 (GPS). Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
@@ -226,13 +226,13 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
 #endif
 
 #if HAL_HAVE_SERIAL4_PARAMS
-    // @Param: 4_PROTOCOL
+    // `@Param`: 4_PROTOCOL
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
     // @DisplayName: Serial4 protocol selection
     // @Description: Control what protocol Serial4 port should be used for. Note that the Frsky options require external converter hardware. See the wiki for details.
     AP_GROUPINFO("4_PROTOCOL",  7, AP_SerialManager, state[4].protocol, DEFAULT_SERIAL4_PROTOCOL),
 
-    // @Param: 4_BAUD
+    // `@Param`: 4_BAUD
     // @CopyFieldsFrom: SERIAL1_BAUD
     // @DisplayName: Serial 4 Baud Rate
     // @Description: The baud rate used for Serial4. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
@@ -240,13 +240,13 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
 #endif
 
 #if HAL_HAVE_SERIAL5_PARAMS
-    // @Param: 5_PROTOCOL
+    // `@Param`: 5_PROTOCOL
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
     // @DisplayName: Serial5 protocol selection
     // @Description: Control what protocol Serial5 port should be used for. Note that the Frsky options require external converter hardware. See the wiki for details.
     AP_GROUPINFO("5_PROTOCOL",  9, AP_SerialManager, state[5].protocol, DEFAULT_SERIAL5_PROTOCOL),
 
-    // @Param: 5_BAUD
+    // `@Param`: 5_BAUD
     // @CopyFieldsFrom: SERIAL1_BAUD
     // @DisplayName: Serial 5 Baud Rate
     // @Description: The baud rate used for Serial5. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
@@ -256,13 +256,13 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
     // index 11 used by 0_PROTOCOL
         
 #if HAL_HAVE_SERIAL6_PARAMS
-    // @Param: 6_PROTOCOL
+    // `@Param`: 6_PROTOCOL
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
     // @DisplayName: Serial6 protocol selection
     // @Description: Control what protocol Serial6 port should be used for. Note that the Frsky options require external converter hardware. See the wiki for details.
     AP_GROUPINFO("6_PROTOCOL",  12, AP_SerialManager, state[6].protocol, DEFAULT_SERIAL6_PROTOCOL),
 
-    // @Param: 6_BAUD
+    // `@Param`: 6_BAUD
     // @CopyFieldsFrom: SERIAL1_BAUD
     // @DisplayName: Serial 6 Baud Rate
     // @Description: The baud rate used for Serial6. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
@@ -270,7 +270,7 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
 #endif
 
 #if HAL_HAVE_SERIAL1_PARAMS
-    // @Param: 1_OPTIONS
+    // `@Param`: 1_OPTIONS
     // @DisplayName: Telem1 options
     // @Description: Control over UART options. The InvertRX option controls invert of the receive pin. The InvertTX option controls invert of the transmit pin. The HalfDuplex option controls half-duplex (onewire) mode, where both transmit and receive is done on the transmit wire. The Swap option allows the RX and TX pins to be swapped on STM32F7 based boards.  NOTE that two bits have moved from this parameter into MAVn_OPTIONS!
     // @Bitmask: 0:InvertRX, 1:InvertTX, 2:HalfDuplex, 3:SwapTXRX, 4: RX_PullDown, 5: RX_PullUp, 6: TX_PullDown, 7: TX_PullUp, 8: RX_NoDMA, 9: TX_NoDMA, 10: Don't forward mavlink to/from (moved to MAVn_OPTIONS >4.7), 11: DisableFIFO, 12: Ignore Streamrate (moved to MAVn_OPTIONS >4.7)
@@ -280,55 +280,55 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
 #endif
 
 #if HAL_HAVE_SERIAL2_PARAMS
-    // @Param: 2_OPTIONS
+    // `@Param`: 2_OPTIONS
     // @CopyFieldsFrom: SERIAL1_OPTIONS
     // @DisplayName: Telem2 options
     AP_GROUPINFO("2_OPTIONS",  15, AP_SerialManager, state[2].options, DEFAULT_SERIAL2_OPTIONS),
 #endif
 
 #if HAL_HAVE_SERIAL3_PARAMS
-    // @Param: 3_OPTIONS
+    // `@Param`: 3_OPTIONS
     // @CopyFieldsFrom: SERIAL1_OPTIONS
     // @DisplayName: Serial3 options
     AP_GROUPINFO("3_OPTIONS",  16, AP_SerialManager, state[3].options, DEFAULT_SERIAL3_OPTIONS),
 #endif
 
 #if HAL_HAVE_SERIAL4_PARAMS
-    // @Param: 4_OPTIONS
+    // `@Param`: 4_OPTIONS
     // @CopyFieldsFrom: SERIAL1_OPTIONS
     // @DisplayName: Serial4 options
     AP_GROUPINFO("4_OPTIONS",  17, AP_SerialManager, state[4].options, DEFAULT_SERIAL4_OPTIONS),
 #endif
 
 #if HAL_HAVE_SERIAL5_PARAMS
-    // @Param: 5_OPTIONS
+    // `@Param`: 5_OPTIONS
     // @CopyFieldsFrom: SERIAL1_OPTIONS
     // @DisplayName: Serial5 options
     AP_GROUPINFO("5_OPTIONS",  18, AP_SerialManager, state[5].options, DEFAULT_SERIAL5_OPTIONS),
 #endif
 
 #if HAL_HAVE_SERIAL6_PARAMS
-    // @Param: 6_OPTIONS
+    // `@Param`: 6_OPTIONS
     // @CopyFieldsFrom: SERIAL1_OPTIONS
     // @DisplayName: Serial6 options
     AP_GROUPINFO("6_OPTIONS",  19, AP_SerialManager, state[6].options, DEFAULT_SERIAL6_OPTIONS),
 #endif
 
-    // @Param: _PASS1
+    // `@Param`: _PASS1
     // @DisplayName: Serial passthru first port
     // @Description: This sets one side of pass-through between two serial ports. Once both sides are set then all data received on either port will be passed to the other port
     // @Values: -1:Disabled,0:Serial0,1:Serial1,2:Serial2,3:Serial3,4:Serial4,5:Serial5,6:Serial6
     // @User: Advanced
     AP_GROUPINFO("_PASS1",  20, AP_SerialManager, passthru_port1, 0),
 
-    // @Param: _PASS2
+    // `@Param`: _PASS2
     // @DisplayName: Serial passthru second port
     // @Description: This sets one side of pass-through between two serial ports. Once both sides are set then all data received on either port will be passed to the other port. This parameter is normally reset to -1 on reboot, disabling passthrough. If SERIAL_PASSTIMO is set to -1 then it is not reset on reboot.
     // @Values: -1:Disabled,0:Serial0,1:Serial1,2:Serial2,3:Serial3,4:Serial4,5:Serial5,6:Serial6
     // @User: Advanced
     AP_GROUPINFO("_PASS2",  21, AP_SerialManager, passthru_port2, -1),
 
-    // @Param: _PASSTIMO
+    // `@Param`: _PASSTIMO
     // @DisplayName: Serial passthru timeout
     // @Description: This sets a timeout for serial pass-through in seconds. When the pass-through is enabled by setting the SERIAL_PASS1 and SERIAL_PASS2 parameters then it remains in effect until no data comes from the first port for SERIAL_PASSTIMO seconds. This allows the port to revent to its normal usage (such as MAVLink connection to a GCS) when it is no longer needed. A value of 0 means no timeout. A value of -1 means no timeout and the SERIAL_PASS2 parameter is not reset on reboot.
     // @Range: -1 120
@@ -337,57 +337,57 @@ const AP_Param::GroupInfo AP_SerialManager::var_info[] = {
     AP_GROUPINFO("_PASSTIMO",  22, AP_SerialManager, passthru_timeout, 15),
 
 #if HAL_HAVE_SERIAL7_PARAMS
-    // @Param: 7_PROTOCOL
+    // `@Param`: 7_PROTOCOL
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
     // @DisplayName: Serial7 protocol selection
     // @Description: Control what protocol Serial7 port should be used for. Note that the Frsky options require external converter hardware. See the wiki for details.
     AP_GROUPINFO("7_PROTOCOL",  23, AP_SerialManager, state[7].protocol, DEFAULT_SERIAL7_PROTOCOL),
 
-    // @Param: 7_BAUD
+    // `@Param`: 7_BAUD
     // @CopyFieldsFrom: SERIAL1_BAUD
     // @DisplayName: Serial 7 Baud Rate
     // @Description: The baud rate used for Serial7. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
     AP_GROUPINFO("7_BAUD", 24, AP_SerialManager, state[7].baud, DEFAULT_SERIAL7_BAUD),
 
-    // @Param: 7_OPTIONS
+    // `@Param`: 7_OPTIONS
     // @CopyFieldsFrom: SERIAL1_OPTIONS
     // @DisplayName: Serial7 options
     AP_GROUPINFO("7_OPTIONS",  25, AP_SerialManager, state[7].options, 0),
 #endif
 
 #if HAL_HAVE_SERIAL8_PARAMS
-    // @Param: 8_PROTOCOL
+    // `@Param`: 8_PROTOCOL
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
     // @DisplayName: Serial8 protocol selection
     // @Description: Control what protocol Serial8 port should be used for. Note that the Frsky options require external converter hardware. See the wiki for details.
     AP_GROUPINFO("8_PROTOCOL",  26, AP_SerialManager, state[8].protocol, DEFAULT_SERIAL8_PROTOCOL),
 
-    // @Param: 8_BAUD
+    // `@Param`: 8_BAUD
     // @CopyFieldsFrom: SERIAL1_BAUD
     // @DisplayName: Serial 8 Baud Rate
     // @Description: The baud rate used for Serial8. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
     AP_GROUPINFO("8_BAUD", 27, AP_SerialManager, state[8].baud, DEFAULT_SERIAL8_BAUD),
 
-    // @Param: 8_OPTIONS
+    // `@Param`: 8_OPTIONS
     // @CopyFieldsFrom: SERIAL1_OPTIONS
     // @DisplayName: Serial8 options
     AP_GROUPINFO("8_OPTIONS",  28, AP_SerialManager, state[8].options, 0),
 #endif
 
 #if HAL_HAVE_SERIAL9_PARAMS
-    // @Param: 9_PROTOCOL
+    // `@Param`: 9_PROTOCOL
     // @CopyFieldsFrom: SERIAL1_PROTOCOL
     // @DisplayName: Serial9 protocol selection
     // @Description: Control what protocol Serial9 port should be used for. Note that the Frsky options require external converter hardware. See the wiki for details.
     AP_GROUPINFO("9_PROTOCOL",  29, AP_SerialManager, state[9].protocol, DEFAULT_SERIAL9_PROTOCOL),
 
-    // @Param: 9_BAUD
+    // `@Param`: 9_BAUD
     // @CopyFieldsFrom: SERIAL1_BAUD
     // @DisplayName: Serial 9 Baud Rate
     // @Description: The baud rate used for Serial8. Most stm32-based boards can support rates of up to 1500. If you setup a rate you cannot support and then can't connect to your board you should load a firmware from a different vehicle type. That will reset all your parameters to defaults.
     AP_GROUPINFO("9_BAUD", 30, AP_SerialManager, state[9].baud, DEFAULT_SERIAL9_BAUD),
 
-    // @Param: 9_OPTIONS
+    // `@Param`: 9_OPTIONS
     // @CopyFieldsFrom: SERIAL1_OPTIONS
     // @DisplayName: Serial9 options
     AP_GROUPINFO("9_OPTIONS",  31, AP_SerialManager, state[9].options, DEFAULT_SERIAL9_OPTIONS),

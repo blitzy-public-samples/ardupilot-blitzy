@@ -347,7 +347,7 @@ void AirSim::recv_fdm(const sitl_input& input)
     }
 
 #if 0
-// @LoggerMessage: ASM1
+// `@LoggerMessage`: ASM1
 // @Description: AirSim simulation data
 // @Field: TimeUS: Time since system startup
 // @Field: TUS: Simulation's timestamp
@@ -370,7 +370,7 @@ void AirSim::recv_fdm(const sitl_input& input)
 
     Vector3f velocity_bf = dcm.transposed() * velocity_ef;
 
-// @LoggerMessage: ASM2
+// `@LoggerMessage`: ASM2
 // @Description: More AirSim simulation data
 // @Field: TimeUS: Time since system startup
 // @Field: AX: simulation's acceleration, X-axis

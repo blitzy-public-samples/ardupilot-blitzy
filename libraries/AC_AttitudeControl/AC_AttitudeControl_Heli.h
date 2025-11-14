@@ -95,7 +95,7 @@ public:
      * 
      * @param[in] ahrs AHRS reference for attitude estimation
      * @param[in] aparm Vehicle parameter reference for multi-copter parameters
-     * @param[in] motors_heli Helicopter motor mixer for swashplate and tail rotor control
+     * @param[in] motors Helicopter motor mixer for swashplate and tail rotor control
      * 
      * @details Initializes helicopter-specific attitude controller with leaky integrator PIDs,
      *          helicopter-tuned default gains, and references to helicopter motor mixer.

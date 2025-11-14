@@ -10,7 +10,7 @@
     LOG_ISBD_MSG, \
     LOG_VIBE_MSG
 
-// @LoggerMessage: ACC
+// `@LoggerMessage`: ACC
 // @Description: IMU accelerometer data
 // @Field: TimeUS: Time since system startup
 // @Field: I: accelerometer sensor instance number
@@ -26,7 +26,7 @@ struct PACKED log_ACC {
     float AccX, AccY, AccZ;
 };
 
-// @LoggerMessage: GYR
+// `@LoggerMessage`: GYR
 // @Description: IMU gyroscope data
 // @Field: TimeUS: Time since system startup
 // @Field: I: gyroscope sensor instance number
@@ -42,7 +42,7 @@ struct PACKED log_GYR {
     float GyrX, GyrY, GyrZ;
 };
 
-// @LoggerMessage: IMU
+// `@LoggerMessage`: IMU
 // @Description: Inertial Measurement Unit data
 // @Field: TimeUS: Time since system startup
 // @Field: I: IMU sensor instance number
@@ -71,7 +71,7 @@ struct PACKED log_IMU {
     uint16_t gyro_rate, accel_rate;
 };
 
-// @LoggerMessage: ISBH
+// `@LoggerMessage`: ISBH
 // @Description: InertialSensor Batch Logging Header
 // @Field: TimeUS: Time since system startup
 // @Field: N: batch sequence number
@@ -94,7 +94,7 @@ struct PACKED log_ISBH {
 };
 static_assert(sizeof(log_ISBH) < 256, "log_ISBH is over-size");
 
-// @LoggerMessage: ISBD
+// `@LoggerMessage`: ISBD
 // @Description: InertialSensor Batch Logging Data
 // @Field: TimeUS: Time since system startup
 // @Field: N: batch sequence number
@@ -113,7 +113,7 @@ struct PACKED log_ISBD {
 };
 static_assert(sizeof(log_ISBD) < 256, "log_ISBD is over-size");
 
-// @LoggerMessage: VIBE
+// `@LoggerMessage`: VIBE
 // @Description: Processed (acceleration) vibration information
 // @Field: TimeUS: Time since system startup
 // @Field: IMU: Vibration instance number

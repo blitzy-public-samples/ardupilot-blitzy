@@ -93,7 +93,7 @@ const AP_Param::GroupInfo AP_CANManager::var_info[] = {
     AP_SUBGROUPINFO(_slcan_interface, "SLCAN_", 7, AP_CANManager, SLCAN::CANIface),
 #endif
 
-    // @Param: LOGLEVEL
+    // `@Param`: LOGLEVEL
     // @DisplayName: Loglevel
     // @Description: Loglevel for recording initialisation and debug information from CAN Interface
     // @Range: 0 4

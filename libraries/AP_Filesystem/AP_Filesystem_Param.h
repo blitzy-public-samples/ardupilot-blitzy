@@ -15,11 +15,11 @@
 
 /**
  * @file AP_Filesystem_Param.h
- * @brief @PARAM virtual filesystem backend for compressed parameter file access
+ * @brief `@PARAM` virtual filesystem backend for compressed parameter file access
  * 
- * @details This file implements the @PARAM virtual filesystem interface that provides
+ * @details This file implements the `@PARAM` virtual filesystem interface that provides
  *          efficient parameter download via MAVLink FTP. The primary interface is the
- *          @PARAM/param.pck virtual file which contains a compressed binary representation
+ *          `@PARAM`/param.pck virtual file which contains a compressed binary representation
  *          of the flight controller's parameter list.
  *          
  *          The param.pck format uses prefix compression to minimize bandwidth usage,
@@ -60,10 +60,10 @@
 
 /**
  * @class AP_Filesystem_Param
- * @brief Virtual filesystem backend providing compressed parameter file access via @PARAM interface
+ * @brief Virtual filesystem backend providing compressed parameter file access via `@PARAM` interface
  * 
  * @details AP_Filesystem_Param implements a read-only virtual filesystem that exposes the
- *          flight controller's parameter list as @PARAM/param.pck. This provides efficient
+ *          flight controller's parameter list as `@PARAM`/param.pck. This provides efficient
  *          parameter download via MAVLink FTP using a compressed binary format.
  *          
  *          Compression Algorithm:
@@ -111,7 +111,7 @@ public:
     // functions that closely match the equivalent posix calls
     
     /**
-     * @brief Open @PARAM/param.pck virtual file with optional query string parameters
+     * @brief Open `@PARAM`/param.pck virtual file with optional query string parameters
      * 
      * @details Opens the compressed parameter file for reading or writing. For read operations,
      *          initializes parameter iteration cursors and parses query string arguments.
@@ -122,7 +122,7 @@ public:
      *          - ?count=M: Include M parameters (default: all from start)
      *          - ?withdefaults=1: Include default values where different from set value
      *          
-     *          Query strings can be combined: @PARAM/param.pck?start=50&count=10&withdefaults=1
+     *          Query strings can be combined: `@PARAM`/param.pck?start=50&count=10&withdefaults=1
      *          
      *          Read Mode (O_RDONLY):
      *          - Allocates cursor array for efficient parameter iteration
@@ -134,7 +134,7 @@ public:
      *          - Data written via write() calls until close()
      *          - Parameters parsed and applied atomically on close()
      * 
-     * @param[in] fname     File name, must be "@PARAM/param.pck" optionally with query string
+     * @param[in] fname     File name, must be "`@PARAM`/param.pck" optionally with query string
      * @param[in] flags     Open flags (O_RDONLY for download, O_WRONLY/O_RDWR for upload)
      * @param[in] allow_absolute_paths  Ignored for virtual filesystem (always false)
      * 
@@ -143,10 +143,10 @@ public:
      * @note Only 4 simultaneous open files supported (max_open_file=4)
      * @note Query string parsing: invalid values (>=UINT16_MAX) result in EINVAL
      * 
-     * @warning File name must exactly match "@PARAM/param.pck" (case-sensitive)
+     * @warning File name must exactly match "`@PARAM`/param.pck" (case-sensitive)
      * 
      * Error Codes (errno):
-     * - ENOENT: Invalid file name (not @PARAM/param.pck)
+     * - ENOENT: Invalid file name (not `@PARAM`/param.pck)
      * - ENFILE: Too many open files (all 4 slots in use)
      * - ENOMEM: Failed to allocate cursors or write buffer
      * - EINVAL: Invalid query string parameter value
@@ -274,7 +274,7 @@ public:
     int32_t lseek(int fd, int32_t offset, int whence) override;
     
     /**
-     * @brief Get file statistics for @PARAM/param.pck virtual file
+     * @brief Get file statistics for `@PARAM`/param.pck virtual file
      * 
      * @details Returns estimated file size based on parameter count and average parameter
      *          size. The actual file size varies due to prefix compression and optional
@@ -290,7 +290,7 @@ public:
      *          - Optional default value (if withdefaults requested)
      *          - Padding overhead for block alignment
      * 
-     * @param[in]  pathname  File path, must be "@PARAM/param.pck" with optional query string
+     * @param[in]  pathname  File path, must be "`@PARAM`/param.pck" with optional query string
      * @param[out] stbuf     stat structure to populate with file information
      * 
      * @return 0 on success, -1 on error
@@ -299,7 +299,7 @@ public:
      * @note Sets st_size field only; other stat fields not applicable to virtual file
      * 
      * Error Codes (errno):
-     * - ENOENT: Invalid file name (not @PARAM/param.pck)
+     * - ENOENT: Invalid file name (not `@PARAM`/param.pck)
      * 
      * Source: libraries/AP_Filesystem/AP_Filesystem_Param.cpp:568-587
      */
@@ -358,7 +358,7 @@ private:
     static constexpr uint8_t num_cursors = 2;
 
     /**
-     * @brief Maximum number of simultaneously open @PARAM files
+     * @brief Maximum number of simultaneously open `@PARAM` files
      * 
      * @details Limits concurrent file handles to conserve memory. Each open file
      *          requires cursor arrays and potentially write buffers. Four simultaneous
@@ -477,7 +477,7 @@ private:
 
     /**
      * @struct rfile
-     * @brief Open file descriptor state for @PARAM/param.pck access
+     * @brief Open file descriptor state for `@PARAM`/param.pck access
      * 
      * @details Maintains all state associated with an open file handle including query
      *          string parameters, read position, and iteration cursors. Separate instances
@@ -597,25 +597,25 @@ private:
     uint8_t pack_param(const struct rfile &r, struct cursor &c, uint8_t *buf);
     
     /**
-     * @brief Validate that file name matches @PARAM/param.pck pattern
+     * @brief Validate that file name matches `@PARAM`/param.pck pattern
      * 
-     * @details Checks that the provided file name is exactly "@PARAM/param.pck"
+     * @details Checks that the provided file name is exactly "`@PARAM`/param.pck"
      *          (case-sensitive) optionally followed by query string parameters.
      *          Query strings begin with '?' and are not validated here (parsed in open()).
      *          
      *          Valid Examples:
-     *          - @PARAM/param.pck
-     *          - @PARAM/param.pck?start=10
-     *          - @PARAM/param.pck?start=10&count=5&withdefaults=1
+     *          - `@PARAM`/param.pck
+     *          - `@PARAM`/param.pck?start=10
+     *          - `@PARAM`/param.pck?start=10&count=5&withdefaults=1
      *          
      *          Invalid Examples:
-     *          - @param/param.pck (wrong case)
-     *          - @PARAM/params.pck (wrong filename)
-     *          - PARAM/param.pck (missing @)
+     *          - `@param`/param.pck (wrong case)
+     *          - `@PARAM`/params.pck (wrong filename)
+     *          - `PARAM`/param.pck (missing @)
      * 
      * @param[in] fname  File name to validate
      * 
-     * @return true if valid @PARAM/param.pck path, false otherwise
+     * @return true if valid `@PARAM`/param.pck path, false otherwise
      * 
      * @note Case-sensitive comparison
      * @note Query strings not validated by this function

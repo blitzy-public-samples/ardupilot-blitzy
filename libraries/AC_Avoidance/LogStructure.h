@@ -9,7 +9,7 @@
     LOG_SIMPLE_AVOID_MSG, \
     LOG_OD_VISGRAPH_MSG
 
-// @LoggerMessage: OABR
+// `@LoggerMessage`: OABR
 // @Description: Object avoidance (Bendy Ruler) diagnostics
 // @Field: TimeUS: Time since system startup
 // @Field: Type: Type of BendyRuler currently active
@@ -43,7 +43,7 @@ struct PACKED log_OABendyRuler {
     float oa_alt;
 };
 
-// @LoggerMessage: OADJ
+// `@LoggerMessage`: OADJ
 // @Description: Object avoidance (Dijkstra) diagnostics
 // @Field: TimeUS: Time since system startup
 // @Field: State: Dijkstra avoidance library state
@@ -67,7 +67,7 @@ struct PACKED log_OADijkstra {
     int32_t oa_lng;
 };
 
-// @LoggerMessage: SA
+// `@LoggerMessage`: SA
 // @Description: Simple Avoidance messages
 // @Field: TimeUS: Time since system startup
 // @Field: State: True if Simple Avoidance is active
@@ -91,7 +91,7 @@ struct PACKED log_SimpleAvoid {
   uint8_t backing_up;
 };
 
-// @LoggerMessage: OAVG
+// `@LoggerMessage`: OAVG
 // @Description: Object avoidance path planning visgraph points
 // @Field: TimeUS: Time since system startup
 // @Field: version: Visgraph version, increments each time the visgraph is re-generated

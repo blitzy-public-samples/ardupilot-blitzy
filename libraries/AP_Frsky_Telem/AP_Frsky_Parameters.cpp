@@ -17,21 +17,21 @@
 
 const AP_Param::GroupInfo AP_Frsky_Parameters::var_info[] = {
 #if HAL_WITH_FRSKY_TELEM_BIDIRECTIONAL
-    // @Param: UPLINK_ID
+    // `@Param`: UPLINK_ID
     // @DisplayName: Uplink sensor id
     // @Description: Change the uplink sensor id (SPort only)
     // @Values: -1:Disable,7:7,8:8,9:9,10:10,11:11,12:12,13:13,14:14,15:15,16:16,17:17,18:18,19:19,20:20,21:21,22:22,23:23,24:24,25:25,26:26
     // @User: Advanced
     AP_GROUPINFO("UPLINK_ID",  1, AP_Frsky_Parameters, _uplink_id, 13),
 
-    // @Param: DNLINK1_ID
+    // `@Param`: DNLINK1_ID
     // @DisplayName: First downlink sensor id
     // @Description: Change the first extra downlink sensor id (SPort only)
     // @Values: -1:Disable,7:7,8:8,9:9,10:10,11:11,12:12,13:13,14:14,15:15,16:16,17:17,18:18,19:19,20:20,21:21,22:22,23:23,24:24,25:25,26:26
     // @User: Advanced
     AP_GROUPINFO("DNLINK1_ID",  2, AP_Frsky_Parameters, _dnlink1_id, 20),
 
-    // @Param: DNLINK2_ID
+    // `@Param`: DNLINK2_ID
     // @DisplayName: Second downlink sensor id
     // @Description: Change the second extra downlink sensor id (SPort only)
     // @Values: -1:Disable,7:7,8:8,9:9,10:10,11:11,12:12,13:13,14:14,15:15,16:16,17:17,18:18,19:19,20:20,21:21,22:22,23:23,24:24,25:25,26:26
@@ -39,14 +39,14 @@ const AP_Param::GroupInfo AP_Frsky_Parameters::var_info[] = {
     AP_GROUPINFO("DNLINK2_ID",  3, AP_Frsky_Parameters, _dnlink2_id, 7),
 #endif //HAL_WITH_FRSKY_TELEM_BIDIRECTIONAL
 
-    // @Param: DNLINK_ID
+    // `@Param`: DNLINK_ID
     // @DisplayName: Default downlink sensor id
     // @Description: Change the default downlink sensor id (SPort only)
     // @Values: -1:Disable,7:7,8:8,9:9,10:10,11:11,12:12,13:13,14:14,15:15,16:16,17:17,18:18,19:19,20:20,21:21,22:22,23:23,24:24,25:25,26:26,27:27
     // @User: Advanced
     AP_GROUPINFO("DNLINK_ID",  4, AP_Frsky_Parameters, _dnlink_id, 27),
 
-    // @Param: OPTIONS
+    // `@Param`: OPTIONS
     // @DisplayName: FRSky Telemetry Options
     // @Description: A bitmask to set some FRSky Telemetry specific options
     // @Bitmask: 0:EnableAirspeedAndGroundspeed

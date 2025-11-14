@@ -31,93 +31,93 @@ AP_Button *AP_Button::_singleton;
 
 const AP_Param::GroupInfo AP_Button::var_info[] = {
 
-    // @Param: ENABLE
+    // `@Param`: ENABLE
     // @DisplayName: Enable button reporting
     // @Description: This enables the button checking module. When this is disabled the parameters for setting button inputs are not visible
     // @Values: 0:Disabled, 1:Enabled
     // @User: Advanced
     AP_GROUPINFO_FLAGS("ENABLE", 0, AP_Button, enable, 0, AP_PARAM_FLAG_ENABLE),
 
-    // @Param: PIN1
+    // `@Param`: PIN1
     // @DisplayName: First button Pin
     // @Description: Digital pin number for first button input.  Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @User: Standard
     // @Values: -1:Disabled,50:AUXOUT1,51:AUXOUT2,52:AUXOUT3,53:AUXOUT4,54:AUXOUT5,55:AUXOUT6
     AP_GROUPINFO("PIN1",  1, AP_Button, pin[0], -1),
 
-    // @Param: PIN2
+    // `@Param`: PIN2
     // @DisplayName: Second button Pin
     // @Description: Digital pin number for second button input.  Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @User: Standard
     // @Values: -1:Disabled,50:AUXOUT1,51:AUXOUT2,52:AUXOUT3,53:AUXOUT4,54:AUXOUT5,55:AUXOUT6
     AP_GROUPINFO("PIN2",  2, AP_Button, pin[1], -1),
 
-    // @Param: PIN3
+    // `@Param`: PIN3
     // @DisplayName: Third button Pin
     // @Description: Digital pin number for third button input.  Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @User: Standard
     // @Values: -1:Disabled,50:AUXOUT1,51:AUXOUT2,52:AUXOUT3,53:AUXOUT4,54:AUXOUT5,55:AUXOUT6
     AP_GROUPINFO("PIN3",  3, AP_Button, pin[2], -1),
 
-    // @Param: PIN4
+    // `@Param`: PIN4
     // @DisplayName: Fourth button Pin
     // @Description: Digital pin number for fourth button input. Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @User: Standard
     // @Values: -1:Disabled,50:AUXOUT1,51:AUXOUT2,52:AUXOUT3,53:AUXOUT4,54:AUXOUT5,55:AUXOUT6
     AP_GROUPINFO("PIN4",  4, AP_Button, pin[3], -1),
 
-    // @Param: REPORT_SEND
+    // `@Param`: REPORT_SEND
     // @DisplayName: Report send time
     // @Description: The duration in seconds that a BUTTON_CHANGE report is repeatedly sent to the GCS regarding a button changing state. Note that the BUTTON_CHANGE message is MAVLink2 only.
     // @User: Standard
     // @Range: 0 3600
     AP_GROUPINFO("REPORT_SEND", 5, AP_Button, report_send_time, 10),
 
-    // @Param: OPTIONS1
+    // `@Param`: OPTIONS1
     // @DisplayName: Button Pin 1 Options
     // @Description: Options for Pin 1. PWM input detects PWM above or below 1800/1200us instead of logic level. If PWM is not detected or is less than 800us or above 2200us the button will interpreted as low. Invert changes HIGH state to be logic low voltage on pin, or below 1200us, if PWM input.
     // @User: Standard
     // @Bitmask: 0:PWM Input,1:InvertInput
     AP_GROUPINFO("OPTIONS1",  6, AP_Button, options[0], 0),
 
-    // @Param: OPTIONS2
+    // `@Param`: OPTIONS2
     // @DisplayName: Button Pin 2 Options
     // @Description: Options for Pin 2. PWM input detects PWM above or below 1800/1200us instead of logic level. If PWM is not detected or is less than 800us or above 2200us the button will interpreted as low. Invert changes HIGH state to be logic low voltage on pin, or below 1200us, if PWM input.
     // @User: Standard
     // @Bitmask: 0:PWM Input,1:InvertInput
     AP_GROUPINFO("OPTIONS2",  7, AP_Button, options[1], 0),
 
-    // @Param: OPTIONS3
+    // `@Param`: OPTIONS3
     // @DisplayName: Button Pin 3 Options
     // @Description: Options for Pin 3. PWM input detects PWM above or below 1800/1200us instead of logic level. If PWM is not detected or is less than 800us or above 2200us the button will interpreted as low. Invert changes HIGH state to be logic low voltage on pin, or below 1200us, if PWM input.
     // @Bitmask: 0:PWM Input,1:InvertInput
     AP_GROUPINFO("OPTIONS3",  8, AP_Button, options[2], 0),
 
-    // @Param: OPTIONS4
+    // `@Param`: OPTIONS4
     // @DisplayName: Button Pin 4 Options
     // @Description: Options for Pin 4. PWM input detects PWM above or below 1800/1200us instead of logic level. If PWM is not detected or is less than 800us or above 2200us the button will interpreted as low. Invert changes HIGH state to be logic low voltage on pin, or below 1200us, if PWM input.
     // @User: Standard
     // @Bitmask: 0:PWM Input,1:InvertInput
     AP_GROUPINFO("OPTIONS4",  9, AP_Button, options[3], 0),
 
-    // @Param: FUNC1
+    // `@Param`: FUNC1
     // @CopyFieldsFrom: RC1_OPTION
     // @DisplayName: Button Pin 1 RC Channel function
     // @Description: Auxiliary RC Options function executed on pin change
     // @User: Standard
     AP_GROUPINFO("FUNC1",  10, AP_Button, pin_func[0], (uint16_t)RC_Channel::AUX_FUNC::DO_NOTHING),
 
-    // @Param: FUNC2
+    // `@Param`: FUNC2
     // @CopyFieldsFrom: BTN_FUNC1
     // @DisplayName: Button Pin 2 RC Channel function
     AP_GROUPINFO("FUNC2",  11, AP_Button, pin_func[1], (uint16_t)RC_Channel::AUX_FUNC::DO_NOTHING),
 
-    // @Param: FUNC3
+    // `@Param`: FUNC3
     // @CopyFieldsFrom: BTN_FUNC1
     // @DisplayName: Button Pin 3 RC Channel function
     AP_GROUPINFO("FUNC3",  12, AP_Button, pin_func[2], (uint16_t)RC_Channel::AUX_FUNC::DO_NOTHING),
 
-    // @Param: FUNC4
+    // `@Param`: FUNC4
     // @CopyFieldsFrom: BTN_FUNC1
     // @DisplayName: Button Pin 4 RC Channel function
     AP_GROUPINFO("FUNC4",  13, AP_Button, pin_func[3], (uint16_t)RC_Channel::AUX_FUNC::DO_NOTHING),
