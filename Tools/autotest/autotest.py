@@ -30,6 +30,7 @@ import quadplane
 import balancebot
 import sailboat
 import helicopter
+import ekf_check_parity
 
 import examples
 from pysim import util
@@ -289,6 +290,7 @@ __bin_names = {
     "SITLPeriphBattMon": ("sitl_periph_battmon", "AP_Periph"),
     "CAN": "arducopter",
     "BattCAN": "arducopter",
+    "EKFCheckParity": "arducopter",
 }
 
 
@@ -362,6 +364,7 @@ tester_class_map = {
     "test.Tracker": antennatracker.AutoTestTracker,
     "test.CAN": arducopter.AutoTestCAN,
     "test.BattCAN": arducopter.AutoTestBattCAN,
+    "test.EKFCheckParity": ekf_check_parity.EKFCheckParity,
 }
 
 supplementary_test_binary_map = {
@@ -1110,6 +1113,7 @@ if __name__ == "__main__":
 
         'test.PlaneTests1a',
         'test.PlaneTests1b',
+        'test.EKFCheckParity',
 
         'clang-scan-build',
     ]
