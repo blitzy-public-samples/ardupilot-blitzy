@@ -95,6 +95,28 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
     POSITION_LOSS_TIMEOUT_S = 14    # wait for the EKF to drop absolute position
     FAILSAFE_OVERALL_TIMEOUT_S = 40  # wait for the failsafe to manifest
 
+    # GPS velocity-error noise amplitude (m/s) injected via SIM_GPS1_VERR_X/Y to
+    # drive the EKF velocity variance over threshold on the VARIANCE-ONLY
+    # vehicles (ArduPlane/QuadPlane and ArduSub).  Those vehicles' ekf_check
+    # escalates purely on ekf_over_threshold() and (unlike Copter/Rover) the
+    # plane coasts on airspeed under a plain GPS denial, leaving the variance
+    # near zero so the ladder never climbs.  SIM_GPS1_VERR injects a continuously
+    # inconsistent GPS velocity (verr * rand_float()) the EKF cannot reconcile.
+    # ekf_over_threshold() increments the fail-count only when over_thresh_count
+    # >= 2, i.e. (for a velocity-only breach) vel_variance >= 2*FS_EKF_THRESH
+    # (== 1.6 at the 0.8 threshold used here).  The injected noise must therefore
+    # not merely exceed the threshold but slam DECISIVELY past 2x it and STAY
+    # there, so the 10-iteration ladder climbs monotonically (~1 s) instead of
+    # dithering around the boundary.  An in-tree SITL trajectory probe showed
+    # VERR=15 only sustained vel_variance ~1.2 (oscillating about 1.6), so the
+    # fail-count repeatedly decremented and the ladder took ~5 s - over the 1.5 s
+    # ceiling.  VERR=30 drives vel_variance from 0 to 1.67 then 5.43 within ~0.4 s
+    # and holds it 100% above 1.6 thereafter, firing the failsafe ~0.6 s after the
+    # over-threshold instant while leaving the absolute-position estimate intact
+    # (no lost_abs, pos_variance ~0), keeping the QuadPlane/Sub legs comfortably
+    # inside their ceilings and within the +/-0.5 s cross-vehicle spread.
+    GPS_VEL_ERR_NOISE_MS = 30.0
+
     # ------------------------------------------------------------------
     # Per-vehicle specifications.  Binaries live at build/sitl/bin/<binary>.
     # 'kind' is 'ladder' (10-iteration fail-count) or 'timer' (Sub 2-second).
@@ -111,11 +133,20 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
             'vinfo_key': 'ArduCopter',
             'kind': 'ladder',
             'arm_mode': 'GUIDED',
+            # Min throttle (1000) is the neutral for a range-type throttle
+            # (control_in == 0), satisfying the arm-time RC-neutral check.
+            'neutral_throttle': 1000,
             'needs_takeoff': True,
             'failsafe_mode': 'LAND',
             'fs_params': {'FS_EKF_ACTION': 1, 'FS_EKF_THRESH': 0.8},
             'failsafe_text': 'EKF Failsafe',
             'cleared_text': 'EKF Failsafe Cleared',
+            # ArduCopter's ekf_check() escalates on the absolute-position term
+            # (checks_passed = !over_threshold && has_position), so denying the
+            # GPS removes has_position and drives the ladder regardless of the
+            # variance threshold - the robust, proven Copter path.
+            'fault_inject': {'SIM_GPS1_ENABLE': 0},
+            'fault_clear': {'SIM_GPS1_ENABLE': 1},
             'extra_params': {},
         }
 
@@ -128,11 +159,19 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
             'vinfo_key': 'Rover',
             'kind': 'ladder',
             'arm_mode': 'GUIDED',
+            # Rover throttle is centred: neutral == trim (1500), control_in == 0.
+            'neutral_throttle': 1500,
             'needs_takeoff': False,
             'failsafe_mode': 'HOLD',
             'fs_params': {'FS_EKF_ACTION': 1, 'FS_EKF_THRESH': 0.8},
             'failsafe_text': 'EKF failsafe',
             'cleared_text': 'EKF failsafe cleared',
+            # Rover's ekf_check() is variance-only (no position term), but a
+            # ground vehicle has no airspeed to coast on, so denying the GPS
+            # makes the EKF velocity variance grow past the threshold and the
+            # ladder climbs - the proven Rover path (verified end-to-end).
+            'fault_inject': {'SIM_GPS1_ENABLE': 0},
+            'fault_clear': {'SIM_GPS1_ENABLE': 1},
             'extra_params': {},
         }
 
@@ -145,6 +184,8 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
             'vinfo_key': 'ArduPlane',
             'kind': 'ladder',
             'arm_mode': 'QLOITER',
+            # QuadPlane throttle is a range channel: neutral == min (1000).
+            'neutral_throttle': 1000,
             # QLOITER is a VTOL position/velocity mode, so in_vtol_posvel_mode()
             # is true the moment we arm (no airborne phase required to activate
             # the EKF check), which makes this best-effort leg robust.
@@ -154,7 +195,20 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
             'fs_params': {'FS_EKF_THRESH': 0.8},
             'failsafe_text': 'EKF variance',
             'cleared_text': None,
-            'extra_params': {'Q_ENABLE': 1, 'FRAME_CLASS': 1},
+            # ArduPlane's ekf_check() is variance-only and the plane coasts on
+            # airspeed under a plain GPS denial (variance stays ~0), so denial
+            # never trips the ladder.  Inject a sustained GPS velocity error to
+            # drive vel_variance past 2*FS_EKF_THRESH (see GPS_VEL_ERR_NOISE_MS),
+            # which escalates ekf_over_threshold() -> QHOVER failsafe.
+            'fault_inject': {
+                'SIM_GPS1_VERR_X': EKFCheckParity.GPS_VEL_ERR_NOISE_MS,
+                'SIM_GPS1_VERR_Y': EKFCheckParity.GPS_VEL_ERR_NOISE_MS,
+            },
+            'fault_clear': {'SIM_GPS1_VERR_X': 0, 'SIM_GPS1_VERR_Y': 0},
+            # ArduPlane's QuadPlane frame class is Q_FRAME_CLASS (1 == Quad,
+            # the firmware default); FRAME_CLASS (no Q_) is a Copter-only param
+            # that does NOT exist on ArduPlane and would fail to set.
+            'extra_params': {'Q_ENABLE': 1, 'Q_FRAME_CLASS': 1},
         }
 
     @staticmethod
@@ -166,11 +220,25 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
             'vinfo_key': 'ArduSub',
             'kind': 'timer',
             'arm_mode': 'ALT_HOLD',
+            # ArduSub throttle is centred (bidirectional): neutral == trim (1500);
+            # sub.parm sets RC3_TRIM 1500 and AutoTestSub never neutralises below it.
+            'neutral_throttle': 1500,
             'needs_takeoff': False,
             'failsafe_mode': None,   # FS_EKF_ACTION=2 disarms (no mode change)
             'fs_params': {'FS_EKF_ACTION': 2},
             'failsafe_text': 'EKF bad',
             'cleared_text': None,
+            # ArduSub's failsafe_ekf_check() is variance-only too (it considers
+            # the EKF good while compass_variance < thresh AND vel_variance <
+            # thresh), so a plain GPS denial never starts its 2-second timer.
+            # Inject the same sustained GPS velocity error used for the QuadPlane
+            # to push vel_variance past FS_EKF_THRESH (default 0.8) and arm the
+            # timer -> FS_EKF_ACTION=2 disarm.
+            'fault_inject': {
+                'SIM_GPS1_VERR_X': EKFCheckParity.GPS_VEL_ERR_NOISE_MS,
+                'SIM_GPS1_VERR_Y': EKFCheckParity.GPS_VEL_ERR_NOISE_MS,
+            },
+            'fault_clear': {'SIM_GPS1_VERR_X': 0, 'SIM_GPS1_VERR_Y': 0},
             'extra_params': {},
         }
 
@@ -289,31 +357,99 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
         self.progress("Restored default ArduCopter SITL")
 
     # ------------------------------------------------------------------
+    # Per-vehicle stick neutralisation (arm-time RC-neutral check).
+    # ------------------------------------------------------------------
+    def _neutralize_sticks(self, spec):
+        '''Centre roll/pitch/yaw and set the throttle to this vehicle's neutral.
+
+        The firmware arm-time check AP_Arming::rc_arm_checks() rejects an arm
+        whenever Roll/Pitch/Yaw - or, when arming_check_throttle() is enabled,
+        the Throttle - has a non-zero control_in.  EKFCheckParity is a DIRECT
+        vehicle_test_suite.TestSuite subclass, so the per-vehicle is_rover()/
+        is_sub() overrides are NOT inherited: the base zero_throttle() (which
+        keys on is_rover()) would drive RC3 to 1000 for EVERY vehicle - correct
+        for Copter/QuadPlane but WRONG for Rover/ArduSub, whose throttle is
+        centred (neutral == 1500).  RC state is also sticky across legs (the RC
+        thread keeps emitting the last value), so a leg can inherit the previous
+        vehicle's throttle (e.g. the Copter leg's 1000) and be rejected at arm.
+
+        Reassert the correct neutral for THIS vehicle explicitly before every
+        arm: roll/pitch/yaw centred at 1500 (control_in == 0) and throttle at
+        spec['neutral_throttle'] (Copter/QuadPlane 1000 min; Rover/ArduSub 1500
+        centre), matching each vehicle's rc_defaults()/RC3_TRIM.
+        '''
+        self.set_rc_from_map({
+            1: 1500,                      # roll  -> centre (control_in == 0)
+            2: 1500,                      # pitch -> centre
+            3: spec['neutral_throttle'],  # throttle -> per-vehicle neutral
+            4: 1500,                      # yaw   -> centre
+        })
+
+    # ------------------------------------------------------------------
     # Vehicle preparation: bring the selected vehicle to an armed,
     # position-controlled, EKF-happy state suitable for exercising its EKF
     # check.  Uses base-class helpers only (no Copter/Plane-specific helpers,
     # which are NOT inherited by a direct TestSuite subclass).
     # ------------------------------------------------------------------
     def _arm_in_position_mode(self, spec):
-        '''Arm the selected vehicle in a position-controlled, EKF-happy state.'''
-        # Parameters that require a reboot to take effect (e.g. QuadPlane's
-        # Q_ENABLE/FRAME_CLASS) are applied first, then the SITL is rebooted.
+        '''Arm the selected vehicle in a position-controlled, EKF-happy state.
+
+        Ordering is critical and reconciles two independent, proven constraints:
+
+          (1) "Mode requires mission" prearm:  the post-(re)boot mode of some
+              vehicles (e.g. ArduCopter boots into AUTO) fails prearm with
+              "Mode requires mission", so wait_ready_to_arm() can NEVER succeed
+              until we first change_mode() into the position-control arm_mode.
+              The target mode MUST therefore be selected BEFORE the readiness
+              wait (this mirrors the canonical AutoTestCopter.takeoff() order).
+
+          (2) ArduSub early-write FPE:  ArduSub aborts the SITL process with a
+              floating-point exception if a PARAMETER is written before its
+              underwater EKF/baro have initialised (~4 s after boot).  A
+              SET_MODE command and a read-only readiness poll are both safe at
+              that moment, but a parameter write is not.  The failsafe-parameter
+              write MUST therefore be deferred until AFTER wait_ready_to_arm()
+              has confirmed the EKF is up.
+
+        The single ordering that satisfies BOTH - verified end-to-end on a
+        freshly-booted ArduSub at zero settle - is:
+
+            (extra_params + reboot) -> change_mode -> wait_ready_to_arm ->
+            set_parameters(fs_params) -> neutralise sticks -> arm.
+        '''
+        # Reboot-requiring parameters (only QuadPlane's Q_ENABLE/Q_FRAME_CLASS)
+        # are applied first, then the SITL is rebooted.  Writing them here is
+        # safe: the only vehicle with extra_params is the QuadPlane, which does
+        # NOT exhibit the ArduSub early-write FPE.  ArduSub has no extra_params,
+        # so this block is skipped for it and its first parameter write is
+        # correctly the deferred fs_params write below (after the settle).
         if spec['extra_params']:
             self.set_parameters(spec['extra_params'])
             self.reboot_sitl()
 
+        # (1) Select the target position-control mode FIRST - before the
+        # readiness wait and before any failsafe-parameter write.  This escapes
+        # a boot mode that would fail prearm with "Mode requires mission", and a
+        # change_mode is a SET_MODE command (not a parameter write), so it is
+        # safe on a freshly-booted ArduSub whose EKF/baro are not yet up.
+        self.change_mode(spec['arm_mode'])
+
+        # (2) Now wait (read-only) for the estimator to finish initialising.
+        # This both satisfies prearm for the position-control mode and settles
+        # ArduSub's EKF so the following parameter write does not FPE the SITL.
+        # It is near-instant for the faster vehicles.
+        self.wait_ready_to_arm()
+
         # Failsafe parameters MUST be live before arming so the EKF check acts.
+        # Deferred until here so it never precedes the EKF settle on ArduSub.
         self.set_parameters(spec['fs_params'])
 
-        # Select the target position-control mode BEFORE waiting to arm: the
-        # post-reboot boot mode can fail prearm with "Mode requires mission"
-        # (mirrors the canonical AutoTestCopter.takeoff() ordering: change_mode
-        # first, then wait_ready_to_arm, then arm).
-        self.change_mode(spec['arm_mode'])
-        self.wait_ready_to_arm()
-        if spec['needs_takeoff']:
-            # Keep the throttle stick centred/low so the autopilot owns the climb.
-            self.zero_throttle()
+        # Neutralise the sticks for THIS vehicle before arming.  The firmware
+        # arm-time RC check rejects a non-neutral throttle (or off-centre
+        # roll/pitch/yaw); this MUST run for EVERY vehicle - not just the Copter
+        # takeoff leg - because RC state is sticky across legs and the correct
+        # neutral throttle differs per vehicle (see _neutralize_sticks).
+        self._neutralize_sticks(spec)
         self.arm_vehicle()
         if spec['needs_takeoff']:
             # GUIDED autonomous climb (MAV_CMD_NAV_TAKEOFF) keeps the vehicle
@@ -326,16 +462,31 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
     # ------------------------------------------------------------------
     # Fault injection + escalation observation.
     #
-    # GPS denial (SIM_GPS1_ENABLE=0) is used uniformly: it removes absolute
-    # position so has_position becomes false and the fail-count ladder runs to
-    # EKF_CHECK_ITERATIONS_MAX regardless of the variance threshold (this is the
-    # robust path proven by the committed test_gps_timeout_failsafe).  The EKF's
-    # velocity/position uncertainty also grows without aiding, driving the
-    # estimate "over threshold", so ArduCopter's over_threshold-gated steps
-    # (yaw reset at fail_count==8, lane switch at fail_count==9) are exercised as
-    # the ladder climbs.  The unthrottled failsafe-mode change is the hard
-    # signal (the "EKF variance"/"EKF bad" STATUSTEXT is throttled to once per
-    # 30 s and may be suppressed shortly after boot).
+    # The fault is PER-VEHICLE (spec['fault_inject'] / spec['fault_clear']),
+    # because the firmware ekf_check escalation differs by vehicle:
+    #
+    #   * ArduCopter escalates on the absolute-position term
+    #     (checks_passed = !over_threshold && has_position), so GPS denial
+    #     (SIM_GPS1_ENABLE=0) removes has_position and drives the ladder
+    #     regardless of variance - the robust path proven by the committed
+    #     test_gps_timeout_failsafe.  As the estimate also drifts over_threshold,
+    #     the Copter-only over_threshold-gated steps (yaw reset at fail_count==8,
+    #     lane switch at fail_count==9) are exercised as the ladder climbs.
+    #   * Rover's ekf_check is variance-only, but a ground vehicle has no
+    #     airspeed to coast on, so GPS denial still grows the velocity variance
+    #     past threshold and the ladder climbs - GPS denial is used for it too.
+    #   * ArduPlane/QuadPlane and ArduSub are variance-only AND coast on airspeed
+    #     under a plain GPS denial (their variances stay ~0, so the ladder/timer
+    #     never starts).  They instead inject a sustained GPS velocity error
+    #     (SIM_GPS1_VERR_X/Y, see GPS_VEL_ERR_NOISE_MS) that the EKF cannot
+    #     reconcile, driving vel_variance past 2*FS_EKF_THRESH so
+    #     ekf_over_threshold() escalates.
+    #
+    # _wait_ekf_degraded() therefore accepts EITHER signal: absolute-position
+    # loss (the GPS-denial vehicles) OR a variance over threshold (the VERR
+    # vehicles).  The unthrottled failsafe-mode change (or the Sub disarm) is the
+    # hard signal; the "EKF variance"/"EKF bad" STATUSTEXT is throttled to once
+    # per 30 s and may be suppressed shortly after boot.
     # ------------------------------------------------------------------
     def _wait_ekf_degraded(self, spec, t_inject):
         '''Wait until the EKF reports a degraded estimate; return its sim-time.'''
@@ -381,9 +532,9 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
         '''
         self.context_collect('STATUSTEXT')
         t_inject = self.get_sim_time()
-        self.progress("%s: denying GPS to drive the EKF fail-count ladder" %
-                      spec['name'])
-        self.set_parameter("SIM_GPS1_ENABLE", 0)
+        self.progress("%s: injecting the EKF fault to drive the fail-count "
+                      "ladder (%s)" % (spec['name'], spec['fault_inject']))
+        self.set_parameters(spec['fault_inject'])
 
         t_bad = self._wait_ekf_degraded(spec, t_inject)
 
@@ -440,9 +591,9 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
         '''
         self.context_collect('STATUSTEXT')
         t_inject = self.get_sim_time()
-        self.progress("%s: denying GPS to drive the 2-second EKF timer" %
-                      spec['name'])
-        self.set_parameter("SIM_GPS1_ENABLE", 0)
+        self.progress("%s: injecting the EKF fault to drive the 2-second EKF "
+                      "timer (%s)" % (spec['name'], spec['fault_inject']))
+        self.set_parameters(spec['fault_inject'])
 
         t_bad = self._wait_ekf_degraded(spec, t_inject)
 
@@ -476,8 +627,9 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
     # ------------------------------------------------------------------
     def _recover_ladder_vehicle(self, spec):
         '''Restore GPS and assert the EKF failsafe clears and control returns.'''
-        self.progress("%s: restoring GPS to clear the EKF failsafe" % spec['name'])
-        self.set_parameter("SIM_GPS1_ENABLE", 1)
+        self.progress("%s: clearing the injected EKF fault (%s) to recover" %
+                      (spec['name'], spec['fault_clear']))
+        self.set_parameters(spec['fault_clear'])
 
         # Infrastructure wait (generous, EXCLUDED from the AAP recovery bound):
         # the simulated GPS must re-acquire a fix and the EKF must rebuild a
@@ -523,9 +675,12 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
 
     def _recover_sub_vehicle(self, spec):
         '''Restore GPS and assert ArduSub exits the disarm failsafe / re-arms.'''
-        self.progress("%s: restoring GPS; expecting re-armability" % spec['name'])
-        self.set_parameter("SIM_GPS1_ENABLE", 1)
+        self.progress("%s: clearing the injected EKF fault (%s); expecting "
+                      "re-armability" % (spec['name'], spec['fault_clear']))
+        self.set_parameters(spec['fault_clear'])
         self.wait_ready_to_arm(timeout=int(self.SUB_RECOVERY_LIMIT_S))
+        # ArduSub neutral throttle (1500, centred) before re-arming.
+        self._neutralize_sticks(spec)
         self.arm_vehicle()
         self.disarm_vehicle()
 
@@ -535,9 +690,10 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
     def _cleanup_leg(self):
         '''Best-effort per-leg teardown: disarm, pop the context, reboot clean.
 
-        context_pop() restores every parameter set within the leg (including
-        SIM_GPS1_ENABLE, the FS_EKF_* set and any Q_ENABLE/FRAME_CLASS), and the
-        reboot gives the next vehicle a pristine slate.
+        context_pop() restores every parameter set within the leg (including the
+        injected GPS fault - SIM_GPS1_ENABLE or SIM_GPS1_VERR_X/Y - the FS_EKF_*
+        set and any Q_ENABLE/Q_FRAME_CLASS), and the reboot gives the next vehicle
+        a pristine slate.
         '''
         try:
             if self.armed():
@@ -635,6 +791,8 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
             self.context_collect('STATUSTEXT')
             self.change_mode('GUIDED')
             self.wait_ready_to_arm()
+            # ArduCopter neutral throttle (1000) before the arm-time RC check.
+            self._neutralize_sticks(self.copter_spec())
             self.arm_vehicle()
             self.user_takeoff(alt_min=10)
             # Concrete, hard assertion (raises NotAchievedException if absent):
@@ -677,6 +835,8 @@ class EKFCheckParity(vehicle_test_suite.TestSuite):
             self.reboot_sitl()
             self.change_mode('GUIDED')
             self.wait_ready_to_arm()
+            # ArduCopter neutral throttle (1000) before the arm-time RC check.
+            self._neutralize_sticks(self.copter_spec())
             self.arm_vehicle()
             self.user_takeoff(alt_min=10)
             self.context_collect('STATUSTEXT')
