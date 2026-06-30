@@ -12209,6 +12209,156 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
         self.progress("Sprayer OK")
 
+    def test_gps_timeout_failsafe(self):
+        '''GPS timeout drives NO_FIX, position loss, EKF failsafe, then recovery'''
+        self.context_push()
+        # FS_EKF_ACTION=1 makes the EKF failsafe switch the vehicle to LAND, so
+        # the loss of a valid position estimate becomes observable as a mode
+        # change (AAP 0.4.2: GPS timeout -> NO_FIX -> position loss -> failsafe).
+        self.set_parameters({
+            "FS_EKF_ACTION": 1,
+        })
+
+        # establish a known-good, GPS-aided flying state in a position mode
+        self.takeoff(10, mode="LOITER")
+        self.wait_ekf_happy()
+
+        # confirm we genuinely have a 3D fix before we break the GPS
+        fix = self.assert_receive_message('GPS_RAW_INT', timeout=5).fix_type
+        if fix < mavutil.mavlink.GPS_FIX_TYPE_3D_FIX:
+            raise NotAchievedException("Expected a 3D fix before the test (got %u)" % fix)
+
+        # disable the GPS; the firmware GPS_TIMEOUT_MS=4000 must reset the
+        # reported fix status to NO_FIX.  Allow 4200 ms for that to be observed.
+        gps_nofix_timeout = 4.2
+        tstart = self.get_sim_time()
+        self.set_parameters({
+            "SIM_GPS1_ENABLE": 0,
+        })
+        while True:
+            m = self.assert_receive_message('GPS_RAW_INT', timeout=5)
+            elapsed = self.get_sim_time_cached() - tstart
+            if m.fix_type <= mavutil.mavlink.GPS_FIX_TYPE_NO_FIX:
+                self.progress("GPS reached NO_FIX after %.2fs (fix_type=%u)" % (elapsed, m.fix_type))
+                break
+            if elapsed > gps_nofix_timeout:
+                raise NotAchievedException(
+                    "GPS did not reach NO_FIX within %.1fs (fix_type=%u)" % (gps_nofix_timeout, m.fix_type))
+
+        # with the absolute position estimate gone, the configured EKF failsafe
+        # action (LAND) must engage; this is the robust, deterministic signal
+        # that the position became invalid per FS_EKF_ACTION.
+        self.wait_mode("LAND", timeout=25)
+
+        # restore the GPS and confirm recovery to a healthy 3D fix within 10 s
+        self.set_parameters({
+            "SIM_GPS1_ENABLE": 1,
+        })
+        gps_recover_timeout = 10
+        tstart = self.get_sim_time()
+        while True:
+            m = self.assert_receive_message('GPS_RAW_INT', timeout=5)
+            elapsed = self.get_sim_time_cached() - tstart
+            if m.fix_type >= mavutil.mavlink.GPS_FIX_TYPE_3D_FIX:
+                self.progress("GPS recovered to a 3D fix after %.2fs" % elapsed)
+                break
+            if elapsed > gps_recover_timeout:
+                raise NotAchievedException(
+                    "GPS did not recover to a 3D fix within %.1fs (fix_type=%u)" %
+                    (gps_recover_timeout, m.fix_type))
+        self.wait_ekf_happy()
+
+        # the vehicle landed via the EKF failsafe; ensure it is disarmed before
+        # restoring parameters and rebooting for a clean slate.
+        self.disarm_vehicle(force=True)
+        self.context_pop()
+        self.reboot_sitl()
+
+    def test_gps_glitch_detection(self):
+        '''Injected GPS coordinate offset triggers glitch detection and clears'''
+        self.context_push()
+        # take off and hold position with a healthy GPS, mirroring GPSGlitchLoiter
+        self.takeoff(10, mode="LOITER")
+        self.wait_ekf_happy()
+
+        # collect STATUSTEXT so the edge-triggered glitch messages are not missed
+        self.context_collect('STATUSTEXT')
+
+        # inject an abrupt coordinate offset (~0.001 deg ~= 110 m), well beyond
+        # the EKF GPS glitch radius, so the AHRS reports GPS_GLITCHING and the
+        # firmware emits "GPS Glitch or Compass error" (ArduCopter/events.cpp).
+        self.set_parameters({
+            "SIM_GPS1_GLTCH_X": 0.001,
+            "SIM_GPS1_GLTCH_Y": 0.001,
+        })
+        self.wait_statustext("GPS Glitch", timeout=2, check_context=True)
+
+        # remove the glitch; the AHRS clears GPS_GLITCHING and the firmware emits
+        # "Glitch cleared" within a few seconds.
+        self.set_parameters({
+            "SIM_GPS1_GLTCH_X": 0,
+            "SIM_GPS1_GLTCH_Y": 0,
+        })
+        self.wait_statustext("Glitch cleared", timeout=5, check_context=True)
+
+        # land/disarm with the now-healthy GPS, then reboot: re-arming is
+        # unreliable after a GPS glitch, exactly as GPSGlitchLoiter notes.
+        self.do_RTL()
+        self.context_pop()
+        self.reboot_sitl()
+
+    def test_rtc_source_fallback(self):
+        '''With GPS_TYPE=NONE the RTC source is not SOURCE_GPS and boot/arm succeed'''
+        self.context_push()
+        # Remove the GPS entirely (GPS1_TYPE=0 is "None"; GPS1_TYPE is the
+        # current-tree name for the legacy GPS_TYPE) so AP_RTC cannot use
+        # SOURCE_GPS.  Per AAP 0.1.2 the RTC source priority is SOURCE_GPS(0) >
+        # SOURCE_MAVLINK_SYSTEM_TIME(1) > SOURCE_HW(2), and SOURCE_NONE is never
+        # selected while another source exists; with no GPS the active source
+        # must therefore be one of {SOURCE_MAVLINK_SYSTEM_TIME, SOURCE_HW,
+        # SOURCE_NONE}.  RTC source is not exposed directly over MAVLink, so we
+        # assert indirectly: the vehicle still boots, the SYSTEM_TIME stream
+        # keeps advancing, any reported unix time is sane (0 for SOURCE_NONE, or
+        # >= the 2022-01-01 AP_RTC sanity floor for a valid non-GPS source -- a
+        # GPS-derived time is impossible here), and arming succeeds without panic.
+        self.set_parameters({
+            "GPS1_TYPE": 0,
+        })
+        self.reboot_sitl()
+
+        # 2022-01-01T00:00:00Z expressed in microseconds (AP_RTC sanity floor).
+        oldest_acceptable_unix_us = 1640995200 * 1000 * 1000
+
+        # confirm the SYSTEM_TIME stream is alive and the boot clock advances
+        m1 = self.assert_receive_message('SYSTEM_TIME', timeout=10)
+        self.delay_sim_time(2)
+        m2 = self.assert_receive_message('SYSTEM_TIME', timeout=10)
+        if m2.time_boot_ms <= m1.time_boot_ms:
+            raise NotAchievedException("SYSTEM_TIME boot clock did not advance without GPS")
+
+        # any reported unix time must originate from a non-GPS RTC source and be
+        # sane: either 0 (SOURCE_NONE) or >= the 2022 floor.  A pre-floor non-zero
+        # value would indicate an invalid source and is treated as a failure.
+        unix_us = m2.time_unix_usec
+        if unix_us != 0 and unix_us < oldest_acceptable_unix_us:
+            raise NotAchievedException(
+                "RTC unix time %u is below the 2022 sanity floor without GPS" % unix_us)
+        self.progress("RTC fallback unix_usec=%u (0=SOURCE_NONE, else non-GPS source)" % unix_us)
+
+        # boot/arm must succeed without a GPS: arm in a non-GPS mode (STABILIZE).
+        # Relax the optional arming checks (mandatory checks still run) since
+        # there is no position estimate, mirroring the no-GPS arming idiom here.
+        self.set_parameters({
+            "ARMING_CHECK": 0,
+        })
+        self.change_mode("STABILIZE")
+        self.arm_vehicle()
+        self.disarm_vehicle()
+
+        self.context_pop()
+        # GPS1_TYPE was changed; reboot so the restored value takes effect.
+        self.reboot_sitl()
+
     def tests1a(self):
         '''return list of all tests'''
         ret = super(AutoTestCopter, self).tests()  # about 5 mins and ~20 initial tests from autotest/vehicle_test_suite.py
@@ -12231,6 +12381,9 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
              self.AutoTune,
              self.AutoTuneYawD,
              self.NoRCOnBootPreArmFailure,
+             self.test_gps_timeout_failsafe,
+             self.test_gps_glitch_detection,
+             self.test_rtc_source_fallback,
         ])
         return ret
 

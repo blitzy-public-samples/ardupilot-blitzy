@@ -480,6 +480,20 @@ def ap_find_tests(bld, use=[], DOUBLE_PRECISION_SOURCES=[]):
 
     includes = [bld.srcnode.abspath() + '/tests/']
 
+    # The vendored googletest (modules/gtest) predates pervasive use of the
+    # 'override' specifier on its virtual methods, so building the test
+    # programs under a toolchain that enables -Werror=suggest-override fails in
+    # the gtest headers. Mirror ap_find_benchmarks() and strip the flag for the
+    # test program builds (the submodule is consumed as-is and never edited).
+    to_remove = '-Werror=suggest-override'
+    if to_remove in bld.env.CXXFLAGS:
+        need_remove = True
+    else:
+        need_remove = False
+    if need_remove:
+        while to_remove in bld.env.CXXFLAGS:
+            bld.env.CXXFLAGS.remove(to_remove)
+
     for f in bld.path.ant_glob(incl='*.cpp'):
         t = ap_program(
             bld,

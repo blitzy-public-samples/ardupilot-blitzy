@@ -201,6 +201,78 @@ class AutoTestRover(vehicle_test_suite.TestSuite):
         self.disarm_vehicle()
         self.progress("Loiter or Hold as throttle failsafe OK")
 
+    def test_gps_timeout_failsafe(self):
+        """GPS timeout drives NO_FIX, position loss and EKF failsafe, then recovery"""
+        # Rover's EKF failsafe (Rover/ekf_check.cpp) only acts while armed in a
+        # position-requiring mode; with FS_EKF_ACTION=FS_EKF_HOLD(1) the vehicle
+        # falls back to HOLD once the EKF can no longer trust its position.
+        self.context_push()
+
+        # Make the EKF failsafe deterministic: HOLD action and the default
+        # variance threshold (must be >0 for ekf_check to run).
+        self.set_parameters({
+            "FS_EKF_ACTION": 1,  # FS_EKF_HOLD: fall back to HOLD on EKF failsafe
+            "FS_EKF_THRESH": 0.8,  # default threshold; >0 keeps ekf_check active
+        })
+
+        # Arm in GUIDED (a position-requiring mode) so the EKF failsafe can act.
+        self.wait_ready_to_arm()
+        self.change_mode("GUIDED")
+        self.arm_vehicle()
+        self.wait_ekf_happy()
+
+        # Inject the fault: disable the primary simulated GPS.
+        self.progress("Disabling GPS to force a position-source timeout")
+        self.set_parameter("SIM_GPS1_ENABLE", 0)
+        tstart = self.get_sim_time()
+
+        # GPS_TIMEOUT_MS (4000) collapses the fix to NO_FIX within ~4.2s of the
+        # GPS data stream stopping.
+        self.progress("Waiting for GPS to report NO_FIX")
+        while True:
+            if self.get_sim_time_cached() - tstart > 4.2:
+                raise NotAchievedException("GPS did not reach NO_FIX within 4.2s")
+            gps_raw = self.assert_receive_message('GPS_RAW_INT', timeout=1)
+            if gps_raw.fix_type <= mavutil.mavlink.GPS_FIX_TYPE_NO_FIX:
+                self.progress("GPS reached NO_FIX (fix_type=%u)" % gps_raw.fix_type)
+                break
+
+        # The EKF drops its absolute horizontal position once GPS aiding stops;
+        # assert ESTIMATOR_POS_HORIZ_ABS clears within ~4.3s of the GPS loss.
+        self.progress("Waiting for EKF to lose absolute horizontal position")
+        while True:
+            if self.get_sim_time_cached() - tstart > 4.3:
+                raise NotAchievedException("EKF kept horizontal position after GPS loss")
+            ekf = self.assert_receive_message('EKF_STATUS_REPORT', timeout=1)
+            if not (ekf.flags & mavutil.mavlink.ESTIMATOR_POS_HORIZ_ABS):
+                self.progress("EKF dropped absolute horizontal position")
+                break
+
+        # FS_EKF_ACTION=FS_EKF_HOLD: after the fail-count ladder
+        # (EKF_CHECK_ITERATIONS_MAX=10 at 10Hz, ~1s) the rover falls back to HOLD.
+        self.progress("Waiting for the EKF failsafe to fall back to HOLD")
+        self.wait_mode("HOLD", timeout=10)
+
+        # Restore the GPS and confirm a 3D fix and a happy EKF return.
+        self.progress("Restoring GPS and waiting for recovery")
+        self.set_parameter("SIM_GPS1_ENABLE", 1)
+        tstart = self.get_sim_time()
+        while True:
+            if self.get_sim_time_cached() - tstart > 10:
+                raise NotAchievedException("GPS did not recover a 3D fix within 10s")
+            gps_raw = self.assert_receive_message('GPS_RAW_INT', timeout=1)
+            if gps_raw.fix_type >= mavutil.mavlink.GPS_FIX_TYPE_3D_FIX:
+                self.progress("GPS recovered a 3D fix (fix_type=%u)" % gps_raw.fix_type)
+                break
+        self.wait_ekf_happy()
+
+        self.disarm_vehicle()
+
+        # Restore parameters and reboot so this GPS-denied excursion cannot leak
+        # into sibling tests.
+        self.context_pop()
+        self.reboot_sitl()
+
     def Sprayer(self):
         """Test sprayer functionality."""
         rc_ch = 5
@@ -7014,6 +7086,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             self.GetMessageInterval,
             self.SafetySwitch,
             self.ThrottleFailsafe,
+            self.test_gps_timeout_failsafe,
         ])
         return ret
 
