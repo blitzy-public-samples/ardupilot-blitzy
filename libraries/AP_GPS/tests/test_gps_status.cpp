@@ -9,7 +9,7 @@
  *
  * The behaviours asserted here mirror, verbatim, the documented semantics of
  * the AP_GPS system-under-test (read-only references; nothing in
- * libraries/AP_GPS/*.{cpp,h} is modified):
+ * libraries/AP_GPS/{*.cpp,*.h} is modified):
  *
  *   - GPS_Status enum ordering (AP_GPS.h)               -> ForwardOnlyProgression
  *   - GPS update-rate clamp, GPS_MAX_RATE_MS == 200     -> RateClampToMax
