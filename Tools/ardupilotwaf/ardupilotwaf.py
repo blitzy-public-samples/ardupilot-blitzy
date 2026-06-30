@@ -494,6 +494,47 @@ def ap_find_tests(bld, use=[], DOUBLE_PRECISION_SOURCES=[]):
         while to_remove in bld.env.CXXFLAGS:
             bld.env.CXXFLAGS.remove(to_remove)
 
+    # Additional per-test-program compile suppressions/shims required so that
+    # `./waf check` / `./waf check-all` build the *pre-existing* GoogleTest
+    # corpus cleanly on a modern toolchain. The vendored googletest
+    # (modules/gtest, ~1.8.0) and a couple of SUT headers it reaches predate
+    # GCC 15's tighter diagnostics; the SITL board promotes several of these to
+    # errors via -Werror=suggest-override / -Werror=missing-declarations.
+    # These flags are scoped to the test-binary compile ONLY (appended last so
+    # they win over the board's -Werror=* flags) and never touch firmware
+    # sources or the vendored submodule (AAP 0.8.1/0.10: build tooling is in
+    # scope; production .cpp/.h and modules/* are read-only). They mirror the
+    # already-present libgtest suppressions in gtest.py and the
+    # -Werror=suggest-override strip just above.
+    #   * -Wno-undef               : pre-existing; gtest headers reference
+    #                                undefined macros.
+    #   * -Wno-suggest-override    : gtest 1.8.0 virtual methods lack
+    #                                'override'.
+    #   * -Wno-missing-declarations: the INSTANTIATE_TEST_CASE_P() expansion
+    #                                (test_matrix3 / test_geodesic_grid /
+    #                                test_prescaler) emits a generator function
+    #                                with no prior declaration.
+    #   * -include cstdint         : some test-only-reached headers (e.g.
+    #                                AP_Common/TSIndex.h via test_tsindex) use
+    #                                uint32_t without including <cstdint>;
+    #                                force-including it at the top of each test
+    #                                TU restores the type without editing the
+    #                                read-only firmware header.
+    #   * -DGTEST_SKIP()=...       : GTEST_SKIP() is a googletest >=1.8.1 API
+    #                                absent from the vendored 1.8.0; test_gsof
+    #                                uses `GTEST_SKIP() << "msg"`. The shim
+    #                                early-returns from the void TEST body while
+    #                                still accepting the streamed message form.
+    #                                Only test_gsof references it; for every
+    #                                other test TU it is defined-but-unused.
+    test_cxxflags = [
+        '-Wno-undef',
+        '-Wno-suggest-override',
+        '-Wno-missing-declarations',
+        '-include', 'cstdint',
+        '-DGTEST_SKIP()=if (true) return; else ::testing::Message()',
+    ]
+
     for f in bld.path.ant_glob(incl='*.cpp'):
         t = ap_program(
             bld,
@@ -505,7 +546,7 @@ def ap_find_tests(bld, use=[], DOUBLE_PRECISION_SOURCES=[]):
             program_groups='tests',
             use_legacy_defines=False,
             vehicle_binary=False,
-            cxxflags=['-Wno-undef'],
+            cxxflags=list(test_cxxflags),
         )
         filename = os.path.basename(f.abspath())
         if filename in DOUBLE_PRECISION_SOURCES:

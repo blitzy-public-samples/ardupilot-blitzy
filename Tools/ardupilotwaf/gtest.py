@@ -46,12 +46,18 @@ def libgtest(bld, **kw):
     # also trips -Werror=missing-declarations. The SITL board enables both as
     # errors unconditionally (Tools/ardupilotwaf/boards.py: sitl.configure_env
     # appends -Werror=missing-declarations; the base GCC path appends
-    # -Werror=suggest-override for cc >= 5.2), independent of --debug. All three
+    # -Werror=suggest-override for cc >= 5.2), independent of --debug. In addition,
+    # under a --debug build (-O0, used by run_coverage.py / the test_coverage CI
+    # workflow which reconfigures --board=... --debug --coverage, and by the
+    # ArduPilot-standard unit-test invocation `./waf configure --board=sitl --debug`
+    # under which the SITL death tests panic via HAL_DEBUG_BUILD), GCC 15's
+    # data-flow analysis flags gtest-death-test.cc:1009 with
+    # -Werror=maybe-uninitialized on the vendored 'dummy' local. All of these
     # suppressions are therefore required for the GTEST static library to compile
-    # on this toolchain. The scope is limited to this libgtest stlib so no other
-    # warnings are masked, and the submodule is consumed as-is, never edited
-    # (AAP sections 0.5.3 and 0.10).
-    kw['cxxflags'] = Utils.to_list(kw.get('cxxflags', [])) + ['-Wno-undef', '-Wno-suggest-override', '-Wno-missing-declarations']
+    # on this toolchain across both the default and --debug configurations. The
+    # scope is limited to this libgtest stlib so no other warnings are masked, and
+    # the submodule is consumed as-is, never edited (AAP sections 0.5.3 and 0.10).
+    kw['cxxflags'] = Utils.to_list(kw.get('cxxflags', [])) + ['-Wno-undef', '-Wno-suggest-override', '-Wno-missing-declarations', '-Wno-maybe-uninitialized']
     kw.update(
         source='modules/gtest/googletest/src/gtest-all.cc',
         target='gtest/gtest',
