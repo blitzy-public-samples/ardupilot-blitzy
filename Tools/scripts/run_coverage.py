@@ -279,6 +279,58 @@ class CoverageRunner(object):
                 exit(1)
         self.progress("Coverage successful. Open " + self.REPORT_DIR + "/index.html")
 
+    def check_fail_under(self, threshold) -> None:
+        """Gate aggregate line coverage over the targeted PNT libraries.
+
+        Opt-in numeric coverage floor (Directive D2). When ``threshold`` is
+        ``0.0`` (the default) this is a pure no-op, preserving the runner's
+        historical ungated behavior with zero file I/O and no process exit.
+
+        When ``threshold`` is positive it parses ``self.INFO_FILE`` (the lcov
+        tracefile produced by ``update_stats``) and computes the TRUE UNION
+        line-coverage ratio ``100 * sum(LH) / sum(LF)`` across every source
+        file whose ``SF:`` path falls under one of the five targeted
+        libraries -- this is a single aggregate ratio of summed hits over
+        summed found lines, NOT an average of per-library percentages.
+
+        The gate fails CLOSED when gating is explicitly requested: if the
+        tracefile is missing/empty or no lines were found it exits non-zero,
+        and likewise when the aggregate is below ``threshold``.
+        """
+        # Backward-compat no-op guard: take no action (no file I/O, no exit)
+        # when ungated so behavior is byte-for-byte identical to the default.
+        if threshold <= 0:
+            return
+
+        libs = ['AP_RTC', 'AP_GPS', 'AP_Scheduler', 'AP_Mission', 'AP_Common']
+        found = 0
+        hit = 0
+        in_target = False
+        try:
+            with open(self.INFO_FILE, 'r') as info_file:
+                for line in info_file:
+                    if line.startswith("SF:"):
+                        current = line[3:].strip()
+                        in_target = any(('/libraries/%s/' % lib) in current for lib in libs)
+                    elif in_target and line.startswith("LF:"):
+                        found += int(line[3:])
+                    elif in_target and line.startswith("LH:"):
+                        hit += int(line[3:])
+        except (FileNotFoundError, OSError):
+            self.progress("Coverage gate FAILED: cannot read %s (no coverage data)" % self.INFO_FILE)
+            sys.exit(1)
+
+        if found == 0:
+            self.progress("Coverage gate FAILED: no measurable lines found for [%s]" % ", ".join(libs))
+            sys.exit(1)
+
+        aggregate = 100.0 * hit / found
+        if aggregate < threshold:
+            self.progress("Coverage gate FAILED: %.2f%% < %.2f%% over [%s]" % (aggregate, threshold, ", ".join(libs)))
+            sys.exit(1)
+
+        self.progress("Coverage gate PASSED: %.2f%% >= %.2f%% over the 5 targeted PNT libraries" % (aggregate, threshold))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Runs tests with gcov coverage support.')
@@ -288,6 +340,9 @@ if __name__ == '__main__':
                         help='Do not fail if tests do not run.')
     parser.add_argument('--add-examples', action='store_true',
                         help='Add examples to coverage.')
+    parser.add_argument('--fail-under', type=float, default=0.0,
+                        help='Fail (exit 1) if aggregate line coverage over the targeted '
+                             'PNT libraries is below this percentage. Default 0.0 = ungated.')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-i', '--init', action='store_true',
                        help='Initialise ArduPilot for coverage. It should be run after building the binaries.')
@@ -305,12 +360,14 @@ if __name__ == '__main__':
         sys.exit(0)
     if args.full:
         runner.run_full(args.add_examples)
+        runner.check_fail_under(args.fail_under)
         sys.exit(0)
     if args.build:
         runner.run_build(args.add_examples)
         sys.exit(0)
     if args.update:
         runner.update_stats()
+        runner.check_fail_under(args.fail_under)
         sys.exit(0)
     parser.print_help()
     sys.exit(0)
