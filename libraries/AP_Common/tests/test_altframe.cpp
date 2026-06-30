@@ -1,3 +1,4 @@
+#pragma GCC diagnostic ignored "-Wfloat-equal"
 /*
  * Unit tests for Location altitude-frame (AltFrame) conversions.
  * Additive coverage for AAP Directive 1 (AP_Common AltFrame).
@@ -6,7 +7,6 @@
  * NOTE: this file is NOT in the wscript's DOUBLE_PRECISION_SOURCES list, so it
  * compiles at default (single) float precision -> use float-epsilon compares.
  */
-#pragma GCC diagnostic ignored "-Wfloat-equal"
 
 #include <AP_gtest.h>
 #include <AP_Common/Location.h>

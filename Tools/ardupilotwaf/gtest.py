@@ -41,6 +41,16 @@ def configure(cfg):
 
 @conf
 def libgtest(bld, **kw):
+    # CODE ISSUE #2: the vendored googletest (modules/gtest, ~1.8.0) predates the
+    # 'override' specifier and emits -Werror=suggest-override, and gtest-all.cc
+    # also trips -Werror=missing-declarations. The SITL board enables both as
+    # errors unconditionally (Tools/ardupilotwaf/boards.py: sitl.configure_env
+    # appends -Werror=missing-declarations; the base GCC path appends
+    # -Werror=suggest-override for cc >= 5.2), independent of --debug. All three
+    # suppressions are therefore required for the GTEST static library to compile
+    # on this toolchain. The scope is limited to this libgtest stlib so no other
+    # warnings are masked, and the submodule is consumed as-is, never edited
+    # (AAP sections 0.5.3 and 0.10).
     kw['cxxflags'] = Utils.to_list(kw.get('cxxflags', [])) + ['-Wno-undef', '-Wno-suggest-override', '-Wno-missing-declarations']
     kw.update(
         source='modules/gtest/googletest/src/gtest-all.cc',

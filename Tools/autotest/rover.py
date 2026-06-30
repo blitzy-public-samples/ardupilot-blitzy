@@ -202,103 +202,107 @@ class AutoTestRover(vehicle_test_suite.TestSuite):
         self.progress("Loiter or Hold as throttle failsafe OK")
 
     def test_gps_timeout_failsafe(self):
-        """GPS timeout drives NO_FIX then a GPS glitch drives the EKF failsafe to HOLD, then recovery"""
-        # This exercises two distinct GPS fault paths on a ground vehicle:
+        """Clean GPS dropout (SIM_GPS1_ENABLE=0) invalidates position and drives the EKF failsafe to HOLD, then recovery"""
+        # AAP 0.4.2 D4 (Rover): a CLEAN GPS dropout -- SIM_GPS1_ENABLE=0, with NO
+        # glitch injection -- must by itself collapse the fix to NO_FIX, invalidate
+        # the position estimate, and drive the Rover EKF failsafe to HOLD; restore
+        # then recovers.  The firmware chain (Rover/ekf_check.cpp, read-only) is:
         #
-        #   (A) a clean GPS dropout, which must collapse the reported fix to
-        #       NO_FIX via GPS_TIMEOUT_MS (4000) and then recover on restore; and
-        #   (B) a GPS glitch (a large injected coordinate offset), which drives
-        #       the EKF variances past FS_EKF_THRESH so Rover/ekf_check.cpp trips
-        #       FS_EKF_ACTION=FS_EKF_HOLD(1) and the rover falls back to HOLD.
+        #   * AP_GPS GPS_TIMEOUT_MS (4000) collapses the reported fix to NO_FIX;
+        #   * the EKF loses its absolute horizontal position (ESTIMATOR_POS_HORIZ_ABS
+        #     clears) within ~4.3 s of the dropout; and -- with no aiding source --
+        #     subsequently loses its relative solution / enters const_pos_mode, so
+        #     Rover::ekf_position_ok() (which while armed requires
+        #     (horiz_pos_abs || horiz_pos_rel) && !const_pos_mode) returns false;
+        #   * ekf_over_threshold() then returns !ekf_position_ok() == true, the
+        #     fail-count ladder (EKF_CHECK_ITERATIONS_MAX=10 @ 10 Hz) saturates and
+        #     failsafe_ekf_event() switches a position-requiring mode (GUIDED) to
+        #     HOLD per FS_EKF_ACTION=FS_EKF_HOLD(1).
         #
-        # A *stationary* rover cannot reproduce the airborne-Copter cascade of
-        # "GPS loss -> immediate position-estimate loss -> failsafe": with no
-        # motion the EKF dead-reckons a perfectly good *relative* position for a
-        # very long time (Rover::ekf_position_ok() accepts horiz_pos_rel while
-        # armed) and its variances stay near zero, so a clean dropout alone does
-        # not breach FS_EKF_THRESH.  ekf_check requires two of the compass,
-        # velocity and position variances over threshold; a glitch (offset)
-        # spikes the position and velocity variances together and is therefore
-        # the deterministic way to drive the variance-based failsafe here.
+        # The relative-position decay is the same one the base wait_gps_disable()
+        # helper relies on (its default budget is 30 s), so a generous HOLD bound
+        # is used; no GPS glitch is involved.
         self.context_push()
+        try:
+            # Make the EKF failsafe deterministic: HOLD action and the default
+            # variance threshold (must be >0 for ekf_check to run).
+            self.set_parameters({
+                "FS_EKF_ACTION": 1,  # FS_EKF_HOLD: fall back to HOLD on EKF failsafe
+                "FS_EKF_THRESH": 0.8,  # default threshold; >0 keeps ekf_check active
+            })
 
-        # Make the EKF failsafe deterministic: HOLD action and the default
-        # variance threshold (must be >0 for ekf_check to run).
-        self.set_parameters({
-            "FS_EKF_ACTION": 1,  # FS_EKF_HOLD: fall back to HOLD on EKF failsafe
-            "FS_EKF_THRESH": 0.8,  # default threshold; >0 keeps ekf_check active
-        })
+            # Arm in GUIDED (a position-requiring mode) so the EKF failsafe can act.
+            self.wait_ready_to_arm()
+            self.change_mode("GUIDED")
+            self.arm_vehicle()
+            self.wait_ekf_happy()
 
-        # Arm in GUIDED (a position-requiring mode) so the EKF failsafe can act.
-        self.wait_ready_to_arm()
-        self.change_mode("GUIDED")
-        self.arm_vehicle()
-        self.wait_ekf_happy()
+            # ---- clean GPS dropout -> NO_FIX -> position invalidation -> HOLD ----
+            self.progress("Disabling GPS (clean dropout) to drive the EKF failsafe")
+            self.set_parameter("SIM_GPS1_ENABLE", 0)
+            tstart = self.get_sim_time()
 
-        # ---- (A) GPS timeout -> NO_FIX -> recovery -------------------------
-        # Inject the first fault: disable the primary simulated GPS.
-        self.progress("Disabling GPS to force a position-source timeout")
-        self.set_parameter("SIM_GPS1_ENABLE", 0)
-        tstart = self.get_sim_time()
+            # GPS_TIMEOUT_MS (4000) collapses the fix to NO_FIX within ~4.2 s of the
+            # GPS data stream stopping.
+            self.progress("Waiting for GPS to report NO_FIX")
+            while True:
+                if self.get_sim_time_cached() - tstart > 4.2:
+                    raise NotAchievedException("GPS did not reach NO_FIX within 4.2s")
+                gps_raw = self.assert_receive_message('GPS_RAW_INT', timeout=1)
+                if gps_raw.fix_type <= mavutil.mavlink.GPS_FIX_TYPE_NO_FIX:
+                    self.progress("GPS reached NO_FIX (fix_type=%u)" % gps_raw.fix_type)
+                    break
 
-        # GPS_TIMEOUT_MS (4000) collapses the fix to NO_FIX within ~4.2s of the
-        # GPS data stream stopping.
-        self.progress("Waiting for GPS to report NO_FIX")
-        while True:
-            if self.get_sim_time_cached() - tstart > 4.2:
-                raise NotAchievedException("GPS did not reach NO_FIX within 4.2s")
-            gps_raw = self.assert_receive_message('GPS_RAW_INT', timeout=1)
-            if gps_raw.fix_type <= mavutil.mavlink.GPS_FIX_TYPE_NO_FIX:
-                self.progress("GPS reached NO_FIX (fix_type=%u)" % gps_raw.fix_type)
-                break
+            # AAP 0.4.2: the clean dropout must INVALIDATE the position estimate.
+            # ESTIMATOR_POS_HORIZ_ABS is the GPS-dependent absolute-position flag
+            # consulted by Rover::ekf_position_ok(); assert it clears within ~4.3 s
+            # of the GPS-off instant, proving the dropout itself (no glitch)
+            # invalidated position.
+            position_loss_timeout = 4.3
+            while True:
+                esr = self.assert_receive_message('EKF_STATUS_REPORT', timeout=5)
+                elapsed = self.get_sim_time_cached() - tstart
+                if not (esr.flags & mavutil.mavlink.ESTIMATOR_POS_HORIZ_ABS):
+                    self.progress(
+                        "EKF absolute position invalidated after %.2fs (flags=0x%x)" % (elapsed, esr.flags))
+                    break
+                if elapsed > position_loss_timeout:
+                    raise NotAchievedException(
+                        "EKF absolute position not invalidated within %.1fs of the clean GPS dropout (flags=0x%x)" %
+                        (position_loss_timeout, esr.flags))
 
-        # Restore the GPS and confirm a 3D fix and a happy EKF return before the
-        # second fault, so the timeout and glitch paths are tested independently.
-        self.progress("Restoring GPS and waiting for recovery from the timeout")
-        self.set_parameter("SIM_GPS1_ENABLE", 1)
-        tstart = self.get_sim_time()
-        while True:
-            if self.get_sim_time_cached() - tstart > 10:
-                raise NotAchievedException("GPS did not recover a 3D fix within 10s")
-            gps_raw = self.assert_receive_message('GPS_RAW_INT', timeout=1)
-            if gps_raw.fix_type >= mavutil.mavlink.GPS_FIX_TYPE_3D_FIX:
-                self.progress("GPS recovered a 3D fix (fix_type=%u)" % gps_raw.fix_type)
-                break
-        self.wait_ekf_happy()
-        # the brief timeout excursion must not have left us out of GUIDED; the
-        # EKF failsafe needs a position-requiring mode to take its HOLD action.
-        self.change_mode("GUIDED")
+            # The SAME clean dropout (NO glitch) must drive the EKF failsafe to
+            # HOLD: with no aiding the EKF loses its relative solution / enters
+            # const_pos_mode, ekf_position_ok() goes false and the fail-count
+            # ladder trips FS_EKF_HOLD, switching GUIDED -> HOLD.  A generous bound
+            # covers the EKF relative-position decay (proven by the base
+            # wait_gps_disable() mechanism, whose default budget is 30 s).
+            self.progress("Waiting for the clean GPS dropout to drive the EKF failsafe to HOLD")
+            self.wait_mode("HOLD", timeout=60)
 
-        # ---- (B) GPS glitch -> EKF variance breach -> HOLD failsafe --------
-        # Inject an abrupt ~110 m coordinate offset on both axes (as the Copter
-        # glitch test does).  The EKF fuses the jump as a large innovation, which
-        # drives the position and velocity variances past FS_EKF_THRESH; after
-        # the fail-count ladder (EKF_CHECK_ITERATIONS_MAX=10 at 10Hz, ~1s)
-        # ekf_check trips the FS_EKF_HOLD failsafe and the rover falls back to
-        # HOLD.  Allow a generous bound for the variances to build and the ladder
-        # to climb.
-        self.progress("Injecting a GPS glitch to breach the EKF variance threshold")
-        self.set_parameters({
-            "SIM_GPS1_GLTCH_X": 0.001,
-            "SIM_GPS1_GLTCH_Y": 0.001,
-        })
-        self.wait_mode("HOLD", timeout=30)
-
-        # Clear the glitch and let the EKF re-converge to a healthy estimate so
-        # the vehicle can be disarmed cleanly.
-        self.progress("Clearing the GPS glitch and waiting for EKF recovery")
-        self.set_parameters({
-            "SIM_GPS1_GLTCH_X": 0,
-            "SIM_GPS1_GLTCH_Y": 0,
-        })
-        self.wait_ekf_happy()
-
-        self.disarm_vehicle(force=True)
-
-        # Restore parameters and reboot so this GPS-denied excursion cannot leak
-        # into sibling tests.
-        self.context_pop()
-        self.reboot_sitl()
+            # restore the GPS and confirm a 3D fix and a happy EKF return within 10 s
+            self.progress("Restoring GPS and waiting for recovery")
+            self.set_parameter("SIM_GPS1_ENABLE", 1)
+            tstart = self.get_sim_time()
+            while True:
+                if self.get_sim_time_cached() - tstart > 10:
+                    raise NotAchievedException("GPS did not recover a 3D fix within 10s")
+                gps_raw = self.assert_receive_message('GPS_RAW_INT', timeout=1)
+                if gps_raw.fix_type >= mavutil.mavlink.GPS_FIX_TYPE_3D_FIX:
+                    self.progress("GPS recovered a 3D fix (fix_type=%u)" % gps_raw.fix_type)
+                    break
+            self.wait_ekf_happy()
+        finally:
+            # Guaranteed isolation (R8): disarm if armed, restore parameters
+            # (context_pop) and reboot on EVERY path -- success OR exception -- so
+            # this GPS-denied excursion cannot leak into sibling tests.
+            try:
+                if self.armed():
+                    self.disarm_vehicle(force=True)
+            except Exception as e:
+                self.progress("Ignoring disarm error during teardown: %s" % str(e))
+            self.context_pop()
+            self.reboot_sitl()
 
     def Sprayer(self):
         """Test sprayer functionality."""
