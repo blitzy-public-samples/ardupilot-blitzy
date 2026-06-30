@@ -1146,6 +1146,11 @@ if __name__ == "__main__":
         "fly.ArduCopterTests2a": "test.CopterTests2a",
         "fly.ArduCopterTests2b": "test.CopterTests2b",
 
+        # CI-facing alias: the AAP Validation Gate #4 direct command invokes
+        # "autotest.py sitltest-ekf-check-parity" (the same token build_ci.sh
+        # uses); canonicalise it to the registered "test.EKFCheckParity" step
+        # so it resolves via moresteps and dispatches through tester_class_map.
+        "sitltest-ekf-check-parity": "test.EKFCheckParity",
     }
 
     # form up a list of bits NOT to run, mapping from old step names
