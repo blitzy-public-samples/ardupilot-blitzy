@@ -12294,12 +12294,18 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.wait_statustext("GPS Glitch", timeout=2, check_context=True)
 
         # remove the glitch; the AHRS clears GPS_GLITCHING and the firmware emits
-        # "Glitch cleared" within a few seconds.
+        # "Glitch cleared" (ArduCopter/events.cpp).  Clearing the ~110 m offset
+        # produces a large position jump-back, which drives EKF lane switches and
+        # a full re-convergence (and even a transient second glitch edge) before
+        # the "cleared" edge fires -- empirically ~10 s of *simulation* time, not
+        # "a few seconds".  wait_statustext() measures sim-time, so the timeout
+        # must comfortably exceed that re-convergence window; 30 s gives ~3x
+        # margin and matches the timescale used by the existing GPSGlitchLoiter.
         self.set_parameters({
             "SIM_GPS1_GLTCH_X": 0,
             "SIM_GPS1_GLTCH_Y": 0,
         })
-        self.wait_statustext("Glitch cleared", timeout=5, check_context=True)
+        self.wait_statustext("Glitch cleared", timeout=30, check_context=True)
 
         # land/disarm with the now-healthy GPS, then reboot: re-arming is
         # unreliable after a GPS glitch, exactly as GPSGlitchLoiter notes.
