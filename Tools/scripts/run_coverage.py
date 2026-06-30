@@ -319,6 +319,9 @@ class CoverageRunner(object):
         except (FileNotFoundError, OSError):
             self.progress("Coverage gate FAILED: cannot read %s (no coverage data)" % self.INFO_FILE)
             sys.exit(1)
+        except ValueError:
+            self.progress("Coverage gate FAILED: malformed coverage data in %s" % self.INFO_FILE)
+            sys.exit(1)
 
         if found == 0:
             self.progress("Coverage gate FAILED: no measurable lines found for [%s]" % ", ".join(libs))
