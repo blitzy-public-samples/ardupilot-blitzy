@@ -201,6 +201,24 @@ for t in $CI_BUILD_TARGET; do
         run_autotest "Blimp" "build.Blimp" "test.Blimp"
         continue
     fi
+    if [ "$t" == "sitltest-ekf-check-parity" ]; then
+        # The EKFCheckParity suite (Tools/autotest/ekf_check_parity.py) constructs
+        # against ArduCopter by default (autotest.py __bin_names maps
+        # EKFCheckParity->arducopter) but restarts SITL per-vehicle internally for
+        # ArduPlane/Rover/ArduSub. Pre-build all four SITL binaries here (mirroring
+        # the examples/sitltest-can preludes) so every vehicle's parity leg runs
+        # rather than being skipped for an absent binary; then run the suite with
+        # --no-clean so autotest neither cleans (which would wipe build/sitl) nor
+        # rebuilds, and it exercises all four pre-built binaries.
+        echo "Building all SITL vehicles for EKF-check parity"
+        $waf configure --board sitl
+        $waf copter
+        $waf plane
+        $waf rover
+        $waf sub
+        run_autotest "Copter" "--no-clean" "test.EKFCheckParity"
+        continue
+    fi
 
     if [ "$t" == "unit-tests" ]; then
         run_autotest "Unit Tests" "build.unit_tests" "run.unit_tests"

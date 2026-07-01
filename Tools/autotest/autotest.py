@@ -30,6 +30,7 @@ import quadplane
 import balancebot
 import sailboat
 import helicopter
+import ekf_check_parity
 
 import examples
 from pysim import util
@@ -289,6 +290,7 @@ __bin_names = {
     "SITLPeriphBattMon": ("sitl_periph_battmon", "AP_Periph"),
     "CAN": "arducopter",
     "BattCAN": "arducopter",
+    "EKFCheckParity": "arducopter",
 }
 
 
@@ -362,6 +364,7 @@ tester_class_map = {
     "test.Tracker": antennatracker.AutoTestTracker,
     "test.CAN": arducopter.AutoTestCAN,
     "test.BattCAN": arducopter.AutoTestBattCAN,
+    "test.EKFCheckParity": ekf_check_parity.EKFCheckParity,
 }
 
 supplementary_test_binary_map = {
@@ -1110,6 +1113,7 @@ if __name__ == "__main__":
 
         'test.PlaneTests1a',
         'test.PlaneTests1b',
+        'test.EKFCheckParity',
 
         'clang-scan-build',
     ]
@@ -1142,6 +1146,21 @@ if __name__ == "__main__":
         "fly.ArduCopterTests2a": "test.CopterTests2a",
         "fly.ArduCopterTests2b": "test.CopterTests2b",
 
+        # CI-facing alias: the AAP Validation Gate #4 direct command invokes
+        # "autotest.py sitltest-ekf-check-parity" (the same token build_ci.sh
+        # uses); canonicalise it to the registered "test.EKFCheckParity" step
+        # so it resolves via moresteps and dispatches through tester_class_map.
+        "sitltest-ekf-check-parity": "test.EKFCheckParity",
+
+        # CI-facing aliases for AAP Validation Gates #5 and #6.  build_ci.sh
+        # maps the CI job names "sitltest-copter-tests1a" and "sitltest-rover"
+        # onto these same tokens, and the AAP §0.9 gate commands invoke
+        # "autotest.py sitltest-copter-tests1a" / "autotest.py sitltest-rover"
+        # directly.  Canonicalise them to the registered "test.CopterTests1a"
+        # and "test.Rover" steps (tester_class_map) so the direct commands
+        # resolve exactly like the parity alias above.
+        "sitltest-copter-tests1a": "test.CopterTests1a",
+        "sitltest-rover": "test.Rover",
     }
 
     # form up a list of bits NOT to run, mapping from old step names
