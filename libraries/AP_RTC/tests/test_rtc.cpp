@@ -211,5 +211,140 @@ TEST(JitterCorrection, ConvergenceWithinLoops)
     EXPECT_EQ(jc.get_link_offset_usec(), 1000);
 }
 
+// ---------------------------------------------------------------------------
+// Suite: AP_RTC calendar/clock surface.
+//
+// The following tests exercise the deterministic date-math and clock-getter
+// methods of AP_RTC that are independent of the arbitration path above:
+//   - date_fields_to_clock_s()  -> drives the in-tree timegm() (_timegm + the
+//                                   leap-year helper _is_leap).
+//   - clock_s_to_date_fields()  -> gmtime_r()-based inverse.
+//   - get_system_clock_utc() / get_local_time() / get_date_and_time_utc() /
+//     get_time_utc()            -> become reachable once a UTC time has been
+//                                   accepted by set_utc_usec().
+//
+// All values are chosen so the assertions are robust against the small,
+// unavoidable amount of wall-clock time that elapses between set_utc_usec()
+// and the subsequent getter call (the SITL/linux HAL advances micros64()).
+// ---------------------------------------------------------------------------
+
+// date_fields_to_clock_s() and clock_s_to_date_fields() are exact inverses over
+// valid Gregorian dates.  A non-leap anchor (2022-01-01) pins the numeric epoch
+// and the weekday; a leap-day (2024-02-29) forces the leap branch of _is_leap()
+// and the February column of the ndays[] table inside _timegm().  A structurally
+// invalid month (13, i.e. tm_mon > 12) drives the timegm() rejection path.
+TEST(AP_RTC, DateFieldConversions)
+{
+    static AP_RTC rtc;
+
+    // 2022-01-01 00:00:00 UTC is exactly 1640995200 s past the 1970 epoch
+    // (18993 days * 86400).  This is also the RTC sanity floor / 1e6.
+    EXPECT_EQ(rtc.date_fields_to_clock_s(2022, 0, 1, 0, 0, 0), 1640995200U);
+
+    // Inverse (gmtime_r) must recover the same calendar fields, including the
+    // weekday: 2022-01-01 was a Saturday -> tm_wday == 6.
+    uint16_t year;
+    uint8_t month, day, hour, minute, sec, wday;
+    ASSERT_TRUE(rtc.clock_s_to_date_fields(1640995200U, year, month, day,
+                                           hour, minute, sec, wday));
+    EXPECT_EQ(year, 2022U);
+    EXPECT_EQ(month, 0U);      // January, [0-11]
+    EXPECT_EQ(day, 1U);
+    EXPECT_EQ(hour, 0U);
+    EXPECT_EQ(minute, 0U);
+    EXPECT_EQ(sec, 0U);
+    EXPECT_EQ(wday, 6U);       // Saturday
+
+    // Leap-day round-trip: exercises _is_leap()==true and the 29-day February.
+    const uint32_t leap_s = rtc.date_fields_to_clock_s(2024, 1, 29, 12, 0, 0);
+    ASSERT_GT(leap_s, 1640995200U);
+    ASSERT_TRUE(rtc.clock_s_to_date_fields(leap_s, year, month, day,
+                                           hour, minute, sec, wday));
+    EXPECT_EQ(year, 2024U);
+    EXPECT_EQ(month, 1U);      // February
+    EXPECT_EQ(day, 29U);
+    EXPECT_EQ(hour, 12U);
+
+    // Structurally invalid tm (month index 13 > 12) -> _timegm() rejects it.
+    EXPECT_EQ(rtc.date_fields_to_clock_s(2022, 13, 1, 0, 0, 0), 0U);
+}
+
+// The clock getters report unavailable until a source is accepted, then break
+// the accepted time into fields.  get_local_time() applies the tz_min offset.
+TEST(AP_RTC, ClockGettersReflectAcceptedTime)
+{
+    static AP_RTC rtc;
+
+    uint8_t hour, minute, sec;
+    uint16_t ms;
+
+    // Before any source: getters report unavailable (get_utc_usec() == false).
+    EXPECT_FALSE(rtc.get_system_clock_utc(hour, minute, sec, ms));
+    EXPECT_FALSE(rtc.get_local_time(hour, minute, sec, ms));
+    uint16_t year;
+    uint8_t month, day, dhour, dmin, dsec;
+    uint16_t dms;
+    EXPECT_FALSE(rtc.get_date_and_time_utc(year, month, day, dhour, dmin, dsec, dms));
+
+    // Accept 2022-01-01 00:30:15.000 UTC via GPS (allowed by the default mask).
+    const uint64_t t_us = (1640995200ULL + 30ULL * 60ULL + 15ULL) * 1000ULL * 1000ULL;
+    rtc.set_utc_usec(t_us, AP_RTC::SOURCE_GPS);
+
+    // System (UTC) clock: hour/minute are stable across the sub-second test
+    // runtime; the second may advance slightly past 15 so it is only bounded.
+    ASSERT_TRUE(rtc.get_system_clock_utc(hour, minute, sec, ms));
+    EXPECT_EQ(hour, 0U);
+    EXPECT_EQ(minute, 30U);
+    EXPECT_LT(sec, 60U);
+
+    // Calendar decomposition of the same instant.
+    ASSERT_TRUE(rtc.get_date_and_time_utc(year, month, day, dhour, dmin, dsec, dms));
+    EXPECT_EQ(year, 2022U);
+    EXPECT_EQ(month, 0U);
+    EXPECT_EQ(day, 1U);
+    EXPECT_EQ(dhour, 0U);
+    EXPECT_EQ(dmin, 30U);
+
+    // A +60-minute timezone offset shifts local time to 01:30 without altering
+    // the underlying UTC clock.
+    rtc.tz_min.set(60);
+    uint8_t lhour, lminute, lsec;
+    uint16_t lms;
+    ASSERT_TRUE(rtc.get_local_time(lhour, lminute, lsec, lms));
+    EXPECT_EQ(lhour, 1U);
+    EXPECT_EQ(lminute, 30U);
+}
+
+// get_time_utc() returns the milliseconds until the next occurrence of a target
+// time-of-day, ignoring leading -1 sentinels.  This covers every "largest
+// element" branch and both the forward and negative-wrap paths (the latter by
+// choosing a target earlier than the current time-of-day).
+TEST(AP_RTC, TimeUntilTargetOfDay)
+{
+    static AP_RTC rtc;
+
+    // No element specified -> immediate 0 (early return before clock lookup).
+    EXPECT_EQ(rtc.get_time_utc(-1, -1, -1, -1), 0U);
+
+    // With a target but no valid clock yet, get_system_clock_utc() fails -> 0.
+    EXPECT_EQ(rtc.get_time_utc(-1, -1, -1, 500), 0U);
+
+    // Accept a known 12:30:15 UTC time so each element has a definite "now".
+    const uint64_t t_us =
+        (1640995200ULL + 12ULL * 3600ULL + 30ULL * 60ULL + 15ULL) * 1000ULL * 1000ULL;
+    rtc.set_utc_usec(t_us, AP_RTC::SOURCE_GPS);
+
+    // Each result is always within one full period of its largest element, in
+    // both the forward (target above now) and wrap (target below now) cases.
+    EXPECT_LT(rtc.get_time_utc(-1, -1, -1, 999), 1000U);              // ms
+    EXPECT_LT(rtc.get_time_utc(-1, -1, -1, 0), 1000U);               // ms wrap
+    EXPECT_LT(rtc.get_time_utc(-1, -1, 59, -1), 60UL * 1000UL);      // sec fwd (59>15)
+    EXPECT_LT(rtc.get_time_utc(-1, -1, 0, -1), 60UL * 1000UL);       // sec wrap (0<15)
+    EXPECT_LT(rtc.get_time_utc(-1, 59, -1, -1), 60UL * 60UL * 1000UL);   // min fwd
+    EXPECT_LT(rtc.get_time_utc(-1, 0, -1, -1), 60UL * 60UL * 1000UL);    // min wrap
+    EXPECT_LT(rtc.get_time_utc(23, -1, -1, -1), 24UL * 60UL * 60UL * 1000UL);  // hour fwd
+    EXPECT_LT(rtc.get_time_utc(0, -1, -1, -1), 24UL * 60UL * 60UL * 1000UL);   // hour wrap
+}
+
 AP_GTEST_PANIC()
 AP_GTEST_MAIN()

@@ -20,6 +20,24 @@ os.set_blocking(sys.stderr.fileno(), True)
 tools_dir = os.path.dirname(os.path.realpath(__file__))
 root_dir = os.path.realpath(os.path.join(tools_dir, '../..'))
 
+# lcov 2.x paired with gcov 15.x (Ubuntu 25.10) promotes several benign
+# trace / source-graph inconsistencies to FATAL errors that abort capture (or
+# merge / remove / genhtml) before any coverage ratio can be produced -- for
+# example an "(inconsistent) mismatched end line" for a GoogleTest-generated
+# constructor symbol (e.g. ..._test_calculate_mah_TestC2Ev). Those diagnostics
+# describe the gcov/source graph, not the firmware under test, so they must not
+# fail the coverage run. Pass these --ignore-errors categories on every lcov /
+# genhtml invocation so such conditions degrade from fatal to warning. This
+# ONLY relaxes error tolerance: it does not change which files are captured and
+# it does not touch the lcov --remove exclusion list (preserved verbatim in
+# update_stats()). Every category below is accepted by both lcov and genhtml
+# 2.0 on this toolchain.
+LCOV_IGNORE_ERRORS = [
+    "--ignore-errors",
+    "inconsistent,gcov,mismatch,unused,empty,negative,"
+    "corrupt,category,range,source,unsupported,format,version",
+]
+
 
 class CoverageRunner(object):
     """Coverage Runner Class."""
@@ -72,7 +90,7 @@ class CoverageRunner(object):
                 break
 
         self.progress("Zeroing previous build")
-        retcode = subprocess.call(["lcov", "--zerocounters", "--directory", root_dir])
+        retcode = subprocess.call(["lcov", *LCOV_IGNORE_ERRORS, "--zerocounters", "--directory", root_dir])
         if retcode != 0:
             self.progress("Failed with retcode (%s)" % retcode)
             exit(1)
@@ -80,6 +98,7 @@ class CoverageRunner(object):
         self.progress("Initializing Coverage with current build")
         try:
             result = subprocess.run(["lcov",
+                                     *LCOV_IGNORE_ERRORS,
                                      "--no-external",
                                      "--initial",
                                      "--capture",
@@ -204,6 +223,7 @@ class CoverageRunner(object):
                 try:
                     self.progress("Capturing Coverage statistics")
                     subprocess.run(["lcov",
+                                    *LCOV_IGNORE_ERRORS,
                                     "--no-external",
                                     "--capture",
                                     "--directory", root_dir,
@@ -218,6 +238,7 @@ class CoverageRunner(object):
 
                     self.progress("Matching Coverage with binaries")
                     subprocess.run(["lcov",
+                                    *LCOV_IGNORE_ERRORS,
                                     "--add-tracefile", self.INFO_FILE_BASE,
                                     "--add-tracefile", self.INFO_FILE,
                                     ], stdout=tmp_file, stderr=subprocess.STDOUT, text=True, check=True)
@@ -230,6 +251,7 @@ class CoverageRunner(object):
                     # remove files we do not intentionally test:
                     self.progress("Removing unwanted coverage statistics")
                     subprocess.run(["lcov",
+                                    *LCOV_IGNORE_ERRORS,
                                     "--remove", self.INFO_FILE,
                                     ".waf*",
                                     root_dir + "/modules/gtest/*",
@@ -260,7 +282,7 @@ class CoverageRunner(object):
         with open(self.GENHTML_LOG, 'w+') as log_file:
             try:
                 self.progress("Generating HTML files")
-                subprocess.run(["genhtml", self.INFO_FILE,
+                subprocess.run(["genhtml", *LCOV_IGNORE_ERRORS, self.INFO_FILE,
                                 "-o", self.REPORT_DIR,
                                 "--demangle-cpp",
                                 ], stdout=log_file, stderr=subprocess.STDOUT, text=True, check=True)

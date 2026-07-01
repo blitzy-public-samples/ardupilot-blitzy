@@ -475,6 +475,42 @@ def ap_find_tests(bld, use=[], DOUBLE_PRECISION_SOURCES=[]):
     if bld.cmd == 'check':
         features.append('test')
 
+        # Death-test enablement for `./waf check` / `./waf check-all`.
+        #
+        # A subset of the pre-existing GoogleTest corpus (test_math,
+        # test_math_double, test_rotations, test_bitmask, ...) asserts that
+        # firmware misuse aborts the process, via EXPECT_EXIT/EXPECT_DEATH on
+        # AP_InternalError::error_t panics (e.g. constrain_value(NaN, ...),
+        # AP::custom_rotations().set(ROTATION_CUSTOM_OLD, ...),
+        # Bitmask::set(N+1)). Those panics only happen when
+        # AP_InternalError::error() actually calls AP_HAL::panic() -> abort();
+        # that branch is compiled in ONLY under
+        #   `#if CONFIG_HAL_BOARD == HAL_BOARD_SITL && defined(HAL_DEBUG_BUILD)`
+        # (libraries/AP_InternalError/AP_InternalError.cpp). HAL_DEBUG_BUILD is
+        # normally defined by the board only when configured with `--debug`
+        # (Tools/ardupilotwaf/boards.py: `env.DEFINES.update(HAL_DEBUG_BUILD=1)`),
+        # which is exactly how the upstream unit-test CI builds and runs these
+        # tests. The AAP validation gate, however, runs them after a plain
+        # `./waf configure --board=sitl` (no --debug); without HAL_DEBUG_BUILD
+        # the panic path is compiled out, the tested code "fails to die", and
+        # the death tests report spurious failures.
+        #
+        # Define HAL_DEBUG_BUILD for the check/check-all builds so the death
+        # tests behave as designed. `check-all` has already been rewritten to
+        # `check` by _build_cmd_tweaks() before the build recursion reaches
+        # here, so guarding on bld.cmd == 'check' covers both. The shared 'ap'
+        # static library that every test program links against is compiled from
+        # this same bld.env; the C/C++ tasks read env.DEFINES at execution time
+        # (during bld.compile(), after every task generator -- including this
+        # one -- has been created), so appending the define here propagates it
+        # to the AP_InternalError.cpp translation unit inside libap.a as well.
+        # This is build tooling only: no firmware .cpp/.h and no vendored
+        # submodule is modified (AAP 0.8.1 / 0.10; Validation Gate #7 stays
+        # clean). The append is idempotent because ap_find_tests() is invoked
+        # once per tests/ directory.
+        if 'HAL_DEBUG_BUILD=1' not in bld.env.DEFINES:
+            bld.env.append_value('DEFINES', 'HAL_DEBUG_BUILD=1')
+
     use = Utils.to_list(use)
     use.append('GTEST')
 

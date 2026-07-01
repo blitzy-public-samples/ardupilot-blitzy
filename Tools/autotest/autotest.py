@@ -1151,6 +1151,16 @@ if __name__ == "__main__":
         # uses); canonicalise it to the registered "test.EKFCheckParity" step
         # so it resolves via moresteps and dispatches through tester_class_map.
         "sitltest-ekf-check-parity": "test.EKFCheckParity",
+
+        # CI-facing aliases for AAP Validation Gates #5 and #6.  build_ci.sh
+        # maps the CI job names "sitltest-copter-tests1a" and "sitltest-rover"
+        # onto these same tokens, and the AAP §0.9 gate commands invoke
+        # "autotest.py sitltest-copter-tests1a" / "autotest.py sitltest-rover"
+        # directly.  Canonicalise them to the registered "test.CopterTests1a"
+        # and "test.Rover" steps (tester_class_map) so the direct commands
+        # resolve exactly like the parity alias above.
+        "sitltest-copter-tests1a": "test.CopterTests1a",
+        "sitltest-rover": "test.Rover",
     }
 
     # form up a list of bits NOT to run, mapping from old step names

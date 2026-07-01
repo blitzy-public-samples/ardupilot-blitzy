@@ -29,6 +29,7 @@
 #include <AP_Terrain/AP_Terrain.h>
 #include <GCS_MAVLink/GCS_Dummy.h>
 #include <AP_Common/Location.h>
+#include <cmath>
 
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
@@ -174,6 +175,170 @@ TEST(AP_Mission, CapacityBoundary)
     AP_Mission::Mission_Command stored{};
     ASSERT_TRUE(mission.read_cmd_from_storage(AP_MISSION_FIRST_REAL_COMMAND, stored));
     EXPECT_EQ(stored.content.location.alt, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Coverage of the pure mavlink<->Mission_Command translation surface.
+//
+// mavlink_int_to_mission_cmd(), mission_cmd_to_mavlink_int(),
+// sanity_check_params(), stored_in_location() and the convert_MISSION_ITEM_*
+// helpers are public static functions used by the GCS mission upload/download
+// path.  They perform struct translation only -- no vehicle/subsystem
+// singletons are required beyond those already declared above -- so they are
+// exercised directly without touching storage.  Round-tripping a broad spread
+// of MAV_CMD types walks both large switch statements end to end.
+// ---------------------------------------------------------------------------
+
+// Build a well-formed MISSION_ITEM_INT packet with all params finite (so
+// sanity_check_params() accepts every command) and a plausible global
+// lat/lng/alt for the location-bearing commands.
+static mavlink_mission_item_int_t make_mission_item(uint16_t command,
+                                                    float p1 = 1.0f, float p2 = 2.0f,
+                                                    float p3 = 3.0f, float p4 = 4.0f)
+{
+    mavlink_mission_item_int_t pkt {};
+    pkt.seq = 1;
+    pkt.frame = MAV_FRAME_GLOBAL_RELATIVE_ALT_INT;
+    pkt.command = command;
+    pkt.param1 = p1;
+    pkt.param2 = p2;
+    pkt.param3 = p3;
+    pkt.param4 = p4;
+    pkt.x = -353632620;   // latitude  * 1e7  (a valid ArduPilot home-ish point)
+    pkt.y = 1491652373;   // longitude * 1e7
+    pkt.z = 30.0f;        // altitude (m, frame-relative)
+    return pkt;
+}
+
+// Forward+reverse conversion of a representative command set.  Every command in
+// the list is handled by mavlink_int_to_mission_cmd()'s switch; each is decoded
+// (the packet->cmd arm) and, when the command supports GCS readback, re-encoded
+// (the cmd->packet arm).  Commands that are build-gated off in this unit build
+// legitimately decline conversion and are skipped without failing the test.
+TEST(AP_Mission, MavlinkConversionRoundTrip)
+{
+    const uint16_t commands[] = {
+        MAV_CMD_NAV_WAYPOINT,
+        MAV_CMD_NAV_LOITER_UNLIM,
+        MAV_CMD_NAV_LOITER_TURNS,
+        MAV_CMD_NAV_LOITER_TIME,
+        MAV_CMD_NAV_RETURN_TO_LAUNCH,
+        MAV_CMD_NAV_LAND,
+        MAV_CMD_NAV_TAKEOFF,
+        MAV_CMD_NAV_CONTINUE_AND_CHANGE_ALT,
+        MAV_CMD_NAV_LOITER_TO_ALT,
+        MAV_CMD_NAV_SPLINE_WAYPOINT,
+        MAV_CMD_NAV_GUIDED_ENABLE,
+        MAV_CMD_NAV_DELAY,
+        MAV_CMD_NAV_ALTITUDE_WAIT,
+        MAV_CMD_NAV_SET_YAW_SPEED,
+        MAV_CMD_NAV_VTOL_TAKEOFF,
+        MAV_CMD_NAV_VTOL_LAND,
+        MAV_CMD_NAV_PAYLOAD_PLACE,
+        MAV_CMD_NAV_ATTITUDE_TIME,
+        MAV_CMD_CONDITION_DELAY,
+        MAV_CMD_CONDITION_DISTANCE,
+        MAV_CMD_CONDITION_YAW,
+        MAV_CMD_DO_JUMP,
+        MAV_CMD_DO_CHANGE_SPEED,
+        MAV_CMD_DO_SET_HOME,
+        MAV_CMD_DO_SET_RELAY,
+        MAV_CMD_DO_REPEAT_RELAY,
+        MAV_CMD_DO_SET_SERVO,
+        MAV_CMD_DO_REPEAT_SERVO,
+        MAV_CMD_DO_LAND_START,
+        MAV_CMD_DO_GO_AROUND,
+        MAV_CMD_DO_SET_ROI,
+        MAV_CMD_DO_SET_ROI_LOCATION,
+        MAV_CMD_DO_SET_ROI_NONE,
+        MAV_CMD_DO_DIGICAM_CONFIGURE,
+        MAV_CMD_DO_DIGICAM_CONTROL,
+        MAV_CMD_DO_SET_CAM_TRIGG_DIST,
+        MAV_CMD_DO_MOUNT_CONTROL,
+        MAV_CMD_DO_SET_REVERSE,
+        MAV_CMD_DO_FENCE_ENABLE,
+        MAV_CMD_DO_AUX_FUNCTION,
+        MAV_CMD_DO_GUIDED_LIMITS,
+        MAV_CMD_DO_WINCH,
+        MAV_CMD_DO_GRIPPER,
+        MAV_CMD_DO_PARACHUTE,
+        MAV_CMD_DO_INVERTED_FLIGHT,
+        MAV_CMD_DO_AUTOTUNE_ENABLE,
+        MAV_CMD_DO_SET_RESUME_REPEAT_DIST,
+        MAV_CMD_DO_GIMBAL_MANAGER_PITCHYAW,
+        MAV_CMD_DO_PAUSE_CONTINUE,
+        MAV_CMD_JUMP_TAG,
+        MAV_CMD_DO_JUMP_TAG,
+        MAV_CMD_IMAGE_START_CAPTURE,
+        MAV_CMD_IMAGE_STOP_CAPTURE,
+        MAV_CMD_SET_CAMERA_ZOOM,
+        MAV_CMD_SET_CAMERA_FOCUS,
+        MAV_CMD_SET_CAMERA_SOURCE,
+        MAV_CMD_VIDEO_START_CAPTURE,
+        MAV_CMD_VIDEO_STOP_CAPTURE,
+    };
+
+    unsigned accepted = 0;
+    for (const uint16_t id : commands) {
+        const mavlink_mission_item_int_t pkt = make_mission_item(id);
+        AP_Mission::Mission_Command cmd {};
+        const MAV_MISSION_RESULT res = AP_Mission::mavlink_int_to_mission_cmd(pkt, cmd);
+        if (res != MAV_MISSION_ACCEPTED) {
+            // A command compiled out of this unit build (feature-gated) declines
+            // conversion; that is a legitimate outcome, not a test failure.
+            continue;
+        }
+        accepted++;
+        EXPECT_EQ(cmd.id, id);
+
+        // Reverse arm: not every command supports GCS readback, so only assert
+        // the round-trip identity when the encoder reports success.
+        mavlink_mission_item_int_t out {};
+        if (AP_Mission::mission_cmd_to_mavlink_int(cmd, out)) {
+            EXPECT_EQ(out.command, id);
+        }
+    }
+
+    // The vast majority of the representative set must convert in a stock build;
+    // this guards against a regression that silently rejects everything.
+    EXPECT_GT(accepted, 40U);
+}
+
+// sanity_check_params() rejects non-finite params for commands whose parameters
+// must all be finite.  A NaN param1 on DO_JUMP (not in the NaN-tolerant set)
+// must therefore be refused rather than accepted.
+TEST(AP_Mission, MavlinkConversionRejectsNonFinite)
+{
+    mavlink_mission_item_int_t pkt = make_mission_item(MAV_CMD_DO_JUMP);
+    pkt.param1 = nanf("");
+    AP_Mission::Mission_Command cmd {};
+    const MAV_MISSION_RESULT res = AP_Mission::mavlink_int_to_mission_cmd(pkt, cmd);
+    EXPECT_NE(res, MAV_MISSION_ACCEPTED);
+}
+
+// The MISSION_ITEM (float) <-> MISSION_ITEM_INT converters translate the legacy
+// float lat/lng representation to/from the scaled-integer form.  A waypoint
+// round-trips through both directions without loss of the command id.
+TEST(AP_Mission, ConvertMissionItemFloatIntRoundTrip)
+{
+    mavlink_mission_item_t item {};
+    item.seq = 2;
+    item.frame = MAV_FRAME_GLOBAL_RELATIVE_ALT;
+    item.command = MAV_CMD_NAV_WAYPOINT;
+    item.param1 = 0.0f;
+    item.x = -35.363262f;    // degrees
+    item.y = 149.165237f;    // degrees
+    item.z = 40.0f;
+
+    mavlink_mission_item_int_t item_int {};
+    ASSERT_EQ(AP_Mission::convert_MISSION_ITEM_to_MISSION_ITEM_INT(item, item_int),
+              MAV_MISSION_ACCEPTED);
+    EXPECT_EQ(item_int.command, static_cast<uint16_t>(MAV_CMD_NAV_WAYPOINT));
+
+    mavlink_mission_item_t back {};
+    ASSERT_EQ(AP_Mission::convert_MISSION_ITEM_INT_to_MISSION_ITEM(item_int, back),
+              MAV_MISSION_ACCEPTED);
+    EXPECT_EQ(back.command, static_cast<uint16_t>(MAV_CMD_NAV_WAYPOINT));
 }
 
 AP_GTEST_PANIC()
