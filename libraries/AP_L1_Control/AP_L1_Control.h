@@ -36,6 +36,11 @@ public:
     int32_t nav_roll_cd(void) const override;
     float lateral_acceleration(void) const override;
 
+    // set an externally-supplied control-step dt (seconds), overriding the
+    // internal AP_HAL::micros() delta. Additive, default-off seam used by the
+    // AfsimL1 reusable service so an external host (e.g. AFSIM) drives timing.
+    void set_update_dt(float dt);
+
     // return the desired track heading angle(centi-degrees)
     int32_t nav_bearing_cd(void) const override;
 
@@ -120,6 +125,14 @@ private:
     AP_Float _L1_xtrack_i_gain;
     float _L1_xtrack_i_gain_prev = 0;
     uint32_t _last_update_waypoint_us;
+
+    // Timing seam state (AfsimL1 service). When _dt_override is true, update_waypoint()
+    // uses _override_dt instead of the AP_HAL::micros() delta. Default-off: in-class
+    // initializers guarantee _dt_override starts false so existing vehicle callers are
+    // numerically unaffected (the constructor does not zero plain members).
+    bool _dt_override = false;
+    float _override_dt = 0.0f;
+
     bool _data_is_stale = true;
 
     AP_Float _loiter_bank_limit;
