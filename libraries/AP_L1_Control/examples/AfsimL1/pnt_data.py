@@ -15,10 +15,27 @@ The prior audit's generator lived only inside a gitignored, never-committed
 ``tmp/pnt_work/`` directory, so it is recreated here (AAP 0.4.1). The prior
 94-row content was reconstructed by extracting the committed repository-root
 ``ArduPilot_PNT_Reference_Audit.pdf`` and re-deriving every code snippet
-verbatim from the live ArduPilot source tree at the audited HEAD
-(``5b67e27b0a``). A ``git diff 5b67e27b0a HEAD`` over ``libraries/`` confirms
-the current tree equals the audited tree, so every snippet below is a verbatim
-excerpt of the cited ``path:line`` range.
+verbatim from the ArduPilot source tree at the audited HEAD (``5b67e27b0a``).
+Every cited ``path:line`` range in this module -- the 94 main-table rows and
+the 12 New-Service-Location mapping rows alike -- is stated AS OF that audited
+HEAD, and every snippet is a verbatim excerpt of the cited range at that
+commit.
+
+Line-number currency (important). The extraction this service adds applied one
+additive, default-off ``set_update_dt`` timing seam to the two wrapped-
+controller files ``AP_L1_Control.cpp`` / ``AP_L1_Control.h`` AFTER the audited
+HEAD (a ``git diff 5b67e27b0a HEAD`` over ``libraries/`` shows exactly that
+seam plus the new ``examples/AfsimL1/`` service files, and nothing else). That
+seam relocates no PNT behavior; it only shifts the two controller files' line
+numbers downward -- by roughly +13 lines above ``update_waypoint``'s dt block
+and +19 below it. For example ``_ahrs.get_location()`` is L230/L369 at the
+audited HEAD but L249/L388 in the post-seam tree, ``AP_HAL::micros()`` moves
+L214 -> L227 and ``AP_HAL::millis()`` moves L448 -> L467. The line numbers
+cited here are therefore deliberately anchored to the audited HEAD
+``5b67e27b0a`` -- the pre-refactor baseline, which is the correct "current
+location" frame for the extraction mapping and preserves parity with AAP 0.6.1
+-- and are NOT presented as post-seam current-source line numbers. The
+rendered PDF states this anchoring explicitly beside the mapping table.
 
 Reconciliation contract (enforced by ``reconcile()`` and by the sibling
 renderer's ~838 assertions):
@@ -631,9 +648,9 @@ NEW_SERVICE_LOCATION_ROWS = [
     {'pnt_pillar': 'Navigation (attitude)', 'behavior': 'Read yaw (centideg sensor)', 'current_locations': 'AP_L1_Control.cpp:L70, L72, L503, L535', 'current_accessor': '`_ahrs.yaw_sensor`', 'new_service_location': 'AHRS shim `yaw_sensor`, fed by `set_yaw_cd(yaw_cd)`'},  # noqa: E501
     {'pnt_pillar': 'Navigation (attitude)', 'behavior': 'Read pitch (radians)', 'current_locations': 'AP_L1_Control.cpp:L91', 'current_accessor': '`_ahrs.get_pitch_rad()`', 'new_service_location': 'AHRS shim `get_pitch_rad()`, fed by `set_pitch_rad(pitch_rad)`'},  # noqa: E501
     {'pnt_pillar': 'Navigation (airspeed)', 'behavior': 'Airspeed scaling factor', 'current_locations': 'AP_L1_Control.cpp:L126, L159', 'current_accessor': '`_ahrs.get_EAS2TAS()`', 'new_service_location': 'AHRS shim `get_EAS2TAS()` (injected or unit default)'},  # noqa: E501
-    {'pnt_pillar': 'Timing', 'behavior': 'Control-step clock', 'current_locations': 'AP_L1_Control.cpp:L214', 'current_accessor': '`AP_HAL::micros()`', 'new_service_location': '`set_update_dt(dt)` injected timebase'},  # noqa: E501
-    {'pnt_pillar': 'Timing', 'behavior': 'Step delta + state store', 'current_locations': 'AP_L1_Control.cpp:L215, L224', 'current_accessor': '`_last_update_waypoint_us`', 'new_service_location': 'Injected-`dt` path (clamp preserved)'},  # noqa: E501
-    {'pnt_pillar': 'Timing', 'behavior': 'Loiter/heading clock', 'current_locations': 'AP_L1_Control.cpp:L448', 'current_accessor': '`AP_HAL::millis()`', 'new_service_location': 'Injected time for the loiter path'},  # noqa: E501
+    {'pnt_pillar': 'Timing', 'behavior': 'Control-step clock', 'current_locations': 'AP_L1_Control.cpp:L214', 'current_accessor': '`AP_HAL::micros()`', 'new_service_location': '`set_update_dt(dt)` injected timebase. Additive and default-off: when `set_update_dt` is never called the controller keeps its internal `AP_HAL::micros()` delta, so existing vehicle callers are unaffected.'},  # noqa: E501
+    {'pnt_pillar': 'Timing', 'behavior': 'Step delta + state store', 'current_locations': 'AP_L1_Control.cpp:L215, L224', 'current_accessor': '`_last_update_waypoint_us`', 'new_service_location': 'Injected-`dt` path (clamp semantics preserved). Additive and default-off: existing callers keep the `_last_update_waypoint_us` `micros()` delta until `set_update_dt` is called.'},  # noqa: E501
+    {'pnt_pillar': 'Timing', 'behavior': 'Loiter/heading clock', 'current_locations': 'AP_L1_Control.cpp:L448', 'current_accessor': '`AP_HAL::millis()`', 'new_service_location': 'Injected time for the loiter path. Additive and default-off: when unset the internal `AP_HAL::millis()` clock is used unchanged.'},  # noqa: E501
     {'pnt_pillar': 'Navigation (math)', 'behavior': 'Bearing / NE distance', 'current_locations': 'AP_L1_Control.cpp:L239, L382 / L260, L266, L274, L295, L391', 'current_accessor': '`Location::get_bearing_to` / `get_distance_NE`', 'new_service_location': 'Preserved unchanged inside `AP_L1_Control`'},  # noqa: E501
     {'pnt_pillar': 'Navigation (output)', 'behavior': 'Roll command', 'current_locations': 'AP_L1_Control.h:L36', 'current_accessor': '`nav_roll_cd()`', 'new_service_location': '`get_roll_deg()` = `nav_roll_cd()/100` → `L1_GetRollDeg`'},  # noqa: E501
     {'pnt_pillar': 'Navigation (output)', 'behavior': 'Lateral acceleration', 'current_locations': 'AP_L1_Control.h:L37', 'current_accessor': '`lateral_acceleration()`', 'new_service_location': '`get_lat_accel()` → `L1_GetLatAccel`'},  # noqa: E501
@@ -654,11 +671,16 @@ NEW_SERVICE_LOCATION_MAP = {
     'AP_L1_Control.cpp:L126, L159':
         'AHRS shim `get_EAS2TAS()` (injected or unit default)',
     'AP_L1_Control.cpp:L214':
-        '`set_update_dt(dt)` injected timebase',
+        '`set_update_dt(dt)` injected timebase. Additive and default-off: when '
+        '`set_update_dt` is never called the controller keeps its internal '
+        '`AP_HAL::micros()` delta, so existing vehicle callers are unaffected.',
     'AP_L1_Control.cpp:L215, L224':
-        'Injected-`dt` path (clamp preserved)',
+        'Injected-`dt` path (clamp semantics preserved). Additive and '
+        'default-off: existing callers keep the `_last_update_waypoint_us` '
+        '`micros()` delta until `set_update_dt` is called.',
     'AP_L1_Control.cpp:L448':
-        'Injected time for the loiter path',
+        'Injected time for the loiter path. Additive and default-off: when '
+        'unset the internal `AP_HAL::millis()` clock is used unchanged.',
     'AP_L1_Control.cpp:L239, L382 / L260, L266, L274, L295, L391':
         'Preserved unchanged inside `AP_L1_Control`',
     'AP_L1_Control.h:L36':

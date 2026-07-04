@@ -531,8 +531,115 @@ def verify_ref_coverage(repo_root=None):
     return errors
 
 
+def verify_new_service_mapping(repo_root=None):
+    """Validate the CP2 current -> new service mapping deliverable.
+
+    This is the safety gate for the checkpoint's central artifact: the 12-row
+    PNT-instance mapping (AAP 0.6.1) and its rendered ``New Service Location``
+    column.  Without it the harness would let the driver emit a PDF even if the
+    entire mapping were deleted or silently corrupted (the gap this closes).
+    It asserts:
+
+    * exactly 12 mapping rows, each carrying all five required, non-empty
+      fields (``pnt_pillar``, ``behavior``, ``current_locations``,
+      ``current_accessor``, ``new_service_location``);
+    * exactly 12 :data:`NEW_SERVICE_LOCATION_MAP` entries, each a non-empty
+      value keyed by a non-empty provenance string;
+    * ROWS <-> MAP parity: every row's ``current_locations`` is a map key whose
+      value equals that row's ``new_service_location``, and every map key
+      corresponds to exactly one row (bijective);
+    * rendered-column coverage: every main-table row whose data
+      ``new_service_location`` is a real mapping (not the em-dash placeholder)
+      renders a non-em-dash value through :func:`_service_location_for_row`, so
+      a populated data mapping can never silently render blank;
+    * default-off documentation (Rule R5): the Timing rows describe the
+      ``set_update_dt`` seam as additive / default-off, so the audit text can
+      never regress to omitting it.
+
+    *repo_root* is accepted for signature symmetry with the other verifiers; it
+    is unused (this check is purely structural over the in-module catalog).
+    """
+    del repo_root  # structural check; no source-tree access required
+    errors = []
+    emdash = "\u2014"
+    required = ("pnt_pillar", "behavior", "current_locations",
+                "current_accessor", "new_service_location")
+
+    rows = NEW_SERVICE_LOCATION_ROWS
+    if len(rows) != 12:
+        errors.append(
+            "[mapping] expected 12 mapping rows, found %d" % (len(rows),))
+    for i, row in enumerate(rows, start=1):
+        for field in required:
+            val = row.get(field)
+            if not (isinstance(val, str) and val.strip()):
+                errors.append(
+                    "[mapping] row %d: field %r missing or empty" % (i, field))
+
+    if len(NEW_SERVICE_LOCATION_MAP) != 12:
+        errors.append(
+            "[mapping] expected 12 NEW_SERVICE_LOCATION_MAP entries, found %d"
+            % (len(NEW_SERVICE_LOCATION_MAP),))
+    for key, val in NEW_SERVICE_LOCATION_MAP.items():
+        if not (isinstance(key, str) and key.strip()):
+            errors.append("[mapping] NEW_SERVICE_LOCATION_MAP has an empty key")
+        if not (isinstance(val, str) and val.strip()):
+            errors.append(
+                "[mapping] map key %r has a missing or empty value" % (key,))
+
+    # ROWS <-> MAP bijective parity.
+    row_keys = set()
+    for i, row in enumerate(rows, start=1):
+        key = row.get("current_locations", "")
+        row_keys.add(key)
+        if key not in NEW_SERVICE_LOCATION_MAP:
+            errors.append(
+                "[mapping] row %d current_locations %r absent from "
+                "NEW_SERVICE_LOCATION_MAP" % (i, key))
+        elif NEW_SERVICE_LOCATION_MAP[key] != row.get("new_service_location"):
+            errors.append(
+                "[mapping] row %d: map value for %r does not match the row's "
+                "new_service_location" % (i, key))
+    for key in NEW_SERVICE_LOCATION_MAP:
+        if key not in row_keys:
+            errors.append(
+                "[mapping] map key %r has no corresponding mapping row"
+                % (key,))
+
+    # Rendered-column coverage: a populated data mapping must never render as
+    # the em-dash placeholder in the main-table New Service Location column.
+    nsl_tables = [t for t in MAIN_TABLES if t.get("has_new_service_location")]
+    if not nsl_tables:
+        errors.append(
+            "[mapping] no main table carries the New Service Location column")
+    for table in nsl_tables:
+        for row in table["rows"]:
+            data_val = row.get("new_service_location")
+            if (isinstance(data_val, str) and data_val.strip()
+                    and data_val.strip() != emdash):
+                rendered = _service_location_for_row(row)
+                if not (isinstance(rendered, str) and rendered.strip()
+                        and rendered.strip() != emdash):
+                    errors.append(
+                        "[mapping] Table %s #%s: data maps to %r but the "
+                        "rendered column value is %r (em-dash/blank)"
+                        % (table.get("id"), row.get("num"),
+                           data_val[:48], rendered))
+
+    # Rule R5: the additive/default-off timing seam must stay documented.
+    timing_text = " ".join(
+        row.get("new_service_location", "") for row in rows
+        if row.get("pnt_pillar") == "Timing")
+    if "default-off" not in timing_text:
+        errors.append(
+            "[mapping] Timing rows must document the set_update_dt seam as "
+            "additive/default-off (Rule R5); 'default-off' not found")
+
+    return errors
+
+
 def run_all_verifications(repo_root):
-    """Run all five ``verify_*`` functions and return the concatenated errors.
+    """Run all six ``verify_*`` functions and return the concatenated errors.
 
     *repo_root* is the absolute path to the ArduPilot repository root; it is
     forwarded to the verifiers so citation/readability checks resolve cited
@@ -545,6 +652,7 @@ def run_all_verifications(repo_root):
     errors.extend(verify_layer1(repo_root))
     errors.extend(verify_layer2(repo_root))
     errors.extend(verify_ref_coverage(repo_root))
+    errors.extend(verify_new_service_mapping(repo_root))
     return errors
 
 
@@ -757,19 +865,34 @@ def _parse_line_set(spec):
 def _service_location_for_row(row):
     """Resolve a main-row's ``New Service Location`` value, or ``\u2014`` if none.
 
-    Resolution is two-stage and deterministic:
+    Resolution is three-stage and deterministic:
 
+    0.  **Explicit per-row mapping** — the data layer records an authoritative
+        ``new_service_location`` on every row carrying this column (the em-dash
+        placeholder ``\u2014`` where a row has no service mapping).  When
+        present and non-empty it is returned verbatim, so a populated data
+        mapping (for example the L1 output row ``nav_roll_cd`` ->
+        ``get_roll_deg`` / ``get_lat_accel``) renders exactly as authored and
+        can never silently collapse to a blank via the provenance fallback.
     1.  **Verbatim key** — try a direct lookup of ``<basename>:L<lines>`` in
-        :data:`NEW_SERVICE_LOCATION_MAP` (supports future exact-key rows).
+        :data:`NEW_SERVICE_LOCATION_MAP` (for rows without an explicit field).
     2.  **Provenance overlap** — for rows in the wrapped controller
         (``AP_L1_Control.cpp`` / ``.h``) match against each map key whose file
         basename equals the row's and whose cited lines intersect the row's
         line range, joining the mapped service members.
 
     Rows with no mapping (the overwhelming majority of Table 2, which spans the
-    whole navigation hub) return the em-dash placeholder so the additive column
-    is present without asserting a mapping that does not exist.
+    whole navigation hub) resolve to the em-dash placeholder so the additive
+    column is present without asserting a mapping that does not exist.
     """
+    # Stage 0: an explicit, authoritative per-row mapping wins verbatim.  This
+    # is the value the data layer intends for the column (including the em-dash
+    # placeholder for rows with no service mapping); preferring it guarantees a
+    # populated data mapping is never dropped by the provenance heuristics.
+    explicit = row.get("new_service_location")
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit
+
     file_path = row.get("file_path", "")
     lines = row.get("lines", "")
     basename = os.path.basename(file_path)
@@ -921,6 +1044,18 @@ def _nsl_mapping_flowables(styles):
         "AP_L1_Control mapped onto the reusable AfsimL1Behavior service (the "
         "AHRS state shim, the injected-<b>dt</b> timing seam and the "
         "<b>extern \"C\"</b> command surface).", styles["body"]))
+    flowables.append(Paragraph(
+        "Line-number basis. The <b>Current Location(s)</b> line numbers below "
+        "are cited as of the audited HEAD %s (the pre-refactor baseline), "
+        "which preserves parity with the AAP 0.6.1 instance table; they are "
+        "not post-seam current-source line numbers. The extraction's single "
+        "additive, <b>default-off</b> set_update_dt timing seam was applied to "
+        "AP_L1_Control.cpp / .h after that commit and shifts only those two "
+        "files' line numbers (it relocates no behavior). Because the seam is "
+        "<b>default-off</b>, when set_update_dt is never called the controller "
+        "keeps its internal AP_HAL::micros() / millis() timing path unchanged, "
+        "so existing vehicle callers are unaffected." % AUDITED_HEAD,
+        styles["body"]))
     columns = ("PNT Pillar", "Behavior", "Current Location(s)",
                "Current Accessor", NEW_SERVICE_LOCATION_COLUMN)
     data = [_header_cells(columns, styles)]
@@ -1058,6 +1193,14 @@ def _front_matter_flowables(styles):
            MAIN_ROW_COUNT, EVIDENCE_ROW_COUNT)
     )
     flowables.append(Paragraph(_plain_markup(metrics), styles["meta"]))
+    flowables.append(Paragraph(_plain_markup(
+        "Line-number basis: every cited path:line range in this document is "
+        "stated as of the audited HEAD %s (the pre-refactor baseline). The "
+        "reusable-service extraction adds one additive, default-off "
+        "set_update_dt timing seam to AP_L1_Control.cpp / .h after that "
+        "commit; that seam relocates no behavior and only shifts those two "
+        "files' line numbers, so the numbers here are intentionally not "
+        "post-seam current-source lines." % AUDITED_HEAD), styles["meta"]))
     flowables.append(Spacer(1, 8))
     flowables.append(Paragraph(_plain_markup(SCOPE_TEXT), styles["body"]))
     flowables.append(Spacer(1, 6))
