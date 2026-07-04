@@ -77,6 +77,17 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
+# --- Optional demonstration driver (default OFF) -----------------------------
+#  The standalone deliverable of this build is the shared library
+#  `libafsim_l1.so` ONLY (AAP §0.2.1, §0.3.1). The runnable "initialize a simple
+#  leg" demo in `main.cpp` is a SEPARATE C-ABI consumer used for local
+#  verification of the ABI boundary — it is NOT part of the delivered artefact.
+#  It is therefore gated behind this opt-in switch and is NOT built by default,
+#  so a plain `cmake .. && make` produces exactly `libafsim_l1.so` and nothing
+#  else. Build the demo explicitly with:
+#      cmake -DAFSIM_L1_BUILD_DEMO=ON ..
+option(AFSIM_L1_BUILD_DEMO "Build the afsim_demo C-ABI consumer (demonstration driver)" OFF)
+
 # =============================================================================
 #  Path computation
 # =============================================================================
@@ -408,9 +419,12 @@ target_link_libraries(afsim_l1 PRIVATE m)
 #  excluded from ${SOURCES} above); it is a SEPARATE consumer that binds the
 #  service EXCLUSIVELY through the stable `extern "C"` boundary (l1_c_api.h) and
 #  links against libafsim_l1.so — exactly how an external, differently-compiled
-#  host such as AFSIM consumes the library (AAP §0.6.4). Building it here as a
-#  first-class target proves that ABI decoupling end-to-end: `cmake .. && make`
-#  produces BOTH libafsim_l1.so and a runnable ./afsim_demo.
+#  host such as AFSIM consumes the library (AAP §0.6.4). It is an OPT-IN target,
+#  gated behind the AFSIM_L1_BUILD_DEMO option declared above (default OFF): the
+#  default build therefore produces ONLY libafsim_l1.so, and the demo is built
+#  solely when the caller passes `-DAFSIM_L1_BUILD_DEMO=ON`. When enabled,
+#  building it proves the ABI decoupling end-to-end — `cmake -DAFSIM_L1_BUILD_DEMO=ON ..
+#  && make` produces BOTH libafsim_l1.so and a runnable ./afsim_demo.
 #
 #  Critically, AFSIM_L1_WAF_BUILD is NOT defined for this standalone build, so
 #  the in-tree waf link glue in main.cpp (the process-global `hal` that libap
@@ -419,6 +433,8 @@ target_link_libraries(afsim_l1 PRIVATE m)
 #  exported L1_* symbols in the .so. CMake automatically bakes the build-tree
 #  location of libafsim_l1.so into the executable's RPATH, so ./afsim_demo runs
 #  in place from the build directory without setting LD_LIBRARY_PATH.
+if(AFSIM_L1_BUILD_DEMO)
+
 add_executable(afsim_demo "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 
 #  main.cpp includes "l1_c_api.h" (a quote include resolved from its own
@@ -431,6 +447,8 @@ target_include_directories(afsim_demo PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 #  C-ABI consumer, so it does NOT need -lm or any ArduPilot internal.
 target_link_libraries(afsim_demo PRIVATE afsim_l1)
 
+endif()  # AFSIM_L1_BUILD_DEMO
+
 # =============================================================================
 #  Post-build validation guidance (informational)
 # =============================================================================
@@ -439,10 +457,11 @@ target_link_libraries(afsim_demo PRIVATE afsim_l1)
 #    L1_Create  L1_Destroy  L1_Init  L1_Execute
 #    L1_SetLegNE  L1_SetStateNE  L1_GetRollDeg  L1_GetLatAccel
 #
-#  The demonstration driver is built automatically by the `afsim_demo` target
-#  above: `cmake .. && make` produces BOTH libafsim_l1.so and the afsim_demo
-#  executable. Run it in place from the build directory (its RPATH already
-#  points at the co-located .so):
+#  The demonstration driver is an OPT-IN target: the default build produces only
+#  libafsim_l1.so. Enable the `afsim_demo` target explicitly to also build the
+#  executable — `cmake -DAFSIM_L1_BUILD_DEMO=ON .. && make` produces BOTH
+#  libafsim_l1.so and afsim_demo. Run it in place from the build directory (its
+#  RPATH already points at the co-located .so):
 #    ./afsim_demo
 #
 #  To build the demo BY HAND instead — e.g. to mimic an out-of-tree host that

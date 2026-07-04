@@ -6,9 +6,9 @@ This module is the *rendering and verification* layer of the recreated PNT
 Reference Audit generator (the data layer lives in the sibling module
 ``pnt_data.py``).  It provides two clearly separated responsibilities:
 
-1.  **Verification harness** — five ``verify_*`` functions plus a
+1.  **Verification harness** — nine ``verify_*`` functions plus a
     :func:`run_all_verifications` aggregator.  Together they assert the full
-    838-check integrity contract described in the project handbook
+    979-check integrity contract described in the project handbook
     (``blitzy/documentation/Project Guide.md`` §3):
 
         * ``verify_group1``      — 189 checks (role vocabulary, snippet format,
@@ -23,6 +23,24 @@ Reference Audit generator (the data layer lives in the sibling module
                                     94 Layer-2 transitive chains)
         * ``verify_ref_coverage`` — 206 checks (bidirectional ``#`` <-> ``Ref #``
                                     coverage and monotonic ``1..N`` numbering)
+        * ``verify_global_counts`` — 47 checks (frozen Core=63 / Indirect=31 /
+                                    Main=94 / Evidence=282 constants, the
+                                    63+31=94 and 94x3=282 reconciliations, and
+                                    the 3/3/6/6 table-structure invariants)
+        * ``verify_new_service_location_map`` — 41 checks (the 12-row
+                                    ``NEW_SERVICE_LOCATION_MAP`` matches the frozen
+                                    AAP §0.6.1 pillar/behavior/accessor/new-service
+                                    text verbatim, in order, incl. the Position
+                                    row's ``(update_waypoint)``/``(update_loiter)``
+                                    annotations)
+        * ``verify_line_reference_provenance`` — 32 checks (every cited
+                                    ``AP_L1_Control`` source line in the mapping
+                                    still resolves to its accessor token in the
+                                    live source — fails closed on line drift)
+        * ``verify_no_extraction_artifacts`` — 21 checks (PDF-extraction
+                                    artifacts — filename bleed, ``( )`` splits,
+                                    ``:: `` scope splits, and known split-identifier
+                                    fragments — never reappear in display fields)
 
     Each function returns a ``list[str]`` of human-readable error messages; an
     empty list means every check for that function passed.  The functions do
@@ -62,6 +80,7 @@ executed by ArduPilot firmware.
 """
 
 import os
+import re
 import sys
 import glob
 
@@ -88,6 +107,15 @@ from pnt_data import (  # noqa: E402  (import after sys.path shim, by design)
     # Additive extension: the L1 current -> new service-location mapping
     NEW_SERVICE_LOCATION_COLUMN,
     NEW_SERVICE_LOCATION_MAP,
+    NEW_SERVICE_LOCATION_BY_PROVENANCE,
+    L1_PROVENANCE_CHECKS,
+    # Global reconciliation counts (CP2 invariants) + live count helpers
+    CORE_ROW_COUNT,
+    INDIRECT_ROW_COUNT,
+    MAIN_ROW_COUNT,
+    EVIDENCE_ROW_COUNT,
+    main_row_count,
+    evidence_row_count,
     # Controlled vocabularies (verification)
     ROLE_VOCABULARY,
     DEPENDENCY_TYPE_VOCABULARY,
@@ -391,7 +419,7 @@ def _mono_para(value, style):
 
 
 # ===========================================================================
-# Verification harness (838 assertions across five functions)
+# Verification harness (979 assertions across nine functions)
 # ===========================================================================
 #
 # Design contract:
@@ -402,14 +430,23 @@ def _mono_para(value, style):
 #     (missing key, wrong type where a type is assumed) surfaces as an ordinary
 #     exception, which is the correct signal for a broken data module.
 #   * The exact per-function check counts (verified against the committed tree)
-#     are recorded in EXPECTED_CHECK_COUNTS below and total 838.
+#     are recorded in EXPECTED_CHECK_COUNTS below and total 979.
+#
+# The first five verifiers guard the audit corpus (row provenance, vocabularies,
+# chain depths, cross-references).  The final four -- added to close the F4
+# harness-bypass gap -- guard the checkpoint-CP2 invariants that were previously
+# unasserted: the 63+31=94 / 282 global reconciliation and table structure
+# (verify_global_counts), the 12-row L1 mapping's AAP 0.6.1 parity
+# (verify_new_service_location_map), the current-source line-reference provenance
+# against the live controller (verify_line_reference_provenance), and the absence
+# of PDF-extraction artifacts in rendered text (verify_no_extraction_artifacts).
 #
 # The optional ``_checker`` parameter lets callers (e.g. the aggregator or a
 # test harness) inject a shared :class:`_Checker` to observe the running check
 # count; when omitted, each function uses its own private counter.  The public
 # signature remains ``verify_xxx(repo_root)``.
 
-#: Authoritative per-function check counts (sum == 838).  Used for
+#: Authoritative per-function check counts (sum == 979).  Used for
 #: documentation and by the test harness to assert the contract is met.
 EXPECTED_CHECK_COUNTS = {
     'verify_group1': 189,
@@ -417,8 +454,13 @@ EXPECTED_CHECK_COUNTS = {
     'verify_layer1': 193,
     'verify_layer2': 188,
     'verify_ref_coverage': 206,
+    # CP2 invariant verifiers (added to close the F4 harness-bypass gap).
+    'verify_global_counts': 47,
+    'verify_new_service_location_map': 41,
+    'verify_line_reference_provenance': 32,
+    'verify_no_extraction_artifacts': 21,
 }
-EXPECTED_TOTAL_CHECKS = 838
+EXPECTED_TOTAL_CHECKS = 979
 
 
 class _Checker(object):
@@ -642,15 +684,349 @@ def verify_ref_coverage(repo_root, _checker=None):
     return chk.errors
 
 
+# ===========================================================================
+# CP2 invariant references (frozen contracts) + helpers
+# ===========================================================================
+# The following four verifiers assert the checkpoint-CP2 invariants that were
+# previously unguarded: the 63+31=94 / 282 global reconciliation, the rendered
+# table structure, the 12-row L1 mapping content (AAP 0.6.1 parity + row-1
+# annotations), the line-reference provenance against the live controller, and
+# the absence of PDF-extraction artifacts.  Each is wired into
+# ``run_all_verifications`` and ``count_all_checks`` so that any violation makes
+# ``generate.py`` refuse to (over)write the PDF.
+
+#: The 12 canonical L1-navigation mapping rows, frozen verbatim from AAP 0.6.1.
+#: Each entry pins the four AAP text fields that must match byte-for-byte
+#: (``pnt_pillar`` / ``behavior`` / ``current_accessor`` / ``new_service_location``)
+#: plus the source file that ``current_locations`` must reference.  Line numbers
+#: are intentionally NOT frozen here: they are kept current-source-accurate and
+#: in lock-step with the live controller by :data:`L1_PROVENANCE_CHECKS`
+#: (verified by :func:`verify_line_reference_provenance`), because the audit
+#: column documents where each behaviour *currently* lives.
+_AAP_061_MAP = (
+    ('Position', 'Read vehicle position',
+     '_ahrs.get_location(_current_loc)',
+     'AHRS shim get_location(), fed by set_state_ne(n, e, \u2026)', 'AP_L1_Control.cpp'),
+    ('Navigation (velocity)', 'Read ground velocity vector',
+     '_ahrs.groundspeed_vector()',
+     'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)', 'AP_L1_Control.cpp'),
+    ('Navigation (attitude)', 'Read yaw (radians)',
+     '_ahrs.get_yaw_rad()',
+     'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)', 'AP_L1_Control.cpp'),
+    ('Navigation (attitude)', 'Read yaw (centideg sensor)',
+     '_ahrs.yaw_sensor',
+     'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)', 'AP_L1_Control.cpp'),
+    ('Navigation (attitude)', 'Read pitch (radians)',
+     '_ahrs.get_pitch_rad()',
+     'AHRS shim get_pitch_rad(), fed by set_pitch_rad(pitch_rad)', 'AP_L1_Control.cpp'),
+    ('Navigation (airspeed)', 'Airspeed scaling factor',
+     '_ahrs.get_EAS2TAS()',
+     'AHRS shim get_EAS2TAS() (injected or unit default)', 'AP_L1_Control.cpp'),
+    ('Timing', 'Control-step clock',
+     'AP_HAL::micros()',
+     'set_update_dt(dt) injected timebase', 'AP_L1_Control.cpp'),
+    ('Timing', 'Step delta + state store',
+     '_last_update_waypoint_us',
+     'Injected-dt path (clamp preserved)', 'AP_L1_Control.cpp'),
+    ('Timing', 'Loiter/heading clock',
+     'AP_HAL::millis()',
+     'Injected time for the loiter path', 'AP_L1_Control.cpp'),
+    ('Navigation (math)', 'Bearing / NE distance',
+     'Location::get_bearing_to / get_distance_NE',
+     'Preserved unchanged inside AP_L1_Control', 'AP_L1_Control.cpp'),
+    ('Navigation (output)', 'Roll command',
+     'nav_roll_cd()',
+     'get_roll_deg() = nav_roll_cd()/100 \u2192 L1_GetRollDeg', 'AP_L1_Control.h'),
+    ('Navigation (output)', 'Lateral acceleration',
+     'lateral_acceleration()',
+     'get_lat_accel() \u2192 L1_GetLatAccel', 'AP_L1_Control.h'),
+)
+
+#: Row-1 (Position) ``current_locations`` must retain these AAP 0.6.1 function
+#: annotations attached to the two ``get_location`` call sites.
+_AAP_061_ROW1_ANNOTATIONS = ('(update_waypoint)', '(update_loiter)')
+
+#: High-signal PDF-extraction artifact fragments that must never appear in any
+#: rendered descriptive field.  Presence of any of these indicates a regression
+#: of the F3 cleanup (pdftotext column-wrap corruption bleeding back in).
+_ARTIFACT_FRAGMENTS = (
+    'SelectVelPosFusi on', 'U pdateFilter', 'get_location(lo c)',
+    'calcGpsGoodToAli gn', 'get_relative_position_N ED', 'handle_pose_est imate',
+    'nav_ controller', 'attitude _control', 'send_nav_ controller_output',
+    'Ardu Plane', 'Pla ne.cpp', 'A P_AHRS', 'v el_ned', 'update_G PS',
+    'require s_GPS', 'ekf_ch eck', 'dtfiltering', 'now_us - \u2192',
+)
+
+
+def _loc_refs_from_map():
+    """Return the set of ``(filename, line_int)`` cited across the map's
+    ``current_locations`` column.
+
+    The ``AP_L1_Control`` filename token is stripped before extracting ``L<n>``
+    references so the ``L1`` inside the product name is never mistaken for a
+    line number.
+    """
+    out = set()
+    for entry in NEW_SERVICE_LOCATION_MAP:
+        cl = entry.get('current_locations', '') or ''
+        fn = 'AP_L1_Control.cpp' if 'AP_L1_Control.cpp' in cl else (
+            'AP_L1_Control.h' if 'AP_L1_Control.h' in cl else None)
+        stripped = cl.replace('AP_L1_Control.cpp', '').replace('AP_L1_Control.h', '')
+        for num in re.findall(r'L(\d+)', stripped):
+            if fn is not None:
+                out.add((fn, int(num)))
+    return out
+
+
+def _loc_refs_from_provenance_keys():
+    """Return the set of ``(filename, line_int)`` from the provenance dict keys
+    (e.g. ``'AP_L1_Control.cpp:L248'`` -> ``('AP_L1_Control.cpp', 248)``)."""
+    out = set()
+    for key in NEW_SERVICE_LOCATION_BY_PROVENANCE:
+        fn, _, lpart = key.rpartition(':')
+        if fn and lpart.startswith('L') and lpart[1:].isdigit():
+            out.add((fn, int(lpart[1:])))
+    return out
+
+
+def _loc_refs_from_provenance_checks():
+    """Return the set of ``(filename, line_int)`` from :data:`L1_PROVENANCE_CHECKS`
+    (relpath basename is used so it aligns with the map/provenance filenames)."""
+    out = set()
+    for relpath, line, _token in L1_PROVENANCE_CHECKS:
+        out.add((os.path.basename(relpath), int(line)))
+    return out
+
+
+def _iter_display_text():
+    """Yield ``(label, value)`` for every rendered *descriptive* string field.
+
+    Descriptive fields are all rendered strings EXCEPT the verbatim
+    ``code_snippet`` / ``file_path`` fields (which are provenance-checked against
+    live source and legitimately contain ``::`` and parenthesised code).  This
+    is the surface scanned by :func:`verify_no_extraction_artifacts`.
+    """
+    skip = ('code_snippet', 'file_path')
+    for table in list(GROUP1_TABLES) + list(GROUP2_TABLES) + \
+            list(LAYER1_TABLES) + list(LAYER2_TABLES):
+        for row in table['rows']:
+            for key, value in row.items():
+                if key not in skip and isinstance(value, str):
+                    yield ('%s#%s.%s' % (table.get('number'), row.get('num', row.get('ref')), key), value)
+    for item in COVERAGE_REGISTER.get('items', []):
+        for key, value in item.items():
+            if isinstance(value, str):
+                yield ('coverage.%s' % key, value)
+    for i, entry in enumerate(NEW_SERVICE_LOCATION_MAP):
+        for key, value in entry.items():
+            if isinstance(value, str):
+                yield ('nsl_map[%d].%s' % (i, key), value)
+
+
+def verify_global_counts(repo_root, _checker=None):
+    """Verify the document-wide count reconciliation and table structure.
+
+    Asserts the checkpoint invariants that 63 Core + 31 Indirect = 94 main rows,
+    that the corpus totals 282 evidence rows (94 x 3 layers), that the rendered
+    structure is 6 main + 6 Layer-1 + 6 Layer-2 tables, and that each dependency
+    table mirrors its parent main table's row count.  Both the frozen constants
+    and the live table contents are checked so a drift in either is caught.
+
+    Returns:
+        list[str]: failure messages (empty when every count reconciles).
+    """
+    chk = _checker if _checker is not None else _Checker()
+    # (1) Frozen reconciliation constants
+    chk.check(CORE_ROW_COUNT == 63, 'global: CORE_ROW_COUNT %r != 63' % CORE_ROW_COUNT)
+    chk.check(INDIRECT_ROW_COUNT == 31, 'global: INDIRECT_ROW_COUNT %r != 31' % INDIRECT_ROW_COUNT)
+    chk.check(MAIN_ROW_COUNT == 94, 'global: MAIN_ROW_COUNT %r != 94' % MAIN_ROW_COUNT)
+    chk.check(EVIDENCE_ROW_COUNT == 282, 'global: EVIDENCE_ROW_COUNT %r != 282' % EVIDENCE_ROW_COUNT)
+    chk.check(CORE_ROW_COUNT + INDIRECT_ROW_COUNT == MAIN_ROW_COUNT,
+              'global: 63+31 reconciliation != MAIN_ROW_COUNT (%r+%r != %r)'
+              % (CORE_ROW_COUNT, INDIRECT_ROW_COUNT, MAIN_ROW_COUNT))
+    chk.check(MAIN_ROW_COUNT * 3 == EVIDENCE_ROW_COUNT,
+              'global: 94x3 != EVIDENCE_ROW_COUNT (%r != %r)'
+              % (MAIN_ROW_COUNT * 3, EVIDENCE_ROW_COUNT))
+    # (2) Live row totals reconcile to the frozen constants
+    g1 = sum(len(t['rows']) for t in GROUP1_TABLES)
+    g2 = sum(len(t['rows']) for t in GROUP2_TABLES)
+    l1 = sum(len(t['rows']) for t in LAYER1_TABLES)
+    l2 = sum(len(t['rows']) for t in LAYER2_TABLES)
+    chk.check(g1 == CORE_ROW_COUNT, 'global: live Group-1 rows %d != %d' % (g1, CORE_ROW_COUNT))
+    chk.check(g2 == INDIRECT_ROW_COUNT, 'global: live Group-2 rows %d != %d' % (g2, INDIRECT_ROW_COUNT))
+    chk.check(main_row_count() == MAIN_ROW_COUNT,
+              'global: main_row_count() %d != %d' % (main_row_count(), MAIN_ROW_COUNT))
+    chk.check(evidence_row_count() == EVIDENCE_ROW_COUNT,
+              'global: evidence_row_count() %d != %d' % (evidence_row_count(), EVIDENCE_ROW_COUNT))
+    chk.check(l1 == MAIN_ROW_COUNT, 'global: live Layer-1 rows %d != %d' % (l1, MAIN_ROW_COUNT))
+    chk.check(l2 == MAIN_ROW_COUNT, 'global: live Layer-2 rows %d != %d' % (l2, MAIN_ROW_COUNT))
+    # (3) Rendered table structure: 6 main + 6 Layer-1 + 6 Layer-2 = 18
+    chk.check(len(GROUP1_TABLES) == 3, 'global: GROUP1_TABLES %d != 3' % len(GROUP1_TABLES))
+    chk.check(len(GROUP2_TABLES) == 3, 'global: GROUP2_TABLES %d != 3' % len(GROUP2_TABLES))
+    chk.check(len(ALL_MAIN_TABLES) == 6, 'global: ALL_MAIN_TABLES %d != 6' % len(ALL_MAIN_TABLES))
+    chk.check(len(LAYER1_TABLES) == 6, 'global: LAYER1_TABLES %d != 6' % len(LAYER1_TABLES))
+    chk.check(len(LAYER2_TABLES) == 6, 'global: LAYER2_TABLES %d != 6' % len(LAYER2_TABLES))
+    # (4) Each main table populated + non-empty title; each dependency table
+    #     mirrors its parent main table's row count and uses the 'Na' number.
+    for idx, main in enumerate(ALL_MAIN_TABLES):
+        chk.check(len(main['rows']) > 0 and bool((main.get('title') or '').strip()),
+                  'global: main table %s empty rows/title' % main.get('number'))
+        l1t = LAYER1_TABLES[idx]
+        l2t = LAYER2_TABLES[idx]
+        chk.check(len(l1t['rows']) == len(main['rows']),
+                  'global: Layer-1 %s rows %d != parent %s rows %d'
+                  % (l1t.get('number'), len(l1t['rows']), main.get('number'), len(main['rows'])))
+        chk.check(len(l2t['rows']) == len(main['rows']),
+                  'global: Layer-2 %s rows %d != parent %s rows %d'
+                  % (l2t.get('number'), len(l2t['rows']), main.get('number'), len(main['rows'])))
+        chk.check(str(l1t.get('number')) == str(main.get('number')) + 'a',
+                  'global: Layer-1 number %r != %ra' % (l1t.get('number'), main.get('number')))
+        chk.check(str(l2t.get('number')) == str(main.get('number')) + 'a',
+                  'global: Layer-2 number %r != %ra' % (l2t.get('number'), main.get('number')))
+    return chk.errors
+
+
+def verify_new_service_location_map(repo_root, _checker=None):
+    """Verify the 12-row L1 mapping matches AAP 0.6.1 (F2 parity).
+
+    Checks that :data:`NEW_SERVICE_LOCATION_MAP` has exactly the 12 AAP 0.6.1
+    entries in order, that each row's ``pnt_pillar`` / ``behavior`` /
+    ``current_accessor`` / ``new_service_location`` are byte-identical to the
+    frozen AAP text, that each ``current_locations`` cites the correct source
+    file, and that row 1 retains the ``(update_waypoint)`` / ``(update_loiter)``
+    function annotations.  Line numbers themselves are validated separately by
+    :func:`verify_line_reference_provenance`.
+
+    Returns:
+        list[str]: failure messages (empty when the mapping is faithful).
+    """
+    chk = _checker if _checker is not None else _Checker()
+    chk.check(len(NEW_SERVICE_LOCATION_MAP) == 12,
+              'nsl_map: expected 12 rows, found %d' % len(NEW_SERVICE_LOCATION_MAP))
+    chk.check(len(_AAP_061_MAP) == 12,
+              'nsl_map: frozen AAP reference corrupt (%d != 12)' % len(_AAP_061_MAP))
+    # Ordered (pillar, behavior) identity vs the frozen AAP order.
+    data_keys = [(e.get('pnt_pillar'), e.get('behavior')) for e in NEW_SERVICE_LOCATION_MAP]
+    frozen_keys = [(p, b) for (p, b, _a, _n, _f) in _AAP_061_MAP]
+    chk.check(data_keys == frozen_keys,
+              'nsl_map: (pillar, behavior) sequence diverged from AAP 0.6.1')
+    lookup = {(e.get('pnt_pillar'), e.get('behavior')): e for e in NEW_SERVICE_LOCATION_MAP}
+    for (pillar, behavior, accessor, nsl, loc_file) in _AAP_061_MAP:
+        row = lookup.get((pillar, behavior))
+        chk.check(row is not None and row.get('current_accessor') == accessor,
+                  'nsl_map: current_accessor drift for %r/%r' % (pillar, behavior))
+        chk.check(row is not None and row.get('new_service_location') == nsl,
+                  'nsl_map: new_service_location drift for %r/%r' % (pillar, behavior))
+        cl = (row or {}).get('current_locations', '') or ''
+        chk.check(cl.startswith(loc_file + ':'),
+                  'nsl_map: current_locations for %r/%r must reference %s (got %r)'
+                  % (pillar, behavior, loc_file, cl))
+    # Row-1 (Position) function annotations preserved.
+    row1 = lookup.get(('Position', 'Read vehicle position'))
+    row1_cl = (row1 or {}).get('current_locations', '') or ''
+    for annot in _AAP_061_ROW1_ANNOTATIONS:
+        chk.check(annot in row1_cl,
+                  'nsl_map: row-1 current_locations missing %r annotation' % annot)
+    return chk.errors
+
+
+def verify_line_reference_provenance(repo_root, _checker=None):
+    """Verify every cited controller line still hosts its accessor (F1 drift).
+
+    Reads the live ArduPilot source and asserts that each
+    ``(relpath, line, token)`` in :data:`L1_PROVENANCE_CHECKS` resolves to a line
+    that actually contains ``token``.  Also enforces lock-step between the map's
+    ``current_locations``, the provenance-dict keys and the provenance-check
+    table, so a stale line number anywhere is caught.  This is the guard that
+    fails on the exact line-drift class of defect introduced by the additive
+    ``set_update_dt`` seam.
+
+    Returns:
+        list[str]: failure messages (empty when every citation is live-accurate).
+    """
+    chk = _checker if _checker is not None else _Checker()
+    chk.check(len(L1_PROVENANCE_CHECKS) > 0, 'provenance: L1_PROVENANCE_CHECKS is empty')
+    # Lock-step of the three line-reference surfaces.
+    map_locs = _loc_refs_from_map()
+    key_locs = _loc_refs_from_provenance_keys()
+    chk_locs = _loc_refs_from_provenance_checks()
+    chk.check(map_locs == chk_locs,
+              'provenance: map current_locations lines != L1_PROVENANCE_CHECKS lines '
+              '(only-map=%s only-checks=%s)' % (sorted(map_locs - chk_locs), sorted(chk_locs - map_locs)))
+    chk.check(map_locs == key_locs,
+              'provenance: map current_locations lines != NEW_SERVICE_LOCATION_BY_PROVENANCE keys '
+              '(only-map=%s only-keys=%s)' % (sorted(map_locs - key_locs), sorted(key_locs - map_locs)))
+    # Per-citation: the live source line must contain the accessor token.
+    cache = {}
+    for relpath, line, token in L1_PROVENANCE_CHECKS:
+        if relpath not in cache:
+            full = os.path.join(repo_root, relpath)
+            if os.path.isfile(full):
+                with open(full, 'r', errors='replace') as handle:
+                    cache[relpath] = handle.read().split('\n')
+            else:
+                cache[relpath] = None
+        lines = cache[relpath]
+        if lines is None:
+            chk.check(False, 'provenance: source file missing: %s' % relpath)
+        elif line < 1 or line > len(lines):
+            chk.check(False, 'provenance: %s:%d out of range (%d lines)' % (relpath, line, len(lines)))
+        else:
+            chk.check(token in lines[line - 1],
+                      'provenance DRIFT: %s:%d no longer contains %r (line: %r)'
+                      % (relpath, line, token, lines[line - 1].strip()[:80]))
+    return chk.errors
+
+
+def verify_no_extraction_artifacts(repo_root, _checker=None):
+    """Verify no PDF-extraction artifacts remain in rendered descriptive text (F3).
+
+    Scans every rendered descriptive field (all rendered strings except the
+    verbatim ``code_snippet`` / ``file_path`` provenance fields) and fails on:
+    (a) the output filename bleeding into a data field; (b) an empty-argument
+    ``'( )'`` paren; (c) a spaced ``'::'`` scope-resolution split; and (d) any of
+    the known high-signal split-identifier fragments.  This makes a regression of
+    the F3 cleanup fail the harness before the PDF is (re)written.
+
+    Returns:
+        list[str]: failure messages (empty when the corpus is artifact-free).
+    """
+    chk = _checker if _checker is not None else _Checker()
+    items = list(_iter_display_text())
+    # (a) filename bleed
+    fn_hit = next(((lbl, v) for (lbl, v) in items if OUTPUT_PDF_FILENAME in v), None)
+    chk.check(fn_hit is None,
+              'artifacts: output filename bled into descriptive field %s: %r'
+              % (fn_hit[0], fn_hit[1][:80]) if fn_hit else 'artifacts: filename bleed')
+    # (b) empty-argument parens
+    par_hit = next(((lbl, v) for (lbl, v) in items if '( )' in v), None)
+    chk.check(par_hit is None,
+              "artifacts: '( )' in descriptive field %s: %r"
+              % (par_hit[0], par_hit[1][:80]) if par_hit else "artifacts: '( )'")
+    # (c) spaced scope-resolution split
+    scope_re = re.compile(r'[A-Za-z0-9_]+:: [A-Za-z0-9_]+')
+    scope_hit = next(((lbl, v) for (lbl, v) in items if scope_re.search(v)), None)
+    chk.check(scope_hit is None,
+              "artifacts: ':: ' scope split in %s: %r"
+              % (scope_hit[0], scope_hit[1][:80]) if scope_hit else "artifacts: ':: ' split")
+    # (d) known split-identifier fragments
+    for frag in _ARTIFACT_FRAGMENTS:
+        hit = next(((lbl, v) for (lbl, v) in items if frag in v), None)
+        chk.check(hit is None,
+                  'artifacts: fragment %r in %s: %r'
+                  % (frag, hit[0], hit[1][:80]) if hit else 'artifacts: fragment %r' % frag)
+    return chk.errors
+
+
 def run_all_verifications(repo_root):
-    """Run all five ``verify_*`` functions and return the concatenated errors.
+    """Run all nine ``verify_*`` functions and return the concatenated errors.
 
     Args:
         repo_root: repository root used to resolve cited file paths.
 
     Returns:
         list[str]: every failure message from every verifier, in a stable order.
-        An empty list means all 838 checks passed.
+        An empty list means all 979 checks passed.
     """
     errors = []
     errors.extend(verify_group1(repo_root))
@@ -658,19 +1034,27 @@ def run_all_verifications(repo_root):
     errors.extend(verify_layer1(repo_root))
     errors.extend(verify_layer2(repo_root))
     errors.extend(verify_ref_coverage(repo_root))
+    # CP2 invariants (global reconciliation, mapping parity, line-reference
+    # provenance, artifact-free rendered text).
+    errors.extend(verify_global_counts(repo_root))
+    errors.extend(verify_new_service_location_map(repo_root))
+    errors.extend(verify_line_reference_provenance(repo_root))
+    errors.extend(verify_no_extraction_artifacts(repo_root))
     return errors
 
 
 def count_all_checks(repo_root):
     """Return the total number of integrity checks performed across all verifiers.
 
-    Provided so callers/tests can confirm the 838-assertion contract is met on
+    Provided so callers/tests can confirm the 979-assertion contract is met on
     the current tree.  Uses a shared :class:`_Checker` per function to observe
     the running count without altering the public return contract.
     """
     total = 0
     for func in (verify_group1, verify_group2, verify_layer1,
-                 verify_layer2, verify_ref_coverage):
+                 verify_layer2, verify_ref_coverage,
+                 verify_global_counts, verify_new_service_location_map,
+                 verify_line_reference_provenance, verify_no_extraction_artifacts):
         chk = _Checker()
         func(repo_root, _checker=chk)
         total += chk.count
@@ -892,12 +1276,23 @@ def _build_extraction_map_table(styles):
     five-column table mirroring AAP 0.6.1, so the PDF deliverable shows both
     where each behaviour currently lives (file/line + accessor) and the new
     injectable service member it is refactored into.
+
+    The two code-valued columns -- ``Current Location(s)`` and
+    ``Current Accessor`` -- are rendered in the monospace style so the PDF shows
+    them as code, mirroring the AAP 0.6.1 code-span (backtick) formatting.
     """
     headers = [head for (head, _key) in _NSL_MAP_COLUMNS]
     keys = [key for (_head, key) in _NSL_MAP_COLUMNS]
+    mono_keys = {'current_locations', 'current_accessor'}
     data = [_header_cells(headers, styles, center_first=False)]
     for entry in NEW_SERVICE_LOCATION_MAP:
-        data.append([_para(entry.get(key, ''), styles['cell']) for key in keys])
+        cells = []
+        for key in keys:
+            if key in mono_keys:
+                cells.append(_mono_para(entry.get(key, ''), styles['mono']))
+            else:
+                cells.append(_para(entry.get(key, ''), styles['cell']))
+        data.append(cells)
     tbl = LongTable(data, colWidths=_widths('nsl_map'), repeatRows=1)
     tbl.setStyle(_row_table_style(len(data), first_col_center=False))
     return tbl
