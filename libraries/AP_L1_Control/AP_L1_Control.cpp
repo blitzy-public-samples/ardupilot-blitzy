@@ -103,6 +103,19 @@ float AP_L1_Control::lateral_acceleration(void) const
     return _latAccDem;
 }
 
+/*
+  supply an externally-computed control-step dt (seconds). When set, update_waypoint()
+  uses this value instead of the internal AP_HAL::micros() delta. Additive, default-off
+  seam for the AfsimL1 reusable service (host drives timing). Once called the override
+  latches on and remains active for subsequent updates (the AfsimL1 host supplies dt on
+  every execute()); existing vehicle callers that never invoke this keep the micros() path.
+ */
+void AP_L1_Control::set_update_dt(float dt)
+{
+    _override_dt = dt;
+    _dt_override = true;
+}
+
 int32_t AP_L1_Control::nav_bearing_cd(void) const
 {
     return wrap_180_cd(rad_to_cd(_nav_bearing));
@@ -212,7 +225,13 @@ void AP_L1_Control::update_waypoint(const Location &prev_WP, const Location &nex
     float ltrackVel;
 
     uint32_t now = AP_HAL::micros();
-    float dt = (now - _last_update_waypoint_us) * 1.0e-6f;
+    float dt;
+    if (_dt_override) {
+        // host-supplied control step (AfsimL1 service drives timing)
+        dt = _override_dt;
+    } else {
+        dt = (now - _last_update_waypoint_us) * 1.0e-6f;
+    }
     if (dt > 1) {
         // controller hasn't been called for an extended period of
         // time.  Reinitialise it.
