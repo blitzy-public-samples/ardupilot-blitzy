@@ -5,7 +5,7 @@
 # (Agent Action Plan sections 0.2.1, 0.3.1, 0.4.1). It builds the demo driver
 # together with the service sources as an ArduPilot example program.
 #
-# Two additions to the bare `bld.ap_example(use='ap')` pattern are REQUIRED to
+# Three additions to the bare `bld.ap_example(use='ap')` pattern are REQUIRED to
 # realize the AAP 0.6.2 "Option B" compile-time include seam (see
 # ahrs_shim_seam/AP_AHRS/AP_AHRS.h) so the service actually compiles, links and
 # runs with host-injected state -- the bare pattern cannot, because it would
@@ -22,6 +22,13 @@
 #     object with no ODR hazard, and the controller source itself is NOT edited
 #     (AAP 0.7.1: behavior-preserving, no vehicle-firmware change). `use='ap'`
 #     still supplies AP_Math / AP_Common / AP_Param / AP_TECS / AP_HAL, etc.
+#   * defines=['AFSIM_L1_WAF_BUILD'] switches ON the in-tree link glue in
+#     main.cpp -- the process-global `hal` (AP_HAL::HAL) definition that libap
+#     requires of every in-tree ArduPilot program. main.cpp guards that glue
+#     behind this macro so that ONLY the waf build (which links libap and thus
+#     needs the symbol) compiles it; the standalone CMake/.so build leaves the
+#     macro undefined so main.cpp compiles and links purely against
+#     libafsim_l1.so through the C ABI, with no AP_HAL dependency (AAP 0.6.4).
 #
 # The seam is scoped to THIS example only; vehicle firmware continues to link
 # the unchanged AP_L1_Control compiled against the real AP_AHRS.
@@ -31,4 +38,5 @@ def build(bld):
         use='ap',
         source=bld.path.ant_glob('*.cpp') + ['../../AP_L1_Control.cpp'],
         includes=['ahrs_shim_seam'],
+        defines=['AFSIM_L1_WAF_BUILD'],
     )

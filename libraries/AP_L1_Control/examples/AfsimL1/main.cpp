@@ -86,10 +86,25 @@
 // libraries/AP_AHRS/examples/AHRS_Test/AHRS_Test.cpp). This is link-time glue
 // only: `hal` never crosses the service's C ABI, and the demo below still
 // drives the service purely through the extern "C" entry points, exactly as an
-// external host binding libafsim_l1.so would. (The standalone shared-library
-// build does not link `libap` and therefore does not need this definition.)
+// external host binding libafsim_l1.so would.
+//
+// This glue is COMPILED ONLY for the in-tree waf build, which defines the
+// AFSIM_L1_WAF_BUILD macro (see the sibling `wscript`) and links `libap`. The
+// standalone shared-library build -- the sibling `CMakeLists.txt` `afsim_demo`
+// target, or any differently-compiled external host such as AFSIM -- does NOT
+// link `libap`, does NOT define AFSIM_L1_WAF_BUILD, and therefore must NOT see
+// this include or symbol. Guarding it is precisely what lets `main.cpp` compile
+// and link against `libafsim_l1.so` through the pure C ABI alone (l1_c_api.h),
+// exactly as AFSIM would consume the library (Agent Action Plan 0.6.4). Were the
+// guard absent, the unconditional `#include <AP_HAL/AP_HAL.h>` would break the
+// standalone compile (that header is not on the standalone include path, and
+// dragging it in explodes the full HAL board-config stack), and the `hal`
+// definition would fail to link (AP_HAL::get_HAL() lives in `libap`, which the
+// standalone build deliberately does not link).
+#ifdef AFSIM_L1_WAF_BUILD
 #include <AP_HAL/AP_HAL.h>
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
+#endif  // AFSIM_L1_WAF_BUILD
 
 /// Program entry point.
 ///

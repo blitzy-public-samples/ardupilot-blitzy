@@ -401,6 +401,37 @@ set_target_properties(afsim_l1 PROPERTIES
 target_link_libraries(afsim_l1 PRIVATE m)
 
 # =============================================================================
+#  Demonstration driver — afsim_demo (the "external host" stand-in)
+# =============================================================================
+#  main.cpp is the runnable "initialize a simple leg" demo (AAP §0.2.1, §0.7.2).
+#  It is deliberately NOT part of the shared library (it defines main() and is
+#  excluded from ${SOURCES} above); it is a SEPARATE consumer that binds the
+#  service EXCLUSIVELY through the stable `extern "C"` boundary (l1_c_api.h) and
+#  links against libafsim_l1.so — exactly how an external, differently-compiled
+#  host such as AFSIM consumes the library (AAP §0.6.4). Building it here as a
+#  first-class target proves that ABI decoupling end-to-end: `cmake .. && make`
+#  produces BOTH libafsim_l1.so and a runnable ./afsim_demo.
+#
+#  Critically, AFSIM_L1_WAF_BUILD is NOT defined for this standalone build, so
+#  the in-tree waf link glue in main.cpp (the process-global `hal` that libap
+#  needs) is compiled out. The demo therefore needs neither <AP_HAL/AP_HAL.h>
+#  nor libap — only l1_c_api.h (a pure C header with no includes) and the eight
+#  exported L1_* symbols in the .so. CMake automatically bakes the build-tree
+#  location of libafsim_l1.so into the executable's RPATH, so ./afsim_demo runs
+#  in place from the build directory without setting LD_LIBRARY_PATH.
+add_executable(afsim_demo "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+
+#  main.cpp includes "l1_c_api.h" (a quote include resolved from its own
+#  directory) — add the source dir explicitly so the target is robust regardless
+#  of the caller's working directory.
+target_include_directories(afsim_demo PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+
+#  Link the demo against the service shared library. This resolves the eight
+#  L1_* C-ABI symbols from libafsim_l1.so and nothing else — the demo is a pure
+#  C-ABI consumer, so it does NOT need -lm or any ArduPilot internal.
+target_link_libraries(afsim_demo PRIVATE afsim_l1)
+
+# =============================================================================
 #  Post-build validation guidance (informational)
 # =============================================================================
 #    nm -D --defined-only $<TARGET_FILE:afsim_l1>
@@ -408,7 +439,17 @@ target_link_libraries(afsim_l1 PRIVATE m)
 #    L1_Create  L1_Destroy  L1_Init  L1_Execute
 #    L1_SetLegNE  L1_SetStateNE  L1_GetRollDeg  L1_GetLatAccel
 #
-#  The demonstration driver main.cpp (excluded above) can be built separately
-#  and linked against this library to exercise the full C-ABI end to end:
-#    g++ -std=gnu++11 -I.. main.cpp -L. -lafsim_l1 -Wl,-rpath,. -o afsim_demo
+#  The demonstration driver is built automatically by the `afsim_demo` target
+#  above: `cmake .. && make` produces BOTH libafsim_l1.so and the afsim_demo
+#  executable. Run it in place from the build directory (its RPATH already
+#  points at the co-located .so):
+#    ./afsim_demo
+#
+#  To build the demo BY HAND instead — e.g. to mimic an out-of-tree host that
+#  has only the C-ABI header and the shared object — run the following from the
+#  build directory that holds libafsim_l1.so. Note that AFSIM_L1_WAF_BUILD is
+#  intentionally NOT defined, so main.cpp's in-tree HAL glue is compiled out and
+#  the demo binds purely through the C ABI (no AP_HAL, no libap). `../main.cpp`
+#  is the path to the demo source from inside the build directory:
+#    g++ -std=gnu++11 -I.. ../main.cpp -L. -lafsim_l1 -Wl,-rpath,. -o afsim_demo
 # =============================================================================
