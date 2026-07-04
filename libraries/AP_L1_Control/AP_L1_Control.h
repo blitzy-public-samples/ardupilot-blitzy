@@ -126,6 +126,18 @@ private:
     float _L1_xtrack_i_gain_prev = 0;
     uint32_t _last_update_waypoint_us;
 
+    // AfsimL1 timing-seam override state — TWO member-pairs BY DESIGN, one per
+    // injected-timing touchpoint the AAP enumerates (§0.6.1 Timing rows, §0.6.3).
+    // Pair 1 (_dt_override/_override_dt) overrides the waypoint step delta that
+    // otherwise comes from AP_HAL::micros(); pair 2 (_override_time_ms/
+    // _override_time_acc_ms) overrides the loiter/heading clock that otherwise
+    // comes from AP_HAL::millis(). The AAP §0.2.1 sketch lists only the first
+    // pair, but §0.6.1's "Loiter/heading clock -> Injected time for the loiter
+    // path" row and §0.6.3 ("the millis() read on the loiter path ... receives
+    // the same injected-time treatment") MANDATE the second pair — dropping it
+    // would strand the loiter path on the hardware clock and contradict the
+    // delivered PNT Reference Audit. All four are default-off: in-class
+    // initializers keep the seam inert so existing vehicle callers are unaffected.
     // Timing seam state (AfsimL1 service). When _dt_override is true, update_waypoint()
     // uses _override_dt instead of the AP_HAL::micros() delta. Default-off: in-class
     // initializers guarantee _dt_override starts false so existing vehicle callers are

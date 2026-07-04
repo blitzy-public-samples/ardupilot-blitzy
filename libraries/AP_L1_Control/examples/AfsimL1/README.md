@@ -3,7 +3,7 @@
 This module packages ArduPilot's `AP_L1_Control` L1 lateral-navigation guidance as a
 **reusable, modular service** exposed behind a **stable `extern "C"` ABI** in a shared
 library, **`libafsim_l1.so`**. An external host — for example the
-[AFSIM](https://www.afsim.us/) simulation environment — can drive the guidance
+[AFSIM](https://dsiac.dtic.mil/models/afsim/) simulation environment — can drive the guidance
 controller through this library **without linking the ArduPilot firmware image**. Legs,
 platform state, and timing are pushed in by the host; the commanded roll and lateral
 acceleration are read back out.

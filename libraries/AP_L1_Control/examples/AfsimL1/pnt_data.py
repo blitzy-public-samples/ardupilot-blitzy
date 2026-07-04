@@ -11,7 +11,7 @@ Provenance
 ----------
 The prior audit generator lived only in a gitignored ``tmp/pnt_work/`` tree and
 was never committed, so the 94-row content is reconstructed here from the
-committed repository-root ``ArduPilot_PNT_Reference_Audit.pdf`` (50 pages, A4
+committed repository-root ``ArduPilot_PNT_Reference_Audit.pdf`` (40 pages, A4
 landscape, deterministic).  Every embedded code snippet is a verbatim 5-10 line
 excerpt read from the audited source tree; the audited commit is an ancestor of
 the current HEAD and every audited source file is byte-identical between them,

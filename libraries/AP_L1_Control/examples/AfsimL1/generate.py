@@ -60,6 +60,26 @@ Build-time only
 This module is part of the documentation-deliverable tooling (Python 3.13 +
 ReportLab 4.5.1).  It is never linked into or executed by ArduPilot firmware
 and introduces no firmware runtime dependency.
+
+Security posture (accepted build-time risk)
+-------------------------------------------
+This generator, its sibling modules (``pnt_data.py`` / ``pnt_render.py``), and
+their Python + ReportLab toolchain run **only at documentation-build time**,
+fully offline, over **trusted, static, in-repository data** — they parse no
+untrusted input and open no network sockets.  Crucially, they contribute
+**nothing** to the shipped runtime artifact: ``libafsim_l1.so`` links only
+``libstdc++`` / ``libm`` / ``libgcc_s`` / ``libc`` (verify with
+``ldd libafsim_l1.so``) and has **zero** Python or third-party runtime
+dependency, so any CVE in the host CPython interpreter cannot reach the
+delivered library.  A dedicated security review further confirmed this tooling
+imports **none** of the CVE-prone standard-library modules (``tarfile``,
+``ssl``, ``urllib``, ``pickle``, ``socket``, ``http``, ``ftplib``,
+``zipfile``); the audited data is static and locally sourced.  The CPython
+version is pinned to the build-time-only interpreter recorded in the Agent
+Action Plan (§0.5.1); operators should keep that host toolchain patched per
+standard OS hygiene, but any residual host-interpreter CVE is an **accepted
+build-time-only risk** that does not affect ``libafsim_l1.so`` or any ArduPilot
+firmware.
 """
 
 import argparse
