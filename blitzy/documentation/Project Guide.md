@@ -1,4 +1,8 @@
-# Blitzy Project Guide — ArduPilot PNT Reference Audit
+# Blitzy Project Guide — AfsimL1 Reusable L1-Guidance Service
+
+> **Project:** Extract ArduPilot's L1 lateral-navigation (PNT) guidance into a reusable, host-drivable service behind a stable C ABI
+> **Branch:** `blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668` · **HEAD:** `8ec9169bbd` · **Base:** `6148c3d422`
+> **Color legend:** <span style="color:#5B39F3">■</span> Completed / AI Work `#5B39F3` · <span style="color:#FFFFFF;background:#333">■</span> Remaining `#FFFFFF` · <span style="color:#B23AF2">■</span> Headings/Accents `#B23AF2` · <span style="color:#A8FDD9;background:#333">■</span> Highlight `#A8FDD9`
 
 ---
 
@@ -6,57 +10,65 @@
 
 ### 1.1 Project Overview
 
-This project delivers an **audit-grade PDF reference document** that exhaustively catalogs every location in the ArduPilot firmware codebase where **Positioning, Navigation, and Timing (PNT)** data is handled, together with a complete two-layer dependency map for each reference. The audience is expert software engineers preparing to extract PNT logic into a standalone, formally-verified service. The deliverable — `ArduPilot_PNT_Reference_Audit.pdf` — is a strictly read-only static-analysis artifact: it surveys `libraries/` and all four vehicle directories (ArduCopter, ArduPlane, Rover, ArduSub) without modifying any source. It catalogs 94 PNT touch-points across 282 evidence rows, each with verbatim line-accurate provenance, role classification, and full transitive dependency chains.
+This refactoring extracts ArduPilot's L1 lateral-navigation guidance (`AP_L1_Control`) — the Position, Navigation, and Timing (PNT) behaviors embedded in the vehicle flight loop — into a single reusable service, **AfsimL1**, that an external host such as the AFSIM simulator can drive through a stable, language-agnostic `extern "C"` ABI shared library (`libafsim_l1.so`). The host injects legs, platform state, and timing (`dt`) and reads back the commanded roll and lateral acceleration, without linking the ArduPilot firmware or matching its C++ toolchain. The transformation is behavior-preserving (Facade + Adapter + ABI-boundary + Dependency Injection): the guidance mathematics are untouched; only input/output boundaries are re-plumbed. No vehicle firmware is modified.
 
 ### 1.2 Completion Status
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieOuterStrokeColor':'#B23AF2','pieOuterStrokeWidth':'2px','pieTitleTextSize':'16px','pieSectionTextColor':'#B23AF2'}}}%%
-pie showData title Completion Status — 89.8% Complete
-    "Completed Work (AI)" : 88
-    "Remaining Work" : 10
+%%{init: {'theme':'base', 'themeVariables':{ 'pie1':'#5B39F3', 'pie2':'#FFFFFF', 'pieStrokeColor':'#B23AF2', 'pieStrokeWidth':'2px', 'pieOuterStrokeWidth':'2px', 'pieTitleTextSize':'16px', 'pieSectionTextSize':'13px', 'pieLegendTextSize':'13px'}}}%%
+pie showData
+    title AfsimL1 Refactor — 82.5% Complete (127h of 154h)
+    "Completed Work (AI)" : 127
+    "Remaining Work" : 27
 ```
 
-| Metric | Value |
-|--------|-------|
-| **Total Hours** | 98 h |
-| **Completed Hours (AI + Manual)** | 88 h (88 h AI · 0 h Manual) |
-| **Remaining Hours** | 10 h |
-| **Percent Complete** | **89.8%** |
+<div align="center"><strong>■ 82.5% Complete</strong> &nbsp;(<span style="color:#5B39F3">Completed = #5B39F3</span> · <span>Remaining = #FFFFFF</span>)</div>
 
-> Completion is computed using the PA1 AAP-scoped methodology: `88 / (88 + 10) = 89.8%`. All remaining hours are human verification/acceptance and path-to-production activities; there are no incomplete AAP content deliverables.
+| Metric | Value |
+|---|---|
+| **Total Hours** | **154 h** |
+| **Completed Hours (AI + Manual)** | **127 h** (127 AI + 0 Manual) |
+| **Remaining Hours** | **27 h** |
+| **Percent Complete** | **82.5%** — `127 / (127 + 27) = 127 / 154 = 0.8247` |
+
+> **Reading this number correctly:** *100% of the explicit Agent Action Plan scope (all 21 requirements) is delivered, validated, and committed with zero placeholders.* The 82.5% reflects the **total** work universe, which also includes standard path-to-production activities (external host integration, cross-toolchain validation, versioning, human review) that cannot be completed autonomously. See §8.
 
 ### 1.3 Key Accomplishments
 
-- ✅ **Single PDF deliverable produced** — `ArduPilot_PNT_Reference_Audit.pdf` (50 pages, A4 landscape, %PDF-1.4, 201,137 bytes), the exact and only `CREATE` mandated by the AAP.
-- ✅ **All 12 tables present in exact order** — `1, 1a, 2, 2a, 3, 3a, 4, 4a, 5, 5a, 6, 6a` under both required group headers ("GROUP 1 — CORE PNT REFERENCES" and "GROUP 2 — INDIRECT / RELATIONAL PNT REFERENCES").
-- ✅ **282 evidence rows** — 94 main-table references (63 Core + 31 Indirect) each paired with a Layer-1 (direct edges) and Layer-2 (transitive chain) dependency row, giving perfect 1:1:1 coverage.
-- ✅ **Exhaustive coverage** — `libraries/` (151 subsystems incl. AP_GPS's 44 files), the EKF families, and all 81 flight/drive-mode files across four vehicles, plus an explicit **Coverage & Explicit-Absence Register**.
-- ✅ **All audit-discipline flags applied** — `[CIRCULAR]` (8), `[SHARED-STRUCT]` (19), `[DUPLICATED]` (36), `[MULTI-CATEGORY]` (7), and 30 explicit `[ABSENT]` notations (non-inference discipline).
-- ✅ **User-supplied examples integrated** — the transitive chain `AP_GPS → AP_AHRS → navigate() → ModeAuto::navigate()` (Table 2a #1) and the accessors `gps.status()` / `ahrs.have_inertial_nav()` (Tables 4 & 5).
-- ✅ **Read-only discipline upheld** — the branch diff is a single added file; zero source `.cpp`/`.h` files modified.
-- ✅ **Autonomous verification harness passes 100%** — 838 discrete assertions, 0 failures, including 188 verbatim source-citation reads against the live ArduPilot tree.
-- ✅ **Deterministic reproducibility proven** — regeneration produces a byte-identical-content PDF.
+- ✅ **Goal 1 — PNT instances located.** Every L1-navigation PNT touch-point catalogued (16 AHRS read sites → 6 accessor kinds + 2 clock couplings) with a current-location → new-service-location mapping.
+- ✅ **Goal 2 — Extracted into one reusable service.** `AfsimL1Behavior` facade + `AfsimL1_AHRS_Shim` adapter + `l1_c_api` boundary, delivered as a standalone shared library (`libafsim_l1.so`) exporting **exactly 8** `L1_*` symbols over an opaque handle.
+- ✅ **Goal 3 — Documented twice.** The mapping lives both in the AAP (§0.6.1) and in the regenerated 40-page `ArduPilot_PNT_Reference_Audit.pdf` (new "New Service Location" column), reproducible via a committed Python/ReportLab generator.
+- ✅ **Behavior-preserving timing seam.** Additive, **default-off** `set_update_dt(float)` on `AP_L1_Control`; git-diff verified byte-identical fallbacks so existing vehicle callers are numerically unaffected.
+- ✅ **Scope guardrail honored.** All vehicle firmware (ArduPlane/ArduCopter/Rover/ArduSub/Blimp/AntennaTracker) and other PNT subsystems show **0 changes**.
+- ✅ **Clean, self-contained build.** Standalone `.so` links only system libraries (libstdc++/libm/libgcc_s/libc); zero third-party runtime dependency; zero in-scope compiler warnings.
+- ✅ **Rigorous autonomous validation.** 17/17 C-ABI functional checks + 991 documentation-integrity assertions + 3 build targets, all passing; runnable demo emits `roll_deg=48.5, lat_accel=11.088`.
 
 ### 1.4 Critical Unresolved Issues
 
+*No release-blocking defects were identified.* All items below are path-to-production enhancements, not defects.
+
 | Issue | Impact | Owner | ETA |
-|-------|--------|-------|-----|
-| _None — no release-blocking issues_ | The deliverable passes all validation gates with zero compilation errors, zero failing harness assertions, and zero unresolved defects. The only outstanding work is human acceptance review. | — | — |
+|---|---|---|---|
+| Real AFSIM host integration not yet exercised (only in-repo demo/mock) | Guidance loop unproven inside a live external host | Integration Engineer | 1 day (8 h) |
+| Cross-compiler/cross-libstdc++ ABI validation pending (only g++ 15.2 tested) | The core "toolchain-independent" value proposition is unverified on other toolchains | Build/Platform Engineer | 0.5 day (4 h) |
+| No SONAME / semantic version on `libafsim_l1.so` | Downstream consumers cannot manage ABI compatibility over time | Release Engineer | 0.5 day (3 h) |
 
 ### 1.5 Access Issues
 
-| System/Resource | Type of Access | Issue Description | Resolution Status | Owner |
-|-----------------|----------------|-------------------|-------------------|-------|
-| _No access issues identified_ | — | The task required only read access to the ArduPilot source tree, which was fully available. No external services, credentials, or third-party APIs are involved. | N/A | — |
+| System / Resource | Type of Access | Issue Description | Resolution Status | Owner |
+|---|---|---|---|---|
+| AFSIM simulation environment | Runtime / license | AFSIM is an external, license-gated simulator; not available in the autonomous environment, so real host integration (task H2) could not be executed | Open — requires customer-provided AFSIM access | Integration Engineer |
+| Alternate C++ toolchains (clang / mingw / alt libstdc++) | Build toolchain | Only g++ 15.2 / Linux x86-64 present in the container; cross-toolchain ABI validation (task M1) needs additional compilers | Open — provision CI images | Build/Platform Engineer |
+
+> All in-repo resources (source, build tools, Python/ReportLab, git) were fully accessible; every autonomous gate ran without permission problems.
 
 ### 1.6 Recommended Next Steps
 
-1. **[High]** Perform an expert spot-check of a representative sample of cited `path:line` references across all 12 tables, confirming snippets are verbatim and centered on the relevant lines.
-2. **[High]** Review the Role (Source/Transform/Sink), dependency-type, and behavior-change classifications for **semantic** soundness — the harness verifies existence and format but not engineering judgment.
-3. **[Medium]** Sign off on exhaustiveness by reviewing the Coverage & Explicit-Absence Register (30 absences + token-sweep methodology) and formally accept the audit.
-4. **[Medium]** Harden reproducibility: archive the gitignored regeneration scaffolding (`tmp/pnt_work/`) alongside the deliverable and record the audited HEAD commit `5b67e27b0a`.
-5. **[Low]** Distribute the PDF to audit stakeholders and the downstream PNT-service extraction team; determine whether a machine-readable edge list is also required.
+1. **[High]** Human code review of the 5,844-line diff (16 files) and merge — verify the additive default-off seam preserves behavior, confirm out-of-scope trees untouched.
+2. **[High]** Integrate `libafsim_l1.so` into a real AFSIM (or representative) host and run a closed-loop, multi-leg smoke test through the 8 C-ABI entry points.
+3. **[Medium]** Validate the ABI across at least one additional compiler / C++ runtime (clang or mingw) and confirm the 8 symbols resolve and numerics match.
+4. **[Medium]** Add SONAME + semantic version + install/export rules to the shared library, and document the thread-safety contract in the README.
+5. **[Medium]** Run a targeted numerical fidelity spot-check against stock in-vehicle `AP_L1_Control` over representative waypoint/loiter/heading legs in SITL.
 
 ---
 
@@ -64,273 +76,298 @@ pie showData title Completion Status — 89.8% Complete
 
 ### 2.1 Completed Work Detail
 
+All components trace to explicit AAP requirements and were delivered autonomously (AI). **Total = 127 h.**
+
 | Component | Hours | Description |
-|-----------|------:|-------------|
-| Document architecture & 12-table skeleton | 5 | Exact table numbering (1,1a…6,6a), group headers, section dividers, monotonic `#`↔`Ref #` cross-reference scheme, and the four exact column schemas (G1=7-col, G2=9-col, L1=6-col, L2=6-col). |
-| PDF rendering pipeline | 7 | ReportLab landscape layout (`pnt_render.py`, 498 lines): repeating table headers, monospace soft-wrap snippets, alternating row shading, visible dividers, plus the Unicode glyph fallback fix (DejaVuSans) for arrows/checks. |
-| Verification harness | 5 | Five `verify_*` functions enforcing provenance, vocabulary, numbering, Ref# coverage, and chain-depth integrity (838 assertions). |
-| Table 1 — Core Positioning | 13 | 26 main rows + 26 Layer-1 + 26 Layer-2 (AP_GPS 14 backends + Blended + base, Location, InertialNav, AC_PosControl, AR_PosControl, Beacon, VisualOdom). |
-| Table 2 — Core Navigation | 15 | 28 main rows + 28 Layer-1 + 28 Layer-2 (AHRS hub + backends, EKF/EKF2/EKF3 fusion modules, AC_WPNav, AP_Mission, AP_L1_Control, AP_TECS, AC_AttitudeControl). |
-| Table 3 — Core Timing | 5 | 9 main rows + 9 Layer-1 + 9 Layer-2 (AP_HAL clock primitives, AP_RTC + JitterCorrection, AP_Scheduler loop/tick/period, GPS time-of-week). |
-| Table 4 — Indirect Positioning | 6 | 10 main rows + dependencies (mode position-gating, geofence breach, GPS-denied fallback). |
-| Table 5 — Indirect Navigation | 6 | 10 main rows + dependencies (EKF-health watchdog, nav-output reporting/consumption, crash/flight detection). |
-| Table 6 — Indirect Timing | 6 | 11 main rows + dependencies (main-loop-lockup watchdogs, PNT-health hysteresis, rate gating). |
-| Audit-discipline flags & explicit absences | 5 | `[CIRCULAR]`/`[SHARED-STRUCT]`/`[DUPLICATED]`/`[MULTI-CATEGORY]` flagging plus 30 checked `[ABSENT]` notations across the surveyed surface. |
-| Coverage & Explicit-Absence Register | 5 | Directory-wide token sweeps (AC_Fence, AP_BattMonitor, AP_RCProtocol, AntennaTracker, Blimp) + .gitmodules boundary edges; all 81 mode files enumerated. |
-| User-example integration | 2 | Transitive chain in Table 2a #1 (with non-inference note that the literal `flight_mode_auto()` does not exist) and the `gps.status()` / `ahrs.have_inertial_nav()` Group-2 rows. |
-| QA / code-review remediation | 8 | Five validation rounds: 19 code-review findings, QA CP-A/B/D findings, Group-2 accessor rows, and the Unicode glyph rendering fix. |
-| **Total Completed** | **88** | |
+|---|---:|---|
+| Goal 1 — PNT L1-nav instance audit & current→new mapping | 8 | Static analysis of `AP_L1_Control` PNT touch-points; 16 read sites → 6 accessors + 2 clock couplings; authoritative mapping table (AAP §0.6.1) |
+| Facade layer — `AfsimL1Behavior.h/.cpp` (603 LOC) | 18 | Task-oriented service API (`set_leg_ne`/`set_state_ne`/`execute`/`get_roll_deg`/`get_lat_accel`); composes `AP_L1_Control`; seeds `PERIOD`/`DAMPING`/`XTRACK_I`/`LIM_BANK`; leg/state management |
+| Adapter layer — `AfsimL1_AHRS_Shim.h/.cpp` (396 LOC) | 12 | Satisfies the controller's 6 `AP_AHRS` read APIs from injected state; injection setters; datum-based `Location` construction |
+| C-ABI boundary — `l1_c_api.h/.cpp` (391 LOC) | 10 | 8 `extern "C"` exports over an opaque `L1_Context` handle; NULL-safety on every entry; `visibility("default")` |
+| Timing seam — `AP_L1_Control.h/.cpp` (73 LOC, behavior-critical) | 8 | Additive, default-off `set_update_dt`; dual override (waypoint `micros()` + loiter `millis()`); clamp semantics preserved |
+| Build system — `CMakeLists.txt` (490 LOC) + `wscript` | 12 | Standalone `.so` (Option-B include seam, `-fvisibility=hidden`, `--no-undefined`, opt-in demo target); in-tree waf `bld.ap_example` |
+| Demo driver — `main.cpp` (174 LOC) | 4 | "Initialize a simple leg" runnable C-ABI consumer |
+| Integration docs — `README.md` (216 LOC) | 5 | Architecture, C-ABI reference, DI model, units, build/verify/usage |
+| Goal 3 — PDF pipeline + regenerated 40-page PDF (2,967 LOC Python) | 28 | `generate.py` + `pnt_data.py` + `pnt_render.py`; ReportLab renderer; 991-assertion integrity harness; deterministic byte-stable output |
+| C-ABI functional test harness (17 checks) | 10 | NULL-safety ×8, CWE-457 pre-execute guard, turn-geometry sign, cross-instance determinism, host-driven `dt` |
+| Autonomous validation + QA-checkpoint resolution + debugging (12 commits) | 12 | CP1/CP2/CP5 review rounds, stale-citation fixes, build-recipe fixes, final acceptance |
+| **Total Completed** | **127** | |
 
 ### 2.2 Remaining Work Detail
 
+All explicit AAP deliverables are complete; remaining work is **path-to-production** (deploy / validate / review gates). **Total = 27 h.**
+
 | Category | Hours | Priority |
-|----------|------:|----------|
-| Expert provenance & classification spot-check (H1 + H2) | 5 | High |
-| Exhaustiveness sign-off & audit acceptance (H3) | 2 | Medium |
-| Reproducibility hardening — archive scaffolding, pin toolchain, record commit (H4) | 1 | Medium |
-| Distribution & downstream handoff (H5) | 2 | Low |
-| **Total Remaining** | **10** | |
+|---|---:|---|
+| Human code review & PR merge (16 files, 5,844-line diff) | 4 | High |
+| External host (AFSIM) integration & closed-loop smoke test | 8 | High |
+| Cross-compiler / cross-toolchain ABI validation of `libafsim_l1.so` | 4 | Medium |
+| Shared-library versioning, SONAME & packaging + thread-safety doc | 3 | Medium |
+| Targeted numerical fidelity spot-check vs in-vehicle L1 (SITL) | 4 | Medium |
+| Optional: Option-A real-`AP_AHRS` in-tree injection wiring | 2 | Low |
+| CI integration for the AfsimL1 example build | 2 | Low |
+| **Total Remaining** | **27** | |
 
-> **Cross-section check:** Section 2.1 (88 h) + Section 2.2 (10 h) = **98 h** = Total Project Hours in Section 1.2. ✓
+### 2.3 Hours Reconciliation
 
-### 2.3 Hours Calculation Summary
-
-```
-Completed Hours = 88 h   (all AAP content + quality deliverables, autonomously produced)
-Remaining Hours = 10 h   (human verification/acceptance + path-to-production)
-Total Hours     = 98 h
-Completion %    = 88 / (88 + 10) = 88 / 98 = 89.8%
-```
+| Check | Result |
+|---|---|
+| Section 2.1 completed total | 127 h |
+| Section 2.2 remaining total | 27 h |
+| **2.1 + 2.2 = Total (Section 1.2)** | **127 + 27 = 154 h ✓** |
+| Completion % (Section 1.2 / 7 / 8) | 127 / 154 = **82.5% ✓** |
+| Remaining hours match across §1.2 ↔ §2.2 ↔ §7 | **27 h ✓** |
 
 ---
 
 ## 3. Test Results
 
-All tests below originate from **Blitzy's autonomous validation logs** — the harness-gated `generate.py` run that must pass before the PDF is written. The harness performs **838 discrete assertions**, all passing (0 failures). Because this is a documentation deliverable, "tests" are the audit-integrity assertions (the documentation analog of unit tests): each validates a structural or provenance invariant of the catalog.
+All tests below originate from **Blitzy's autonomous validation logs** for this project (Final Validator Gates 2–4). No coverage-instrumentation tool was run (a dedicated gtest suite is optional per AAP §0.5.1, and the full-firmware regression suite is explicitly out of scope per AAP §0.2.2).
 
-| Test Category | Framework | Total Tests | Passed | Failed | Coverage % | Notes |
-|---------------|-----------|------------:|-------:|-------:|-----------:|-------|
-| Provenance / Citation Validation | Custom harness (`verify_group1/2`, `verify_layer1`) | 188 | 188 | 0 | 100% | Every cited `(path, start, end)` opened against the live ArduPilot tree and confirmed readable (verbatim provenance). |
-| Snippet Format (5–10 lines) | Custom harness (`snippet_linecount`) | 94 | 94 | 0 | 100% | Each main-table snippet is between 5 and 10 lines, per AAP 0.7.1. |
-| Role Classification Vocabulary | Custom harness (`verify_group1`) | 63 | 63 | 0 | 100% | Every Group-1 row's Role ∈ {Source, Transform, Sink}. |
-| Dependency-Type Vocabulary | Custom harness (`verify_layer1`) | 94 | 94 | 0 | 100% | Every Layer-1 row's type ∈ {Data dependency, Function call, Inheritance/Interface, Shared global/singleton}. |
-| Singleton (AP::) Consistency | Custom harness (`verify_layer1`) | 5 | 5 | 0 | 100% | Rows typed "Shared global/singleton" actually contain an `AP::` accessor in the cited snippet. |
-| Chain-Depth Integrity | Custom harness (`verify_layer2`) | 188 | 188 | 0 | 100% | Layer-2 Chain Depth is a positive int and equals the count of `→` hops listed in the chain. |
-| Cross-Reference Integrity | Custom harness (`verify_ref_coverage`, numbering) | 206 | 206 | 0 | 100% | Every `Ref #` resolves to a parent `#`; every parent `#` has L1 + L2 coverage; numbering is monotonic 1..N. |
-| **Total** | | **838** | **838** | **0** | **100%** | Harness exit code 0 — PDF render gated on full pass. |
+| Test Category | Framework | Total | Passed | Failed | Coverage % | Notes |
+|---|---|---:|---:|---:|---|---|
+| Unit / Functional (C ABI) | Custom C++ harness | 17 | 17 | 0 | N/A | NULL-safety on all 8 entries; CWE-457 pre-execute guard; turn-geometry sign (N→E `+48.5°`, N→W `−48.5°`, aligned `0°`); cross-instance bit-identical determinism; host-driven `dt` over 10× 50 Hz steps all finite |
+| Documentation Integrity | Python assertion harness (`generate.py`) | 991 | 991 | 0 | N/A | Cited source line-ranges validated against the live tree; "HARNESS PASSED"; PDF output byte-deterministic |
+| Build / Compilation | CMake + Make, waf | 3 | 3 | 0 | N/A | `libafsim_l1.so` (8 symbols, 0 warnings), `afsim_demo`, in-tree waf example — all exit 0 |
+| **Aggregate** | — | **1,011** | **1,011** | **0** | — | 100% pass rate across all autonomous checks |
 
-**Runtime / render validation (also from autonomous logs):** the produced PDF opens validly (`%PDF-1.4`, 50 pages, A4 landscape, not encrypted) and all previously-blank Unicode glyphs (`→`, `✓`, `↔`, `≥`, `≤`, `≈`, `←`) now render correctly after the DejaVuSans fallback fix.
+**Independent reproduction (this assessment):** the standalone build (`cmake .. && make`), symbol check (`nm -D` → 8), demo run (`roll_deg=48.5, lat_accel=11.088`), and PDF harness (`HARNESS PASSED`, byte-identical md5) were all re-executed from a clean state and confirmed.
 
 ---
 
 ## 4. Runtime Validation & UI Verification
 
-This is a read-only documentation deliverable with no application runtime and no graphical user interface. "Runtime" maps to **PDF render health** and "UI" maps to **document visual verification**.
+**UI Verification: Not applicable.** The deliverable is a headless C/C++ shared library plus a PDF documentation artifact — there is no graphical or textual end-user interface (AAP §0.3.4). Runtime validation therefore targets the library, demo, in-tree build, and PDF pipeline.
 
-**PDF Render Health**
-- ✅ **Operational** — Valid PDF container: `%PDF-1.4`, 50 pages, A4 landscape (841.89 × 595.276 pts), not encrypted, 201,137 bytes.
-- ✅ **Operational** — Text layer extracts cleanly (`pdftotext` → 3,286 lines); all 12 table headers detected in correct order.
-- ✅ **Operational** — Deterministic regeneration: re-render produces byte-identical content (verified by `pdftotext` diff = identical).
-- ✅ **Operational** — All Unicode glyphs render (arrows in every Layer-2 chain, checkmarks in the Coverage Register).
-
-**Document Visual Verification**
-- ✅ **Operational** — Both group headers and section dividers render and are visually distinct.
-- ✅ **Operational** — Tables use repeating headers across page breaks; monospace code snippets soft-wrap without clipping or cell overflow (validator confirmed on pages 1/11/29/32/38/44).
-- ✅ **Operational** — Legend, Footprint summary, and Coverage & Explicit-Absence Register render on dedicated pages.
-
-**Source-Citation Integration (the audit's external dependency)**
-- ✅ **Operational** — 188 of 188 citations resolve to readable locations in the ArduPilot source tree.
-- ✅ **Operational** — User-supplied transitive chain and PNT-state accessors verified present and correctly cited.
+- ✅ **Operational** — Standalone `afsim_demo`: runs exit 0, emits `roll_deg = 48.500000, lat_accel = 11.087974` (full numerical fidelity).
+- ✅ **Operational** — Exported symbol surface: `libafsim_l1.so` exports **exactly 8** `L1_*` symbols; `ldd` shows only system libraries (self-contained, zero third-party).
+- ✅ **Operational** — PDF deliverable: `generate.py` exits 0, prints `HARNESS PASSED` (991 assertions) + `PDF written`; 40-page A4 output is byte-identical across regenerations (deterministic).
+- ✅ **Operational** — In-tree waf example: builds and runs exit 0, integrating the service against the real ArduPilot source tree (proves compile/link/run integration).
+- ⚠ **Partial (by design, not a defect)** — In-tree waf demo returns `roll_deg=0.0, lat_accel=0.0`: this is documented **Option-A** behavior (the real `AP_AHRS` is non-injectable in-tree). Numerical fidelity is delivered by the standalone `.so` (Option-B). Optional wiring (task L1) would make the in-tree path emit non-zero values.
 
 ---
 
 ## 5. Compliance & Quality Review
 
-Cross-mapping of AAP deliverables to Blitzy quality benchmarks. Fixes applied during autonomous validation are noted; all in-scope items pass.
+Cross-mapping AAP deliverables to quality/compliance benchmarks. Fixes applied during autonomous validation are noted.
 
-| AAP Requirement (source) | Benchmark | Status | Progress | Notes / Fixes Applied |
-|--------------------------|-----------|:------:|:--------:|-----------------------|
-| PDF output with group headers, table headers, dividers (0.7.1) | Output format | ✅ Pass | 100% | 50-page PDF; both group headers + dividers render. |
-| Exact table numbering `1,1a…6,6a` (0.7.1) | Structure | ✅ Pass | 100% | Verified present in exact order. |
-| Exact column schemas G1/G2/L1/L2 (0.1.3) | Schema fidelity | ✅ Pass | 100% | 7/9/6/6-column schemas reproduced verbatim. |
-| 5–10 line snippets with exact provenance (0.7.1) | Evidence | ✅ Pass | 100% | Harness enforces line count + verbatim source read on all 94. |
-| Role classification Source/Sink/Transform (0.7.3) | Classification | ✅ Pass | 100% | All 63 Group-1 rows validated against vocabulary. |
-| Trigger/Observed-state/Behavior-change (0.7.3) | Classification | ✅ Pass | 100% | All 31 Group-2 rows; discriminator column populated. |
-| Two-layer dependency mapping (0.7.3) | Dependency graph | ✅ Pass | 100% | 94 Layer-1 + 94 Layer-2 rows; chain depth = hop count. |
-| `#`↔`Ref #` cross-reference integrity (0.7.1) | Traceability | ✅ Pass | 100% | Harness confirms full coverage, monotonic numbering. |
-| Non-inference discipline / explicit absences (0.7.2) | Audit discipline | ✅ Pass | 100% | 30 `[ABSENT]` + Coverage Register; literal non-existent `flight_mode_auto()` flagged, not invented. |
-| Flag circular / shared-struct / duplicated / multi-category (0.7.2) | Extraction-risk flags | ✅ Pass | 100% | 8 / 19 / 36 / 7 flags applied. |
-| Coverage across libraries + 4 vehicles + 81 modes (0.2/0.3) | Exhaustiveness | ✅ Pass | 100% | Register enumerates all mode files + supporting libs + .gitmodules edges. |
-| User-example integration (0.5.4) | Fidelity | ✅ Pass | 100% | Fixed this session — accessor rows added to Tables 4 & 5; transitive chain in 2a. |
-| Read-only discipline — zero source edits (0.3.2, 0.8.1) | Scope control | ✅ Pass | 100% | Branch diff = 1 added file; no `.cpp`/`.h`/`.py` source changed. |
-| Unicode glyph rendering | Render quality | ✅ Pass | 100% | Fixed this session — DejaVuSans fallback registered for 7 glyph types. |
-
-**Code-review history:** five autonomous QA rounds resolved 19 initial code-review findings, QA checkpoint findings CP-A (SL-1, XR-1), CP-B (chain-depth normalization), and CP-D (completeness F1–F4), followed by the user-example accessor rows and the Unicode glyph fix — all committed.
+| Benchmark / AAP Requirement | Status | Evidence & Notes |
+|---|:--:|---|
+| Goal 1 — Locate all PNT (L1-nav) instances | ✅ Pass | AAP §0.6.1 mapping table; 16 read sites → 6 accessors + 2 clock couplings |
+| Goal 2 — Consolidate into one reusable service | ✅ Pass | `AfsimL1Behavior` + shim + C-ABI; single `libafsim_l1.so` |
+| Goal 3 — Document current-vs-new twice | ✅ Pass | AAP §0.6.1 **and** regenerated 40-page PDF with "New Service Location" column |
+| Behavior preservation (L1 math unchanged) | ✅ Pass | Git-diff verified; else-branches byte-identical; clamp semantics unchanged |
+| Public-contract preservation (`AP_Navigation`, `AP_L1_Control` signatures) | ✅ Pass | Only an **additive** `set_update_dt` method; no signature altered |
+| Scope guardrail ("no other changes than specified") | ✅ Pass | 18 out-of-scope trees confirmed 0 changes (vehicles + PNT subsystems + AHRS + Navigation + modules) |
+| Timing seam default-off | ✅ Pass | `_dt_override = false` by in-class initializer; vehicle callers never enable it |
+| Zero-placeholder policy | ✅ Pass | grep for TODO/FIXME/stub/NotImplemented across in-scope C++ → 0 matches |
+| C-ABI stability best practices (web research) | ✅ Pass | AAP §0.3.2; opaque handle, C-only surface, `-fvisibility=hidden`, `--no-undefined` |
+| No new dependencies | ✅ Pass | Runtime `.so` links only system libs; PDF stack pre-existing (ReportLab/Poppler) |
+| Code hygiene (flake8, line endings, no merge markers) | ✅ Pass | flake8 0 violations on all 3 Python files; working tree clean |
+| CWE-457 (uninitialized read) | ✅ Pass (fixed) | Pre-execute getters return `0.0`; verified in functional harness |
+| Cross-toolchain ABI validation | ⏳ Outstanding | Only g++ 15.2 exercised — see task M1 (remaining) |
+| SONAME / semantic versioning | ⏳ Outstanding | Not yet applied — see task M2 (remaining) |
+| CI coverage for the example | ⏳ Outstanding | Not yet wired — see task L2 (remaining) |
 
 ---
 
 ## 6. Risk Assessment
 
+Risks assessed across PA3 categories. **Zero High-severity risks.** All material open items map to remaining tasks (§2.2 / §8).
+
 | Risk | Category | Severity | Probability | Mitigation | Status |
-|------|----------|:--------:|:-----------:|------------|--------|
-| R1 — Audit snapshot drift: cited line numbers pinned to HEAD `5b67e27b0a`; future source edits drift the static PDF. | Technical | Medium | High (over time) | Record audited commit hash in the document; regenerate from the committed-snapshot harness when refreshing. | Open (mitigation = H4) |
-| R2 — Classification subjectivity: Source/Transform/Sink and dependency-type are expert judgments the harness cannot semantically verify. | Technical | Low | Medium | Human expert spot-check of classifications. | Open (mitigation = H1/H2) |
-| R3 — Exhaustiveness completeness: the "every PNT location" claim could theoretically miss a novel site. | Technical | Medium | Low | Coverage Register + directory token sweeps + 30 explicit absences already applied; human sign-off. | Mitigated; sign-off pending (H3) |
-| R4 — Architectural disclosure: document maps failsafe/safety logic. | Security | Low | Low | ArduPilot is open-source; no secrets exposed; no new dependencies. | Accepted (negligible) |
-| R5 — Reproducibility: regeneration scaffolding (`tmp/pnt_work/`) is gitignored, not committed. | Operational | Medium | Medium | Archive scaffolding alongside the deliverable. | Open (mitigation = H4) |
-| R6 — Toolchain pinning: regeneration needs Python3 + reportlab 4.5.1 + DejaVuSans + poppler, not pinned in-repo. | Operational | Low | Medium | Versions documented in the Development Guide (Section 9). | Mitigated |
-| R7 — Downstream format gap: PDF may not suffice if the extraction team needs a machine-readable edge list. | Integration | Low | Medium | Structured row data exists in `pnt_data.py` and can be exported. | Open (downstream/out-of-scope) |
-| R8 — Vendored-module boundary: .gitmodules edges documented but vendored internals not traced. | Integration | Low | Low | Explicitly out-of-scope per AAP 0.3.2; boundary noted in Register. | Accepted (by design) |
+|---|---|:--:|:--:|---|---|
+| Flat-earth / equatorial-datum divergence for large offsets or non-equatorial ops | Technical | Low | Low | Documented datum convention; host uses local NE frame; extend shim with datum origin if geographic use needed | Mitigated (documented) |
+| `get_EAS2TAS` hardcoded to 1.0 — high-altitude airspeed-scaling fidelity gap | Technical | Low | Low | Documented; add optional EAS2TAS setter if needed | Open (by design) |
+| Numerical fidelity validated only via unit-geometry, not full in-vehicle L1 paths | Technical | Medium | Low | Targeted SITL spot-check (task M3) | Open |
+| Raw `void*` handle: a non-NULL invalid pointer would be dereferenced (no magic tag) | Security | Medium | Low | NULL-checks on all 8 entries + opaque handle; recommend magic-number validation | Partially mitigated |
+| Uninitialized read (CWE-457) if getters called pre-execute | Security | Low | Low | Pre-execute guard returns 0.0 (test-verified) | Mitigated (resolved) |
+| No finite-value guard on injected doubles (NaN/Inf could enter guidance) | Security | Low | Low | Units documented; `dt` clamp bounds; recommend host-side sanitization / finite guards | Open (low) |
+| Supply-chain: build-time PDF deps (ReportLab/Poppler) | Security | Low | Low | Pinned versions; **not** in runtime `.so` (ldd = system libs only) | Mitigated |
+| Thread-safety not documented; no internal locking | Operational | Low | Low | One-handle-per-thread pattern; document contract in README (task M2) | Open (doc gap) |
+| No SONAME / semantic version on `libafsim_l1.so` | Operational | Medium | Medium | Add SONAME + semver (task M2) | Open |
+| No CI coverage — bitrot risk as `AP_L1_Control`/`AP_AHRS` evolve | Operational | Medium | Medium | Add to CI build matrix (task L2) | Open |
+| In-tree waf demo returns 0.0/0.0 — could be misread as a defect | Operational | Low | Medium | Documented expected; fidelity via `.so`; optional Option-A wiring (task L1) | Mitigated (documented) |
+| Real AFSIM host integration never exercised (only demo/mock) | Integration | Medium | Medium | AFSIM integration smoke test (task H2) | Open |
+| Cross-compiler / cross-libstdc++ ABI validated only on g++ 15.2 / Linux x86-64 | Integration | Medium | Low–Med | C-only boundary + `-fvisibility=hidden` + `--no-undefined` reduce risk; cross-toolchain matrix (task M1) | Partially mitigated |
+| Handle lifecycle (Create/Destroy pairing, no use-after-free) is host responsibility | Integration | Low | Low | Documented lifecycle in README + header; NULL-safe | Mitigated (documented) |
 
 ---
 
 ## 7. Visual Project Status
 
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieOuterStrokeColor':'#B23AF2','pieOuterStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'16px'}}}%%
-pie showData title Project Hours Breakdown (Total 98 h)
-    "Completed Work" : 88
-    "Remaining Work" : 10
-```
-
-**Remaining Hours by Category (Section 2.2)**
+**Overall progress** (hours; Completed = `#5B39F3`, Remaining = `#FFFFFF`):
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'pie1':'#5B39F3','pie2':'#B23AF2','pie3':'#A8FDD9','pie4':'#FFFFFF','pieStrokeColor':'#B23AF2','pieSectionTextColor':'#000000','pieTitleTextSize':'15px'}}}%%
-pie showData title Remaining Work — 10 h
-    "Provenance & classification spot-check (High)" : 5
-    "Exhaustiveness sign-off (Medium)" : 2
-    "Reproducibility hardening (Medium)" : 1
-    "Distribution & handoff (Low)" : 2
+%%{init: {'theme':'base', 'themeVariables':{ 'pie1':'#5B39F3', 'pie2':'#FFFFFF', 'pieStrokeColor':'#B23AF2', 'pieStrokeWidth':'2px', 'pieOuterStrokeWidth':'2px', 'pieTitleTextSize':'15px', 'pieSectionTextSize':'13px', 'pieLegendTextSize':'13px'}}}%%
+pie showData
+    title Project Hours Breakdown (154 h total)
+    "Completed Work" : 127
+    "Remaining Work" : 27
 ```
 
-**Remaining Work by Priority**
+**Remaining work by priority** (27 h total):
 
-| Priority | Hours | Share |
-|----------|------:|------:|
-| High | 5 | 50% |
-| Medium | 3 | 30% |
-| Low | 2 | 20% |
-| **Total** | **10** | 100% |
+```mermaid
+%%{init: {'theme':'base', 'themeVariables':{ 'pie1':'#5B39F3', 'pie2':'#B23AF2', 'pie3':'#A8FDD9', 'pieStrokeColor':'#333333', 'pieStrokeWidth':'1px', 'pieTitleTextSize':'15px', 'pieSectionTextSize':'13px', 'pieLegendTextSize':'13px'}}}%%
+pie showData
+    title Remaining Work by Priority (27 h)
+    "High" : 12
+    "Medium" : 11
+    "Low" : 4
+```
 
-> **Integrity check:** Section 7 "Remaining Work" (10 h) = Section 1.2 Remaining Hours (10 h) = Section 2.2 total (10 h). Section 7 "Completed Work" (88 h) = Section 1.2 Completed Hours (88 h) = Section 2.1 total (88 h). ✓
+**Remaining hours per category** (from §2.2):
+
+| Category | Hours | Bar |
+|---|---:|---|
+| External host (AFSIM) integration | 8 | ████████ |
+| Human code review & merge | 4 | ████ |
+| Cross-toolchain ABI validation | 4 | ████ |
+| Numerical fidelity spot-check | 4 | ████ |
+| Versioning / SONAME / packaging | 3 | ███ |
+| Option-A in-tree wiring | 2 | ██ |
+| CI integration | 2 | ██ |
+| **Total** | **27** | |
+
+> **Integrity check:** Pie "Remaining Work" (27) = §1.2 Remaining Hours (27) = Σ §2.2 Hours (27). ✓
 
 ---
 
 ## 8. Summary & Recommendations
 
-**Achievements.** The project is **89.8% complete** (88 of 98 hours). Every AAP-specified content and quality requirement has been autonomously delivered: a single 50-page PDF cataloging 94 PNT references in 282 evidence rows across all 12 mandated tables, with verbatim line-accurate provenance, two-layer dependency mapping, the full audit-discipline flag taxonomy, and an exhaustive Coverage & Explicit-Absence Register spanning `libraries/` and all four vehicle directories. An autonomous verification harness of 838 assertions passes 100%, and the read-only constraint was upheld absolutely (a single added file, zero source edits).
+**Achievements.** The refactoring meets **100% of the explicit Agent Action Plan scope** — all 21 discrete requirements across Goals 1–3 are delivered, validated, and committed with zero placeholders. ArduPilot's L1 lateral-navigation guidance is now consumable by an external host through a stable, self-contained `extern "C"` shared library exposing exactly 8 symbols over an opaque handle, while the wrapped `AP_L1_Control` receives only a single additive, default-off timing seam that leaves every existing vehicle caller byte-for-byte unchanged. The scope guardrail was strictly honored: all vehicle firmware and non-targeted PNT subsystems show zero changes.
 
-**Remaining gaps.** The outstanding 10 hours are entirely **human verification and path-to-production** activities — no AAP content is missing. They consist of an expert spot-check of provenance and classification soundness (which automated checks cannot judge semantically), a formal exhaustiveness sign-off, reproducibility hardening, and distribution to the downstream team.
+**Overall completion: 82.5% (127 h of 154 h).** The gap between "100% of AAP scope" and "82.5% overall" is entirely **path-to-production** work — none of it defects. The autonomous environment delivered every artifact that can be produced without external systems; what remains requires resources and judgment outside the autonomous boundary.
 
-**Critical path to production.** (1) Expert spot-check of citations and classifications → (2) exhaustiveness sign-off and acceptance → (3) archive the regeneration scaffolding and pin the audited commit → (4) hand off to the PNT-service extraction effort.
+**Critical path to production (27 h remaining).**
+1. Human code review & merge (4 h, High).
+2. Real AFSIM host integration & closed-loop smoke test (8 h, High) — the deliverable's ultimate purpose; blocked on AFSIM access (§1.5).
+3. Cross-toolchain ABI validation (4 h, Medium) — verifies the toolchain-independence value proposition.
+4. SONAME/versioning/packaging + thread-safety documentation (3 h, Medium).
+5. Numerical fidelity spot-check vs in-vehicle L1 (4 h, Medium).
+6. Optional Option-A in-tree wiring (2 h, Low) and CI integration (2 h, Low).
 
-**Success metrics.** 12/12 tables present and correctly schema'd; 838/838 integrity assertions pass; 188/188 citations resolve to real source; 0 source files modified; 5 audit-discipline flag types and 30 explicit absences applied; both user examples integrated.
+**Success metrics.** Compilation clean (0 in-scope warnings); 8/8 exported symbols; 17/17 functional checks; 991/991 documentation-integrity assertions; demo numerics `48.5° / 11.088 m/s²`; deterministic byte-identical PDF; 0 out-of-scope file changes.
 
-**Production readiness.** The deliverable is **audit-grade and production-ready** pending human acceptance. There are no release-blocking issues, no compilation errors, and no failing tests. Recommendation: proceed to expert review and sign-off, then release.
-
-| Metric | Value |
-|--------|-------|
-| Completion | 89.8% |
-| AAP content requirements delivered | 35 / 35 |
-| Integrity assertions passing | 838 / 838 (100%) |
-| Source files modified | 0 |
-| Release-blocking issues | 0 |
+**Production-readiness assessment.** The code is **production-quality and defect-free within the AAP scope** and is safe to merge after human review. It is **not yet production-*deployed***: it has not run inside a live AFSIM host nor been validated across toolchains, and it lacks distribution versioning. Recommendation: **merge after review, then execute the High-priority integration tasks before declaring the capability production-deployed.**
 
 ---
 
 ## 9. Development Guide
 
-This guide explains how to inspect, verify, and regenerate the audit deliverable. Every command was tested during validation.
+All commands below were tested from a clean state during this assessment (exit codes and outputs verified).
 
 ### 9.1 System Prerequisites
 
-| Software | Version (tested) | Purpose |
-|----------|------------------|---------|
-| OS | Ubuntu 25.10 (Linux) | Host environment |
-| Python | 3.13.7 | Runs the harness + renderer |
-| ReportLab | 4.5.1 | PDF rendering library |
-| Poppler-utils | 25.03.0 | `pdfinfo`, `pdftotext`, `pdftoppm` for verification |
-| DejaVu fonts | system TTF | Unicode glyph fallback (arrows, checks) |
+| Software | Version (verified) | Purpose |
+|---|---|---|
+| g++ (GCC) | 15.2.0 | Compile the C++ service & `.so` (`-std=gnu++11`) |
+| CMake | 3.31.6 (≥ 3.5 required) | Standalone shared-library build |
+| GNU Make | 4.4.1 | Build driver |
+| Python | 3.13.7 | PDF regeneration pipeline |
+| ReportLab | 4.5.1 | Renders the PDF deliverable (build-time only) |
+| Poppler-utils | 25.03.0 | PDF verification (`pdfinfo`/`pdftotext`) |
+| binutils (`nm`, `ldd`) | system | Symbol/dependency verification |
+
+- **OS:** Linux x86-64 (validated on Ubuntu 25.10). **No new dependencies** are required — the runtime `.so` links only libstdc++/libm/libgcc_s/libc.
 
 ### 9.2 Environment Setup
 
 ```bash
-# From the repository root, on branch blitzy-e9b9bce3-08ef-44e0-ab6f-3f6803d01182
-cd /path/to/ardupilot-repo
-export PNT_REPO_ROOT="$(pwd)"
-export PNT_OUT="$(pwd)/ArduPilot_PNT_Reference_Audit.pdf"
+# From the repository root
+cd libraries/AP_L1_Control/examples/AfsimL1
+# No virtualenv or extra installs required; all tools listed in 9.1 are system-provided.
 ```
 
-### 9.3 Dependency Installation
+### 9.3 Build the Standalone Shared Library
 
 ```bash
-# System tools (Debian/Ubuntu)
-sudo apt-get update
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y poppler-utils fonts-dejavu
-
-# Python library — Ubuntu 25 is PEP-668 managed, so either:
-pip install --break-system-packages reportlab        # global, OR
-python3 -m venv .venv && source .venv/bin/activate && pip install reportlab   # venv (preferred)
-
-# Verify
-python3 -c "import reportlab; print('reportlab', reportlab.Version)"   # -> reportlab 4.5.1
-pdfinfo -v                                                              # -> pdfinfo version 25.03.0
+cd libraries/AP_L1_Control/examples/AfsimL1
+mkdir build && cd build
+cmake ..
+make
 ```
 
-### 9.4 Regenerating the Deliverable
+**Expected:** `cmake` exit 0, `make` exit 0, produces **`libafsim_l1.so`** (~96 KB), zero warnings. The default build produces *only* the library.
 
-The renderer is harness-gated: it validates every row first and **refuses to write the PDF if any check fails**.
+### 9.4 Verify the Exported Symbols
 
 ```bash
-cd "$PNT_REPO_ROOT"
-python3 tmp/pnt_work/generate.py
-# Expected output:
-#   HARNESS PASSED
-#   PDF written: <PNT_OUT>
+nm -D --defined-only libafsim_l1.so | grep " T "
 ```
 
-### 9.5 Verification Steps
+**Expected — exactly these 8 symbols and nothing else:**
+
+```text
+L1_Create   L1_Destroy   L1_Init   L1_Execute
+L1_SetLegNE   L1_SetStateNE   L1_GetRollDeg   L1_GetLatAccel
+```
+
+### 9.5 Build & Run the Demonstration Driver
 
 ```bash
-# 1) Container properties (expect: Pages 50, A4 landscape, Encrypted no, 201137 bytes, PDF 1.4)
-pdfinfo ArduPilot_PNT_Reference_Audit.pdf
-
-# 2) All 12 tables present in order
-pdftotext -layout ArduPilot_PNT_Reference_Audit.pdf - | grep -E "Table [0-9]+a? —"
-
-# 3) Run the integrity harness standalone (expect: errors: 0)
-python3 -c "import sys,os; sys.path.insert(0,'tmp/pnt_work'); \
-os.environ['PNT_REPO_ROOT']=os.getcwd(); import generate as G; \
-print('errors:', len(G.run_harness()))"
-
-# 4) Confirm read-only discipline (expect a single 'A' line for the PDF)
-git diff b03956c1f4~1 HEAD --name-status
+cmake -DAFSIM_L1_BUILD_DEMO=ON ..
+make
+./afsim_demo
 ```
 
-### 9.6 Example Usage (consuming the audit)
+**Expected output:**
+
+```text
+AfsimL1 demo: simple leg prev=(0,0) -> next=(0,500) m, dt=0.02 s
+roll_deg = 48.500000, lat_accel = 11.087974
+```
+
+(The demo's RPATH points at the co-located `.so`, so no `LD_LIBRARY_PATH` is needed.)
+
+### 9.6 In-Tree waf Build (Alternative)
 
 ```bash
-# Inspect a specific group's references (e.g., Core Timing)
-pdftotext -layout ArduPilot_PNT_Reference_Audit.pdf - | sed -n '/Table 3 —/,/Table 3a —/p'
-
-# Count audit-discipline flags
-for f in CIRCULAR SHARED-STRUCT DUPLICATED MULTI-CATEGORY ABSENT; do
-  echo "$f: $(pdftotext -layout ArduPilot_PNT_Reference_Audit.pdf - | grep -c "\[$f\]")"
-done
-
-# Render a page to PNG for visual review
-pdftoppm -png -f 1 -l 1 ArduPilot_PNT_Reference_Audit.pdf /tmp/audit_page
+# From the repository root
+./waf configure --board sitl
+./waf --targets examples/AfsimL1
+./build/sitl/examples/AfsimL1
 ```
 
-### 9.7 Troubleshooting
+**Expected:** exit 0. Note the in-tree demo prints `roll_deg=0.0, lat_accel=0.0` **by design** (Option-A: the real `AP_AHRS` is non-injectable in-tree). Use the standalone `.so` (§9.3) for numerical fidelity.
+
+### 9.7 Regenerate the PDF Deliverable
+
+```bash
+cd libraries/AP_L1_Control/examples/AfsimL1
+PNT_REPO_ROOT="$(git rev-parse --show-toplevel)" python3 generate.py
+```
+
+**Expected:** `HARNESS PASSED` + `PDF written: .../ArduPilot_PNT_Reference_Audit.pdf`; output is byte-identical across runs (deterministic).
+
+### 9.8 Example Usage (minimal C host)
+
+```c
+#include "l1_c_api.h"
+
+void* h = L1_Create();          /* opaque handle; NULL on failure   */
+L1_Init(h);                      /* seed a default simple leg        */
+
+L1_SetLegNE(h, 0, 0, 0, 500);    /* prev(0,0) -> next(0,500): 500 m leg */
+L1_SetStateNE(h, 0, 0, 0, 20, 0, 0); /* n,e,velE,velN,yaw_cd,pitch_rad; 20 m/s North */
+L1_Execute(h, 0.02);             /* advance one 50 Hz control step   */
+
+double roll_deg  = L1_GetRollDeg(h);   /* commanded bank angle, deg   */
+double lat_accel = L1_GetLatAccel(h);  /* lateral acceleration, m/s^2 */
+
+L1_Destroy(h);                   /* release the instance             */
+```
+
+### 9.9 Troubleshooting
 
 | Symptom | Cause | Resolution |
-|---------|-------|------------|
-| `error: externally-managed-environment` on `pip install` | Ubuntu 25 PEP-668 marker | Use `pip install --break-system-packages reportlab` or a venv. |
-| Blank glyphs (arrows/checks) in PDF | Base-14 fonts lack non-WinAnsi glyphs | Ensure DejaVuSans is registered as a Unicode fallback (already implemented in `pnt_render.py`). |
-| Harness "cite read fail" | `PNT_REPO_ROOT` not pointing at the source tree | Run from the repository root and re-export `PNT_REPO_ROOT="$(pwd)"`. |
-| `generate.py` exits without writing the PDF | A harness assertion failed | Read the printed error list; fix the offending row in `tmp/pnt_work/pnt_data.py`. |
+|---|---|---|
+| No `afsim_demo` after `make` | Demo is opt-in | Re-run cmake with `-DAFSIM_L1_BUILD_DEMO=ON` |
+| `nm` shows more/fewer than 8 symbols | Visibility flags missing | Ensure the CMake build applies `-fvisibility=hidden` (default in provided `CMakeLists.txt`) |
+| In-tree waf demo prints `0.0 / 0.0` | Option-A `AP_AHRS` non-injectable | Expected; use the standalone `.so` for fidelity, or complete task L1 |
+| `generate.py` cannot find repo root | `PNT_REPO_ROOT` unset | Prefix with `PNT_REPO_ROOT="$(git rev-parse --show-toplevel)"` |
+| PDF differs after regen | Non-deterministic env | Verify ReportLab 4.5.1; generator pins invariant config for byte-stable output |
 
 ---
 
@@ -339,63 +376,64 @@ pdftoppm -png -f 1 -l 1 ArduPilot_PNT_Reference_Audit.pdf /tmp/audit_page
 ### A. Command Reference
 
 | Command | Purpose |
-|---------|---------|
-| `python3 tmp/pnt_work/generate.py` | Validate + render the PDF (harness-gated) |
-| `pdfinfo ArduPilot_PNT_Reference_Audit.pdf` | Show PDF properties |
-| `pdftotext -layout <pdf> -` | Extract text layer for inspection |
-| `pdftoppm -png -f N -l N <pdf> out` | Render page N to PNG |
-| `git diff b03956c1f4~1 HEAD --name-status` | Confirm read-only discipline |
+|---|---|
+| `cmake .. && make` | Build `libafsim_l1.so` |
+| `cmake -DAFSIM_L1_BUILD_DEMO=ON .. && make` | Build library + `afsim_demo` |
+| `./afsim_demo` | Run the demo (→ `48.5 / 11.088`) |
+| `nm -D --defined-only libafsim_l1.so \| grep " T "` | List exported symbols (expect 8) |
+| `ldd libafsim_l1.so` | Confirm self-contained (system libs only) |
+| `./waf configure --board sitl && ./waf --targets examples/AfsimL1` | In-tree build |
+| `PNT_REPO_ROOT="$(git rev-parse --show-toplevel)" python3 generate.py` | Regenerate the PDF |
+| `pdfinfo ArduPilot_PNT_Reference_Audit.pdf` | Inspect PDF (40 pages, A4) |
 
 ### B. Port Reference
 
-_Not applicable._ The deliverable is a static document; no services, ports, or network endpoints are involved.
+*Not applicable.* The deliverable is a headless library and a PDF; it opens no network ports and runs no services.
 
 ### C. Key File Locations
 
 | Path | Role |
-|------|------|
-| `ArduPilot_PNT_Reference_Audit.pdf` | **The deliverable** (repo root, committed) |
-| `tmp/pnt_work/generate.py` | Harness + render entry point (gitignored scaffolding) |
-| `tmp/pnt_work/pnt_data.py` | All 18 table data objects (94 rows × 3 layers) |
-| `tmp/pnt_work/pnt_render.py` | ReportLab rendering + 5 `verify_*` functions |
+|---|---|
+| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1Behavior.{h,cpp}` | Service facade |
+| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1_AHRS_Shim.{h,cpp}` | AHRS state adapter |
+| `libraries/AP_L1_Control/examples/AfsimL1/l1_c_api.{h,cpp}` | `extern "C"` ABI boundary (8 exports) |
+| `libraries/AP_L1_Control/examples/AfsimL1/CMakeLists.txt` | Standalone `.so` build |
+| `libraries/AP_L1_Control/examples/AfsimL1/wscript` | In-tree waf build |
+| `libraries/AP_L1_Control/examples/AfsimL1/main.cpp` | Demo driver |
+| `libraries/AP_L1_Control/examples/AfsimL1/README.md` | Integration/usage guide |
+| `libraries/AP_L1_Control/examples/AfsimL1/{generate,pnt_data,pnt_render}.py` | PDF pipeline |
+| `libraries/AP_L1_Control/AP_L1_Control.{h,cpp}` | Wrapped controller (additive default-off seam) |
+| `ArduPilot_PNT_Reference_Audit.pdf` | Goal-3 documentation deliverable (40 pages) |
 
 ### D. Technology Versions
 
-| Component | Version |
-|-----------|---------|
-| Python | 3.13.7 |
-| ReportLab | 4.5.1 |
-| Poppler-utils | 25.03.0 |
-| Audited commit (HEAD) | `5b67e27b0ad5425a78044e3504daf8ae8e41ff81` |
-| Branch | `blitzy-e9b9bce3-08ef-44e0-ab6f-3f6803d01182` |
+g++ 15.2.0 · CMake 3.31.6 · GNU Make 4.4.1 · Python 3.13.7 · ReportLab 4.5.1 · Poppler-utils 25.03.0 · C++ standard `gnu++11` · waf (Python 3).
 
 ### E. Environment Variable Reference
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PNT_REPO_ROOT` | Yes (regeneration) | Absolute path to the ArduPilot repository root; used to resolve cited source paths during harness verification. |
-| `PNT_OUT` | Optional | Output path for the rendered PDF; defaults to a `tmp/` path if unset. |
+| Variable | Used by | Value |
+|---|---|---|
+| `PNT_REPO_ROOT` | `generate.py` | Absolute repository root (e.g., `$(git rev-parse --show-toplevel)`) |
+| `AFSIM_L1_BUILD_DEMO` | CMake (`-D` option) | `ON` to also build `afsim_demo` (default `OFF`) |
 
 ### F. Developer Tools Guide
 
-- **PDF inspection:** `pdfinfo`, `pdftotext`, `pdftoppm` (poppler-utils) — inspect properties, extract text, render pages.
-- **Integrity harness:** the `verify_*` functions in `pnt_render.py` are the documentation analog of unit tests; run them via `generate.py` or standalone (Section 9.5).
-- **Structured data:** `tmp/pnt_work/pnt_data.py` holds every catalog row as Python objects — the source for any future machine-readable export (mitigation for risk R7).
+- **Build:** CMake + Make (standalone `.so`) or in-tree `waf` (`bld.ap_example(use='ap')`).
+- **Symbol inspection:** `nm -D` (exported symbols), `ldd` (runtime deps).
+- **Docs:** ReportLab generator with a self-checking 991-assertion integrity harness; Poppler-utils to verify page count/content.
+- **Lint:** `flake8` (repo `.flake8`) — 0 violations across the 3 Python files.
 
 ### G. Glossary
 
 | Term | Definition |
-|------|------------|
-| PNT | Positioning, Navigation, and Timing |
-| Group 1 / Core | Code that directly implements, reads, writes, or processes PNT data (Role = Source/Transform/Sink) |
-| Group 2 / Indirect | Code whose behavior changes as a result of PNT state without directly reading/writing it |
-| Layer 1 | Direct callers/callees with a typed dependency classification |
-| Layer 2 | Full transitive call chain, its final consumer, and hop count |
-| EKF | Extended Kalman Filter (AP_NavEKF2/3) — PNT state estimation/fusion |
-| AHRS | Attitude & Heading Reference System — ArduPilot's sensor-fusion navigation hub |
-| Source / Transform / Sink | Produces / fuses-derives / consumes PNT state |
-| `[ABSENT]` | A checked, explicitly-documented absence (non-inference discipline) |
-
----
-
-*Generated by the Blitzy Platform. Completion percentage (89.8%) reflects AAP-scoped and path-to-production work only. Brand colors: Completed = #5B39F3, Remaining = #FFFFFF.*
+|---|---|
+| **PNT** | Position, Navigation, and Timing — the behaviors extracted from the vehicle loop |
+| **L1 guidance** | ArduPilot's L1 lateral-navigation control law (`AP_L1_Control`) |
+| **AfsimL1** | The new reusable service wrapping L1 guidance for external hosts |
+| **C ABI** | `extern "C"` application binary interface — name-mangling-free, toolchain-independent boundary |
+| **Opaque handle** | `void*` (`L1_Context`) passed across the boundary so no C++ type is exposed |
+| **AHRS shim** | Adapter presenting `AP_AHRS`'s 6 read APIs from host-injected state |
+| **Timing seam** | Additive, default-off `set_update_dt` letting the host drive `dt` |
+| **Option A / Option B** | Real-`AP_AHRS` (in-tree) vs. lightweight shim (`.so`) state-decoupling strategies |
+| **AFSIM** | External simulation environment intended to consume the service |
+| **SONAME** | Shared-object version name enabling ABI-compatibility management |
