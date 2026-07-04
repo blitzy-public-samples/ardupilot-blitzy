@@ -29,9 +29,10 @@
 //    the ArduPilot vehicle flight loop can be driven entirely from OUTSIDE
 //    that loop -- exactly the way an external host such as the AFSIM
 //    simulation environment would drive it. The flow mirrors the user
-//    "initialize a simple leg" example one-to-one (AAP 0.7.2): the simple leg
-//    prev = (0, 0) -> next = (0, 500) in North/East metres, a representative
-//    platform state, one 50 Hz step, and the two output commands.
+//    "initialize a simple leg" example (AAP 0.7.2): a simple leg
+//    prev = (0, 0) -> next = (500, 0) in North/East metres (a 500 m North leg),
+//    a representative northbound platform state, one 50 Hz step, and the two
+//    output commands.
 //
 //  DRIVE PATH -- PATH B (the C Application Binary Interface):
 //    This demo consumes the service through its stable extern "C" boundary
@@ -95,9 +96,9 @@ int main()
 
     // ------------------------------------------------------------------
     // 2. Initialise the instance.
-    //    L1_Init() seeds a default leg inside the facade -- prev = (0, 0),
-    //    next = (0, 500) in North/East metres -- so the service is ready to
-    //    execute even before any explicit setter is called.
+    //    L1_Init() seeds a default leg inside the facade so the service is ready
+    //    to execute even before any explicit setter is called. This demo then
+    //    overrides that default with its own leg in step 3.
     // ------------------------------------------------------------------
     L1_Init(h);
 
@@ -105,11 +106,13 @@ int main()
     // 3. Set the active leg explicitly (demonstrates the leg setter).
     //    Arguments are (prevN, prevE, nextN, nextE) in metres relative to the
     //    service datum, reproducing the user example's simple leg:
-    //        prev = (N=0, E=0)  ->  next = (N=0, E=500)
-    //    i.e. a 500 m leg from the datum. Legs are host-supplied here rather
-    //    than pulled from the vehicle mission code.
+    //        prev = (N=0, E=0)  ->  next = (N=500, E=0)
+    //    i.e. a 500 m leg running due North from the datum. This is aligned
+    //    with the northbound platform state injected in step 4 (velN=20), so
+    //    the vehicle is tracking straight along the leg. Legs are host-supplied
+    //    here rather than pulled from the vehicle mission code.
     // ------------------------------------------------------------------
-    L1_SetLegNE(h, /*prevN=*/0.0, /*prevE=*/0.0, /*nextN=*/0.0, /*nextE=*/500.0);
+    L1_SetLegNE(h, /*prevN=*/0.0, /*prevE=*/0.0, /*nextN=*/500.0, /*nextE=*/0.0);
 
     // ------------------------------------------------------------------
     // 4. Inject a representative platform state.

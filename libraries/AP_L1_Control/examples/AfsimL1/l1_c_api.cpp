@@ -53,6 +53,8 @@
 //    - No vehicle-firmware dependency; no new third-party dependency.
 // ============================================================================
 
+#include <new>                 // std::nothrow -- contain allocation failure inside the C++ boundary
+
 #include "AfsimL1Behavior.h"   // AfsimL1Behavior -- the C++ facade wrapped by this ABI
 #include "l1_c_api.h"          // public C declarations (keeps decls/defs in sync)
 
@@ -80,9 +82,25 @@ struct L1_Context { AfsimL1Behavior* self; };
 /// facade and returns an opaque handle to it. The returned handle must later be
 /// released with L1_Destroy() to avoid leaking memory.
 ///
-/// @return  Opaque handle (non-NULL on success).
+/// @return  Opaque handle, or nullptr if allocation failed. No C++ exception
+///          ever crosses this extern "C" boundary.
 __attribute__((visibility("default"))) void* L1_Create() {
-    auto* ctx = new L1_Context{new AfsimL1Behavior()};
+    // Keep all C++ allocation failure INSIDE the C++ boundary: use non-throwing
+    // new so a failure yields nullptr (the documented NULL-on-failure contract)
+    // instead of letting a std::bad_alloc cross the extern "C" ABI -- which is
+    // undefined for a C caller -- or aborting under -fno-exceptions, where a
+    // throwing new has no other way to report failure. Allocate the facade
+    // first, then the context that owns it, deleting the facade if the second
+    // allocation fails so no partial allocation is leaked.
+    AfsimL1Behavior* self = new (std::nothrow) AfsimL1Behavior();
+    if (self == nullptr) {
+        return nullptr;
+    }
+    L1_Context* ctx = new (std::nothrow) L1_Context{self};
+    if (ctx == nullptr) {
+        delete self;
+        return nullptr;
+    }
     return ctx;
 }
 

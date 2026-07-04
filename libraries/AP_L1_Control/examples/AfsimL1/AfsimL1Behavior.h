@@ -29,17 +29,25 @@
 //  CENTRAL ENGINEERING DECISION (AAP 0.6.2):
 //    AP_L1_Control binds a concrete `AP_AHRS &_ahrs` and the six accessors it
 //    reads (get_location, groundspeed_vector, get_yaw_rad, get_pitch_rad,
-//    get_EAS2TAS, yaw_sensor) are NON-VIRTUAL, so a plain subclass cannot
-//    override them. The recommended realisation (Option B) builds the
-//    standalone shared library with a COMPILE-TIME INCLUDE SEAM so the L1
-//    translation unit binds `_ahrs.<method>` to AfsimL1_AHRS_Shim's identically
-//    named methods, avoiding the EKF/DCM stack; Option A (linking the real
-//    AP_AHRS in external mode) is the max-fidelity fallback. EITHER WAY this
-//    facade owns the shim and pushes injected state into it before delegating
-//    to the controller. The construction of `_l1` against `_ahrs_shim`
-//    (+ nullptr TECS) lives in AfsimL1Behavior.cpp; this header only declares
-//    the members in the order required for that member-initializer list to be
-//    well-defined.
+//    get_EAS2TAS, yaw_sensor) are NON-VIRTUAL, so a plain subclass can neither
+//    override them nor (their backing state being private) set them. AAP 0.6.2
+//    therefore offers two behavior-preserving realisations, selected here by the
+//    compile-time seam macro AFSIML1_L1_USES_SHIM_AHRS:
+//      * Option A (RECOMMENDED default; macro UNDEFINED -- e.g. the in-tree waf
+//        `use='ap'` build): compose the controller against a genuine AP_AHRS so
+//        every type stays a real ArduPilot type end-to-end. The service links the
+//        full ArduPilot stack and the host drives the real AHRS's external
+//        navigation source. This is the maximum-fidelity path.
+//      * Option B (macro DEFINED by the standalone `.so` CMake build): a
+//        COMPILE-TIME INCLUDE SEAM resolves the token `AP_AHRS` to
+//        AfsimL1_AHRS_Shim, so the L1 translation unit binds `_ahrs.<method>` to
+//        the shim's identically named methods, avoiding the EKF/DCM stack. This
+//        is the minimal-footprint path.
+//    EITHER WAY this facade owns the shim (`_ahrs_shim`) and pushes the host-
+//    injected state into it via set_state_ne(). The seam-selected construction of
+//    `_l1` (+ nullptr TECS) lives in AfsimL1Behavior.cpp; this header only
+//    declares the members in the order required for that member-initializer list
+//    to be well-defined.
 //
 //  CONSTRAINTS (AAP 0.7.1):
 //    - Do NOT modify AP_L1_Control or re-declare its methods here -- only
@@ -65,19 +73,22 @@
 /// extern "C" boundary in l1_c_api.* wraps this class so that an external host
 /// compiled with a different toolchain can consume it as a shared library.
 ///
-/// Ownership / lifetime: the class owns its AfsimL1_AHRS_Shim and AP_L1_Control
-/// by value. Because AP_L1_Control declares CLASS_NO_COPY and has no default
-/// constructor, AfsimL1Behavior is (correctly) non-copyable and provides a
-/// user-defined default constructor -- defined in AfsimL1Behavior.cpp -- that
-/// builds the controller against the owned shim via a member-initializer list.
+/// Ownership / lifetime: the class owns its AfsimL1_AHRS_Shim (and, under the
+/// default Option A, a real AP_AHRS) plus its AP_L1_Control by value. Because
+/// AP_L1_Control declares CLASS_NO_COPY and has no default constructor,
+/// AfsimL1Behavior is (correctly) non-copyable and provides a user-defined
+/// default constructor -- defined in AfsimL1Behavior.cpp -- that builds the
+/// controller against the seam-selected AHRS via a member-initializer list.
 class AfsimL1Behavior {
 public:
     /// Construct the service instance.
     ///
     /// Defined in AfsimL1Behavior.cpp because AP_L1_Control has no default
     /// constructor: the definition uses a member-initializer list to build
-    /// `_l1` against the owned `_ahrs_shim` (as the AHRS) and a nullptr TECS,
-    /// and seeds the L1 tuning parameters (PERIOD, DAMPING, XTRACK_I, LIM_BANK).
+    /// `_l1` against the seam-selected AHRS (a real AP_AHRS under the default
+    /// Option A, or the owned `_ahrs_shim` under Option B) and a nullptr TECS.
+    /// The stock L1 tuning (PERIOD, DAMPING, XTRACK_I, LIM_BANK) comes from the
+    /// controller constructor's AP_Param defaults; init() re-asserts PERIOD.
     /// This is the entry point the C ABI's L1_Create() invokes through
     /// `new AfsimL1Behavior()`.
     AfsimL1Behavior();
@@ -136,17 +147,42 @@ public:
 
 private:
     // Member declaration ORDER is significant: C++ initialises members in
-    // declaration order, so `_ahrs_shim` MUST precede `_l1`. AfsimL1Behavior.cpp
-    // constructs `_l1` with a reference to `_ahrs_shim`, which therefore has to
-    // be fully constructed first.
+    // declaration order, and the member-initialiser list in AfsimL1Behavior.cpp
+    // builds `_l1` from an AHRS reference, so every AHRS member MUST precede
+    // `_l1` (which -Werror=reorder enforces).
 
     /// Adapter presenting the AP_AHRS read surface from host-injected state.
+    /// ALWAYS present: set_state_ne() pushes the host-injected position,
+    /// velocity, yaw and pitch into this shim, which is the single canonical
+    /// record of the injected state. In the Option B (minimal-footprint)
+    /// standalone build this shim also IS the AHRS the controller reads.
     AfsimL1_AHRS_Shim _ahrs_shim;
 
+#if defined(AFSIML1_L1_USES_SHIM_AHRS)
+    // ---- Option B (AAP 0.6.2 -- minimal-footprint standalone shared library) --
+    // The standalone .so build (CMakeLists) supplies a compile-time include seam
+    // that resolves the token `AP_AHRS` to AfsimL1_AHRS_Shim, so AP_L1_Control is
+    // compiled directly against the shim and reads the injected state through it
+    // with no EKF/DCM stack linked. The controller is therefore constructed
+    // against `_ahrs_shim` (see AfsimL1Behavior.cpp); no real AP_AHRS is held.
+    AP_L1_Control _l1;
+#else
+    // ---- Option A (AAP 0.6.2 -- recommended default; in-tree waf `use='ap'`) --
+    // Compose the controller against a genuine AP_AHRS so all types remain real
+    // ArduPilot types end-to-end and the service links against the full ArduPilot
+    // stack for maximum numerical fidelity. `_ahrs` is declared AFTER `_ahrs_shim`
+    // and BEFORE `_l1` so the member-initialiser list stays correctly ordered
+    // (-Werror=reorder). In this max-fidelity mode the host drives the real AHRS
+    // via its external navigation source, while `_ahrs_shim` remains the injected-
+    // state record. (AP_AHRS is visible transitively through AP_L1_Control.h, so
+    // no additional include is required.)
+    AP_AHRS _ahrs;
+
     /// Composed L1 guidance controller. Constructed in AfsimL1Behavior.cpp
-    /// against `_ahrs_shim` (as the AHRS) and a nullptr TECS; never copied
+    /// against the AHRS above and a nullptr TECS; never copied
     /// (AP_L1_Control is CLASS_NO_COPY).
     AP_L1_Control _l1;
+#endif
 
     /// Current leg start point (North/East), default-constructed to a zeroed
     /// Location and (re)seeded by init() / set_leg_ne().

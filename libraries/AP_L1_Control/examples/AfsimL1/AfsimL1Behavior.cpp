@@ -25,16 +25,26 @@
 //
 //  CENTRAL ENGINEERING DECISION (AAP 0.6.2):
 //    AP_L1_Control binds a concrete `AP_AHRS &_ahrs` and the six accessors it
-//    reads are NON-VIRTUAL, so a plain subclass cannot override them. The
-//    recommended realisation (Option B) builds the standalone shared library
-//    (libafsim_l1.so) with a COMPILE-TIME INCLUDE SEAM so that the AP_L1_Control
-//    translation unit binds its `_ahrs.<method>` call sites to the identically
-//    named methods of AfsimL1_AHRS_Shim, avoiding the EKF/DCM stack; under that
-//    seam the controller's constructor parameter `AP_AHRS &` denotes the shim,
-//    which is why the member-initialiser list below can pass `_ahrs_shim`
-//    directly. Option A (linking the real AP_AHRS in external mode) is the
-//    max-fidelity fallback and takes a real AP_AHRS&. Either way this facade
-//    owns the shim and pushes injected state into it before delegating.
+//    reads are NON-VIRTUAL, so a plain subclass can neither override them nor
+//    (their backing state being private) set them. AAP 0.6.2 therefore offers
+//    two behavior-preserving realisations, selected by the compile-time seam
+//    macro AFSIML1_L1_USES_SHIM_AHRS and reflected in the member-initialiser
+//    list below:
+//      * Option A (RECOMMENDED default; macro UNDEFINED -- e.g. the in-tree waf
+//        `use='ap'` build): compose the controller against a genuine AP_AHRS
+//        (the owned `_ahrs` member) so every type stays a real ArduPilot type
+//        end-to-end and the service links the full ArduPilot stack. This is the
+//        maximum-fidelity path and is what the in-tree example compiles, so the
+//        member-initialiser list passes `_ahrs` to the controller.
+//      * Option B (macro DEFINED by the standalone `.so` CMake build): a
+//        COMPILE-TIME INCLUDE SEAM resolves the token `AP_AHRS` to
+//        AfsimL1_AHRS_Shim, so the AP_L1_Control translation unit binds its
+//        `_ahrs.<method>` call sites to the identically named shim methods and
+//        the constructor parameter `AP_AHRS &` denotes the shim; the member-
+//        initialiser list then passes `_ahrs_shim` directly, avoiding the
+//        EKF/DCM stack. This is the minimal-footprint path.
+//    EITHER WAY this facade owns the shim (`_ahrs_shim`) and pushes the host-
+//    injected state into it via set_state_ne() before delegating.
 //
 //  CONSTRAINTS (AAP 0.7.1):
 //    - Delegate EXACTLY to AP_L1_Control; do not re-implement L1 math.
@@ -52,6 +62,31 @@
 // <AP_Common/Location.h> (the leg endpoints, which in turn pulls in AP_Math).
 #include "AfsimL1Behavior.h"
 
+#include <cmath>   // std::isfinite -- boundary validation of external inputs
+
+// ----------------------------------------------------------------------------
+// Input validation helper (CWE-20 defense at the service boundary)
+// ----------------------------------------------------------------------------
+//
+// The service is driven by an EXTERNAL, untrusted host (for example AFSIM)
+// through the C ABI, which forwards plain `double` scalars straight into this
+// facade. A non-finite value (NaN / +/-Inf) that reached the guidance math
+// would propagate silently: NaN defeats the controller's inherited upper-bound
+// clamps (every `NaN > limit` comparison is false), and a non-finite position
+// would poison Location::offset() and the cross-track geometry. To keep such
+// values from ever entering the controller, every externally supplied scalar is
+// validated at this boundary before it is cast to float and stored/used.
+//
+// finite_or() returns the value unchanged when it is finite, otherwise the
+// supplied safe fallback. It deliberately does NOT clamp legitimate finite
+// magnitudes, so valid (possibly large) positions and velocities are preserved.
+namespace {
+inline double finite_or(double value, double fallback)
+{
+    return std::isfinite(value) ? value : fallback;
+}
+} // namespace
+
 // ----------------------------------------------------------------------------
 // Construction
 // ----------------------------------------------------------------------------
@@ -59,13 +94,24 @@
 // AP_L1_Control declares no default constructor (its only constructor is
 // AP_L1_Control(AP_AHRS &ahrs, const AP_TECS *tecs)) and is marked
 // CLASS_NO_COPY, so `_l1` MUST be built in the member-initialiser list. Members
-// initialise in declaration order (AfsimL1Behavior.h guarantees `_ahrs_shim`
-// precedes `_l1`), so `_ahrs_shim` is fully constructed before it is handed to
-// the controller here as the AHRS. A nullptr TECS is passed because this
-// standalone service performs lateral (L1) guidance only; AP_L1_Control guards
-// every TECS dereference with an `if (_tecs != nullptr)` check, so a null TECS
-// is safe. `_prev` / `_next` use the in-class `{}` initialisers from the header
-// (zeroed Locations) and are (re)seeded by init() / set_leg_ne().
+// initialise in declaration order (AfsimL1Behavior.h guarantees every AHRS
+// member precedes `_l1`), so the AHRS handed to the controller here is fully
+// constructed first. A nullptr TECS is passed because this standalone service
+// performs lateral (L1) guidance only; AP_L1_Control guards every TECS
+// dereference with an `if (_tecs != nullptr)` check, so a null TECS is safe.
+// `_prev` / `_next` use the in-class `{}` initialisers from the header (zeroed
+// Locations) and are (re)seeded by init() / set_leg_ne().
+//
+// The AHRS the controller is composed against is selected by the compile-time
+// seam (AAP 0.6.2; see AfsimL1Behavior.h):
+//   * Option A (recommended default -- macro AFSIML1_L1_USES_SHIM_AHRS UNDEFINED,
+//     e.g. the in-tree waf `use='ap'` build): a genuine AP_AHRS member `_ahrs`,
+//     so every type stays a real ArduPilot type end-to-end.
+//   * Option B (macro DEFINED by the standalone `.so` build): the owned
+//     `_ahrs_shim`, which that build's include seam has made the `AP_AHRS` type,
+//     so the controller reads the injected state directly with no EKF/DCM stack.
+// EITHER WAY `_ahrs_shim` is the canonical injected-state record fed by
+// set_state_ne().
 //
 // AP_L1_Control's constructor runs AP_Param::setup_object_defaults(this,
 // var_info), which applies the stock L1 defaults (PERIOD=17, DAMPING=0.75,
@@ -73,7 +119,18 @@
 // the moment it is constructed.
 AfsimL1Behavior::AfsimL1Behavior()
     : _ahrs_shim()
+#if defined(AFSIML1_L1_USES_SHIM_AHRS)
+    // Option B: the standalone build's include seam has made
+    // AP_AHRS == AfsimL1_AHRS_Shim, so the controller binds the shim directly and
+    // reads the host-injected state through it.
     , _l1(_ahrs_shim, nullptr)
+#else
+    // Option A (default): compose against a genuine AP_AHRS for full-stack
+    // fidelity. `_ahrs` is declared between `_ahrs_shim` and `_l1` in the header,
+    // so this initialiser order matches the declaration order (-Werror=reorder).
+    , _ahrs()
+    , _l1(_ahrs, nullptr)
+#endif
 {
 }
 
@@ -110,13 +167,27 @@ void AfsimL1Behavior::init()
 // current leg is (re)evaluated each step.
 void AfsimL1Behavior::execute(double dt_seconds)
 {
-    // The host drives timing: inject dt so AP_L1_Control uses it instead of its
-    // internal AP_HAL::micros() delta. This MUST precede update_waypoint()
-    // because the controller consumes the override inside that call's timing
-    // block; the controller's existing clamp semantics (reinitialise the
-    // cross-track integrator when dt > 1 s, cap at 0.1 s) are preserved, so the
-    // numerical behavior is unchanged.
-    _l1.set_update_dt(static_cast<float>(dt_seconds));
+    // Validate the host-supplied dt at the service boundary (CWE-20) BEFORE it
+    // reaches the controller. A non-finite (NaN/Inf) or negative dt must never
+    // enter the guidance timing: a negative dt would run the cross-track
+    // integrator backwards, and a NaN dt would slip past the controller's
+    // inherited upper-bound clamps (every `NaN > limit` compares false) and
+    // poison _L1_xtrack_i. Such values are collapsed to 0 -- a safe no-op step.
+    // The controller's own UPPER-bound semantics (reinitialise the integrator
+    // when dt > 1 s, cap at 0.1 s) are deliberately left INTACT and are neither
+    // duplicated nor capped here, so numerical behavior is preserved for every
+    // valid dt.
+    double dt = finite_or(dt_seconds, 0.0);
+    if (dt < 0.0) {
+        dt = 0.0;
+    }
+
+    // The host drives timing: inject the validated dt so AP_L1_Control uses it
+    // instead of its internal AP_HAL::micros() delta. This MUST precede
+    // update_waypoint() because the controller consumes the override inside that
+    // call's timing block; the controller's existing clamp semantics are
+    // preserved, so the numerical behavior is unchanged.
+    _l1.set_update_dt(static_cast<float>(dt));
 
     // The current platform state (North/East position, East/North velocity,
     // yaw, pitch) is pushed into the AHRS shim by set_state_ne() prior to this
@@ -160,20 +231,34 @@ void AfsimL1Behavior::set_leg_ne(double prevN, double prevE, double nextN, doubl
 // matches the user example (AAP 0.7.2): East velocity precedes North velocity.
 void AfsimL1Behavior::set_state_ne(double n, double e, double velE, double velN, double yaw_cd, double pitch_rad)
 {
+    // Sanitize every externally supplied scalar at the service boundary
+    // (CWE-20) before it is cast to float and stored: a non-finite (NaN/Inf)
+    // component would otherwise propagate through Location::offset() and the
+    // controller's cross-track geometry. Each non-finite value is replaced with
+    // 0 (a safe neutral); legitimate finite magnitudes are left unclamped so
+    // valid large positions/velocities are preserved. One assignment per line
+    // keeps the guard unambiguous.
+    const double n_s         = finite_or(n, 0.0);
+    const double e_s         = finite_or(e, 0.0);
+    const double velE_s      = finite_or(velE, 0.0);
+    const double velN_s      = finite_or(velN, 0.0);
+    const double yaw_cd_s    = finite_or(yaw_cd, 0.0);
+    const double pitch_rad_s = finite_or(pitch_rad, 0.0);
+
     // Position (North/East offset from the datum, metres) -> get_location().
-    _ahrs_shim.set_location_NE(static_cast<float>(n), static_cast<float>(e));
+    _ahrs_shim.set_location_NE(static_cast<float>(n_s), static_cast<float>(e_s));
 
     // Ground velocity (East/North components, m/s) -> groundspeed_vector().
     // The shim maps these onto ArduPilot's Vector2f(x = North, y = East)
     // convention internally.
-    _ahrs_shim.set_velocity_EN(static_cast<float>(velE), static_cast<float>(velN));
+    _ahrs_shim.set_velocity_EN(static_cast<float>(velE_s), static_cast<float>(velN_s));
 
     // Heading/yaw (centidegrees) -> get_yaw_rad() and the yaw_sensor member,
     // both of which the shim keeps in sync.
-    _ahrs_shim.set_yaw_cd(static_cast<float>(yaw_cd));
+    _ahrs_shim.set_yaw_cd(static_cast<float>(yaw_cd_s));
 
     // Pitch (radians) -> get_pitch_rad().
-    _ahrs_shim.set_pitch_rad(static_cast<float>(pitch_rad));
+    _ahrs_shim.set_pitch_rad(static_cast<float>(pitch_rad_s));
 }
 
 // ----------------------------------------------------------------------------
