@@ -203,4 +203,16 @@ private:
     /// Next (target) waypoint of the current navigation leg. Default-constructed
     /// to a zeroed Location until set_leg_ne() or init() supplies a leg.
     Location _next{};
+
+    /// Guard against reading the controller's outputs before they are defined
+    /// (CWE-457, use of uninitialized value). AP_L1_Control computes its command
+    /// outputs -- the internal lateral-acceleration demand surfaced by
+    /// nav_roll_cd() and lateral_acceleration() -- only inside update_waypoint();
+    /// before the first update those members hold indeterminate values. execute()
+    /// sets this flag true once it has driven at least one update_waypoint(), and
+    /// until then get_roll_deg() / get_lat_accel() return a well-defined 0.0
+    /// rather than reading the controller's not-yet-initialized outputs.
+    /// Default-initialized in-class, so it needs no member-initializer-list entry
+    /// and leaves construction order (and -Wreorder) unaffected.
+    bool _has_executed{false};
 };

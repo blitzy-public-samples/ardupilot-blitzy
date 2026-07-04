@@ -175,6 +175,14 @@ void AfsimL1Behavior::execute(double dt_seconds)
     // AFTER set_update_dt() so the injected dt is in effect for this step. The
     // commanded outputs are not read here; they are exposed by the getters.
     _l1.update_waypoint(_prev, _next);
+
+    // Record that the controller has now produced at least one well-defined set
+    // of outputs. Before this first successful update_waypoint() the controller's
+    // command state is indeterminate, so the getters withhold it (CWE-457).
+    // Setting the flag only AFTER the update means get_roll_deg() /
+    // get_lat_accel() begin returning the controller's outputs exactly when they
+    // become valid.
+    _has_executed = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +190,13 @@ void AfsimL1Behavior::execute(double dt_seconds)
 // ---------------------------------------------------------------------------
 double AfsimL1Behavior::get_roll_deg() const
 {
+    // Guard against CWE-457: before the first execute() the controller has not
+    // run update_waypoint(), so its command outputs are indeterminate. Return a
+    // well-defined 0.0 until at least one guidance step has completed.
+    if (!_has_executed) {
+        return 0.0;
+    }
+
     // AP_L1_Control::nav_roll_cd() returns the commanded bank angle in
     // centidegrees (int32_t); divide by 100.0f to convert to degrees. The
     // integer numerator is promoted to float by the float divisor, so the
@@ -191,6 +206,13 @@ double AfsimL1Behavior::get_roll_deg() const
 
 double AfsimL1Behavior::get_lat_accel() const
 {
+    // Guard against CWE-457: before the first execute() the controller's
+    // lateral-acceleration demand is indeterminate. Return a well-defined 0.0
+    // until at least one guidance step has completed.
+    if (!_has_executed) {
+        return 0.0;
+    }
+
     // AP_L1_Control::lateral_acceleration() is already in m/s^2 (+ve to the
     // right); return it verbatim, widened to double for the C ABI boundary.
     return static_cast<double>(_l1.lateral_acceleration());

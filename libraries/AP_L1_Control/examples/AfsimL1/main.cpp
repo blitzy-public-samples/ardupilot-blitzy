@@ -76,6 +76,21 @@
                          // C ABI header (no C++ service types), it keeps this driver a
                          // faithful stand-in for an external, differently-compiled host.
 
+// -----------------------------------------------------------------------------
+// In-tree (waf) build glue -- NOT part of the service's public surface.
+// -----------------------------------------------------------------------------
+// The in-tree example build links the ArduPilot support library (waf
+// `use='ap'`), whose objects reference the process-global `hal` (the
+// AP_HAL::HAL instance). Every in-tree ArduPilot program must define that
+// symbol exactly once; doing so here is the standard example idiom (see
+// libraries/AP_AHRS/examples/AHRS_Test/AHRS_Test.cpp). This is link-time glue
+// only: `hal` never crosses the service's C ABI, and the demo below still
+// drives the service purely through the extern "C" entry points, exactly as an
+// external host binding libafsim_l1.so would. (The standalone shared-library
+// build does not link `libap` and therefore does not need this definition.)
+#include <AP_HAL/AP_HAL.h>
+const AP_HAL::HAL& hal = AP_HAL::get_HAL();
+
 /// Program entry point.
 ///
 /// Walks the full service lifecycle in order --

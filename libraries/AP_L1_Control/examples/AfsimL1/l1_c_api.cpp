@@ -53,6 +53,13 @@
 // below has a preceding declaration from this header.
 #include "l1_c_api.h"
 
+// std::nothrow. L1_Create() below allocates with the non-throwing form of
+// operator new so that an allocation failure is reported by RETURNING NULL --
+// the contract documented in l1_c_api.h -- instead of letting a std::bad_alloc
+// exception escape across the C ABI boundary, which would be undefined for a C
+// caller (exception propagation is not part of the C ABI).
+#include <new>
+
 // ---------------------------------------------------------------------------
 // C ABI boundary.
 //
@@ -78,10 +85,30 @@ struct L1_Context { AfsimL1Behavior* self; };
 /// Construct a new AfsimL1 service instance.
 ///
 /// Allocates the opaque context and the underlying AfsimL1Behavior together and
-/// returns the context as an opaque handle. The returned handle must eventually
-/// be released with L1_Destroy() to avoid leaking the underlying C++ object.
+/// returns the context as an opaque handle, or NULL if either allocation fails.
+/// Both allocations use the non-throwing form of new, so allocation failure is
+/// reported via a NULL return (the contract documented in l1_c_api.h) rather
+/// than by throwing a C++ exception across the C ABI; any partial allocation is
+/// unwound before returning NULL, so the failure path leaks nothing. On success
+/// the returned handle must eventually be released with L1_Destroy() to avoid
+/// leaking the underlying C++ object.
 __attribute__((visibility("default"))) void* L1_Create() {
-    auto* ctx = new L1_Context{new AfsimL1Behavior()};
+    // Honor the documented NULL-on-allocation-failure contract (l1_c_api.h) and
+    // never allow a C++ exception to cross the C ABI: allocate BOTH objects with
+    // the non-throwing form of new, check each result, and unwind any partial
+    // allocation before returning. The allocation order (behavior first, then
+    // context) mirrors the release order in L1_Destroy().
+    auto* self = new (std::nothrow) AfsimL1Behavior();
+    if (self == nullptr) {
+        return nullptr;
+    }
+    auto* ctx = new (std::nothrow) L1_Context{self};
+    if (ctx == nullptr) {
+        // The context allocation failed after the behavior succeeded; release
+        // the behavior so the failure path leaks nothing, then report failure.
+        delete self;
+        return nullptr;
+    }
     return ctx;
 }
 

@@ -1,7 +1,34 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
+# In-tree waf build for the AfsimL1 reusable L1-guidance service example
+# (Agent Action Plan sections 0.2.1, 0.3.1, 0.4.1). It builds the demo driver
+# together with the service sources as an ArduPilot example program.
+#
+# Two additions to the bare `bld.ap_example(use='ap')` pattern are REQUIRED to
+# realize the AAP 0.6.2 "Option B" compile-time include seam (see
+# ahrs_shim_seam/AP_AHRS/AP_AHRS.h) so the service actually compiles, links and
+# runs with host-injected state -- the bare pattern cannot, because it would
+# link the vehicle's precompiled AP_L1_Control (bound to the real AP_AHRS),
+# into which no host state can be injected:
+#
+#   * includes=['ahrs_shim_seam'] places the seam directory FIRST on the
+#     include path, so AP_L1_Control's transitive `#include <AP_AHRS/AP_AHRS.h>`
+#     resolves to the shim seam and every `_ahrs.<x>` call binds to the
+#     host-driven AfsimL1_AHRS_Shim instead of live sensor fusion.
+#   * source=... adds '../../AP_L1_Control.cpp' so the guidance controller is
+#     (re)compiled FOR THIS EXAMPLE against that seam. AP_L1_Control holds its
+#     AHRS by reference (pointer-sized), so this compiles to a layout-identical
+#     object with no ODR hazard, and the controller source itself is NOT edited
+#     (AAP 0.7.1: behavior-preserving, no vehicle-firmware change). `use='ap'`
+#     still supplies AP_Math / AP_Common / AP_Param / AP_TECS / AP_HAL, etc.
+#
+# The seam is scoped to THIS example only; vehicle firmware continues to link
+# the unchanged AP_L1_Control compiled against the real AP_AHRS.
+
 def build(bld):
     bld.ap_example(
         use='ap',
+        source=bld.path.ant_glob('*.cpp') + ['../../AP_L1_Control.cpp'],
+        includes=['ahrs_shim_seam'],
     )
