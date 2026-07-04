@@ -190,9 +190,38 @@ private:
     /// against it.
     AfsimL1_AHRS_Shim _ahrs_shim;
 
+#ifndef AFSIML1_AHRS_SEAM_ACTIVE
+    /// Real AP_AHRS instance — present ONLY in the seam-less (in-tree waf) build.
+    ///
+    /// The two supported build arrangements differ in what the name `AP_AHRS`
+    /// denotes when this header is compiled (AAP 0.6.2):
+    ///   * Standalone `.so` (CMake, Option B): the build defines
+    ///     AFSIML1_AHRS_SEAM_ACTIVE and a compile-time include seam makes
+    ///     `AP_AHRS` resolve to AfsimL1_AHRS_Shim, so the controller binds
+    ///     directly to _ahrs_shim and reads the host-injected state. This member
+    ///     is compiled out -- the standalone build is byte-identical to before.
+    ///   * In-tree example (waf `bld.ap_example(use='ap')`, Option A): there is
+    ///     NO include seam, so `AP_AHRS` denotes the real ArduPilot class from
+    ///     libap and AP_L1_Control's constructor requires a real `AP_AHRS&`. We
+    ///     own one here purely to satisfy that binding and the object layout.
+    ///     Functional state injection is NOT possible through the real AP_AHRS
+    ///     (its accessors are non-virtual with private backing state -- the very
+    ///     reason Option B exists), so in this build the controller's
+    ///     get_location() reports no position fix, update_waypoint() leaves the
+    ///     data stale, and the output getters (guarded by _l1.data_is_stale())
+    ///     return a well-defined 0.0. The waf example therefore proves in-tree
+    ///     compile/link/run integration; numerical guidance fidelity is
+    ///     delivered by the standalone `.so`. Declared AFTER _ahrs_shim and
+    ///     BEFORE _l1 so the member-initializer order (shim, real AHRS, then the
+    ///     controller that references the real AHRS) matches declaration order
+    ///     and raises no -Wreorder diagnostic.
+    AP_AHRS _ahrs_real;
+#endif
+
     /// The wrapped L1 guidance controller, reused unchanged. Constructed in the
-    /// .cpp against _ahrs_shim (as the AHRS) and a null TECS pointer; its L1
-    /// mathematics are behavior-preserving.
+    /// .cpp against the shim (Option B / standalone) or the real AP_AHRS
+    /// (Option A / in-tree waf) and a null TECS pointer; its L1 mathematics are
+    /// behavior-preserving in both.
     AP_L1_Control _l1;
 
     /// Previous waypoint of the current navigation leg. Default-constructed to a

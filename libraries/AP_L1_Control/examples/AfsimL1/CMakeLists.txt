@@ -389,6 +389,13 @@ target_include_directories(afsim_l1 PRIVATE
 #    * AP_TERRAIN_AVAILABLE=0       — compile out terrain branches in Location.
 #    * AP_INTERNALERROR_ENABLED=0   — drop the internal-error reporting path.
 #    * ALLOW_DOUBLE_MATH_FUNCTIONS  — matches SITL double-precision math.
+#    * AFSIML1_AHRS_SEAM_ACTIVE     — signals to AfsimL1Behavior that the Option-B
+#      include seam above is in effect, so `AP_AHRS` resolves to the service
+#      shim. The facade then binds the controller directly to its shim and reads
+#      host-injected state (the functional standalone path). Without this define
+#      (the in-tree waf build, which has no seam) the facade instead owns a real
+#      AP_AHRS to satisfy the controller's constructor. Defining it here keeps
+#      this shared library byte-identical to its prior behaviour.
 target_compile_definitions(afsim_l1 PRIVATE
     CONFIG_HAL_BOARD=HAL_BOARD_SITL
     CONFIG_HAL_BOARD_SUBTYPE=HAL_BOARD_SUBTYPE_NONE
@@ -397,6 +404,7 @@ target_compile_definitions(afsim_l1 PRIVATE
     AP_TERRAIN_AVAILABLE=0
     AP_INTERNALERROR_ENABLED=0
     ALLOW_DOUBLE_MATH_FUNCTIONS
+    AFSIML1_AHRS_SEAM_ACTIVE
 )
 
 #  `lib` prefix and `.so` suffix are applied automatically on Linux, yielding
@@ -441,6 +449,14 @@ add_executable(afsim_demo "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 #  directory) — add the source dir explicitly so the target is robust regardless
 #  of the caller's working directory.
 target_include_directories(afsim_demo PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+
+#  Mark this as the STANDALONE demo so main.cpp compiles out the in-tree waf HAL
+#  glue (the process-global `hal`). main.cpp defines that glue by DEFAULT (so the
+#  in-tree waf example, which links libap and needs the symbol, gets it without
+#  any custom -D), and skips it only when AFSIM_L1_STANDALONE is defined — which
+#  is exactly this standalone build, where the demo binds purely through the C
+#  ABI (l1_c_api.h) and links no libap / AP_HAL.
+target_compile_definitions(afsim_demo PRIVATE AFSIM_L1_STANDALONE)
 
 #  Link the demo against the service shared library. This resolves the eight
 #  L1_* C-ABI symbols from libafsim_l1.so and nothing else — the demo is a pure

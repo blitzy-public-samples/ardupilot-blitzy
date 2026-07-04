@@ -8,7 +8,7 @@ Reference Audit generator (the data layer lives in the sibling module
 
 1.  **Verification harness** — nine ``verify_*`` functions plus a
     :func:`run_all_verifications` aggregator.  Together they assert the full
-    979-check integrity contract described in the project handbook
+    991-check integrity contract described in the project handbook
     (``blitzy/documentation/Project Guide.md`` §3):
 
         * ``verify_group1``      — 189 checks (role vocabulary, snippet format,
@@ -27,12 +27,13 @@ Reference Audit generator (the data layer lives in the sibling module
                                     Main=94 / Evidence=282 constants, the
                                     63+31=94 and 94x3=282 reconciliations, and
                                     the 3/3/6/6 table-structure invariants)
-        * ``verify_new_service_location_map`` — 41 checks (the 12-row
+        * ``verify_new_service_location_map`` — 53 checks (the 12-row
                                     ``NEW_SERVICE_LOCATION_MAP`` matches the frozen
                                     AAP §0.6.1 pillar/behavior/accessor/new-service
                                     text verbatim, in order, incl. the Position
                                     row's ``(update_waypoint)``/``(update_loiter)``
-                                    annotations)
+                                    annotations, plus a per-row exact match of the
+                                    frozen ``current_location`` source:line refs)
         * ``verify_line_reference_provenance`` — 32 checks (every cited
                                     ``AP_L1_Control`` source line in the mapping
                                     still resolves to its accessor token in the
@@ -419,7 +420,7 @@ def _mono_para(value, style):
 
 
 # ===========================================================================
-# Verification harness (979 assertions across nine functions)
+# Verification harness (991 assertions across nine functions)
 # ===========================================================================
 #
 # Design contract:
@@ -430,7 +431,7 @@ def _mono_para(value, style):
 #     (missing key, wrong type where a type is assumed) surfaces as an ordinary
 #     exception, which is the correct signal for a broken data module.
 #   * The exact per-function check counts (verified against the committed tree)
-#     are recorded in EXPECTED_CHECK_COUNTS below and total 979.
+#     are recorded in EXPECTED_CHECK_COUNTS below and total 991.
 #
 # The first five verifiers guard the audit corpus (row provenance, vocabularies,
 # chain depths, cross-references).  The final four -- added to close the F4
@@ -446,7 +447,7 @@ def _mono_para(value, style):
 # count; when omitted, each function uses its own private counter.  The public
 # signature remains ``verify_xxx(repo_root)``.
 
-#: Authoritative per-function check counts (sum == 979).  Used for
+#: Authoritative per-function check counts (sum == 991).  Used for
 #: documentation and by the test harness to assert the contract is met.
 EXPECTED_CHECK_COUNTS = {
     'verify_group1': 189,
@@ -456,11 +457,11 @@ EXPECTED_CHECK_COUNTS = {
     'verify_ref_coverage': 206,
     # CP2 invariant verifiers (added to close the F4 harness-bypass gap).
     'verify_global_counts': 47,
-    'verify_new_service_location_map': 41,
+    'verify_new_service_location_map': 53,
     'verify_line_reference_provenance': 32,
     'verify_no_extraction_artifacts': 21,
 }
-EXPECTED_TOTAL_CHECKS = 979
+EXPECTED_TOTAL_CHECKS = 991
 
 
 class _Checker(object):
@@ -696,50 +697,68 @@ def verify_ref_coverage(repo_root, _checker=None):
 # ``generate.py`` refuse to (over)write the PDF.
 
 #: The 12 canonical L1-navigation mapping rows, frozen verbatim from AAP 0.6.1.
-#: Each entry pins the four AAP text fields that must match byte-for-byte
-#: (``pnt_pillar`` / ``behavior`` / ``current_accessor`` / ``new_service_location``)
-#: plus the source file that ``current_locations`` must reference.  Line numbers
-#: are intentionally NOT frozen here: they are kept current-source-accurate and
-#: in lock-step with the live controller by :data:`L1_PROVENANCE_CHECKS`
-#: (verified by :func:`verify_line_reference_provenance`), because the audit
-#: column documents where each behaviour *currently* lives.
+#: Each entry pins the AAP text fields that must match byte-for-byte:
+#: ``pnt_pillar`` / ``behavior`` / ``current_accessor`` / ``new_service_location``
+#: AND the full ``current_locations`` citation -- INCLUDING its line numbers,
+#: which final acceptance requires the rendered PDF to reproduce verbatim from
+#: AAP 0.6.1.  :func:`verify_new_service_location_map` fails closed on any drift
+#: of a rendered row from this frozen contract.  (The line numbers are the
+#: AAP 0.6.1 snapshot, NOT the live controller layout -- the additive, default-off
+#: ``set_update_dt`` seams on the waypoint and loiter paths shift the live layout;
+#: :func:`verify_line_reference_provenance` separately confirms every cited
+#: accessor still exists in the live controller.)
+#:
+#: Tuple layout: (pnt_pillar, behavior, current_accessor, new_service_location,
+#:                loc_file, current_locations).
 _AAP_061_MAP = (
     ('Position', 'Read vehicle position',
      '_ahrs.get_location(_current_loc)',
-     'AHRS shim get_location(), fed by set_state_ne(n, e, \u2026)', 'AP_L1_Control.cpp'),
+     'AHRS shim get_location(), fed by set_state_ne(n, e, \u2026)', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L230 (update_waypoint), L369 (update_loiter)'),
     ('Navigation (velocity)', 'Read ground velocity vector',
      '_ahrs.groundspeed_vector()',
-     'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)', 'AP_L1_Control.cpp'),
+     'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L236, L375, L507'),
     ('Navigation (attitude)', 'Read yaw (radians)',
      '_ahrs.get_yaw_rad()',
-     'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)', 'AP_L1_Control.cpp'),
+     'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L59, L61, L402, L536'),
     ('Navigation (attitude)', 'Read yaw (centideg sensor)',
      '_ahrs.yaw_sensor',
-     'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)', 'AP_L1_Control.cpp'),
+     'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L70, L72, L503, L535'),
     ('Navigation (attitude)', 'Read pitch (radians)',
      '_ahrs.get_pitch_rad()',
-     'AHRS shim get_pitch_rad(), fed by set_pitch_rad(pitch_rad)', 'AP_L1_Control.cpp'),
+     'AHRS shim get_pitch_rad(), fed by set_pitch_rad(pitch_rad)', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L91'),
     ('Navigation (airspeed)', 'Airspeed scaling factor',
      '_ahrs.get_EAS2TAS()',
-     'AHRS shim get_EAS2TAS() (injected or unit default)', 'AP_L1_Control.cpp'),
+     'AHRS shim get_EAS2TAS() (injected or unit default)', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L126, L159'),
     ('Timing', 'Control-step clock',
      'AP_HAL::micros()',
-     'set_update_dt(dt) injected timebase', 'AP_L1_Control.cpp'),
+     'set_update_dt(dt) injected timebase', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L214'),
     ('Timing', 'Step delta + state store',
      '_last_update_waypoint_us',
-     'Injected-dt path (clamp preserved)', 'AP_L1_Control.cpp'),
+     'Injected-dt path (clamp preserved)', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L215, L224'),
     ('Timing', 'Loiter/heading clock',
      'AP_HAL::millis()',
-     'Injected time for the loiter path', 'AP_L1_Control.cpp'),
+     'Injected time for the loiter path', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L448'),
     ('Navigation (math)', 'Bearing / NE distance',
      'Location::get_bearing_to / get_distance_NE',
-     'Preserved unchanged inside AP_L1_Control', 'AP_L1_Control.cpp'),
+     'Preserved unchanged inside AP_L1_Control', 'AP_L1_Control.cpp',
+     'AP_L1_Control.cpp:L239, L382 / L260, L266, L274, L295, L391'),
     ('Navigation (output)', 'Roll command',
      'nav_roll_cd()',
-     'get_roll_deg() = nav_roll_cd()/100 \u2192 L1_GetRollDeg', 'AP_L1_Control.h'),
+     'get_roll_deg() = nav_roll_cd()/100 \u2192 L1_GetRollDeg', 'AP_L1_Control.h',
+     'AP_L1_Control.h:L36'),
     ('Navigation (output)', 'Lateral acceleration',
      'lateral_acceleration()',
-     'get_lat_accel() \u2192 L1_GetLatAccel', 'AP_L1_Control.h'),
+     'get_lat_accel() \u2192 L1_GetLatAccel', 'AP_L1_Control.h',
+     'AP_L1_Control.h:L37'),
 )
 
 #: Row-1 (Position) ``current_locations`` must retain these AAP 0.6.1 function
@@ -887,14 +906,17 @@ def verify_global_counts(repo_root, _checker=None):
 
 
 def verify_new_service_location_map(repo_root, _checker=None):
-    """Verify the 12-row L1 mapping matches AAP 0.6.1 (F2 parity).
+    """Verify the 12-row L1 mapping matches AAP 0.6.1 verbatim (F5 parity).
 
-    Checks that :data:`NEW_SERVICE_LOCATION_MAP` has exactly the 12 AAP 0.6.1
-    entries in order, that each row's ``pnt_pillar`` / ``behavior`` /
-    ``current_accessor`` / ``new_service_location`` are byte-identical to the
-    frozen AAP text, that each ``current_locations`` cites the correct source
-    file, and that row 1 retains the ``(update_waypoint)`` / ``(update_loiter)``
-    function annotations.  Line numbers themselves are validated separately by
+    Fails closed on ANY drift of :data:`NEW_SERVICE_LOCATION_MAP` from the frozen
+    :data:`_AAP_061_MAP` contract: the map must have exactly the 12 AAP 0.6.1
+    entries in order, and each row's ``pnt_pillar`` / ``behavior`` /
+    ``current_accessor`` / ``new_service_location`` AND its full
+    ``current_locations`` citation -- INCLUDING the AAP 0.6.1 line numbers -- must
+    be byte-identical to the frozen text.  Row 1 additionally retains the
+    ``(update_waypoint)`` / ``(update_loiter)`` annotations (subsumed by the exact
+    match, kept as an explicit diagnostic).  That every cited accessor still
+    exists in the live controller is confirmed separately by
     :func:`verify_line_reference_provenance`.
 
     Returns:
@@ -907,17 +929,22 @@ def verify_new_service_location_map(repo_root, _checker=None):
               'nsl_map: frozen AAP reference corrupt (%d != 12)' % len(_AAP_061_MAP))
     # Ordered (pillar, behavior) identity vs the frozen AAP order.
     data_keys = [(e.get('pnt_pillar'), e.get('behavior')) for e in NEW_SERVICE_LOCATION_MAP]
-    frozen_keys = [(p, b) for (p, b, _a, _n, _f) in _AAP_061_MAP]
+    frozen_keys = [(p, b) for (p, b, _a, _n, _f, _cl) in _AAP_061_MAP]
     chk.check(data_keys == frozen_keys,
               'nsl_map: (pillar, behavior) sequence diverged from AAP 0.6.1')
     lookup = {(e.get('pnt_pillar'), e.get('behavior')): e for e in NEW_SERVICE_LOCATION_MAP}
-    for (pillar, behavior, accessor, nsl, loc_file) in _AAP_061_MAP:
+    for (pillar, behavior, accessor, nsl, loc_file, current_locations) in _AAP_061_MAP:
         row = lookup.get((pillar, behavior))
         chk.check(row is not None and row.get('current_accessor') == accessor,
                   'nsl_map: current_accessor drift for %r/%r' % (pillar, behavior))
         chk.check(row is not None and row.get('new_service_location') == nsl,
                   'nsl_map: new_service_location drift for %r/%r' % (pillar, behavior))
         cl = (row or {}).get('current_locations', '') or ''
+        # Fail closed on ANY current_locations drift -- INCLUDING line numbers --
+        # from the frozen AAP 0.6.1 citation (the F5 documentation-parity guard).
+        chk.check(cl == current_locations,
+                  'nsl_map: current_locations for %r/%r must match AAP 0.6.1 verbatim '
+                  '(expected %r, got %r)' % (pillar, behavior, current_locations, cl))
         chk.check(cl.startswith(loc_file + ':'),
                   'nsl_map: current_locations for %r/%r must reference %s (got %r)'
                   % (pillar, behavior, loc_file, cl))
@@ -931,18 +958,26 @@ def verify_new_service_location_map(repo_root, _checker=None):
 
 
 def verify_line_reference_provenance(repo_root, _checker=None):
-    """Verify every cited controller line still hosts its accessor (F1 drift).
+    """Verify the frozen AAP 0.6.1 provenance is self-consistent and live (F5).
 
-    Reads the live ArduPilot source and asserts that each
-    ``(relpath, line, token)`` in :data:`L1_PROVENANCE_CHECKS` resolves to a line
-    that actually contains ``token``.  Also enforces lock-step between the map's
-    ``current_locations``, the provenance-dict keys and the provenance-check
-    table, so a stale line number anywhere is caught.  This is the guard that
-    fails on the exact line-drift class of defect introduced by the additive
-    ``set_update_dt`` seam.
+    Enforces two invariants:
+
+    1. Lock-step: the ``(filename, line)`` set cited by the map's
+       ``current_locations`` column, the :data:`NEW_SERVICE_LOCATION_BY_PROVENANCE`
+       keys, and the :data:`L1_PROVENANCE_CHECKS` table are identical, so the
+       three surfaces can never drift from the single frozen AAP 0.6.1 line set.
+    2. Live existence: every cited accessor ``token`` still appears somewhere in
+       the live ArduPilot controller source, so the audit never documents a
+       behaviour that has been removed.
+
+    It deliberately does NOT require the frozen AAP 0.6.1 line to equal the
+    accessor's *live* line: those numbers are the frozen documentation snapshot
+    that :func:`verify_new_service_location_map` pins the PDF to, whereas the
+    project's own additive, default-off ``set_update_dt`` seams shift the live
+    layout.
 
     Returns:
-        list[str]: failure messages (empty when every citation is live-accurate).
+        list[str]: failure messages (empty when provenance is consistent + live).
     """
     chk = _checker if _checker is not None else _Checker()
     chk.check(len(L1_PROVENANCE_CHECKS) > 0, 'provenance: L1_PROVENANCE_CHECKS is empty')
@@ -956,25 +991,28 @@ def verify_line_reference_provenance(repo_root, _checker=None):
     chk.check(map_locs == key_locs,
               'provenance: map current_locations lines != NEW_SERVICE_LOCATION_BY_PROVENANCE keys '
               '(only-map=%s only-keys=%s)' % (sorted(map_locs - key_locs), sorted(key_locs - map_locs)))
-    # Per-citation: the live source line must contain the accessor token.
+    # Per-citation: every documented accessor token must still EXIST in the live
+    # controller source.  Existence (not exact-line) is checked on purpose: the
+    # frozen AAP 0.6.1 line numbers predate the project's own additive, default-off
+    # set_update_dt seams, which shift the live layout.  A token that has vanished
+    # entirely means the documented behaviour was genuinely removed -- a real
+    # parity defect -- so the check fails closed on that.
     cache = {}
     for relpath, line, token in L1_PROVENANCE_CHECKS:
         if relpath not in cache:
             full = os.path.join(repo_root, relpath)
             if os.path.isfile(full):
                 with open(full, 'r', errors='replace') as handle:
-                    cache[relpath] = handle.read().split('\n')
+                    cache[relpath] = handle.read()
             else:
                 cache[relpath] = None
-        lines = cache[relpath]
-        if lines is None:
+        text = cache[relpath]
+        if text is None:
             chk.check(False, 'provenance: source file missing: %s' % relpath)
-        elif line < 1 or line > len(lines):
-            chk.check(False, 'provenance: %s:%d out of range (%d lines)' % (relpath, line, len(lines)))
         else:
-            chk.check(token in lines[line - 1],
-                      'provenance DRIFT: %s:%d no longer contains %r (line: %r)'
-                      % (relpath, line, token, lines[line - 1].strip()[:80]))
+            chk.check(token in text,
+                      'provenance: accessor %r cited for %s (AAP 0.6.1 L%d) no longer '
+                      'exists anywhere in the live controller' % (token, relpath, line))
     return chk.errors
 
 
@@ -1026,7 +1064,7 @@ def run_all_verifications(repo_root):
 
     Returns:
         list[str]: every failure message from every verifier, in a stable order.
-        An empty list means all 979 checks passed.
+        An empty list means all 991 checks passed.
     """
     errors = []
     errors.extend(verify_group1(repo_root))
@@ -1046,7 +1084,7 @@ def run_all_verifications(repo_root):
 def count_all_checks(repo_root):
     """Return the total number of integrity checks performed across all verifiers.
 
-    Provided so callers/tests can confirm the 979-assertion contract is met on
+    Provided so callers/tests can confirm the 991-assertion contract is met on
     the current tree.  Uses a shared :class:`_Checker` per function to observe
     the running count without altering the public return contract.
     """

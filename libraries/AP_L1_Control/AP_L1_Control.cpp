@@ -113,6 +113,18 @@ void AP_L1_Control::set_update_dt(float dt)
 {
     _override_dt = dt;
     _dt_override = true;
+
+    // Advance the injected millisecond clock consumed by the loiter/heading path
+    // (update_loiter) so it, too, is driven by the host timebase instead of
+    // AP_HAL::millis(). A sub-millisecond fractional carry avoids truncation drift
+    // when the host step is not a whole number of milliseconds, keeping the 200ms
+    // loiter hysteresis window faithful to the injected elapsed time.
+    _override_time_acc_ms += dt * 1000.0f;
+    if (_override_time_acc_ms >= 1.0f) {
+        const uint32_t whole_ms = (uint32_t)_override_time_acc_ms;
+        _override_time_ms += whole_ms;
+        _override_time_acc_ms -= (float)whole_ms;
+    }
 }
 
 int32_t AP_L1_Control::nav_bearing_cd(void) const
@@ -463,7 +475,13 @@ void AP_L1_Control::update_loiter(const Location &center_WP, float radius, int8_
     // Perform switchover between 'capture' and 'circle' modes at the
     // point where the commands cross over to achieve a seamless transfer
     // Only fly 'capture' mode if outside the circle
-    const uint32_t now_ms = AP_HAL::millis();
+    // Timing seam (AfsimL1 service): when the host has injected a control-step dt via
+    // set_update_dt(), drive the loiter/heading clock from the host-advanced injected
+    // millisecond counter instead of AP_HAL::millis(). Default-off: with _dt_override
+    // false this is byte-for-byte the original AP_HAL::millis() read, so existing vehicle
+    // callers are numerically unaffected. The _last_loiter hysteresis logic below is
+    // unchanged and operates identically on either time source (same uint32_t domain).
+    const uint32_t now_ms = _dt_override ? _override_time_ms : AP_HAL::millis();
     if (xtrackErrCirc > 0.0f && loiter_direction * latAccDemCap < loiter_direction * latAccDemCirc) {
         _latAccDem = latAccDemCap;
 

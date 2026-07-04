@@ -88,23 +88,27 @@
 // drives the service purely through the extern "C" entry points, exactly as an
 // external host binding libafsim_l1.so would.
 //
-// This glue is COMPILED ONLY for the in-tree waf build, which defines the
-// AFSIM_L1_WAF_BUILD macro (see the sibling `wscript`) and links `libap`. The
-// standalone shared-library build -- the sibling `CMakeLists.txt` `afsim_demo`
-// target, or any differently-compiled external host such as AFSIM -- does NOT
-// link `libap`, does NOT define AFSIM_L1_WAF_BUILD, and therefore must NOT see
-// this include or symbol. Guarding it is precisely what lets `main.cpp` compile
-// and link against `libafsim_l1.so` through the pure C ABI alone (l1_c_api.h),
-// exactly as AFSIM would consume the library (Agent Action Plan 0.6.4). Were the
-// guard absent, the unconditional `#include <AP_HAL/AP_HAL.h>` would break the
-// standalone compile (that header is not on the standalone include path, and
-// dragging it in explodes the full HAL board-config stack), and the `hal`
-// definition would fail to link (AP_HAL::get_HAL() lives in `libap`, which the
-// standalone build deliberately does not link).
-#ifdef AFSIM_L1_WAF_BUILD
+// This glue is needed ONLY by the in-tree waf build, which links `libap` (waf
+// `use='ap'`) and therefore requires the `hal` symbol. That build uses the
+// minimal, required `bld.ap_example(use='ap')` wscript (Agent Action Plan
+// 0.2.1, 0.4.1), which passes NO custom -D, so the glue must be enabled BY
+// DEFAULT and disabled only for the standalone build. The guard is therefore
+// written as "compile the glue UNLESS this is the standalone build":
+// AFSIM_L1_STANDALONE is defined exclusively by the sibling `CMakeLists.txt`
+// `afsim_demo` target (and is the natural macro any out-of-tree host such as
+// AFSIM would set), so the standalone shared-library consumer -- which does NOT
+// link `libap` and binds purely through the C ABI (l1_c_api.h) -- compiles this
+// block out. Were the glue enabled for the standalone build, the unconditional
+// `#include <AP_HAL/AP_HAL.h>` would break the compile (that header is not on
+// the standalone include path, and dragging it in explodes the full HAL
+// board-config stack) and the `hal` definition would fail to link
+// (AP_HAL::get_HAL() lives in `libap`, which the standalone build does not
+// link). Guarding it this way is precisely what lets the same `main.cpp` serve
+// BOTH the in-tree waf example and the standalone C-ABI demo (AAP 0.6.4).
+#ifndef AFSIM_L1_STANDALONE
 #include <AP_HAL/AP_HAL.h>
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
-#endif  // AFSIM_L1_WAF_BUILD
+#endif  // !AFSIM_L1_STANDALONE
 
 /// Program entry point.
 ///

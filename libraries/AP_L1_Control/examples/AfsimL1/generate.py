@@ -8,7 +8,7 @@ Three sibling modules make up the pipeline, all in this directory:
 * ``pnt_data.py``   — the pure-data layer (all audit rows + the additive
   "New Service Location" mapping); no I/O, no import-time side effects.
 * ``pnt_render.py`` — the verification harness (nine ``verify_*`` functions
-  aggregated by :func:`run_all_verifications`, 979 discrete assertions) *and*
+  aggregated by :func:`run_all_verifications`, 991 discrete assertions) *and*
   the deterministic ReportLab renderer (:func:`render_pdf`).
 * ``generate.py``   — *this file*: the harness-gated entry point that the
   repository-root ``ArduPilot_PNT_Reference_Audit.pdf`` regeneration step
@@ -18,7 +18,7 @@ Contract (see ``blitzy/documentation/Project Guide.md`` §9.4/§9.5)
 ------------------------------------------------------------------
 The renderer is **harness-gated**: this script runs the *entire* verification
 harness **first** and **refuses to write (or overwrite) the PDF if any check
-fails**.  Only when all 979 integrity assertions pass does it render and write
+fails**.  Only when all 991 integrity assertions pass does it render and write
 the deliverable.  On success it prints exactly two markers, in order, to
 ``stdout``::
 
@@ -193,7 +193,7 @@ def run_harness(repo_root=None):
 
     Returns:
         list[str]: every failure message from every verifier, in a stable
-        order.  An empty list means all 979 integrity checks passed.
+        order.  An empty list means all 991 integrity checks passed.
     """
     if repo_root is None:
         repo_root = resolve_repo_root()

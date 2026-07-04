@@ -60,6 +60,44 @@
 // caller (exception propagation is not part of the C ABI).
 #include <new>
 
+// std::isfinite / std::initializer_list. The C ABI is the OUTERMOST trust
+// boundary: every scalar below is supplied by an external, possibly
+// differently-compiled host. Non-finite doubles (NaN, +/-Inf) must never be
+// allowed to propagate into guidance state (CWE-20: Improper Input Validation),
+// so each setter/executor screens its inputs for finiteness here as a
+// first-line defense before delegating. The facade (AfsimL1Behavior) performs
+// the AUTHORITATIVE validation (finiteness + plausible-range/magnitude bounds +
+// dt>0 + preserve-previous-valid-state); this boundary check is intentionally
+// redundant defense-in-depth so a non-finite value is rejected at the very edge
+// of the library regardless of how the facade evolves.
+#include <cmath>
+#include <initializer_list>
+
+namespace {
+
+/// @brief Return true iff every supplied scalar is finite (neither NaN nor
+///        +/-Inf).
+///
+/// Shared helper used by the C ABI setters/executor to screen externally
+/// supplied doubles at the library boundary (CWE-20). Centralizing the check in
+/// one place avoids duplicating the per-argument `std::isfinite` tests across
+/// the three entry points that take scalar inputs. It has internal linkage
+/// (anonymous namespace) so it is not itself exported from the shared library.
+///
+/// @param values the external scalar arguments to validate.
+/// @return true when all values are finite; false if any is NaN or infinite.
+inline bool l1_all_finite(std::initializer_list<double> values)
+{
+    for (const double v : values) {
+        if (!std::isfinite(v)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 // C ABI boundary.
 //
@@ -138,6 +176,11 @@ __attribute__((visibility("default"))) void L1_Init(void* handle) {
 /// timebase and supplies @p dt_seconds directly.
 __attribute__((visibility("default"))) void L1_Execute(void* handle, double dt_seconds) {
     if (!handle) return;
+    // Boundary validation (CWE-20): reject a non-finite control step at the ABI
+    // edge. A NaN/Inf dt is ignored here so it can never reach the timing seam;
+    // the facade additionally enforces dt > 0 (the authoritative policy) and, on
+    // an invalid step, preserves the last valid guidance output.
+    if (!l1_all_finite({dt_seconds})) return;
     static_cast<L1_Context*>(handle)->self->execute(dt_seconds);
 }
 
@@ -147,6 +190,10 @@ __attribute__((visibility("default"))) void L1_Execute(void* handle, double dt_s
 /// Null-safe. Delegates to AfsimL1Behavior::set_leg_ne().
 __attribute__((visibility("default"))) void L1_SetLegNE(void* handle, double prevN, double prevE, double nextN, double nextE) {
     if (!handle) return;
+    // Boundary validation (CWE-20): reject the leg update if any endpoint
+    // coordinate is non-finite, so NaN/Inf can never enter the Location math.
+    // The facade re-validates and preserves the previously set leg on rejection.
+    if (!l1_all_finite({prevN, prevE, nextN, nextE})) return;
     static_cast<L1_Context*>(handle)->self->set_leg_ne(prevN, prevE, nextN, nextE);
 }
 
@@ -157,6 +204,11 @@ __attribute__((visibility("default"))) void L1_SetLegNE(void* handle, double pre
 /// exactly.
 __attribute__((visibility("default"))) void L1_SetStateNE(void* handle, double n, double e, double velE, double velN, double yaw_cd, double pitch_rad) {
     if (!handle) return;
+    // Boundary validation (CWE-20): reject the state update if ANY component is
+    // non-finite, so NaN/Inf position, velocity or attitude can never be pushed
+    // into the AHRS shim and thence into guidance arithmetic. The facade
+    // re-validates and preserves the previously injected state on rejection.
+    if (!l1_all_finite({n, e, velE, velN, yaw_cd, pitch_rad})) return;
     static_cast<L1_Context*>(handle)->self->set_state_ne(n, e, velE, velN, yaw_cd, pitch_rad);
 }
 

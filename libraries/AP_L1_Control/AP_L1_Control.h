@@ -133,6 +133,16 @@ private:
     bool _dt_override = false;
     float _override_dt = 0.0f;
 
+    // Injected millisecond clock consumed by the loiter/heading path (update_loiter).
+    // Advanced by set_update_dt() from the host-supplied dt so the loiter timing
+    // touchpoint is driven by the host timebase rather than AP_HAL::millis(). Consumed
+    // ONLY when _dt_override is true; when the seam is unused, update_loiter() reads
+    // AP_HAL::millis() exactly as before (default-off, behaviour-preserving). The uint32_t
+    // clock shares millis()' domain and wraps identically. _override_time_acc_ms carries
+    // the sub-millisecond remainder so repeated sub-ms steps do not lose time to truncation.
+    uint32_t _override_time_ms = 0;
+    float _override_time_acc_ms = 0.0f;
+
     bool _data_is_stale = true;
 
     AP_Float _loiter_bank_limit;

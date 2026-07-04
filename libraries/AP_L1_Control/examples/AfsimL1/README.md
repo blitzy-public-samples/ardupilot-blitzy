@@ -78,6 +78,32 @@ the `void`-returning functions ignore a `NULL` handle, and the getters return `0
 
 The declarations are the authoritative contract; see `l1_c_api.h`.
 
+### Input validation
+
+Every scalar the host supplies crosses an untrusted boundary, so the service validates all
+inputs **before** they mutate any controller or shim state. Each value is checked for
+finiteness (`NaN` / `Inf` are rejected) and against a conservative per-quantity magnitude
+bound; a rejected call is a **safe no-op** that leaves the previously accepted state
+intact, so guidance never consumes a corrupted, half-updated, or out-of-range value. The
+`extern "C"` setters additionally re-check finiteness at the boundary (defence in depth)
+before delegating to the facade.
+
+| Entry point | Accepted input | On invalid input |
+|-------------|----------------|------------------|
+| `L1_SetLegNE` | each coordinate finite, within `±2.0e7` m | ignored; the previously set leg is preserved |
+| `L1_SetStateNE` | position within `±2.0e7` m, velocity `±1.0e4` m/s, yaw `±3.6e6` cd, pitch `±1.0e2` rad, all finite | ignored atomically; the previously injected state is preserved (no partial update) |
+| `L1_Execute` | `dt_seconds` finite and `> 0` | step skipped; controller state and last outputs are unchanged |
+
+The magnitude bounds are deliberately generous — they fence off values that would overflow
+the downstream fixed-point latitude/longitude and heading conversions (undefined
+`float`→`int32` behaviour) rather than impose a flight envelope. An **accepted** `dt` is
+still subject to the controller's own preserved clamp (`dt > 1 s` reinitialises the
+cross-track integrator; `dt > 0.1 s` is capped at `0.1 s`), so the injected-timing path is
+numerically identical to the firmware path. The current ABI has no error-return channel, so
+invalid updates are silently ignored by design; `L1_GetRollDeg` / `L1_GetLatAccel` continue
+to report the last well-defined command (and return `0.0` before the first successful
+`L1_Execute`).
+
 ## Dependency-injection model
 
 In the vehicle build the controller *pulls* its inputs: position, velocity, and attitude
