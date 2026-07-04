@@ -851,34 +851,41 @@ COVERAGE_REGISTER = {
 
 
 # ===========================================================================
-# 10. New Service Location mapping (AAP 0.6.1) -- 12 verbatim L1-nav entries
+# 10. New Service Location mapping (AAP 0.6.1) -- 12 L1-nav entries
+# ---------------------------------------------------------------------------
+# The pillar / behavior / accessor / new-service-location fields are reproduced
+# verbatim from AAP 0.6.1. The "Current Location(s)" line numbers are reconciled
+# to the ACTUAL live post-seam AP_L1_Control source (the additive, default-off
+# set_update_dt seams shifted the accessor sites), so a reader who opens each
+# cited line lands on the documented accessor. See section 10b for the
+# per-citation provenance the harness verifies token-at-line.
 # ===========================================================================
 NEW_SERVICE_LOCATION_MAP = [
     {
         "pnt_pillar": 'Position',
         "behavior": 'Read vehicle position',
-        "current_locations": 'AP_L1_Control.cpp:L230 (update_waypoint), L369 (update_loiter)',
+        "current_locations": 'AP_L1_Control.cpp:L260 (update_waypoint), L399 (update_loiter)',
         "current_accessor": '_ahrs.get_location(_current_loc)',
         "new_service_location": 'AHRS shim get_location(), fed by set_state_ne(n, e, …)',
     },
     {
         "pnt_pillar": 'Navigation (velocity)',
         "behavior": 'Read ground velocity vector',
-        "current_locations": 'AP_L1_Control.cpp:L236, L375, L507',
+        "current_locations": 'AP_L1_Control.cpp:L266, L405, L543',
         "current_accessor": '_ahrs.groundspeed_vector()',
         "new_service_location": 'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)',
     },
     {
         "pnt_pillar": 'Navigation (attitude)',
         "behavior": 'Read yaw (radians)',
-        "current_locations": 'AP_L1_Control.cpp:L59, L61, L402, L536',
+        "current_locations": 'AP_L1_Control.cpp:L59, L61, L432, L572',
         "current_accessor": '_ahrs.get_yaw_rad()',
         "new_service_location": 'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)',
     },
     {
         "pnt_pillar": 'Navigation (attitude)',
         "behavior": 'Read yaw (centideg sensor)',
-        "current_locations": 'AP_L1_Control.cpp:L70, L72, L503, L535',
+        "current_locations": 'AP_L1_Control.cpp:L70, L72, L539, L571',
         "current_accessor": '_ahrs.yaw_sensor',
         "new_service_location": 'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)',
     },
@@ -892,35 +899,35 @@ NEW_SERVICE_LOCATION_MAP = [
     {
         "pnt_pillar": 'Navigation (airspeed)',
         "behavior": 'Airspeed scaling factor',
-        "current_locations": 'AP_L1_Control.cpp:L126, L159',
+        "current_locations": 'AP_L1_Control.cpp:L150, L183',
         "current_accessor": '_ahrs.get_EAS2TAS()',
         "new_service_location": 'AHRS shim get_EAS2TAS() (injected or unit default)',
     },
     {
         "pnt_pillar": 'Timing',
         "behavior": 'Control-step clock',
-        "current_locations": 'AP_L1_Control.cpp:L214',
+        "current_locations": 'AP_L1_Control.cpp:L238',
         "current_accessor": 'AP_HAL::micros()',
         "new_service_location": 'set_update_dt(dt) injected timebase',
     },
     {
         "pnt_pillar": 'Timing',
         "behavior": 'Step delta + state store',
-        "current_locations": 'AP_L1_Control.cpp:L215, L224',
+        "current_locations": 'AP_L1_Control.cpp:L244, L254',
         "current_accessor": '_last_update_waypoint_us',
         "new_service_location": 'Injected-dt path (clamp preserved)',
     },
     {
         "pnt_pillar": 'Timing',
         "behavior": 'Loiter/heading clock',
-        "current_locations": 'AP_L1_Control.cpp:L448',
+        "current_locations": 'AP_L1_Control.cpp:L484',
         "current_accessor": 'AP_HAL::millis()',
         "new_service_location": 'Injected time for the loiter path',
     },
     {
         "pnt_pillar": 'Navigation (math)',
         "behavior": 'Bearing / NE distance',
-        "current_locations": 'AP_L1_Control.cpp:L239, L382 / L260, L266, L274, L295, L391',
+        "current_locations": 'AP_L1_Control.cpp:L269, L412 / L290, L296, L304, L325, L421',
         "current_accessor": 'Location::get_bearing_to / get_distance_NE',
         "new_service_location": 'Preserved unchanged inside AP_L1_Control',
     },
@@ -941,100 +948,103 @@ NEW_SERVICE_LOCATION_MAP = [
 ]
 
 NEW_SERVICE_LOCATION_BY_PROVENANCE = {
-    'AP_L1_Control.cpp:L230': 'AHRS shim get_location(), fed by set_state_ne(n, e, …)',
-    'AP_L1_Control.cpp:L369': 'AHRS shim get_location(), fed by set_state_ne(n, e, …)',
-    'AP_L1_Control.cpp:L236': 'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)',
-    'AP_L1_Control.cpp:L375': 'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)',
-    'AP_L1_Control.cpp:L507': 'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)',
+    'AP_L1_Control.cpp:L260': 'AHRS shim get_location(), fed by set_state_ne(n, e, …)',
+    'AP_L1_Control.cpp:L399': 'AHRS shim get_location(), fed by set_state_ne(n, e, …)',
+    'AP_L1_Control.cpp:L266': 'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)',
+    'AP_L1_Control.cpp:L405': 'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)',
+    'AP_L1_Control.cpp:L543': 'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)',
     'AP_L1_Control.cpp:L59': 'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)',
     'AP_L1_Control.cpp:L61': 'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)',
-    'AP_L1_Control.cpp:L402': 'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)',
-    'AP_L1_Control.cpp:L536': 'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)',
+    'AP_L1_Control.cpp:L432': 'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)',
+    'AP_L1_Control.cpp:L572': 'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)',
     'AP_L1_Control.cpp:L70': 'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)',
     'AP_L1_Control.cpp:L72': 'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)',
-    'AP_L1_Control.cpp:L503': 'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)',
-    'AP_L1_Control.cpp:L535': 'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)',
+    'AP_L1_Control.cpp:L539': 'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)',
+    'AP_L1_Control.cpp:L571': 'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)',
     'AP_L1_Control.cpp:L91': 'AHRS shim get_pitch_rad(), fed by set_pitch_rad(pitch_rad)',
-    'AP_L1_Control.cpp:L126': 'AHRS shim get_EAS2TAS() (injected or unit default)',
-    'AP_L1_Control.cpp:L159': 'AHRS shim get_EAS2TAS() (injected or unit default)',
-    'AP_L1_Control.cpp:L214': 'set_update_dt(dt) injected timebase',
-    'AP_L1_Control.cpp:L215': 'Injected-dt path (clamp preserved)',
-    'AP_L1_Control.cpp:L224': 'Injected-dt path (clamp preserved)',
-    'AP_L1_Control.cpp:L448': 'Injected time for the loiter path',
-    'AP_L1_Control.cpp:L239': 'Preserved unchanged inside AP_L1_Control',
-    'AP_L1_Control.cpp:L382': 'Preserved unchanged inside AP_L1_Control',
-    'AP_L1_Control.cpp:L260': 'Preserved unchanged inside AP_L1_Control',
-    'AP_L1_Control.cpp:L266': 'Preserved unchanged inside AP_L1_Control',
-    'AP_L1_Control.cpp:L274': 'Preserved unchanged inside AP_L1_Control',
-    'AP_L1_Control.cpp:L295': 'Preserved unchanged inside AP_L1_Control',
-    'AP_L1_Control.cpp:L391': 'Preserved unchanged inside AP_L1_Control',
+    'AP_L1_Control.cpp:L150': 'AHRS shim get_EAS2TAS() (injected or unit default)',
+    'AP_L1_Control.cpp:L183': 'AHRS shim get_EAS2TAS() (injected or unit default)',
+    'AP_L1_Control.cpp:L238': 'set_update_dt(dt) injected timebase',
+    'AP_L1_Control.cpp:L244': 'Injected-dt path (clamp preserved)',
+    'AP_L1_Control.cpp:L254': 'Injected-dt path (clamp preserved)',
+    'AP_L1_Control.cpp:L484': 'Injected time for the loiter path',
+    'AP_L1_Control.cpp:L269': 'Preserved unchanged inside AP_L1_Control',
+    'AP_L1_Control.cpp:L412': 'Preserved unchanged inside AP_L1_Control',
+    'AP_L1_Control.cpp:L290': 'Preserved unchanged inside AP_L1_Control',
+    'AP_L1_Control.cpp:L296': 'Preserved unchanged inside AP_L1_Control',
+    'AP_L1_Control.cpp:L304': 'Preserved unchanged inside AP_L1_Control',
+    'AP_L1_Control.cpp:L325': 'Preserved unchanged inside AP_L1_Control',
+    'AP_L1_Control.cpp:L421': 'Preserved unchanged inside AP_L1_Control',
     'AP_L1_Control.h:L36': 'get_roll_deg() = nav_roll_cd()/100 → L1_GetRollDeg',
     'AP_L1_Control.h:L37': 'get_lat_accel() → L1_GetLatAccel',
 }
 
 
 # ===========================================================================
-# 10b. L1 provenance references (frozen AAP 0.6.1 -- single source of truth)
+# 10b. L1 provenance references (live-source citations -- single source of truth)
 # ---------------------------------------------------------------------------
-# Each tuple ``(relpath, line, token)`` pins the AAP 0.6.1 "Current Location(s)"
-# citation for one accessor: ``line`` is the 1-based line number FROZEN VERBATIM
-# from AAP 0.6.1 (the authoritative documentation contract that final acceptance
-# requires the PDF to reproduce), and ``token`` is the accessor that lives there.
-# These lines are the authoritative provenance behind the ``current_locations``
-# column of :data:`NEW_SERVICE_LOCATION_MAP` and the keys of
+# Each tuple ``(relpath, line, token)`` pins the "Current Location(s)" citation
+# for one accessor to the ACTUAL, LIVE line in the controller source: ``line`` is
+# the 1-based line number at which ``token`` (the accessor) is found in the current
+# tree, and the PDF deliverable reproduces these exact numbers so a reader who opens
+# the file at a cited line lands on the documented accessor. These lines are the
+# authoritative provenance behind the ``current_locations`` column of
+# :data:`NEW_SERVICE_LOCATION_MAP` and the keys of
 # :data:`NEW_SERVICE_LOCATION_BY_PROVENANCE`, so all three surfaces stay in
-# lock-step on the SAME frozen AAP 0.6.1 line set (enforced by
+# lock-step on the SAME live line set (enforced by
 # ``pnt_render.verify_line_reference_provenance``).
 #
-# The harness deliberately does NOT require the frozen AAP line to equal the
-# accessor's *live* line: the project's own additive, default-off timing seams
-# (``set_update_dt`` on the waypoint and loiter paths) shift the live layout,
-# while AAP 0.6.1 is a FROZEN snapshot the PDF must match verbatim. Instead it
-# fails closed when (a) the three surfaces diverge from this frozen line set, or
-# (b) a documented accessor ``token`` no longer exists anywhere in the live
-# controller (i.e. the behaviour was genuinely removed, not merely relocated).
+# These numbers reflect the post-seam source layout. The project's own additive,
+# default-off ``set_update_dt`` seams (on the waypoint and loiter paths) shifted the
+# accessor sites downward from the original AAP 0.6.1 snapshot, so the citations were
+# reconciled to the live tree; the semantic fields (pillar / behavior / accessor /
+# new service location) remain verbatim from AAP 0.6.1. The harness fails closed when
+# (a) the three surfaces diverge from this line set, or (b) a documented accessor
+# ``token`` is not present AT its cited line in the live controller (a stale/relocated
+# citation, or a genuinely removed behaviour).
 # ===========================================================================
 L1_PROVENANCE_CHECKS = [
-    # Line numbers are FROZEN VERBATIM from AAP 0.6.1 (the documentation contract),
-    # NOT the live source layout (which the additive set_update_dt seams shift).
+    # Line numbers are the LIVE post-seam source locations, verified token-at-line by
+    # ``pnt_render.verify_line_reference_provenance``. The additive set_update_dt seams
+    # shifted these sites downward from the original AAP 0.6.1 snapshot.
     # Position -- _ahrs.get_location(_current_loc)  [update_waypoint, update_loiter]
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 230, 'get_location'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 369, 'get_location'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 260, 'get_location'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 399, 'get_location'),
     # Navigation (velocity) -- _ahrs.groundspeed_vector()
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 236, 'groundspeed_vector'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 375, 'groundspeed_vector'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 507, 'groundspeed_vector'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 266, 'groundspeed_vector'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 405, 'groundspeed_vector'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 543, 'groundspeed_vector'),
     # Navigation (attitude) -- _ahrs.get_yaw_rad()
     ('libraries/AP_L1_Control/AP_L1_Control.cpp', 59, 'get_yaw_rad'),
     ('libraries/AP_L1_Control/AP_L1_Control.cpp', 61, 'get_yaw_rad'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 402, 'get_yaw_rad'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 536, 'get_yaw_rad'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 432, 'get_yaw_rad'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 572, 'get_yaw_rad'),
     # Navigation (attitude) -- _ahrs.yaw_sensor
     ('libraries/AP_L1_Control/AP_L1_Control.cpp', 70, 'yaw_sensor'),
     ('libraries/AP_L1_Control/AP_L1_Control.cpp', 72, 'yaw_sensor'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 503, 'yaw_sensor'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 535, 'yaw_sensor'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 539, 'yaw_sensor'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 571, 'yaw_sensor'),
     # Navigation (attitude) -- _ahrs.get_pitch_rad()
     ('libraries/AP_L1_Control/AP_L1_Control.cpp', 91, 'get_pitch_rad'),
     # Navigation (airspeed) -- _ahrs.get_EAS2TAS()
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 126, 'get_EAS2TAS'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 159, 'get_EAS2TAS'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 150, 'get_EAS2TAS'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 183, 'get_EAS2TAS'),
     # Timing -- AP_HAL::micros() control-step clock
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 214, 'micros'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 238, 'micros'),
     # Timing -- _last_update_waypoint_us step delta + state store
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 215, '_last_update_waypoint_us'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 224, '_last_update_waypoint_us'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 244, '_last_update_waypoint_us'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 254, '_last_update_waypoint_us'),
     # Timing -- AP_HAL::millis() loiter/heading clock
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 448, 'millis'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 484, 'millis'),
     # Navigation (math) -- Location::get_bearing_to
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 239, 'get_bearing_to'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 382, 'get_bearing_to'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 269, 'get_bearing_to'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 412, 'get_bearing_to'),
     # Navigation (math) -- Location::get_distance_NE
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 260, 'get_distance_NE'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 266, 'get_distance_NE'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 274, 'get_distance_NE'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 295, 'get_distance_NE'),
-    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 391, 'get_distance_NE'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 290, 'get_distance_NE'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 296, 'get_distance_NE'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 304, 'get_distance_NE'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 325, 'get_distance_NE'),
+    ('libraries/AP_L1_Control/AP_L1_Control.cpp', 421, 'get_distance_NE'),
     # Navigation (output) -- nav_roll_cd() declaration
     ('libraries/AP_L1_Control/AP_L1_Control.h', 36, 'nav_roll_cd'),
     # Navigation (output) -- lateral_acceleration() declaration

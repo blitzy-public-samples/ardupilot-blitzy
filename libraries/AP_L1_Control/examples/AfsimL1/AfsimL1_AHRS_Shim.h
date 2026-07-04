@@ -17,7 +17,7 @@
 /// CENTRAL ENGINEERING DECISION  (see Agent Action Plan section 0.6.2)
 /// ---------------------------------------------------------------------------
 /// AP_L1_Control binds a *concrete* reference `AP_AHRS &_ahrs`
-/// (AP_L1_Control.h:L79), and the six accessors it calls on that reference are
+/// (AP_L1_Control.h:L84), and the six accessors it calls on that reference are
 /// NON-VIRTUAL on AP_AHRS. Because they are non-virtual, a plain subclass of
 /// AP_AHRS cannot override them — so the state cannot be decoupled by ordinary
 /// inheritance. Two behavior-preserving realizations exist, and this shim is
@@ -52,11 +52,11 @@
 /// ---------------------------------------------------------------------------
 ///   AP_AHRS member (verified)                         Consumed at
 ///   ------------------------------------------------  --------------------------
-///   bool     get_location(Location&) const            AP_L1_Control.cpp:L230
-///   const Vector2f& groundspeed_vector() const        AP_L1_Control.cpp:L236
+///   bool     get_location(Location&) const            AP_L1_Control.cpp:L260
+///   const Vector2f& groundspeed_vector() const        AP_L1_Control.cpp:L266
 ///   float    get_yaw_rad() const                      AP_L1_Control.cpp:L59,L61
 ///   float    get_pitch_rad() const                    AP_L1_Control.cpp:L91
-///   float    get_EAS2TAS() const                       AP_L1_Control.cpp:L126
+///   float    get_EAS2TAS() const                       AP_L1_Control.cpp:L150
 ///   int32_t  yaw_sensor            (PUBLIC FIELD)      AP_L1_Control.cpp:L70,L72
 ///
 /// Two verified caveats the pseudocode cannot express:
@@ -100,7 +100,7 @@ public:
 
     /// Return the current vehicle position as a Location.
     /// Mirrors AP_AHRS::get_location (AP_AHRS.h:L103); consumed at
-    /// AP_L1_Control.cpp:L230 as `if (_ahrs.get_location(_current_loc) == false)`.
+    /// AP_L1_Control.cpp:L260 as `if (_ahrs.get_location(_current_loc) == false)`.
     /// The implementation constructs @p loc from the injected North/East offset
     /// (set_location_NE) relative to a fixed datum. It returns true because the
     /// host-supplied position is always considered valid.
@@ -110,7 +110,7 @@ public:
 
     /// Return the ground-speed vector, in meters/second.
     /// Mirrors AP_AHRS::groundspeed_vector (AP_AHRS.h:L239); consumed at
-    /// AP_L1_Control.cpp:L236. Following ArduPilot's convention the vector is
+    /// AP_L1_Control.cpp:L266. Following ArduPilot's convention the vector is
     /// oriented (x = North, y = East); the controller uses length() as ground
     /// speed and angle() (== atan2(East, North)) compared against get_yaw().
     /// @return  Const reference to the stored ground-speed vector member. The
@@ -130,7 +130,7 @@ public:
 
     /// Return the equivalent-to-true airspeed scaling ratio (EAS2TAS).
     /// Mirrors AP_AHRS::get_EAS2TAS (AP_AHRS.h:L160); consumed at
-    /// AP_L1_Control.cpp:L126. Defaults to the neutral value 1.0 (sea-level
+    /// AP_L1_Control.cpp:L150. Defaults to the neutral value 1.0 (sea-level
     /// equivalence) because the AfsimL1 injection surface does not currently
     /// supply an air-density correction.
     float get_EAS2TAS() const;

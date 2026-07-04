@@ -60,14 +60,14 @@
 /// Report the current vehicle position as a Location.
 ///
 /// Mirrors AP_AHRS::get_location (AP_AHRS.h:L103); consumed at
-/// AP_L1_Control.cpp:L230 as `if (_ahrs.get_location(_current_loc) == false)`.
+/// AP_L1_Control.cpp:L260 as `if (_ahrs.get_location(_current_loc) == false)`.
 ///
 /// The reported position is built from the fixed `_datum` plus the injected
 /// North/East offset (set via set_location_NE). The method is const, so it
 /// offsets a copy of the datum held in the caller-supplied out-parameter rather
 /// than mutating the `_datum` member. It always returns true because, in the
 /// injected model, a host-supplied position is always available — this ensures
-/// the controller's L230 validity check passes and guidance runs every step.
+/// the controller's L260 validity check passes and guidance runs every step.
 bool AfsimL1_AHRS_Shim::get_location(Location &loc) const
 {
     // Start from the fixed datum (a zeroed Location == equator/prime meridian),
@@ -82,7 +82,7 @@ bool AfsimL1_AHRS_Shim::get_location(Location &loc) const
 /// Return the ground-speed vector, in meters/second.
 ///
 /// Mirrors AP_AHRS::groundspeed_vector (AP_AHRS.h:L239); consumed at
-/// AP_L1_Control.cpp:L236, which copies the returned reference into a local
+/// AP_L1_Control.cpp:L266, which copies the returned reference into a local
 /// before use. The vector follows ArduPilot's (x = North, y = East) convention
 /// so that length() is the ground speed and angle() (== atan2(East, North)) is
 /// directly comparable to get_yaw_rad().
@@ -116,7 +116,7 @@ float AfsimL1_AHRS_Shim::get_pitch_rad() const
 /// Return the equivalent-to-true airspeed scaling ratio (EAS2TAS).
 ///
 /// Mirrors AP_AHRS::get_EAS2TAS (AP_AHRS.h:L160); consumed at
-/// AP_L1_Control.cpp:L126 (as sq(_ahrs.get_EAS2TAS())). The AfsimL1 injection
+/// AP_L1_Control.cpp:L150 (as sq(_ahrs.get_EAS2TAS())). The AfsimL1 injection
 /// surface does not currently supply an air-density correction, so the shim
 /// returns the neutral value 1.0 (sea-level equivalence), matching the
 /// "injected or unit default" policy in AAP 0.6.1.

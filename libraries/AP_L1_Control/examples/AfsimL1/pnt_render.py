@@ -696,17 +696,18 @@ def verify_ref_coverage(repo_root, _checker=None):
 # ``run_all_verifications`` and ``count_all_checks`` so that any violation makes
 # ``generate.py`` refuse to (over)write the PDF.
 
-#: The 12 canonical L1-navigation mapping rows, frozen verbatim from AAP 0.6.1.
-#: Each entry pins the AAP text fields that must match byte-for-byte:
+#: The 12 canonical L1-navigation mapping rows -- the golden contract the rendered
+#: PDF must reproduce byte-for-byte.  Each entry pins the fields that must match:
 #: ``pnt_pillar`` / ``behavior`` / ``current_accessor`` / ``new_service_location``
-#: AND the full ``current_locations`` citation -- INCLUDING its line numbers,
-#: which final acceptance requires the rendered PDF to reproduce verbatim from
-#: AAP 0.6.1.  :func:`verify_new_service_location_map` fails closed on any drift
-#: of a rendered row from this frozen contract.  (The line numbers are the
-#: AAP 0.6.1 snapshot, NOT the live controller layout -- the additive, default-off
-#: ``set_update_dt`` seams on the waypoint and loiter paths shift the live layout;
-#: :func:`verify_line_reference_provenance` separately confirms every cited
-#: accessor still exists in the live controller.)
+#: (all reproduced verbatim from AAP 0.6.1) AND the full ``current_locations``
+#: citation INCLUDING its line numbers.  Those line numbers are the ACTUAL live
+#: post-seam ``AP_L1_Control`` source locations: the additive, default-off
+#: ``set_update_dt`` seams on the waypoint and loiter paths shifted the accessor
+#: sites downward from the original AAP 0.6.1 snapshot, so the citations were
+#: reconciled to the live tree so the PDF points a reader at the real accessor.
+#: :func:`verify_new_service_location_map` fails closed on any drift of a rendered
+#: row from this contract, and :func:`verify_line_reference_provenance` separately
+#: confirms every cited accessor is present AT its cited line in the live controller.
 #:
 #: Tuple layout: (pnt_pillar, behavior, current_accessor, new_service_location,
 #:                loc_file, current_locations).
@@ -714,19 +715,19 @@ _AAP_061_MAP = (
     ('Position', 'Read vehicle position',
      '_ahrs.get_location(_current_loc)',
      'AHRS shim get_location(), fed by set_state_ne(n, e, \u2026)', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L230 (update_waypoint), L369 (update_loiter)'),
+     'AP_L1_Control.cpp:L260 (update_waypoint), L399 (update_loiter)'),
     ('Navigation (velocity)', 'Read ground velocity vector',
      '_ahrs.groundspeed_vector()',
      'AHRS shim groundspeed_vector(), fed by set_velocity_EN(velE, velN)', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L236, L375, L507'),
+     'AP_L1_Control.cpp:L266, L405, L543'),
     ('Navigation (attitude)', 'Read yaw (radians)',
      '_ahrs.get_yaw_rad()',
      'AHRS shim get_yaw_rad(), fed by set_yaw_cd(yaw_cd)', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L59, L61, L402, L536'),
+     'AP_L1_Control.cpp:L59, L61, L432, L572'),
     ('Navigation (attitude)', 'Read yaw (centideg sensor)',
      '_ahrs.yaw_sensor',
      'AHRS shim yaw_sensor, fed by set_yaw_cd(yaw_cd)', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L70, L72, L503, L535'),
+     'AP_L1_Control.cpp:L70, L72, L539, L571'),
     ('Navigation (attitude)', 'Read pitch (radians)',
      '_ahrs.get_pitch_rad()',
      'AHRS shim get_pitch_rad(), fed by set_pitch_rad(pitch_rad)', 'AP_L1_Control.cpp',
@@ -734,23 +735,23 @@ _AAP_061_MAP = (
     ('Navigation (airspeed)', 'Airspeed scaling factor',
      '_ahrs.get_EAS2TAS()',
      'AHRS shim get_EAS2TAS() (injected or unit default)', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L126, L159'),
+     'AP_L1_Control.cpp:L150, L183'),
     ('Timing', 'Control-step clock',
      'AP_HAL::micros()',
      'set_update_dt(dt) injected timebase', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L214'),
+     'AP_L1_Control.cpp:L238'),
     ('Timing', 'Step delta + state store',
      '_last_update_waypoint_us',
      'Injected-dt path (clamp preserved)', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L215, L224'),
+     'AP_L1_Control.cpp:L244, L254'),
     ('Timing', 'Loiter/heading clock',
      'AP_HAL::millis()',
      'Injected time for the loiter path', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L448'),
+     'AP_L1_Control.cpp:L484'),
     ('Navigation (math)', 'Bearing / NE distance',
      'Location::get_bearing_to / get_distance_NE',
      'Preserved unchanged inside AP_L1_Control', 'AP_L1_Control.cpp',
-     'AP_L1_Control.cpp:L239, L382 / L260, L266, L274, L295, L391'),
+     'AP_L1_Control.cpp:L269, L412 / L290, L296, L304, L325, L421'),
     ('Navigation (output)', 'Roll command',
      'nav_roll_cd()',
      'get_roll_deg() = nav_roll_cd()/100 \u2192 L1_GetRollDeg', 'AP_L1_Control.h',
@@ -906,17 +907,18 @@ def verify_global_counts(repo_root, _checker=None):
 
 
 def verify_new_service_location_map(repo_root, _checker=None):
-    """Verify the 12-row L1 mapping matches AAP 0.6.1 verbatim (F5 parity).
+    """Verify the 12-row L1 mapping matches the canonical contract (F5 parity).
 
-    Fails closed on ANY drift of :data:`NEW_SERVICE_LOCATION_MAP` from the frozen
-    :data:`_AAP_061_MAP` contract: the map must have exactly the 12 AAP 0.6.1
+    Fails closed on ANY drift of :data:`NEW_SERVICE_LOCATION_MAP` from the
+    :data:`_AAP_061_MAP` golden contract: the map must have exactly the 12
     entries in order, and each row's ``pnt_pillar`` / ``behavior`` /
-    ``current_accessor`` / ``new_service_location`` AND its full
-    ``current_locations`` citation -- INCLUDING the AAP 0.6.1 line numbers -- must
-    be byte-identical to the frozen text.  Row 1 additionally retains the
-    ``(update_waypoint)`` / ``(update_loiter)`` annotations (subsumed by the exact
-    match, kept as an explicit diagnostic).  That every cited accessor still
-    exists in the live controller is confirmed separately by
+    ``current_accessor`` / ``new_service_location`` (all verbatim from AAP 0.6.1)
+    AND its full ``current_locations`` citation -- INCLUDING the line numbers,
+    which are the live post-seam source locations -- must be byte-identical to the
+    contract.  Row 1 additionally retains the ``(update_waypoint)`` /
+    ``(update_loiter)`` annotations (subsumed by the exact match, kept as an
+    explicit diagnostic).  That every cited accessor is present AT its cited line
+    in the live controller is confirmed separately by
     :func:`verify_line_reference_provenance`.
 
     Returns:
@@ -926,12 +928,12 @@ def verify_new_service_location_map(repo_root, _checker=None):
     chk.check(len(NEW_SERVICE_LOCATION_MAP) == 12,
               'nsl_map: expected 12 rows, found %d' % len(NEW_SERVICE_LOCATION_MAP))
     chk.check(len(_AAP_061_MAP) == 12,
-              'nsl_map: frozen AAP reference corrupt (%d != 12)' % len(_AAP_061_MAP))
-    # Ordered (pillar, behavior) identity vs the frozen AAP order.
+              'nsl_map: canonical L1 mapping reference corrupt (%d != 12)' % len(_AAP_061_MAP))
+    # Ordered (pillar, behavior) identity vs the canonical contract order.
     data_keys = [(e.get('pnt_pillar'), e.get('behavior')) for e in NEW_SERVICE_LOCATION_MAP]
-    frozen_keys = [(p, b) for (p, b, _a, _n, _f, _cl) in _AAP_061_MAP]
-    chk.check(data_keys == frozen_keys,
-              'nsl_map: (pillar, behavior) sequence diverged from AAP 0.6.1')
+    contract_keys = [(p, b) for (p, b, _a, _n, _f, _cl) in _AAP_061_MAP]
+    chk.check(data_keys == contract_keys,
+              'nsl_map: (pillar, behavior) sequence diverged from the canonical contract')
     lookup = {(e.get('pnt_pillar'), e.get('behavior')): e for e in NEW_SERVICE_LOCATION_MAP}
     for (pillar, behavior, accessor, nsl, loc_file, current_locations) in _AAP_061_MAP:
         row = lookup.get((pillar, behavior))
@@ -941,9 +943,11 @@ def verify_new_service_location_map(repo_root, _checker=None):
                   'nsl_map: new_service_location drift for %r/%r' % (pillar, behavior))
         cl = (row or {}).get('current_locations', '') or ''
         # Fail closed on ANY current_locations drift -- INCLUDING line numbers --
-        # from the frozen AAP 0.6.1 citation (the F5 documentation-parity guard).
+        # from the canonical contract (the F5 documentation-parity guard). The
+        # line numbers are live-source-accurate; verify_line_reference_provenance
+        # separately proves each is present at its cited line in the controller.
         chk.check(cl == current_locations,
-                  'nsl_map: current_locations for %r/%r must match AAP 0.6.1 verbatim '
+                  'nsl_map: current_locations for %r/%r must match the canonical contract '
                   '(expected %r, got %r)' % (pillar, behavior, current_locations, cl))
         chk.check(cl.startswith(loc_file + ':'),
                   'nsl_map: current_locations for %r/%r must reference %s (got %r)'
@@ -958,23 +962,24 @@ def verify_new_service_location_map(repo_root, _checker=None):
 
 
 def verify_line_reference_provenance(repo_root, _checker=None):
-    """Verify the frozen AAP 0.6.1 provenance is self-consistent and live (F5).
+    """Verify the L1 line-reference provenance is self-consistent and live (F5).
 
     Enforces two invariants:
 
     1. Lock-step: the ``(filename, line)`` set cited by the map's
        ``current_locations`` column, the :data:`NEW_SERVICE_LOCATION_BY_PROVENANCE`
        keys, and the :data:`L1_PROVENANCE_CHECKS` table are identical, so the
-       three surfaces can never drift from the single frozen AAP 0.6.1 line set.
-    2. Live existence: every cited accessor ``token`` still appears somewhere in
-       the live ArduPilot controller source, so the audit never documents a
-       behaviour that has been removed.
+       three surfaces can never drift from the single canonical line set.
+    2. Live line-accuracy: every cited accessor ``token`` is present AT its cited
+       1-based line in the live ArduPilot controller source, so a reader who opens
+       the file at a cited line lands on the documented accessor.
 
-    It deliberately does NOT require the frozen AAP 0.6.1 line to equal the
-    accessor's *live* line: those numbers are the frozen documentation snapshot
-    that :func:`verify_new_service_location_map` pins the PDF to, whereas the
-    project's own additive, default-off ``set_update_dt`` seams shift the live
-    layout.
+    Invariant 2 is a *token-at-line* check (not merely token-in-file): it keeps the
+    PDF's "Current Location(s)" citations honest as the source evolves. The
+    project's own additive, default-off ``set_update_dt`` seams shifted the accessor
+    sites downward from the original AAP 0.6.1 snapshot; the citations were
+    reconciled to the live tree, and this check fails closed if any future edit
+    relocates an accessor (or removes it) without updating the citation.
 
     Returns:
         list[str]: failure messages (empty when provenance is consistent + live).
@@ -991,28 +996,28 @@ def verify_line_reference_provenance(repo_root, _checker=None):
     chk.check(map_locs == key_locs,
               'provenance: map current_locations lines != NEW_SERVICE_LOCATION_BY_PROVENANCE keys '
               '(only-map=%s only-keys=%s)' % (sorted(map_locs - key_locs), sorted(key_locs - map_locs)))
-    # Per-citation: every documented accessor token must still EXIST in the live
-    # controller source.  Existence (not exact-line) is checked on purpose: the
-    # frozen AAP 0.6.1 line numbers predate the project's own additive, default-off
-    # set_update_dt seams, which shift the live layout.  A token that has vanished
-    # entirely means the documented behaviour was genuinely removed -- a real
-    # parity defect -- so the check fails closed on that.
+    # Per-citation: every documented accessor token must be present AT its cited
+    # 1-based line in the live controller source.  Token-at-line (not merely
+    # token-in-file) is checked on purpose so a stale or relocated citation -- such
+    # as the pre-seam AAP 0.6.1 line numbers the additive set_update_dt seams
+    # invalidated -- is caught and fails closed, keeping the PDF citations honest.
     cache = {}
     for relpath, line, token in L1_PROVENANCE_CHECKS:
         if relpath not in cache:
             full = os.path.join(repo_root, relpath)
             if os.path.isfile(full):
                 with open(full, 'r', errors='replace') as handle:
-                    cache[relpath] = handle.read()
+                    cache[relpath] = handle.read().splitlines()
             else:
                 cache[relpath] = None
-        text = cache[relpath]
-        if text is None:
+        src_lines = cache[relpath]
+        if src_lines is None:
             chk.check(False, 'provenance: source file missing: %s' % relpath)
         else:
-            chk.check(token in text,
-                      'provenance: accessor %r cited for %s (AAP 0.6.1 L%d) no longer '
-                      'exists anywhere in the live controller' % (token, relpath, line))
+            present = (1 <= line <= len(src_lines)) and (token in src_lines[line - 1])
+            chk.check(present,
+                      'provenance: accessor %r cited for %s:L%d is not present at that line '
+                      'in the live controller (stale/relocated citation)' % (token, relpath, line))
     return chk.errors
 
 
