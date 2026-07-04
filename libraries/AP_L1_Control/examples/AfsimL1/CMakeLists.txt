@@ -320,3 +320,38 @@ set(SOURCES
 add_library(afsim_l1 SHARED ${SOURCES})
 set_target_properties(afsim_l1 PROPERTIES OUTPUT_NAME afsim_l1)
 
+# ------------------- Phase 5: Activate the Option B facade branch ------------
+# CRITICAL COMPANION TO THE INCLUDE SEAM (AAP 0.6.2 Option B).
+#
+# The include seam generated above resolves the token `AP_AHRS` to
+# AfsimL1_AHRS_Shim for every translation unit in this target, so AP_L1_Control
+# is compiled directly against the injectable shim (the minimal-footprint
+# standalone path).  The AfsimL1Behavior facade, however, selects its MEMBER
+# LAYOUT and its controller-construction (member-initialiser) branch at COMPILE
+# TIME via the AFSIML1_L1_USES_SHIM_AHRS macro
+# (see AfsimL1Behavior.h: `#if defined(AFSIML1_L1_USES_SHIM_AHRS)`):
+#
+#   * DEFINED  (Option B, this build): the facade composes the controller against
+#     the SAME owned `_ahrs_shim` that set_state_ne() writes, so host-injected
+#     position / velocity / yaw / pitch actually reach the guidance controller.
+#   * UNDEFINED (Option A fallback): the facade instead declares a SEPARATE
+#     `AP_AHRS _ahrs;` member and binds the controller to it -- but under this
+#     build's include seam `AP_AHRS` is itself AfsimL1_AHRS_Shim, so that would
+#     be a SECOND, never-written shim instance.  set_state_ne() would keep
+#     writing `_ahrs_shim`, leaving the controller reading default (origin, zero-
+#     velocity, north-heading) state and the guidance INVARIANT to injected
+#     state -- silently defeating the entire purpose of the extraction.
+#
+# The include seam and this define are therefore two halves of ONE decision and
+# MUST travel together: defining the macro is what makes the standalone .so honor
+# the extraction's core state-injection contract (AAP 0.1.2 / 0.6.1 / 0.6.2 --
+# "the host, not AP_AHRS ... supplies position, velocity, attitude").  Verified
+# downstream by the state-flow test: three distinct injected states must produce
+# three distinct roll commands (aligned -> ~0 deg; symmetric East/West cross-
+# track offsets -> equal-and-opposite bank), not an invariant 0.
+#
+# PRIVATE scope: the macro governs how THIS target composes the facade, so it is
+# confined to this target's own sources (the facade + C ABI + wrapped controller
+# compiled here) and is not propagated to any consumer.
+target_compile_definitions(afsim_l1 PRIVATE AFSIML1_L1_USES_SHIM_AHRS)
+

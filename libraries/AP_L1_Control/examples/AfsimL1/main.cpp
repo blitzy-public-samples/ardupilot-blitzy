@@ -31,8 +31,20 @@
 //    simulation environment would drive it. The flow mirrors the user
 //    "initialize a simple leg" example (AAP 0.7.2): a simple leg
 //    prev = (0, 0) -> next = (500, 0) in North/East metres (a 500 m North leg),
-//    a representative northbound platform state, one 50 Hz step, and the two
-//    output commands.
+//    a host-injected platform state, one 50 Hz step, and the two output
+//    commands.
+//
+//    STATE-SENSITIVE GEOMETRY (proves state injection actually works): the
+//    injected platform state places the vehicle 200 m EAST of that North leg
+//    (a cross-track error) while flying North. Guidance must therefore command
+//    a materially non-zero (left) bank to fly back onto the leg. This matters
+//    because it makes the demo a genuine end-to-end check of host-driven state
+//    injection -- the whole point of the extraction -- rather than a geometry
+//    whose output happens to be ~0 regardless of state. An on-track/aligned
+//    state would yield roll ~= 0 even if the injected state were silently
+//    ignored, so it could not distinguish a working service from a broken one;
+//    the cross-track geometry here yields roll ~= -38.6 deg when state flows and
+//    collapses to ~0 if it does not, which the step-7 self-check asserts on.
 //
 //  DRIVE PATH -- PATH B (the C Application Binary Interface):
 //    This demo consumes the service through its stable extern "C" boundary
@@ -75,9 +87,12 @@
 /// The opaque handle is created once and released exactly once on every exit
 /// path, so it is never leaked.
 ///
-/// @return EXIT_SUCCESS when the service was created and produced finite
-///         guidance outputs; EXIT_FAILURE if the handle could not be created
-///         or either output was non-finite (a useful smoke test for CI).
+/// @return EXIT_SUCCESS when the service was created, produced finite guidance
+///         outputs, AND commanded a materially non-zero roll for the cross-track
+///         geometry (proving host-injected state reached the controller);
+///         EXIT_FAILURE if the handle could not be created, either output was
+///         non-finite, or the roll collapsed to ~0 (a state-flow regression) --
+///         a useful smoke test for CI.
 int main()
 {
     // ------------------------------------------------------------------
@@ -107,24 +122,30 @@ int main()
     //    Arguments are (prevN, prevE, nextN, nextE) in metres relative to the
     //    service datum, reproducing the user example's simple leg:
     //        prev = (N=0, E=0)  ->  next = (N=500, E=0)
-    //    i.e. a 500 m leg running due North from the datum. This is aligned
-    //    with the northbound platform state injected in step 4 (velN=20), so
-    //    the vehicle is tracking straight along the leg. Legs are host-supplied
-    //    here rather than pulled from the vehicle mission code.
+    //    i.e. a 500 m leg running due North from the datum. The platform state
+    //    injected in step 4 places the vehicle 200 m EAST of this leg, so it is
+    //    OFF track (a cross-track error) and the guidance has real work to do.
+    //    Legs are host-supplied here rather than pulled from the vehicle mission
+    //    code.
     // ------------------------------------------------------------------
     L1_SetLegNE(h, /*prevN=*/0.0, /*prevE=*/0.0, /*nextN=*/500.0, /*nextE=*/0.0);
 
     // ------------------------------------------------------------------
-    // 4. Inject a representative platform state.
+    // 4. Inject the current platform state (the crux of the demonstration).
     //    These are the position, velocity, and attitude values the vehicle
     //    loop would normally read from AHRS sensor fusion; here the host
-    //    supplies them directly. Arguments are
+    //    supplies them directly through the C ABI. Arguments are
     //        (n, e, velE, velN, yaw_cd, pitch_rad)
-    //    = at the leg start (n=0, e=0) with a 20 m/s ground velocity
-    //    (velE=0, velN=20), wings-level (yaw_cd=0, pitch_rad=0). This gives
-    //    the guidance non-trivial inputs to act on.
+    //    = 200 m EAST of the North leg (n=0, e=200) with a 20 m/s northbound
+    //    ground velocity (velE=0, velN=20), wings-level heading due North
+    //    (yaw_cd=0, pitch_rad=0). Because the vehicle is displaced 200 m to the
+    //    east of its intended North track, correct L1 guidance must command a
+    //    (left) bank to converge back onto the leg. This state materially
+    //    changes the output, so it exercises -- and the step-7 self-check
+    //    verifies -- that host-injected state genuinely reaches the guidance
+    //    controller (rather than being silently dropped).
     // ------------------------------------------------------------------
-    L1_SetStateNE(h, /*n=*/0.0, /*e=*/0.0, /*velE=*/0.0, /*velN=*/20.0, /*yaw_cd=*/0.0, /*pitch_rad=*/0.0);
+    L1_SetStateNE(h, /*n=*/0.0, /*e=*/200.0, /*velE=*/0.0, /*velN=*/20.0, /*yaw_cd=*/0.0, /*pitch_rad=*/0.0);
 
     // ------------------------------------------------------------------
     // 5. Execute one guidance step with a host-supplied dt.
@@ -146,14 +167,38 @@ int main()
     std::printf("roll_deg = %f, lat_accel = %f\n", roll_deg, lat_accel);
 
     // ------------------------------------------------------------------
-    // 7. Smoke-test guard: the extraction must reproduce finite guidance
-    //    outputs for this leg. Reporting the result through the exit status
-    //    lets the demo double as a lightweight self-check. This is output
-    //    validation only -- it performs no guidance mathematics.
+    // 7. Self-check guards -- the demo doubles as a lightweight CI check.
+    //    Both results are folded into the exit status so a failure is reported
+    //    loudly. This is output validation only; it performs no guidance
+    //    mathematics.
+    //    (a) FINITENESS: the extraction must reproduce finite guidance outputs.
+    //    (b) STATE-FLOW: for the cross-track geometry set up above (200 m east
+    //        of a due-North leg), correct guidance MUST command a materially
+    //        non-zero roll to converge back onto the leg (about -38.6 deg for
+    //        this geometry). If the host-injected state were ignored -- e.g. the
+    //        guidance controller bound to a never-written AHRS instance -- the
+    //        vehicle would appear on track and the roll would collapse to ~0.
+    //        Requiring |roll| to clear a small floor therefore makes this demo
+    //        FAIL LOUDLY if host-driven state injection ever regresses -- the
+    //        exact blind spot an on-track/aligned geometry (roll ~0 either way)
+    //        could not detect. The 1 deg floor sits well clear of both 0 and the
+    //        ~38.6 deg expected magnitude, so it is robust to minor numerical
+    //        variation without ever passing a state-ignoring build.
     // ------------------------------------------------------------------
+    const double kStateFlowMinRollDeg = 1.0;
+
     const bool outputs_finite = std::isfinite(roll_deg) && std::isfinite(lat_accel);
     if (!outputs_finite) {
         std::fprintf(stderr, "AfsimL1 demo: guidance produced a non-finite output.\n");
+    }
+
+    const bool state_flow_ok = std::fabs(roll_deg) > kStateFlowMinRollDeg;
+    if (!state_flow_ok) {
+        std::fprintf(stderr,
+                     "AfsimL1 demo: roll_deg = %f is not materially non-zero for the "
+                     "200 m cross-track geometry -- host-injected state appears to be "
+                     "ignored (state-flow regression).\n",
+                     roll_deg);
     }
 
     // ------------------------------------------------------------------
@@ -163,5 +208,5 @@ int main()
     // ------------------------------------------------------------------
     L1_Destroy(h);
 
-    return outputs_finite ? EXIT_SUCCESS : EXIT_FAILURE;
+    return (outputs_finite && state_flow_ok) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
