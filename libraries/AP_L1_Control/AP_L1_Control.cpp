@@ -105,15 +105,33 @@ float AP_L1_Control::lateral_acceleration(void) const
 
 /*
   supply an externally-computed control-step dt (seconds). When set, update_waypoint()
-  uses this value instead of the internal AP_HAL::micros() delta. Additive, default-off
-  seam for the AfsimL1 reusable service (host drives timing). Once called the override
-  latches on and remains active for subsequent updates (the AfsimL1 host supplies dt on
-  every execute()); existing vehicle callers that never invoke this keep the micros() path.
+  uses this value instead of the internal AP_HAL::micros() delta, and update_loiter()
+  uses an accumulated injected timebase instead of AP_HAL::millis(). Additive, default-off
+  seam for the AfsimL1 reusable service (host drives timing). Once a VALID dt is supplied
+  the override latches on and remains active for subsequent updates (the AfsimL1 host
+  supplies dt on every execute()); existing vehicle callers that never invoke this keep the
+  micros()/millis() paths. Non-finite (NaN/Inf) and negative values are rejected so a bad
+  host value cannot poison the guidance timebase (CWE-20 input validation).
  */
 void AP_L1_Control::set_update_dt(float dt)
 {
+    // Reject invalid host input. On rejection the override state is left untouched
+    // (not latched, timebase not advanced), so the controller keeps its previous
+    // behaviour rather than acting on a corrupt dt.
+    if (!isfinite(dt) || dt < 0.0f) {
+        return;
+    }
     _override_dt = dt;
     _dt_override = true;
+
+    // Advance the monotonic millisecond timebase consumed by update_loiter(). Clamp
+    // the per-step advance to the same 0.1 s ceiling the waypoint path applies so an
+    // over-long step cannot inject a large discontinuity into the loiter hysteresis.
+    float dt_clamped = dt;
+    if (dt_clamped > 0.1f) {
+        dt_clamped = 0.1f;
+    }
+    _override_time_ms += (uint32_t)(dt_clamped * 1000.0f + 0.5f);
 }
 
 int32_t AP_L1_Control::nav_bearing_cd(void) const
@@ -464,7 +482,10 @@ void AP_L1_Control::update_loiter(const Location &center_WP, float radius, int8_
     // Perform switchover between 'capture' and 'circle' modes at the
     // point where the commands cross over to achieve a seamless transfer
     // Only fly 'capture' mode if outside the circle
-    const uint32_t now_ms = AP_HAL::millis();
+    // Timing seam (AfsimL1 service): when the host drives timing via set_update_dt()
+    // consume the accumulated injected timebase; otherwise read the hardware millis()
+    // clock. Default-off: vehicle callers (which never call set_update_dt) are unchanged.
+    const uint32_t now_ms = _dt_override ? _override_time_ms : AP_HAL::millis();
     if (xtrackErrCirc > 0.0f && loiter_direction * latAccDemCap < loiter_direction * latAccDemCirc) {
         _latAccDem = latAccDemCap;
 

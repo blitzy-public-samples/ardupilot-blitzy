@@ -7,7 +7,7 @@ the real work:
 * :mod:`pnt_data`   -- the structured, verbatim catalog of every PNT touch-point
   (94 main rows / 282 evidence rows) plus the additive
   ``New Service Location`` mapping onto the ``AfsimL1Behavior`` service surface.
-* :mod:`pnt_render` -- the ReportLab renderer (:func:`render_pdf`) *and* the five
+* :mod:`pnt_render` -- the ReportLab renderer (:func:`render_pdf`) *and* the six
   ``verify_*`` integrity checks aggregated by :func:`run_all_verifications`
   (~838 discrete assertions).
 

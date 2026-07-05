@@ -23,28 +23,22 @@
 //    nav_roll_cd(), lateral_acceleration() and the additive set_update_dt()
 //    timing seam.
 //
-//  CENTRAL ENGINEERING DECISION (AAP 0.6.2):
+//  CENTRAL ENGINEERING DECISION (AAP 0.6.2) -- AP_AHRS decoupling:
 //    AP_L1_Control binds a concrete `AP_AHRS &_ahrs` and the six accessors it
 //    reads are NON-VIRTUAL, so a plain subclass can neither override them nor
-//    (their backing state being private) set them. AAP 0.6.2 therefore offers
-//    two behavior-preserving realisations, selected by the compile-time seam
-//    macro AFSIML1_L1_USES_SHIM_AHRS and reflected in the member-initialiser
-//    list below:
-//      * Option A (RECOMMENDED default; macro UNDEFINED -- e.g. the in-tree waf
-//        `use='ap'` build): compose the controller against a genuine AP_AHRS
-//        (the owned `_ahrs` member) so every type stays a real ArduPilot type
-//        end-to-end and the service links the full ArduPilot stack. This is the
-//        maximum-fidelity path and is what the in-tree example compiles, so the
-//        member-initialiser list passes `_ahrs` to the controller.
-//      * Option B (macro DEFINED by the standalone `.so` CMake build): a
-//        COMPILE-TIME INCLUDE SEAM resolves the token `AP_AHRS` to
-//        AfsimL1_AHRS_Shim, so the AP_L1_Control translation unit binds its
-//        `_ahrs.<method>` call sites to the identically named shim methods and
-//        the constructor parameter `AP_AHRS &` denotes the shim; the member-
-//        initialiser list then passes `_ahrs_shim` directly, avoiding the
-//        EKF/DCM stack. This is the minimal-footprint path.
-//    EITHER WAY this facade owns the shim (`_ahrs_shim`) and pushes the host-
-//    injected state into it via set_state_ne() before delegating.
+//    (their backing state being private) set them. Of the two behavior-
+//    preserving approaches AAP 0.6.2 describes, this service implements Option B
+//    exclusively: a COMPILE-TIME INCLUDE SEAM (supplied by the build; see
+//    CMakeLists.txt / the seam-enabled wscript) resolves the token `AP_AHRS` to
+//    AfsimL1_AHRS_Shim, so AP_L1_Control's `_ahrs.<method>` call sites bind to
+//    the identically named shim methods and the controller's constructor
+//    parameter `AP_AHRS &` denotes the shim. The member-initializer list below
+//    therefore composes the controller against the owned `_ahrs_shim` -- the
+//    SAME object set_state_ne() writes -- so host-injected state always reaches
+//    the guidance controller. (Option A -- a genuine AP_AHRS driven by an
+//    external-state EKF/DCM backend -- is out of scope for this extraction and
+//    is NOT used; AfsimL1Behavior.h #errors if the seam is absent, so the
+//    controller can never be composed against a different, never-written AHRS.)
 //
 //  CONSTRAINTS (AAP 0.7.1):
 //    - Delegate EXACTLY to AP_L1_Control; do not re-implement L1 math.
@@ -62,7 +56,7 @@
 // <AP_Common/Location.h> (the leg endpoints, which in turn pulls in AP_Math).
 #include "AfsimL1Behavior.h"
 
-#include <cmath>   // std::isfinite -- boundary validation of external inputs
+#include <cmath>    // std::isfinite -- boundary validation of external inputs
 
 // ----------------------------------------------------------------------------
 // Input validation helper (CWE-20 defense at the service boundary)
@@ -70,20 +64,61 @@
 //
 // The service is driven by an EXTERNAL, untrusted host (for example AFSIM)
 // through the C ABI, which forwards plain `double` scalars straight into this
-// facade. A non-finite value (NaN / +/-Inf) that reached the guidance math
-// would propagate silently: NaN defeats the controller's inherited upper-bound
-// clamps (every `NaN > limit` comparison is false), and a non-finite position
-// would poison Location::offset() and the cross-track geometry. To keep such
-// values from ever entering the controller, every externally supplied scalar is
-// validated at this boundary before it is cast to float and stored/used.
+// facade. Two failure modes must be stopped at this boundary before any value
+// is narrowed to float and handed to the guidance math:
+//   1. Non-finite input (NaN / +/-Inf). NaN defeats the controller's inherited
+//      upper-bound clamps (every `NaN > limit` comparison is false), and a
+//      non-finite position would poison Location::offset() and the cross-track
+//      geometry.
+//   2. Finite but out-of-range input. A large-magnitude double silently becomes
+//      +/-Inf when narrowed to float (|x| > FLT_MAX), re-introducing failure
+//      mode 1 downstream. Worse, a value that is finite *as a float* but still
+//      astronomically large (|x| up to FLT_MAX ~= 3.4e38) overflows to +/-Inf --
+//      and then NaN -- the moment the preserved L1 guidance arithmetic squares
+//      it (the ground-speed vector is squared; squared position offsets are
+//      summed), so clamping merely to the representable float range is not
+//      sufficient to keep the guidance outputs finite.
 //
-// finite_or() returns the value unchanged when it is finite, otherwise the
-// supplied safe fallback. It deliberately does NOT clamp legitimate finite
-// magnitudes, so valid (possibly large) positions and velocities are preserved.
+// to_safe_float() is the SINGLE boundary-validation policy applied before EVERY
+// narrowing static_cast<float> in this translation unit: it maps non-finite
+// input to the supplied safe fallback (default 0) and clamps finite input to a
+// domain-specific magnitude bound [-kMaxMagnitude, kMaxMagnitude] (1e18) that is
+// deliberately tighter than the representable float range [-FLT_MAX, FLT_MAX].
+// Because kMaxMagnitude^2 = 1e36 stays well within FLT_MAX (~3.4e38), the square
+// of any accepted value -- and modest sums/products thereof in the guidance law
+// -- cannot overflow to +/-Inf/NaN, so the service never returns a non-finite
+// command however absurd the injected state. The bound sits ~11 orders of
+// magnitude above any physically meaningful position (planet scale ~1e7 m) or
+// velocity (~1e3 m/s), so legitimate finite magnitudes are returned unchanged:
+// valid positions and velocities are preserved and the guidance math is
+// unaffected. Domain-specific normalisation (e.g. yaw wrapping in the shim, the
+// dt >= 0 rule in execute()) is layered on top of this finite/range guarantee by
+// the respective setter.
 namespace {
-inline double finite_or(double value, double fallback)
+inline float to_safe_float(double value, float fallback = 0.0f)
 {
-    return std::isfinite(value) ? value : fallback;
+    if (!std::isfinite(value)) {
+        return fallback;
+    }
+    // Domain-specific magnitude bound (the CWE-20 "domain-specific bounds where
+    // appropriate" step). Clamping to +/-kMaxMagnitude -- rather than to the
+    // wider representable range +/-FLT_MAX -- guarantees that the square of any
+    // accepted value (kMaxMagnitude^2 = 1e36) stays well within FLT_MAX
+    // (~3.4e38). This prevents the preserved L1 guidance arithmetic (which
+    // squares the ground-speed vector and sums squared position offsets) from
+    // overflowing to +/-Inf and then NaN on absurd inputs, while remaining ~11
+    // orders of magnitude above any physically meaningful position (planet scale
+    // ~1e7 m) or velocity (~1e3 m/s) -- so no legitimate host input is altered.
+    // A value beyond FLT_MAX is a fortiori beyond this bound, so this single
+    // check also subsumes the representable-float-range guarantee.
+    constexpr double kMaxMagnitude = 1.0e18;
+    if (value > kMaxMagnitude) {
+        return static_cast<float>(kMaxMagnitude);
+    }
+    if (value < -kMaxMagnitude) {
+        return static_cast<float>(-kMaxMagnitude);
+    }
+    return static_cast<float>(value);
 }
 } // namespace
 
@@ -102,16 +137,14 @@ inline double finite_or(double value, double fallback)
 // `_prev` / `_next` use the in-class `{}` initialisers from the header (zeroed
 // Locations) and are (re)seeded by init() / set_leg_ne().
 //
-// The AHRS the controller is composed against is selected by the compile-time
-// seam (AAP 0.6.2; see AfsimL1Behavior.h):
-//   * Option A (recommended default -- macro AFSIML1_L1_USES_SHIM_AHRS UNDEFINED,
-//     e.g. the in-tree waf `use='ap'` build): a genuine AP_AHRS member `_ahrs`,
-//     so every type stays a real ArduPilot type end-to-end.
-//   * Option B (macro DEFINED by the standalone `.so` build): the owned
-//     `_ahrs_shim`, which that build's include seam has made the `AP_AHRS` type,
-//     so the controller reads the injected state directly with no EKF/DCM stack.
-// EITHER WAY `_ahrs_shim` is the canonical injected-state record fed by
-// set_state_ne().
+// The controller is composed against the owned `_ahrs_shim` (AAP 0.6.2 Option B;
+// see AfsimL1Behavior.h). The build's compile-time include seam has made the
+// token `AP_AHRS` denote AfsimL1_AHRS_Shim, so passing `_ahrs_shim` to the
+// `AP_L1_Control(AP_AHRS &, const AP_TECS *)` constructor is well-typed, and the
+// controller reads the injected state directly through the shim with no EKF/DCM
+// stack. Crucially, `_ahrs_shim` is the SAME object set_state_ne() writes, so
+// the guidance actually observes the host-injected state (this is the fix for
+// the state-injection contract -- there is no separate, never-written AHRS).
 //
 // AP_L1_Control's constructor runs AP_Param::setup_object_defaults(this,
 // var_info), which applies the stock L1 defaults (PERIOD=17, DAMPING=0.75,
@@ -119,18 +152,7 @@ inline double finite_or(double value, double fallback)
 // the moment it is constructed.
 AfsimL1Behavior::AfsimL1Behavior()
     : _ahrs_shim()
-#if defined(AFSIML1_L1_USES_SHIM_AHRS)
-    // Option B: the standalone build's include seam has made
-    // AP_AHRS == AfsimL1_AHRS_Shim, so the controller binds the shim directly and
-    // reads the host-injected state through it.
     , _l1(_ahrs_shim, nullptr)
-#else
-    // Option A (default): compose against a genuine AP_AHRS for full-stack
-    // fidelity. `_ahrs` is declared between `_ahrs_shim` and `_l1` in the header,
-    // so this initialiser order matches the declaration order (-Werror=reorder).
-    , _ahrs()
-    , _l1(_ahrs, nullptr)
-#endif
 {
 }
 
@@ -168,18 +190,20 @@ void AfsimL1Behavior::init()
 void AfsimL1Behavior::execute(double dt_seconds)
 {
     // Validate the host-supplied dt at the service boundary (CWE-20) BEFORE it
-    // reaches the controller. A non-finite (NaN/Inf) or negative dt must never
-    // enter the guidance timing: a negative dt would run the cross-track
-    // integrator backwards, and a NaN dt would slip past the controller's
+    // reaches the controller, applying the single to_safe_float() policy prior
+    // to the narrowing to float. A non-finite (NaN/Inf) or out-of-float-range dt
+    // is collapsed to 0, and a negative dt is then floored to 0 -- a safe no-op
+    // step. This matters because a negative dt would run the cross-track
+    // integrator backwards and a NaN dt would slip past the controller's
     // inherited upper-bound clamps (every `NaN > limit` compares false) and
-    // poison _L1_xtrack_i. Such values are collapsed to 0 -- a safe no-op step.
-    // The controller's own UPPER-bound semantics (reinitialise the integrator
-    // when dt > 1 s, cap at 0.1 s) are deliberately left INTACT and are neither
-    // duplicated nor capped here, so numerical behavior is preserved for every
-    // valid dt.
-    double dt = finite_or(dt_seconds, 0.0);
-    if (dt < 0.0) {
-        dt = 0.0;
+    // poison _L1_xtrack_i. The controller's own UPPER-bound semantics
+    // (reinitialise the integrator when dt > 1 s, cap at 0.1 s) are deliberately
+    // left INTACT and are neither duplicated nor capped here, so numerical
+    // behavior is preserved for every valid dt. (AP_L1_Control::set_update_dt()
+    // independently re-validates finiteness/sign as a defense-in-depth backstop.)
+    float dt = to_safe_float(dt_seconds);
+    if (dt < 0.0f) {
+        dt = 0.0f;
     }
 
     // The host drives timing: inject the validated dt so AP_L1_Control uses it
@@ -187,7 +211,7 @@ void AfsimL1Behavior::execute(double dt_seconds)
     // update_waypoint() because the controller consumes the override inside that
     // call's timing block; the controller's existing clamp semantics are
     // preserved, so the numerical behavior is unchanged.
-    _l1.set_update_dt(static_cast<float>(dt));
+    _l1.set_update_dt(dt);
 
     // The current platform state (North/East position, East/North velocity,
     // yaw, pitch) is pushed into the AHRS shim by set_state_ne() prior to this
@@ -213,12 +237,18 @@ void AfsimL1Behavior::set_leg_ne(double prevN, double prevE, double nextN, doubl
     // default-constructed Location is zeroed (equator / prime meridian), so
     // offsetting it reproduces the datum + offset technique used by the shim.
     // (Stock ArduPilot has no two-argument Location(N, E) constructor.)
+    //
+    // Every coordinate is passed through to_safe_float() before Location::offset
+    // (CWE-20): the raw host doubles were previously cast straight to float, so a
+    // non-finite or out-of-float-range coordinate would have produced a +/-Inf
+    // offset and poisoned the leg geometry. Non-finite/oversize values collapse
+    // to a safe finite value; legitimate finite coordinates are unchanged.
     Location prev_wp;
-    prev_wp.offset(static_cast<float>(prevN), static_cast<float>(prevE));
+    prev_wp.offset(to_safe_float(prevN), to_safe_float(prevE));
     _prev = prev_wp;
 
     Location next_wp;
-    next_wp.offset(static_cast<float>(nextN), static_cast<float>(nextE));
+    next_wp.offset(to_safe_float(nextN), to_safe_float(nextE));
     _next = next_wp;
 }
 
@@ -232,33 +262,30 @@ void AfsimL1Behavior::set_leg_ne(double prevN, double prevE, double nextN, doubl
 void AfsimL1Behavior::set_state_ne(double n, double e, double velE, double velN, double yaw_cd, double pitch_rad)
 {
     // Sanitize every externally supplied scalar at the service boundary
-    // (CWE-20) before it is cast to float and stored: a non-finite (NaN/Inf)
-    // component would otherwise propagate through Location::offset() and the
-    // controller's cross-track geometry. Each non-finite value is replaced with
-    // 0 (a safe neutral); legitimate finite magnitudes are left unclamped so
-    // valid large positions/velocities are preserved. One assignment per line
-    // keeps the guard unambiguous.
-    const double n_s         = finite_or(n, 0.0);
-    const double e_s         = finite_or(e, 0.0);
-    const double velE_s      = finite_or(velE, 0.0);
-    const double velN_s      = finite_or(velN, 0.0);
-    const double yaw_cd_s    = finite_or(yaw_cd, 0.0);
-    const double pitch_rad_s = finite_or(pitch_rad, 0.0);
+    // (CWE-20) with the single to_safe_float() policy, applied inline as the
+    // narrowing to float. This closes two gaps: a non-finite (NaN/Inf) component
+    // would propagate through Location::offset() and the controller's cross-track
+    // geometry, AND a large finite double would previously overflow to a +/-Inf
+    // float during the cast (the earlier finite-only guard did not stop this).
+    // Non-finite/oversize values collapse to a safe finite value; legitimate
+    // in-range finite magnitudes are preserved, so valid large positions and
+    // velocities are unaffected. The shim's set_yaw_cd() additionally wraps yaw
+    // to the canonical centidegree range before its int32_t cast.
 
     // Position (North/East offset from the datum, metres) -> get_location().
-    _ahrs_shim.set_location_NE(static_cast<float>(n_s), static_cast<float>(e_s));
+    _ahrs_shim.set_location_NE(to_safe_float(n), to_safe_float(e));
 
     // Ground velocity (East/North components, m/s) -> groundspeed_vector().
     // The shim maps these onto ArduPilot's Vector2f(x = North, y = East)
     // convention internally.
-    _ahrs_shim.set_velocity_EN(static_cast<float>(velE_s), static_cast<float>(velN_s));
+    _ahrs_shim.set_velocity_EN(to_safe_float(velE), to_safe_float(velN));
 
     // Heading/yaw (centidegrees) -> get_yaw_rad() and the yaw_sensor member,
     // both of which the shim keeps in sync.
-    _ahrs_shim.set_yaw_cd(static_cast<float>(yaw_cd_s));
+    _ahrs_shim.set_yaw_cd(to_safe_float(yaw_cd));
 
     // Pitch (radians) -> get_pitch_rad().
-    _ahrs_shim.set_pitch_rad(static_cast<float>(pitch_rad_s));
+    _ahrs_shim.set_pitch_rad(to_safe_float(pitch_rad));
 }
 
 // ----------------------------------------------------------------------------

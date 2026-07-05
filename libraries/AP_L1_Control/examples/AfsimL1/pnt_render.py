@@ -6,7 +6,7 @@ This module is the **rendering + verification layer** of the recreated PNT
 structured catalog objects declared in :mod:`pnt_data` and provides two
 independent capabilities:
 
-1.  **Integrity harness** — five ``verify_*`` functions plus the
+1.  **Integrity harness** — six ``verify_*`` functions plus the
     :func:`run_all_verifications` aggregator.  Together they assert the
     structural, vocabulary, provenance, numbering, cross-reference and
     chain-depth invariants of the catalog (~838 discrete checks).  The
@@ -109,6 +109,7 @@ __all__ = [
     "verify_layer1",
     "verify_layer2",
     "verify_ref_coverage",
+    "verify_new_service_mapping",
     "run_all_verifications",
     "render_pdf",
     "register_fonts",
@@ -222,9 +223,9 @@ def register_fonts():
 
 
 # ===========================================================================
-# Integrity harness — the five ``verify_*`` functions + aggregator.
+# Integrity harness — the six ``verify_*`` functions + aggregator.
 #
-# Convention (consistent across all five): each function *returns* a list of
+# Convention (consistent across all six): each function *returns* a list of
 # human-readable error strings.  An empty list means every assertion for that
 # aspect held.  ``generate.py`` collects and concatenates the results via
 # :func:`run_all_verifications`; a non-empty aggregate gates (blocks) PDF

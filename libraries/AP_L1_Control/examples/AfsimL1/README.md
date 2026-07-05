@@ -4,8 +4,11 @@
 **reusable, modular service** exposed behind a **stable `extern "C"` ABI** in a shared
 library named **`libafsim_l1.so`**. It lets an external host — for example the AFSIM
 simulation environment — drive the L1 guidance law directly, **without linking the
-ArduPilot firmware image** and without pulling in the vehicle flight loop, the EKF/DCM
-sensor-fusion stack, or the scheduler.
+ArduPilot firmware image** and without pulling in the vehicle flight loop or the scheduler.
+As built by the standalone CMake target — the recommended path, which uses the compile-time
+AHRS include seam described under **AHRS state decoupling** below — the library also stays
+clear of the EKF/DCM sensor-fusion stack. (The alternative *Option A* fidelity build links
+the real `AP_AHRS`, and with it the EKF/DCM graph; see that section.)
 
 The extraction is strictly **behavior-preserving**: the L1 guidance mathematics and the
 numerical roll / lateral-acceleration outputs are **identical** to the vehicle build —
@@ -32,6 +35,37 @@ untouched:
 The wrapped guidance controller — `AP_L1_Control` — and the geometry libraries it depends
 on (`AP_Math`, `AP_Common/Location`) are compiled **unchanged** into the shared library, so
 the extracted service produces the same numbers the vehicle firmware does.
+
+## AHRS state decoupling
+
+`AP_L1_Control` binds a concrete `AP_AHRS &` and reads six accessors from it
+(`get_location`, `groundspeed_vector`, `get_yaw_rad`, `yaw_sensor`, `get_pitch_rad`,
+`get_EAS2TAS`). Those accessors are **non-virtual**, so a plain subclass cannot override
+them — the service must decouple the state source another way. Two options exist (AAP
+§0.6.2); this module **implements Option B**:
+
+- **Option B — compile-time include seam (implemented, recommended).** `AP_L1_Control`
+  transitively includes `<AP_AHRS/AP_AHRS.h>`. A small shim directory placed **first** on
+  the include path intercepts that include so the token `AP_AHRS` resolves to the
+  lightweight, injectable `AfsimL1_AHRS_Shim`. The controller therefore binds the shim and
+  reads exactly the host-injected state, while the guidance **math** remains the real
+  `AP_L1_Control` compiled against the real `AP_Math` / `AP_Common/Location` geometry and
+  the real `AP_Param` defaults — so the numbers are preserved bit-for-bit. This keeps the
+  `.so` small and free of the EKF/DCM stack. The standalone CMake build sets this up for
+  you: it generates the shim tree, puts it first on the include path, and defines the
+  `AFSIML1_L1_USES_SHIM_AHRS` macro that signals the seam is active.
+- **Option A — real `AP_AHRS` (documented fallback, maximum fidelity).** Link the real
+  `AP_AHRS` together with its transitive EKF/DCM dependency graph and drive it from an
+  external navigation source. Behaviour-identical, but far heavier; retained only as the
+  documented alternative and not built by the shipped CMake target.
+
+Because binding the controller to the shim is only correct under the seam, the façade guards
+the requirement at compile time: `AfsimL1Behavior.h` opens (before any include) with a hard
+`#error` that fires unless `AFSIML1_L1_USES_SHIM_AHRS` is defined. Any build that compiles
+the façade **without** the seam therefore fails loudly with a directive to use the seam
+(CMake) build, rather than silently compiling a service whose controller reads a
+never-written state source. Consuming the service through the C ABI (`l1_c_api.h`, Path B
+below) never touches that header, so an external host is unaffected by the guard.
 
 ## C ABI
 
@@ -107,8 +141,16 @@ $ cmake ..
 $ make
 ```
 
-This produces **`libafsim_l1.so`**. The build links only in-tree ArduPilot sources plus the
-local service sources; it introduces no new third-party dependency.
+This produces two artifacts: the shared library **`libafsim_l1.so`** (the deliverable an
+external host binds) and **`afsim_l1_demo`**, a small runnable driver built from
+[`main.cpp`](main.cpp) and linked against the library. The build links only in-tree
+ArduPilot sources plus the local service sources; it introduces no new third-party
+dependency. Run the demo — it executes one guidance step and exits `0` on success:
+
+```bash
+$ ./afsim_l1_demo
+roll_deg = -38.639999, lat_accel = -7.840306
+```
 
 ### Verifying the exported symbols
 
@@ -134,14 +176,21 @@ L1_GetLatAccel
 
 ### In-tree ArduPilot example (waf)
 
-As an alternative to the standalone CMake build, the sibling `wscript` builds the same
-service as an in-tree ArduPilot example via waf (`bld.ap_example(use='ap')`). From the
-repository root:
+The sibling `wscript` registers the module as an in-tree ArduPilot example following the
+established convention (`bld.ap_example(use='ap')`, matching the reference
+`AP_AHRS/examples/AHRS_Test/wscript`):
 
 ```bash
 $ ./waf configure --board sitl
 $ ./waf build --targets examples/AfsimL1
 ```
+
+The **injectable, state-routing service is built with the standalone CMake target above**,
+not through `use='ap'`. The AHRS decoupling relies on the compile-time include seam
+(Option B), whereas `use='ap'` links the firmware's real `AP_AHRS`; the façade therefore
+refuses to compile without the seam via the `#error` described under **AHRS state
+decoupling**. That guard applies to **every** build path — including waf/in-tree — so no
+build can silently produce a state-invariant binary. Use the CMake build for the `.so`.
 
 ## Usage
 
@@ -170,8 +219,10 @@ L1_Destroy(h);                          /* release the instance               */
 ```
 
 A complete, runnable version of this sequence — including a cross-track state that produces
-a materially non-zero roll — is provided in [`main.cpp`](main.cpp), which is the demo driver
-built alongside the library.
+a materially non-zero roll — is provided in [`main.cpp`](main.cpp). The CMake build compiles
+it into the **`afsim_l1_demo`** executable alongside the library (see **Building** above), so
+you can run the full flow end-to-end; the demo self-checks its outputs and exits non-zero on
+a state-flow regression.
 
 ### Path A — the C++ facade directly (`AfsimL1Behavior.h`)
 
@@ -190,6 +241,15 @@ l1.execute(0.02);                        // one 50 Hz guidance step
 double roll_deg  = l1.get_roll_deg();    // degrees
 double lat_accel = l1.get_lat_accel();   // m/s^2
 ```
+
+Unlike Path B, Path A compiles the façade header, so it **requires the Option-B compile-time
+seam** (see **AHRS state decoupling**): `AFSIML1_L1_USES_SHIM_AHRS` must be defined and the
+generated shim directory must be first on the include path — exactly as the CMake target
+arranges. Without that setup, `#include "AfsimL1Behavior.h"` fails at the façade's `#error`.
+The simplest way to satisfy it is to add the host translation unit to the CMake target's
+sources so it inherits the same seam and define. Hosts that merely load the shared library
+at run time should prefer **Path B**, which never compiles any C++ header and is unaffected
+by the guard.
 
 ## Behavior preservation
 

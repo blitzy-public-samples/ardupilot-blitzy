@@ -35,11 +35,13 @@
 
 #include "AfsimL1_AHRS_Shim.h"
 
-// Location and the AP_Math primitives (Vector2f, radians()) are already visible
-// transitively through AfsimL1_AHRS_Shim.h, but including them explicitly keeps
-// this translation unit self-documenting and robust to header refactoring.
+// Location and the AP_Math primitives (Vector2f, radians(), wrap_360_cd()) are
+// already visible transitively through AfsimL1_AHRS_Shim.h, but including them
+// explicitly keeps this translation unit self-documenting and robust to header
+// refactoring.
 #include <AP_Common/Location.h>
 #include <AP_Math/AP_Math.h>
+#include <cmath>   // std::isfinite -- reject non-finite yaw before conversion
 
 // ----------------------------------------------------------------------------
 // Read surface -- signature-identical to the AP_AHRS accessors AP_L1_Control
@@ -132,12 +134,32 @@ void AfsimL1_AHRS_Shim::set_velocity_EN(float velE, float velN)
 // Set the yaw from a centidegree value, keeping BOTH read paths the controller
 // uses in sync: the radians accessor get_yaw_rad() (AP_L1_Control.cpp:L59/L61)
 // and the public centidegree member yaw_sensor (AP_L1_Control.cpp:L70/L72).
-// Convert centidegrees -> degrees (x 0.01) -> radians for _yaw_rad, and store
-// the raw centidegrees (truncated to int32_t) in yaw_sensor.
+//
+// Input validation and normalisation (CWE-20): the previous implementation cast
+// the host-derived float straight to int32_t (`(int32_t)yaw_cd`), so a
+// non-finite yaw (NaN/+-Inf) or a finite value outside the int32_t range invoked
+// undefined behavior, and an un-normalised large value produced non-useful yaw
+// radians. This is hardened in two steps that leave valid inputs unchanged:
+//   1. A non-finite yaw collapses to 0 centidegrees (due North) -- a safe
+//      neutral -- BEFORE any arithmetic, because wrap_360_cd(NaN/Inf) is itself
+//      NaN (fmodf of a non-finite is NaN).
+//   2. wrap_360_cd() normalises the (now finite) value to the canonical
+//      [0, 36000) centidegree range that a real AP_AHRS::yaw_sensor also holds.
+//      That range is always representable exactly as float and well within
+//      int32_t, so the cast can neither overflow nor invoke UB, and both read
+//      paths stay finite and mutually consistent.
+// For any already-normalised, finite yaw (e.g. 9000 cd = 90 deg) the result is
+// identical to the original conversion, so guidance behavior is preserved; and
+// because trig on yaw is periodic, wrapping an out-of-range angle is also
+// behavior-neutral for the controller while making the int cast safe.
 void AfsimL1_AHRS_Shim::set_yaw_cd(float yaw_cd)
 {
-    _yaw_rad   = radians(yaw_cd * 0.01f);
-    yaw_sensor = (int32_t)yaw_cd;
+    if (!std::isfinite(yaw_cd)) {
+        yaw_cd = 0.0f;
+    }
+    const float wrapped_cd = wrap_360_cd(yaw_cd);   // -> [0, 36000)
+    _yaw_rad   = radians(wrapped_cd * 0.01f);
+    yaw_sensor = (int32_t)wrapped_cd;
 }
 
 // Store the pitch, in radians, returned by get_pitch_rad().

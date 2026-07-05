@@ -131,6 +131,12 @@ private:
     // numerically unaffected (the constructor does not zero plain members).
     bool _dt_override = false;
     float _override_dt = 0.0f;
+    // Monotonic host timebase (milliseconds) for the loiter-path timing seam.
+    // Accumulated from the injected dt inside set_update_dt(); consumed by
+    // update_loiter() when _dt_override is active, replacing AP_HAL::millis().
+    // Default-off: zero-initialised and only advanced once the host supplies a
+    // valid dt, so existing vehicle callers keep the hardware millis() clock.
+    uint32_t _override_time_ms = 0;
     bool _data_is_stale = true;
 
     AP_Float _loiter_bank_limit;

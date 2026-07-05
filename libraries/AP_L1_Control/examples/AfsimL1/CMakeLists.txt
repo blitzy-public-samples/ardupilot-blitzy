@@ -20,9 +20,14 @@
 #  and add_executable()).  Here the target is a SHARED LIBRARY, so
 #  add_executable() is replaced by add_library(... SHARED ...).
 #
+#  This build produces TWO artifacts: the shared library libafsim_l1.so (the
+#  external-consumer deliverable) and afsim_l1_demo, a small runnable driver
+#  (main.cpp) that exercises the service end-to-end over the C ABI.
+#
 #  Build & verify:
 #      mkdir build && cd build && cmake .. && make
 #      nm -D --defined-only libafsim_l1.so   # exactly 8 L1_* symbols
+#      ./afsim_l1_demo                        # runs one guidance step; exits 0
 #
 # -----------------------------------------------------------------------------
 #  CENTRAL ENGINEERING DECISION -- how the AP_AHRS state dependency is met
@@ -320,38 +325,73 @@ set(SOURCES
 add_library(afsim_l1 SHARED ${SOURCES})
 set_target_properties(afsim_l1 PROPERTIES OUTPUT_NAME afsim_l1)
 
-# ------------------- Phase 5: Activate the Option B facade branch ------------
+# ------------- Phase 5: Activate the include seam via the facade macro -------
 # CRITICAL COMPANION TO THE INCLUDE SEAM (AAP 0.6.2 Option B).
 #
 # The include seam generated above resolves the token `AP_AHRS` to
-# AfsimL1_AHRS_Shim for every translation unit in this target, so AP_L1_Control
-# is compiled directly against the injectable shim (the minimal-footprint
-# standalone path).  The AfsimL1Behavior facade, however, selects its MEMBER
-# LAYOUT and its controller-construction (member-initialiser) branch at COMPILE
-# TIME via the AFSIML1_L1_USES_SHIM_AHRS macro
-# (see AfsimL1Behavior.h: `#if defined(AFSIML1_L1_USES_SHIM_AHRS)`):
+# AfsimL1_AHRS_Shim for every translation unit in this target, so both
+# AP_L1_Control and the AfsimL1Behavior facade are compiled directly against the
+# injectable shim (the minimal-footprint standalone path).  The facade has a
+# SINGLE, UNCONDITIONAL realisation: it owns an `_ahrs_shim` and composes its
+# `AP_L1_Control _l1{_ahrs_shim, nullptr}` against that same object -- the very
+# one set_state_ne() writes -- so host-injected position / velocity / yaw / pitch
+# genuinely reach the controller.  That member-initialiser only binds correctly
+# when the token `AP_AHRS` IS AfsimL1_AHRS_Shim, i.e. only under this include
+# seam.  (There is no Option-A member layout to select at compile time; the
+# earlier #if/#else branch has been removed.)
 #
-#   * DEFINED  (Option B, this build): the facade composes the controller against
-#     the SAME owned `_ahrs_shim` that set_state_ne() writes, so host-injected
-#     position / velocity / yaw / pitch actually reach the guidance controller.
-#   * UNDEFINED (Option A fallback): the facade instead declares a SEPARATE
-#     `AP_AHRS _ahrs;` member and binds the controller to it -- but under this
-#     build's include seam `AP_AHRS` is itself AfsimL1_AHRS_Shim, so that would
-#     be a SECOND, never-written shim instance.  set_state_ne() would keep
-#     writing `_ahrs_shim`, leaving the controller reading default (origin, zero-
-#     velocity, north-heading) state and the guidance INVARIANT to injected
-#     state -- silently defeating the entire purpose of the extraction.
+# To make that seam requirement impossible to violate silently, AfsimL1Behavior.h
+# opens -- BEFORE any include -- with a hard guard:
 #
-# The include seam and this define are therefore two halves of ONE decision and
-# MUST travel together: defining the macro is what makes the standalone .so honor
-# the extraction's core state-injection contract (AAP 0.1.2 / 0.6.1 / 0.6.2 --
-# "the host, not AP_AHRS ... supplies position, velocity, attitude").  Verified
-# downstream by the state-flow test: three distinct injected states must produce
-# three distinct roll commands (aligned -> ~0 deg; symmetric East/West cross-
-# track offsets -> equal-and-opposite bank), not an invariant 0.
+#     #if !defined(AFSIML1_L1_USES_SHIM_AHRS)
+#     #error "AfsimL1Behavior requires the AP_AHRS -> AfsimL1_AHRS_Shim seam ..."
+#     #endif
+#
+# Defining AFSIML1_L1_USES_SHIM_AHRS here therefore does two things: (a) it is the
+# explicit signal that this target activates the include seam, and (b) it
+# satisfies that #error so the facade compiles.  It is NOT a branch selector.
+# Were the macro omitted (or the seam directory not placed first on the include
+# path), the build would FAIL LOUDLY at the #error rather than silently compiling
+# a facade whose controller reads a never-written state source -- the exact
+# silent state-invariant failure this guard exists to prevent.
+#
+# The include seam and this define are thus two halves of ONE decision and MUST
+# travel together: together they make the standalone .so honor the extraction's
+# core state-injection contract (AAP 0.1.2 / 0.6.1 / 0.6.2 -- "the host, not
+# AP_AHRS ... supplies position, velocity, attitude").  Verified downstream by
+# the state-flow test: three distinct injected states must produce three distinct
+# roll commands (aligned -> ~0 deg; symmetric East/West cross-track offsets ->
+# equal-and-opposite bank), not an invariant 0.
 #
 # PRIVATE scope: the macro governs how THIS target composes the facade, so it is
 # confined to this target's own sources (the facade + C ABI + wrapped controller
-# compiled here) and is not propagated to any consumer.
+# compiled here) and is not propagated to any consumer.  The demo executable
+# below does NOT receive it: main.cpp includes only the pure-C l1_c_api.h and so
+# never compiles the facade header or trips the guard.
 target_compile_definitions(afsim_l1 PRIVATE AFSIML1_L1_USES_SHIM_AHRS)
+
+# ---------------------- Phase 6: Runnable demonstration driver ---------------
+# Build the "initialize a simple leg" demo (main.cpp) as an executable that
+# links the shared library above.  This makes the documented flow
+#     mkdir build && cd build && cmake .. && make && ./afsim_l1_demo
+# actually produce a runnable binary, so the demo can be executed exactly as an
+# external host would drive the service (AAP 0.2.1 / 0.4.1 / 0.7.2).
+#
+# main.cpp consumes the service ONLY through the stable, mangling-free C ABI in
+# l1_c_api.h (the eight L1_* entry points on an opaque void* handle).  It does
+# NOT include AfsimL1Behavior.h and therefore neither needs nor receives the
+# AFSIML1_L1_USES_SHIM_AHRS seam macro or the seam include directory: it simply
+# compiles against the pure-C header (resolved via the ${CMAKE_CURRENT_SOURCE_DIR}
+# include path added above) and links the eight exported symbols from
+# libafsim_l1.so.  Linking the shared target also arranges the build-tree RPATH
+# so `./afsim_l1_demo` locates `libafsim_l1.so` beside it without an explicit
+# LD_LIBRARY_PATH.
+#
+# The demo is self-checking: it exits EXIT_SUCCESS only when the guidance
+# outputs are finite AND the roll is materially non-zero for its cross-track
+# geometry (proving host-injected state reached the controller), so it doubles
+# as a lightweight end-to-end smoke test for CI.
+add_executable(afsim_l1_demo "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+target_link_libraries(afsim_l1_demo PRIVATE afsim_l1)
+
 

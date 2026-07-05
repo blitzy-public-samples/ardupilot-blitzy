@@ -41,19 +41,45 @@
 //    -Werror=missing-declarations). The AHRS shim and AP_L1_Control.h are NOT
 //    included directly here; they arrive transitively through AfsimL1Behavior.h.
 //
+//  HANDLE SAFETY (memory-safety hardening):
+//    A C ABI cannot trust the `void*` a foreign host passes back. A NULL guard
+//    alone does NOT protect against a *stale* non-NULL handle -- one already
+//    passed to L1_Destroy (double-free) or reused after destruction
+//    (use-after-free). Dereferencing such a pointer is undefined behaviour.
+//    This translation unit therefore validates every handle against a
+//    process-local registry of currently-live contexts BEFORE any dereference:
+//      * L1_Create registers the new context and stamps it with a validity
+//        cookie (L1_CONTEXT_MAGIC);
+//      * every entry point resolves its handle through acquire(), which first
+//        confirms membership in the live registry (a pure pointer-value lookup
+//        that NEVER dereferences a dangling pointer) and then checks the cookie;
+//      * L1_Destroy atomically retires the handle from the registry -- so a
+//        second destroy of the same pointer finds it absent and becomes a safe
+//        no-op -- then poisons the cookie and NULLs the owned pointer before
+//        freeing. The registry is guarded by a mutex, so concurrent create /
+//        destroy / use calls remain safe.
+//    The net effect: NULL, already-destroyed, and foreign handles are all
+//    rejected as safe no-ops (void functions return early, getters return 0.0)
+//    with no use-after-free and no double-free.
+//
 //  CONSTRAINTS (AAP 0.6.4, 0.7.1):
-//    - Every function null-guards the incoming `void*` handle (returns early for
-//      the void functions, returns 0.0 for the double getters), so a NULL or
-//      already-destroyed handle can never be dereferenced.
+//    - Every function validates the incoming `void*` handle (returns early for
+//      the void functions, returns 0.0 for the double getters), so a NULL,
+//      already-destroyed, or foreign handle can never be dereferenced.
 //    - `struct L1_Context` is the ONLY place the concrete wrapper type is
 //      defined; it is never exposed in the header.
 //    - Memory: L1_Create allocates BOTH the context and the behavior; L1_Destroy
 //      releases BOTH (the behavior first, then the context) -- no leak, no
 //      double-free.
-//    - No vehicle-firmware dependency; no new third-party dependency.
+//    - No vehicle-firmware dependency; no new third-party dependency (the
+//      registry uses only the C++ standard library: <cstdint>, <mutex>,
+//      <unordered_set>).
 // ============================================================================
 
 #include <new>                 // std::nothrow -- contain allocation failure inside the C++ boundary
+#include <cstdint>             // uint32_t -- the fixed-width validity cookie
+#include <mutex>               // std::mutex / std::lock_guard -- serialise registry access
+#include <unordered_set>       // std::unordered_set -- the live-handle registry
 
 #include "AfsimL1Behavior.h"   // AfsimL1Behavior -- the C++ facade wrapped by this ABI
 #include "l1_c_api.h"          // public C declarations (keeps decls/defs in sync)
@@ -69,12 +95,101 @@ extern "C" {
 
 /// Concrete type behind the opaque handle returned by L1_Create().
 ///
-/// A trivially-copyable aggregate that owns a single pointer to the C++ facade.
-/// Callers never see this type -- they hold only a `void*` -- which is exactly
-/// what keeps the boundary free of any C++ type (class, reference, template, or
-/// exception). Defined here rather than in the header so the facade type stays
-/// completely hidden from consumers of l1_c_api.h.
-struct L1_Context { AfsimL1Behavior* self; };
+/// A trivially-copyable aggregate that owns a single pointer to the C++ facade
+/// plus a validity cookie. Callers never see this type -- they hold only a
+/// `void*` -- which is exactly what keeps the boundary free of any C++ type
+/// (class, reference, template, or exception). Defined here rather than in the
+/// header so the facade type stays completely hidden from consumers of
+/// l1_c_api.h.
+///
+/// @c magic is stamped with L1_CONTEXT_MAGIC on creation and zeroed on
+/// destruction, so a stale handle whose backing memory has not yet been reused
+/// fails validation instead of being dereferenced.
+struct L1_Context {
+    uint32_t         magic;   ///< == L1_CONTEXT_MAGIC while live; 0 once destroyed
+    AfsimL1Behavior* self;    ///< owned facade; nullptr once destroyed
+};
+
+} // extern "C" -- closed briefly so the internal-linkage helpers below may use
+  //               C++ standard-library types; the exported entry points reopen
+  //               the block further down.
+
+// ----------------------------------------------------------------------------
+// Internal handle-validation machinery (NOT exported -- internal linkage via the
+// anonymous namespace). A foreign host may hand back any `void*`: NULL, a
+// pointer already passed to L1_Destroy, or an unrelated address. Validating
+// every handle through this registry BEFORE dereferencing turns each of those
+// cases into a safe no-op rather than undefined behaviour.
+// ----------------------------------------------------------------------------
+namespace {
+
+/// Sentinel stamped into a live L1_Context and cleared on destruction.
+constexpr uint32_t L1_CONTEXT_MAGIC = 0xAF510C71u;
+
+/// Mutex guarding the live-handle registry. Wrapped in a function-local static
+/// (Meyers singleton) so it is constructed on first use and immune to static
+/// initialisation-order problems in a shared library.
+std::mutex& registry_mutex()
+{
+    static std::mutex m;
+    return m;
+}
+
+/// Set of currently-live context pointers. Membership is tested by pointer
+/// VALUE, so checking a stale/dangling/foreign pointer never dereferences it.
+std::unordered_set<const void*>& live_handles()
+{
+    static std::unordered_set<const void*> handles;
+    return handles;
+}
+
+/// Record a freshly created context as live.
+void registry_add(const void* handle)
+{
+    std::lock_guard<std::mutex> lock(registry_mutex());
+    live_handles().insert(handle);
+}
+
+/// Atomically remove @p handle from the live set. Returns true IFF it was live,
+/// so exactly one L1_Destroy call ever proceeds to free a given pointer -- a
+/// second (double) destroy, a never-created pointer, or a foreign pointer all
+/// return false and are handled as safe no-ops WITHOUT any dereference.
+bool registry_retire(const void* handle)
+{
+    std::lock_guard<std::mutex> lock(registry_mutex());
+    return live_handles().erase(handle) != 0;
+}
+
+/// True IFF @p handle is currently registered as live (pointer-value lookup).
+bool registry_contains(const void* handle)
+{
+    std::lock_guard<std::mutex> lock(registry_mutex());
+    return live_handles().find(handle) != live_handles().end();
+}
+
+/// Resolve an incoming handle to its concrete context for USE, or nullptr if it
+/// is not safe to dereference. The registry membership test runs first and is a
+/// pure pointer-value comparison, so a dangling pointer is rejected before it is
+/// ever dereferenced; the cookie check is defence-in-depth once membership (and
+/// therefore a live object) is established.
+L1_Context* acquire(void* handle)
+{
+    if (handle == nullptr) {
+        return nullptr;
+    }
+    if (!registry_contains(handle)) {
+        return nullptr;
+    }
+    auto* ctx = static_cast<L1_Context*>(handle);
+    if (ctx->magic != L1_CONTEXT_MAGIC || ctx->self == nullptr) {
+        return nullptr;
+    }
+    return ctx;
+}
+
+} // namespace
+
+extern "C" {
 
 /// Create a new AfsimL1 service instance.
 ///
@@ -96,24 +211,37 @@ __attribute__((visibility("default"))) void* L1_Create() {
     if (self == nullptr) {
         return nullptr;
     }
-    L1_Context* ctx = new (std::nothrow) L1_Context{self};
+    L1_Context* ctx = new (std::nothrow) L1_Context{L1_CONTEXT_MAGIC, self};
     if (ctx == nullptr) {
         delete self;
         return nullptr;
     }
+    // Record the context as live so subsequent calls can validate the handle
+    // by pointer value before dereferencing it.
+    registry_add(ctx);
     return ctx;
 }
 
 /// Destroy a service instance previously returned by L1_Create().
 ///
-/// Releases the underlying facade first, then the opaque context. Passing NULL
-/// is a safe no-op. After this call the handle is invalid and must not be reused.
+/// Releases the underlying facade first, then the opaque context. Passing NULL,
+/// an already-destroyed handle, or a foreign pointer is a safe no-op: the handle
+/// is atomically retired from the live registry, so a double destroy finds it
+/// absent and does nothing -- no dereference and no double-free occur. After a
+/// successful destroy the handle is invalid and must not be reused.
 ///
 /// @param handle  Opaque handle returned by L1_Create(), or NULL.
 __attribute__((visibility("default"))) void L1_Destroy(void* handle) {
     if (!handle) return;
+    // Atomically remove the handle from the live set. If it was NOT live
+    // (double destroy, never created, or foreign pointer) retire() returns false
+    // and we stop here -- crucially WITHOUT dereferencing a possibly-dangling
+    // pointer. Only the single caller that wins the retire proceeds to free.
+    if (!registry_retire(handle)) return;
     auto* ctx = static_cast<L1_Context*>(handle);
+    ctx->magic = 0u;          // poison: any lingering copy of this handle now fails acquire()
     delete ctx->self;
+    ctx->self = nullptr;      // avoid a dangling owned pointer prior to freeing the context
     delete ctx;
 }
 
@@ -123,8 +251,9 @@ __attribute__((visibility("default"))) void L1_Destroy(void* handle) {
 ///
 /// @param handle  Opaque handle returned by L1_Create(), or NULL.
 __attribute__((visibility("default"))) void L1_Init(void* handle) {
-    if (!handle) return;
-    static_cast<L1_Context*>(handle)->self->init();
+    auto* ctx = acquire(handle);
+    if (!ctx) return;
+    ctx->self->init();
 }
 
 /// Advance the guidance by one control step using a host-supplied time delta.
@@ -136,8 +265,9 @@ __attribute__((visibility("default"))) void L1_Init(void* handle) {
 /// @param handle      Opaque handle returned by L1_Create(), or NULL.
 /// @param dt_seconds  Control-step interval in seconds (e.g. 0.02 for 50 Hz).
 __attribute__((visibility("default"))) void L1_Execute(void* handle, double dt_seconds) {
-    if (!handle) return;
-    static_cast<L1_Context*>(handle)->self->execute(dt_seconds);
+    auto* ctx = acquire(handle);
+    if (!ctx) return;
+    ctx->self->execute(dt_seconds);
 }
 
 /// Set the active navigation leg from the previous and next waypoints.
@@ -151,8 +281,9 @@ __attribute__((visibility("default"))) void L1_Execute(void* handle, double dt_s
 /// @param nextN   Next     waypoint, North offset (metres).
 /// @param nextE   Next     waypoint, East  offset (metres).
 __attribute__((visibility("default"))) void L1_SetLegNE(void* handle, double prevN, double prevE, double nextN, double nextE) {
-    if (!handle) return;
-    static_cast<L1_Context*>(handle)->self->set_leg_ne(prevN, prevE, nextN, nextE);
+    auto* ctx = acquire(handle);
+    if (!ctx) return;
+    ctx->self->set_leg_ne(prevN, prevE, nextN, nextE);
 }
 
 /// Inject the current platform state consumed by the guidance controller.
@@ -168,8 +299,9 @@ __attribute__((visibility("default"))) void L1_SetLegNE(void* handle, double pre
 /// @param yaw_cd     Heading / yaw                     (centidegrees).
 /// @param pitch_rad  Pitch                             (radians).
 __attribute__((visibility("default"))) void L1_SetStateNE(void* handle, double n, double e, double velE, double velN, double yaw_cd, double pitch_rad) {
-    if (!handle) return;
-    static_cast<L1_Context*>(handle)->self->set_state_ne(n, e, velE, velN, yaw_cd, pitch_rad);
+    auto* ctx = acquire(handle);
+    if (!ctx) return;
+    ctx->self->set_state_ne(n, e, velE, velN, yaw_cd, pitch_rad);
 }
 
 /// Read the roll command produced by the most recent L1_Execute().
@@ -177,8 +309,9 @@ __attribute__((visibility("default"))) void L1_SetStateNE(void* handle, double n
 /// @param handle  Opaque handle returned by L1_Create(), or NULL.
 /// @return        Commanded roll angle in degrees, or 0.0 if @p handle is NULL.
 __attribute__((visibility("default"))) double L1_GetRollDeg(void* handle) {
-    if (!handle) return 0.0;
-    return static_cast<L1_Context*>(handle)->self->get_roll_deg();
+    auto* ctx = acquire(handle);
+    if (!ctx) return 0.0;
+    return ctx->self->get_roll_deg();
 }
 
 /// Read the lateral-acceleration demand produced by the most recent L1_Execute().
@@ -186,8 +319,9 @@ __attribute__((visibility("default"))) double L1_GetRollDeg(void* handle) {
 /// @param handle  Opaque handle returned by L1_Create(), or NULL.
 /// @return        Demanded lateral acceleration in m/s^2, or 0.0 if @p handle is NULL.
 __attribute__((visibility("default"))) double L1_GetLatAccel(void* handle) {
-    if (!handle) return 0.0;
-    return static_cast<L1_Context*>(handle)->self->get_lat_accel();
+    auto* ctx = acquire(handle);
+    if (!ctx) return 0.0;
+    return ctx->self->get_lat_accel();
 }
 
 } // extern "C"
