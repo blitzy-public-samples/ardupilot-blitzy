@@ -84,11 +84,12 @@ library it was itself built with**.
 All eight entry points are exported with `__attribute__((visibility("default")))`, and the
 library is built with `-fvisibility=hidden` so that every symbol from the service's own code —
 the facade, the AHRS shim, and the wrapped `AP_L1_Control` / `AP_Math` / `AP_Common` sources —
-stays internal. The eight `L1_*` functions are therefore the only *intended, global* API
-symbols the library exports. (A few C++ standard-library template instantiations may still
-appear as *weak* symbols regardless, because vague-linkage/COMDAT symbols keep default
-visibility by design; see **Verifying the exported symbols** below. They are not part of the
-service's API surface.)
+stays internal. To pin the exported surface to *exactly* those eight functions, the shared
+library is additionally linked with a GNU-ld **version script** that exports only the eight
+`L1_*` entry points and localizes everything else — including the C++ standard-library
+vague-linkage/COMDAT template instantiations that `-fvisibility=hidden` alone cannot suppress.
+The eight `L1_*` functions are therefore the **only** symbols the library exports; see
+**Verifying the exported symbols** below.
 
 | Entry point | Purpose |
 |-------------|---------|
@@ -160,16 +161,18 @@ roll_deg = -38.639999, lat_accel = -7.840306
 
 ### Verifying the exported symbols
 
-The library is compiled with `-fvisibility=hidden`, so all of the service's own code — the
-facade, the AHRS shim, and the wrapped `AP_L1_Control` / `AP_Math` / `AP_Common` sources —
-stays internal, and the eight C-ABI entry points are the only *intended, global* API symbols.
-They appear as global text (`T`) symbols; confirm exactly those eight with:
+The library is compiled with `-fvisibility=hidden` **and** linked with a version script (see
+[Building](#standalone-shared-library-cmake) and `CMakeLists.txt`), so all of the service's own
+code — the facade, the AHRS shim, and the wrapped `AP_L1_Control` / `AP_Math` / `AP_Common`
+sources — stays internal, and the eight C-ABI entry points are the **only** symbols the library
+exports. They appear as global text (`T`) symbols; list them with the bare, unfiltered command:
 
 ```bash
-$ nm -D --defined-only libafsim_l1.so | grep ' T ' | awk '{print $3}' | sort
+$ nm -D --defined-only libafsim_l1.so
 ```
 
-The output lists **exactly** these eight `L1_*` symbols and no others:
+The output lists **exactly** these eight `L1_*` symbols and no others (shown here sorted by
+name; each is a global `T` entry):
 
 ```text
 L1_Create
@@ -182,12 +185,11 @@ L1_SetLegNE
 L1_SetStateNE
 ```
 
-Running the bare `nm -D --defined-only libafsim_l1.so` (without the `grep ' T '` filter) will
-additionally list a handful of *weak* (`W`) symbols — C++ standard-library template
-instantiations such as `std::_Hashtable<…>` from the internal `std::unordered_set` live-handle
-registry. These are **vague-linkage (COMDAT) symbols, which keep default visibility by design**:
-`-fvisibility=hidden` cannot suppress them, and they are **not** part of the service's API
-surface. The eight global `T` symbols above are the complete, intended C-ABI contract.
+No other symbols appear. The version script localizes everything the service links, including
+the C++ standard-library vague-linkage/COMDAT template instantiations (e.g. `std::_Hashtable<…>`
+from the internal `std::unordered_set` live-handle registry) that `-fvisibility=hidden` alone
+cannot suppress — so the bare `nm -D --defined-only libafsim_l1.so` above is exactly eight lines,
+which are the complete, intended C-ABI contract.
 
 ### In-tree ArduPilot example (waf)
 

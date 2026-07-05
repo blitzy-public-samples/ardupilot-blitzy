@@ -325,6 +325,48 @@ set(SOURCES
 add_library(afsim_l1 SHARED ${SOURCES})
 set_target_properties(afsim_l1 PROPERTIES OUTPUT_NAME afsim_l1)
 
+# --------- Phase 4b: pin the exported dynamic symbol table to EXACTLY eight ---
+# The `-fvisibility=hidden` preset above hides the service's OWN symbols, but it
+# cannot suppress libstdc++ vague-linkage (COMDAT) template instantiations:
+# libstdc++ wraps namespace std in _GLIBCXX_VISIBILITY(default), so the
+# std::unordered_set<const void*> live-handle registry in l1_c_api.cpp otherwise
+# leaks ~19 weak std::_Hashtable<...> symbols into `nm -D --defined-only`.  A
+# GNU-ld version script pins the exported dynamic symbol table to EXACTLY the
+# eight L1_* C-ABI entry points and localizes everything else, so the built .so
+# exposes precisely the intended ABI surface -- nothing more (AAP 0.6.4).
+#
+# The script is ANONYMOUS (no version-node name) on purpose: the eight names stay
+# un-mangled (no `@@node` suffix) and no extra version symbol is emitted, so the
+# bare `nm -D --defined-only libafsim_l1.so` lists exactly the eight L1_*
+# functions and nothing else.  It is generated into the build tree (no tracked
+# source file is added) and attached via the target's LINK_FLAGS property, which
+# is available on CMake 3.5 (target_link_options() would require CMake >= 3.13).
+#
+# Scope: the flag applies to the `afsim_l1` shared library ONLY.  The demo
+# executable below links the eight exported L1_* symbols through the pure-C
+# l1_c_api.h and is unaffected.  Guarded to GNU/ELF platforms (Linux), where the
+# `.so` deliverable and `--version-script` apply.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(AFSIML1_VERSION_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/afsim_l1_exports.map")
+    file(WRITE "${AFSIML1_VERSION_SCRIPT}"
+"{
+  global:
+    L1_Create;
+    L1_Destroy;
+    L1_Init;
+    L1_Execute;
+    L1_SetLegNE;
+    L1_SetStateNE;
+    L1_GetRollDeg;
+    L1_GetLatAccel;
+  local:
+    *;
+};
+")
+    set_property(TARGET afsim_l1 APPEND_STRING PROPERTY
+        LINK_FLAGS " -Wl,--version-script=${AFSIML1_VERSION_SCRIPT}")
+endif()
+
 # ------------- Phase 5: Activate the include seam via the facade macro -------
 # CRITICAL COMPANION TO THE INCLUDE SEAM (AAP 0.6.2 Option B).
 #
