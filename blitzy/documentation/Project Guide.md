@@ -37,7 +37,7 @@ pie showData title Project Completion — 76.1% Complete (Hours)
 - ✅ **Behavior-preserving timing seam** — additive, **default-off** `set_update_dt()` in `AP_L1_Control`; the `dt`-clamp block is **byte-identical** to stock; CWE-20 input validation added.
 - ✅ **Toolchain-agnostic consumption proven** — a pure-C client compiled with `gcc` (not `g++`) `dlopen`s the `g++`-built library and drives it correctly.
 - ✅ **Cross-compiler clean build** — standalone CMake build from scratch on both `g++-11` and `g++-15`, **zero warnings** under `-Wall -Wextra`.
-- ✅ **PNT Reference Audit PDF regenerated** — 41 pages (A4) with the required "New Service Location" mapping column; deterministic (byte-identical SHA256 on re-run).
+- ✅ **PNT Reference Audit PDF regenerated** — 43 pages (A4) with the required "New Service Location" mapping column; deterministic (byte-identical SHA256 on re-run).
 - ✅ **Documentation delivered twice** — mapping in the AAP (§0.6.1) and in the regenerated PDF (Goal 3).
 - ✅ **No vehicle firmware touched** — the diff is confined to the 16 in-scope files; ArduPlane/Copter/Rover/Sub/Blimp/Tracker are unchanged.
 
@@ -86,7 +86,7 @@ All completed work was performed autonomously (AI). Each component traces to a s
 | Demo driver + state-flow self-check (`main.cpp`) | 4 | Working `set_leg_ne → execute → get_roll_deg` driver (212 LOC) with a step-7 self-check that fails loudly on state-flow regression. Maps AAP R7. |
 | README integration documentation (`README.md`) | 4 | 280-line guide: architecture, AHRS decoupling, C ABI, DI model, both build paths, usage, behavior preservation. Maps AAP R8. |
 | PNT instance audit analysis — Goal 1 | 6 | Line-by-line sweep mapping 16 AHRS read sites → 6 accessors + 2 clock couplings (AAP §0.6.1). Maps AAP R10. |
-| PDF generator pipeline + regeneration — Goal 3 | 24 | ReportLab generators (`pnt_data.py` 1032 + `pnt_render.py` 1334 + `generate.py` 293 = 2659 LOC); 94 main rows / 282 evidence rows; ~838-assertion harness; 41-page A4 PDF with "New Service Location" column. Maps AAP R9/R11. |
+| PDF generator pipeline + regeneration — Goal 3 | 24 | ReportLab generators (`pnt_data.py` 1336 + `pnt_render.py` 1433 + `generate.py` 293 = 3062 LOC); 94 main rows / 282 evidence rows; ~838-assertion harness; 43-page A4 PDF with "New Service Location" column. Maps AAP R9/R11. |
 | C-ABI stability web research | 2 | Best-practice research on stable C-ABI shared libraries (opaque handles, visibility, versioning) recorded in AAP §0.3.2. Maps AAP R12. |
 | Autonomous validation | 14 | From-scratch compile (g++-11 & g++-15), `nm -D` ABI check, pure-C `dlopen` smoke test, behavior-preservation Tests A/B/C, demo self-check, PDF harness. |
 | Iterative QA / code-review fix cycles | 6 | Resolution of CP1, CP2, and Checkpoint-5 (G1–G7) findings, ABI symbol-pinning, README correction — evidenced across 11 commits. |
@@ -148,7 +148,7 @@ All results below originate from Blitzy's autonomous validation logs for this pr
 - ✅ **Operational** — C ABI: 8 exports resolvable via `dlsym`; NULL-handle calls are safe no-ops / return 0.0.
 - ✅ **Operational** — Toolchain-agnostic consumption: `gcc`-built pure-C host drives the `g++`-built `.so` correctly.
 - ✅ **Operational** — `set_update_dt` timing seam: injected `dt` overrides `micros()`; default-off path preserves stock behavior; clamp semantics intact.
-- ✅ **Operational** — PDF generator: `HARNESS PASSED`, `PDF written`, 41 pages A4, deterministic (identical SHA256 on regen), working tree stays clean.
+- ✅ **Operational** — PDF generator: `HARNESS PASSED`, `PDF written`, 43 pages A4, deterministic (identical SHA256 on regen), working tree stays clean.
 - ⚠ **Partial** — In-tree waf example build (`bld.ap_example(use='ap')`): the `wscript` is correct, but the full `ap` library **fails to link** due to an **out-of-scope** `modules/littlefs` `-Werror` unused-variable (AAP §0.2.2 excludes `modules/**`). The standalone CMake path (the primary deliverable) is unaffected. Tracked as HT-5.
 
 **API integration outcomes:** The C ABI is the integration surface. All 8 functions are verified operational; real AFSIM host wiring is the remaining integration step (HT-2).

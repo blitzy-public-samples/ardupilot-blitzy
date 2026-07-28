@@ -75,6 +75,13 @@ from pnt_data import (
     DOCUMENT_SUBTITLE,
     DOCUMENT_TITLE,
     EVIDENCE_ROW_COUNT,
+    EXECUTIVE_SUMMARY_INTRO,
+    EXECUTIVE_SUMMARY_KEY_FINDINGS,
+    EXECUTIVE_SUMMARY_KEY_FINDINGS_COLUMNS,
+    EXECUTIVE_SUMMARY_PROVENANCE,
+    EXECUTIVE_SUMMARY_ROADMAP,
+    EXECUTIVE_SUMMARY_SECTIONS,
+    EXECUTIVE_SUMMARY_TITLE,
     FLAG_COUNTS,
     FLAG_VOCABULARY,
     FOOTPRINT_TEXT,
@@ -87,6 +94,7 @@ from pnt_data import (
     LAYER1_TABLES,
     LAYER2_COLUMNS,
     LAYER2_TABLES,
+    LAYER_COUNT,
     LEGEND,
     MAIN_ROW_COUNT,
     MAIN_TABLES,
@@ -1208,6 +1216,95 @@ def _front_matter_flowables(styles):
     return flowables
 
 
+def _executive_summary_flowables(styles):
+    """Render the Executive Summary that opens the document.
+
+    This is the platform-standard technical-specification summary adapted to
+    an audit deliverable: a short lead-in followed by the Project Overview,
+    Core Problem Addressed, Key Stakeholders and Users, Key Findings at a
+    Glance, Expected Impact and Value Proposition and Document Roadmap
+    subsections, closed by the provenance note.
+
+    Every heading, paragraph and table cell is authored in :mod:`pnt_data`.
+    The only work done here is presentation plus resolving the summary's
+    named figure placeholders from this module's imported catalog constants
+    (``CORE_MAIN_ROW_COUNT``, ``INDIRECT_MAIN_ROW_COUNT``,
+    ``MAIN_ROW_COUNT``, ``LAYER_COUNT``, ``EVIDENCE_ROW_COUNT``,
+    ``FLAG_COUNTS``, the ``COVERAGE_*`` totals and the length of
+    ``NEW_SERVICE_LOCATION_ROWS``) -- the same way the front matter, the
+    flag taxonomy and the coverage register compose their own metric lines.
+    No figure is written as a literal and nothing is read from the source
+    tree, so the summary cannot drift from the catalog it summarises.
+
+    The section closes with a page break so the pre-existing Legend and
+    Footprint Summary start on a fresh page rather than being interleaved
+    with the summary.
+    """
+    # Named figures, each read from a catalog constant.  The flag-occurrence
+    # line iterates the FLAG_VOCABULARY tuple, so its order -- and therefore
+    # the rendered bytes -- stay deterministic.
+    figures = {
+        "audited_head": AUDITED_HEAD,
+        "core_refs": CORE_MAIN_ROW_COUNT,
+        "indirect_refs": INDIRECT_MAIN_ROW_COUNT,
+        "total_refs": MAIN_ROW_COUNT,
+        "evidence_rows": EVIDENCE_ROW_COUNT,
+        "layers": LAYER_COUNT,
+        "tables": 2 * len(MAIN_TABLES),
+        "table_groups": len(MAIN_TABLES),
+        "flag_kinds": len(FLAG_VOCABULARY),
+        "flag_counts": " \u00b7 ".join(
+            "%s %d" % (flag, FLAG_COUNTS[flag]) for flag in FLAG_VOCABULARY
+        ),
+        "coverage_subregisters": COVERAGE_SUBREGISTER_COUNT,
+        "coverage_entries": COVERAGE_ENTRY_COUNT,
+        "coverage_absences": COVERAGE_ABSENT_COUNT,
+        "mapping_rows": len(NEW_SERVICE_LOCATION_ROWS),
+    }
+
+    def _para(template, style_key):
+        """Resolve *template*'s named figures and wrap it in a Paragraph."""
+        return Paragraph(_plain_markup(template % figures), styles[style_key])
+
+    flowables = [
+        _para(EXECUTIVE_SUMMARY_TITLE, "section"),
+        _para(EXECUTIVE_SUMMARY_INTRO, "body"),
+    ]
+
+    for section in EXECUTIVE_SUMMARY_SECTIONS:
+        flowables.append(_para(section["heading"], "subsection"))
+        for paragraph in section["body"]:
+            flowables.append(_para(paragraph, "body"))
+        if section["kind"] == "key_findings":
+            # At-a-glance aggregates: relative column weights are scaled to
+            # CONTENT_WIDTH so the table stays flush with every other table.
+            data = [_header_cells(
+                EXECUTIVE_SUMMARY_KEY_FINDINGS_COLUMNS, styles)]
+            for row in EXECUTIVE_SUMMARY_KEY_FINDINGS:
+                data.append([
+                    _cell(row["dimension"] % figures, styles),
+                    _cell(row["value"] % figures, styles, center=True),
+                    _cell(row["meaning"] % figures, styles),
+                    _cell(row["source"] % figures, styles),
+                ])
+            tbl = Table(data, colWidths=_scaled_widths((150, 50, 320, 280)),
+                        hAlign="LEFT")
+            tbl.setStyle(_data_table_style(
+                len(EXECUTIVE_SUMMARY_KEY_FINDINGS_COLUMNS)))
+            flowables.append(tbl)
+        elif section["kind"] == "roadmap":
+            # Reading order, naming each downstream section exactly as it is
+            # titled in the document (nothing renamed or renumbered).
+            for name, holds in EXECUTIVE_SUMMARY_ROADMAP:
+                flowables.append(
+                    _para("%s \u2014 %s" % (name, holds), "body"))
+
+    flowables.append(_para(EXECUTIVE_SUMMARY_PROVENANCE, "meta"))
+    flowables.append(Spacer(1, 6))
+    flowables.append(PageBreak())
+    return flowables
+
+
 def _group_banner_flowables(text, styles):
     """Render a full-width group-header banner (a visible section divider)."""
     banner = Table(
@@ -1261,6 +1358,7 @@ def render_pdf(out_path, repo_root=None):
     A4 document:
 
     * front matter (title, subtitle, audit metrics, scope);
+    * the Executive Summary, at the front of the document;
     * Legend and Footprint summary;
     * ``GROUP 1 \u2014 CORE PNT REFERENCES`` then Tables 1/1a, 2/2a (Table 2
       carrying the additive New Service Location column) and 3/3a;
@@ -1288,6 +1386,7 @@ def render_pdf(out_path, repo_root=None):
 
     story = []
     story.extend(_front_matter_flowables(styles))
+    story.extend(_executive_summary_flowables(styles))
     story.extend(_legend_flowables(styles))
     story.extend(_footprint_flowables(styles))
 

@@ -143,6 +143,306 @@ DOCUMENT_SUBTITLE = 'Read-only static-analysis audit — every snippet reproduce
 SCOPE_TEXT = 'Scope. This document is an audit-grade, read-only static-analysis catalog of every location in the ArduPilot firmware codebase (repository root containing ArduCopter/, ArduPlane/, Rover/, ArduSub/, AntennaTracker/, Blimp/, libraries/, modules/) where Positioning, Navigation, and Timing (PNT) data is handled, together with a two-layer dependency map for every catalogued reference. GROUP 1 catalogs core references — code that directly implements, reads, writes, or processes PNT data. GROUP 2 catalogs indirect / relational references — code that does not directly read or write PNT data but whose behavior changes as a result of PNT state. All file paths are repository-root-relative; every code snippet is reproduced VERBATIM from the cited path and line range so each row is independently verifiable. No source file is modified by this audit.'  # noqa: E501
 FOOTPRINT_TEXT = 'Footprint surveyed: libraries/ = 151 subsystems; libraries/AP_GPS/*.{cpp,h} = 44 files (14 receiver backends each catalogued individually + AP_GPS_Blended + GPS_Backend base); EKF families AP_NavEKF/AP_NavEKF2/AP_NavEKF3 with AP_NavEKF3 split across 13 fusion modules (all catalogued); flight/drive-mode files = 81 (ArduCopter 29 + ArduPlane 26 + Rover 14 + ArduSub 12), enumerated in the Coverage & Explicit-Absence Register. PNT state is produced under libraries/ and consumed/acted-upon in vehicle glue code (failsafe, ekf_check, fence, flight-mode gating).'  # noqa: E501
 
+# ==========================================================================
+# Executive Summary -- the platform-standard technical-specification summary,
+# adapted to an audit deliverable and rendered at the FRONT of the document
+# (ahead of the Legend, the Footprint Summary and GROUP 1).
+#
+# Content provenance: every statement below restates a finding already
+# catalogued in this module. No new static analysis was performed to author
+# it, and the rendered document states as much -- see
+# ``EXECUTIVE_SUMMARY_PROVENANCE``.
+#
+# Figures: every number is a NAMED ``%(key)s`` placeholder that the renderer
+# resolves from this module's own constants -- ``AUDITED_HEAD``,
+# ``CORE_MAIN_ROW_COUNT``, ``INDIRECT_MAIN_ROW_COUNT``, ``MAIN_ROW_COUNT``,
+# ``LAYER_COUNT``, ``EVIDENCE_ROW_COUNT``, ``FLAG_VOCABULARY`` with
+# ``FLAG_COUNTS``, ``COVERAGE_SUBREGISTER_COUNT``, ``COVERAGE_ENTRY_COUNT``,
+# ``COVERAGE_ABSENT_COUNT``, ``MAIN_TABLES`` and
+# ``NEW_SERVICE_LOCATION_ROWS`` -- so the summary can never drift from the
+# catalog it summarises. No figure is written as a literal. Substitution is
+# the renderer's job because three of those constants are declared further
+# down this module, and because the sibling front-matter, flag-taxonomy and
+# coverage-register sections already compose their metric lines that way.
+# ==========================================================================
+EXECUTIVE_SUMMARY_TITLE = 'Executive Summary'
+
+EXECUTIVE_SUMMARY_INTRO = (
+    'This Executive Summary opens the audit and states up front what the '
+    'catalog behind it establishes: where every Positioning, Navigation and '
+    'Timing behavior in the ArduPilot firmware lives today, what depends on '
+    'it, and — for the L1 lateral-navigation slice — which member of the '
+    'reusable AfsimL1Behavior service each behavior is refactored into. It '
+    'is a reading aid: the numbered tables, the instance mapping and the '
+    'registers that follow remain the authoritative record.'
+)
+
+# Ordered subsections. Each entry is a dict with:
+#   'heading' -- the subsection title, rendered in the "subsection" style;
+#   'kind'    -- 'prose' (paragraphs only), 'key_findings' (paragraphs then
+#                the at-a-glance table) or 'roadmap' (paragraphs then the
+#                section-by-section reading order);
+#   'body'    -- the paragraphs, in order, each a ``%(key)s`` template.
+EXECUTIVE_SUMMARY_SECTIONS = [
+    {
+        'heading': 'Project Overview',
+        'kind': 'prose',
+        'body': (
+            'This deliverable is an audit-grade, read-only static-analysis '
+            'catalog of every location in the ArduPilot firmware codebase '
+            'where Positioning, Navigation and Timing (PNT) data is '
+            'handled, taken at audited HEAD %(audited_head)s. Every '
+            'catalogued reference reproduces the code at its cited '
+            'path:line range verbatim and carries a two-layer dependency '
+            'map: Layer 1 records the direct callers, callees and typed '
+            'data edges around the reference, and Layer 2 records the full '
+            'transitive chain through to the final consumer that acts on '
+            'the value.',
+
+            'The catalog is extended with a current-location → '
+            'new-service-location mapping. For every PNT touch-point '
+            'inside the wrapped L1 guidance controller it names the member '
+            'of the reusable AfsimL1Behavior service that the behavior is '
+            'refactored into: the AHRS state shim that supplies injected '
+            'position, velocity and attitude, the injected-dt timing seam '
+            'that replaces the internal hardware clock, and the extern "C" '
+            'command surface that returns the roll and '
+            'lateral-acceleration commands. No source file is modified by '
+            'this audit.',
+        ),
+    },
+    {
+        'heading': 'Core Problem Addressed',
+        'kind': 'prose',
+        'body': (
+            'PNT behavior in ArduPilot is not a library that a host can '
+            'call — it is embedded in the vehicle flight loop and '
+            'duplicated across vehicles. Position, velocity, attitude and '
+            'the control-step timebase are pulled implicitly from shared '
+            'AHRS/EKF state and the hardware clock; PNT values arrive '
+            'packed into structures alongside non-PNT fields; and the same '
+            'derivation is repeated across the vehicle glue code. The '
+            'catalog records that coupling directly: [SHARED-STRUCT] marks '
+            'the packed structures, [DUPLICATED] marks the repeated '
+            'derivations, and [CIRCULAR] marks the state that depends on '
+            'itself.',
+
+            'The consequence is that an external host cannot reuse a PNT '
+            'behavior without first knowing every place that behavior '
+            'lives, what it reads, and what breaks if it moves. This audit '
+            'establishes exactly that ground truth — an enumerated, '
+            'independently verifiable inventory of every PNT touch-point '
+            'together with its dependency neighbourhood — and, for the '
+            'L1-navigation slice, names the service member each behavior '
+            'moves to, so the extraction can be reviewed as a mapping '
+            'between named locations rather than as a rewrite.',
+        ),
+    },
+    {
+        'heading': 'Key Stakeholders and Users',
+        'kind': 'prose',
+        'body': (
+            'Integration and host engineers embedding the extracted '
+            'guidance service use the current → new service location '
+            'mapping as the wiring contract: it names, accessor by '
+            'accessor, the value the host must inject and the service '
+            'member that now supplies it. Flight-controls reviewers '
+            'signing off the guidance seam use the Core Navigation and '
+            'Core Timing tables, with their paired dependency sub-tables, '
+            'to confirm that nothing outside the audited seam observes the '
+            'values being injected.',
+
+            'Firmware maintainers auditing PNT coupling use the '
+            'audit-discipline flags to locate circular state, shared '
+            'structures and duplicated derivations before touching shared '
+            'state, and the Coverage & Explicit-Absence Register to see '
+            'which surfaces were swept and found clear. Reviewers and '
+            'auditors rely on the read-only guarantee and on the verbatim '
+            'path:line citations, which make every row independently '
+            'checkable against the tree at the audited HEAD rather than '
+            'something that has to be taken on trust.',
+        ),
+    },
+    {
+        'heading': 'Key Findings at a Glance',
+        'kind': 'key_findings',
+        'body': (
+            'Every figure below is a reconciled total of the catalog '
+            'itself, carried forward unchanged from the tables, the '
+            'instance mapping and the registers that follow.',
+        ),
+    },
+    {
+        'heading': 'Expected Impact and Value Proposition',
+        'kind': 'prose',
+        'body': (
+            'The audit converts an implicit understanding of ArduPilot PNT '
+            'coupling into a verifiable extraction baseline. Because every '
+            'row cites a path:line range and reproduces the code at that '
+            'range verbatim, the inventory can be re-checked against the '
+            'tree at audited HEAD %(audited_head)s rather than taken on '
+            'trust, and the totals above reconcile against the catalog '
+            'they summarise.',
+
+            'The audit-discipline flags turn extraction risk into '
+            'explicit, addressable markers — where state is circular, '
+            'where PNT fields are packed with non-PNT fields, where a '
+            'derivation is duplicated, and, through the checked absences, '
+            'where an expected PNT element was looked for and genuinely is '
+            'not present. For the L1-navigation slice the current → new '
+            'mapping supplies a documented wiring contract for the '
+            'reusable service, so the guidance seam can be reviewed and '
+            'signed off against named locations on both sides of the '
+            'extraction.',
+        ),
+    },
+    {
+        'heading': 'Document Roadmap / How to Read This Document',
+        'kind': 'roadmap',
+        'body': (
+            'The sections below appear in this order. Section names, table '
+            'numbers and row numbering are exactly as catalogued.',
+        ),
+    },
+]
+
+# "Key Findings at a Glance" column schema (renderer draws the header from
+# this ordered field list, as it does for every other table).
+EXECUTIVE_SUMMARY_KEY_FINDINGS_COLUMNS = (
+    'Dimension',
+    'Value',
+    'What the Catalog Establishes',
+    'Where It Is Catalogued',
+)
+
+# "Key Findings at a Glance" rows. 'value' and 'meaning' carry the named
+# figure placeholders; 'source' points at the existing section that owns the
+# detail, by its existing name.
+EXECUTIVE_SUMMARY_KEY_FINDINGS = [
+    {
+        'dimension': 'Core PNT references',
+        'value': '%(core_refs)d',
+        'meaning': 'Code that directly implements, reads, writes or '
+                   'processes PNT data.',
+        'source': 'GROUP 1 — CORE PNT REFERENCES: Table 1 Core '
+                  'Positioning, Table 2 Core Navigation, Table 3 Core '
+                  'Timing, each with its 1a / 2a / 3a dependency map.',
+    },
+    {
+        'dimension': 'Indirect / relational PNT references',
+        'value': '%(indirect_refs)d',
+        'meaning': 'Code that reads no PNT data itself but whose behavior '
+                   'changes as a result of PNT state.',
+        'source': 'GROUP 2 — INDIRECT / RELATIONAL PNT REFERENCES: Table 4 '
+                  'Indirect Positioning, Table 5 Indirect Navigation, '
+                  'Table 6 Indirect Timing, each with its 4a / 5a / 6a '
+                  'dependency map.',
+    },
+    {
+        'dimension': 'Total catalogued touch-points',
+        'value': '%(total_refs)d',
+        'meaning': 'Core plus indirect — the complete PNT surface '
+                   'enumerated by this audit.',
+        'source': 'All GROUP 1 and GROUP 2 main tables.',
+    },
+    {
+        'dimension': 'Evidence rows',
+        'value': '%(evidence_rows)d',
+        'meaning': '%(total_refs)d touch-points × %(layers)d layers: the '
+                   'main row, its Layer 1 direct edges and its Layer 2 '
+                   'transitive chain.',
+        'source': 'Each main table together with its matching Xa '
+                  'dependency sub-table.',
+    },
+    {
+        'dimension': 'Catalog structure',
+        'value': '%(tables)d',
+        'meaning': 'Tables in %(table_groups)d numbered groups: '
+                   '%(table_groups)d main tables, each paired with an Xa '
+                   'sub-table holding its Layer 1 and Layer 2 blocks.',
+        'source': 'Tables 1 / 1a through 6 / 6a, rendered in that order.',
+    },
+    {
+        'dimension': 'Audit-discipline flags',
+        'value': '%(flag_kinds)d',
+        'meaning': 'Flag kinds, with occurrences %(flag_counts)s. They '
+                   'mark extraction risk and enforce non-inference '
+                   'discipline inline in the Notes columns.',
+        'source': 'Notes columns throughout; taxonomy and occurrence '
+                  'counts in Audit-Discipline Flags.',
+    },
+    {
+        'dimension': 'Coverage and explicit absences',
+        'value': '%(coverage_entries)d',
+        'meaning': 'Register entries across %(coverage_subregisters)d '
+                   'sub-registers, including %(coverage_absences)d '
+                   'checked, explicitly documented absences — evidence '
+                   'that the sweep was exhaustive rather than '
+                   'opportunistic.',
+        'source': 'Coverage & Explicit-Absence Register.',
+    },
+    {
+        'dimension': 'Current → new service mapping',
+        'value': '%(mapping_rows)d',
+        'meaning': 'L1-navigation touch-points mapped onto the '
+                   'AfsimL1Behavior member each is refactored into, '
+                   'spanning position, velocity, attitude, airspeed '
+                   'scaling, timing, geometry and the command outputs.',
+        'source': 'PNT Instance Audit — Current Location → New Service '
+                  'Location.',
+    },
+]
+
+# Reading order: list of (existing section name, what it holds) pairs. The
+# names are reproduced exactly as the sections are titled -- nothing is
+# renamed or renumbered here.
+EXECUTIVE_SUMMARY_ROADMAP = [
+    ('Legend',
+     'The classification vocabularies — Role for Group 1, the Trigger '
+     'Condition / PNT State Observed / Behavior Change discriminators for '
+     'Group 2, Dependency Type for Layer 1 — plus the Notes-flag meanings '
+     'and the cross-reference rule that ties each Xa table back to its '
+     'main table numbering. Read this first.'),
+    ('Footprint Summary',
+     'The surveyed surface: the subsystems, receiver backends, EKF '
+     'families and flight-mode files swept to make the catalog '
+     'exhaustive.'),
+    ('GROUP 1 — CORE PNT REFERENCES',
+     'Tables 1 / 1a Core Positioning, 2 / 2a Core Navigation and 3 / 3a '
+     'Core Timing: code that directly implements, reads, writes or '
+     'processes PNT data. Table 2 also carries the New Service Location '
+     'column.'),
+    ('GROUP 2 — INDIRECT / RELATIONAL PNT REFERENCES',
+     'Tables 4 / 4a Indirect Positioning, 5 / 5a Indirect Navigation and '
+     '6 / 6a Indirect Timing: code whose behavior changes as a result of '
+     'PNT state.'),
+    ('PNT Instance Audit — Current Location → New Service Location',
+     'The consolidated mapping of every PNT touch-point inside the wrapped '
+     'L1 controller onto its AfsimL1Behavior member, with the '
+     'line-number basis stated alongside it.'),
+    ('Audit-Discipline Flags',
+     'The flag taxonomy with its occurrence counts, reconciled against the '
+     'catalog.'),
+    ('Coverage & Explicit-Absence Register',
+     'The directory-wide token sweeps and checked absences that establish '
+     'exhaustiveness across libraries/, the vehicle directories and the '
+     'submodule boundary edges.'),
+]
+
+# Provenance note, rendered in the "meta" style beneath the summary. It makes
+# the derivation rule visible in the artifact itself: the summary restates
+# catalogued findings and nothing was re-analysed to produce it.
+EXECUTIVE_SUMMARY_PROVENANCE = (
+    'Provenance. This Executive Summary is derived entirely from the '
+    'findings already catalogued in this document — the numbered tables, '
+    'the instance mapping and the registers that follow — and no new '
+    'static analysis of the ArduPilot codebase was performed to produce '
+    'it. Every figure above is a reconciled total of that catalog, and '
+    'every cited path:line reference in this document is unchanged: none '
+    'was re-derived, re-scored or re-verified for this summary.'
+)
+
+
 # Five-part legend: list of (label, description) pairs.
 LEGEND = [
     ('Role (Group 1)',
@@ -1021,6 +1321,10 @@ __all__ = [
     "NEW_SERVICE_LOCATION_COLUMN",
     "DOCUMENT_TITLE", "DOCUMENT_SUBTITLE", "SCOPE_TEXT", "FOOTPRINT_TEXT",
     "LEGEND",
+    "EXECUTIVE_SUMMARY_TITLE", "EXECUTIVE_SUMMARY_INTRO",
+    "EXECUTIVE_SUMMARY_SECTIONS", "EXECUTIVE_SUMMARY_KEY_FINDINGS_COLUMNS",
+    "EXECUTIVE_SUMMARY_KEY_FINDINGS", "EXECUTIVE_SUMMARY_ROADMAP",
+    "EXECUTIVE_SUMMARY_PROVENANCE",
     "GROUP1_TABLES", "GROUP2_TABLES", "LAYER1_TABLES", "LAYER2_TABLES",
     "MAIN_TABLES",
     "NEW_SERVICE_LOCATION_ROWS", "NEW_SERVICE_LOCATION_MAP",
