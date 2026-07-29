@@ -71,6 +71,7 @@ from pnt_data import (
     COVERAGE_REGISTER_TITLE,
     COVERAGE_SUBREGISTER_COUNT,
     CORE_MAIN_ROW_COUNT,
+    DATA_OBJECT_COUNT,
     DEPENDENCY_TYPE_VOCABULARY,
     DOCUMENT_SUBTITLE,
     DOCUMENT_TITLE,
@@ -1230,11 +1231,12 @@ def _executive_summary_flowables(styles):
     named figure placeholders from this module's imported catalog constants
     (``CORE_MAIN_ROW_COUNT``, ``INDIRECT_MAIN_ROW_COUNT``,
     ``MAIN_ROW_COUNT``, ``LAYER_COUNT``, ``EVIDENCE_ROW_COUNT``,
-    ``FLAG_COUNTS``, the ``COVERAGE_*`` totals and the length of
-    ``NEW_SERVICE_LOCATION_ROWS``) -- the same way the front matter, the
-    flag taxonomy and the coverage register compose their own metric lines.
-    No figure is written as a literal and nothing is read from the source
-    tree, so the summary cannot drift from the catalog it summarises.
+    ``DATA_OBJECT_COUNT``, ``FLAG_COUNTS``, the ``COVERAGE_*`` totals and
+    the length of ``NEW_SERVICE_LOCATION_ROWS``) -- the same way the front
+    matter, the flag taxonomy and the coverage register compose their own
+    metric lines. No figure is written as a literal and nothing is read
+    from the source tree, so the summary cannot drift from the catalog it
+    summarises.
 
     The section closes with a page break so the pre-existing Legend and
     Footprint Summary start on a fresh page rather than being interleaved
@@ -1249,6 +1251,7 @@ def _executive_summary_flowables(styles):
         "indirect_refs": INDIRECT_MAIN_ROW_COUNT,
         "total_refs": MAIN_ROW_COUNT,
         "evidence_rows": EVIDENCE_ROW_COUNT,
+        "data_objects": DATA_OBJECT_COUNT,
         "layers": LAYER_COUNT,
         "tables": 2 * len(MAIN_TABLES),
         "table_groups": len(MAIN_TABLES),
@@ -1300,7 +1303,9 @@ def _executive_summary_flowables(styles):
                     _para("%s \u2014 %s" % (name, holds), "body"))
 
     flowables.append(_para(EXECUTIVE_SUMMARY_PROVENANCE, "meta"))
-    flowables.append(Spacer(1, 6))
+    # No trailing spacer: the explicit page break below already separates the
+    # summary from the Legend, and a spacer that no longer fits on the last
+    # summary page would spill and emit a blank page before it.
     flowables.append(PageBreak())
     return flowables
 

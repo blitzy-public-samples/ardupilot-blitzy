@@ -156,9 +156,9 @@ FOOTPRINT_TEXT = 'Footprint surveyed: libraries/ = 151 subsystems; libraries/AP_
 # Figures: every number is a NAMED ``%(key)s`` placeholder that the renderer
 # resolves from this module's own constants -- ``AUDITED_HEAD``,
 # ``CORE_MAIN_ROW_COUNT``, ``INDIRECT_MAIN_ROW_COUNT``, ``MAIN_ROW_COUNT``,
-# ``LAYER_COUNT``, ``EVIDENCE_ROW_COUNT``, ``FLAG_VOCABULARY`` with
-# ``FLAG_COUNTS``, ``COVERAGE_SUBREGISTER_COUNT``, ``COVERAGE_ENTRY_COUNT``,
-# ``COVERAGE_ABSENT_COUNT``, ``MAIN_TABLES`` and
+# ``LAYER_COUNT``, ``EVIDENCE_ROW_COUNT``, ``DATA_OBJECT_COUNT``,
+# ``FLAG_VOCABULARY`` with ``FLAG_COUNTS``, ``COVERAGE_SUBREGISTER_COUNT``,
+# ``COVERAGE_ENTRY_COUNT``, ``COVERAGE_ABSENT_COUNT``, ``MAIN_TABLES`` and
 # ``NEW_SERVICE_LOCATION_ROWS`` -- so the summary can never drift from the
 # catalog it summarises. No figure is written as a literal. Substitution is
 # the renderer's job because three of those constants are declared further
@@ -353,6 +353,14 @@ EXECUTIVE_SUMMARY_KEY_FINDINGS = [
                    'transitive chain.',
         'source': 'Each main table together with its matching Xa '
                   'dependency sub-table.',
+    },
+    {
+        'dimension': 'Data objects',
+        'value': '%(data_objects)d',
+        'meaning': 'Catalogued table objects: %(table_groups)d main tables '
+                   'plus their %(table_groups)d Layer 1 and '
+                   '%(table_groups)d Layer 2 blocks.',
+        'source': 'Tables 1 / 1a through 6 / 6a.',
     },
     {
         'dimension': 'Catalog structure',
