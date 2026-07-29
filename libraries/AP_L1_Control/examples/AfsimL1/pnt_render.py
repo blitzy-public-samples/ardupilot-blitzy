@@ -9,7 +9,7 @@ independent capabilities:
 1.  **Integrity harness** — six ``verify_*`` functions plus the
     :func:`run_all_verifications` aggregator.  Together they assert the
     structural, vocabulary, provenance, numbering, cross-reference and
-    chain-depth invariants of the catalog (~838 discrete checks).  The
+    chain-depth invariants of the catalog (1,193 logical invariants).  The
     downstream ``generate.py`` driver runs these *before* emitting the PDF and
     refuses to render if any check fails — the audit is therefore
     harness-gated.
@@ -242,13 +242,19 @@ def register_fonts():
 # genuinely exceptional conditions (e.g. an unreadable repository root passed
 # for citation checks is reported as an error string, not an exception).
 #
-# Collectively the harness performs ~838 discrete checks that reconcile with
-# the committed ``pnt_data.py`` (94 main rows / 282 evidence rows):
-#   verify_group1      role + snippet + citation over 63 Core rows      (189)
-#   verify_group2      3 discriminators + snippet + citation over 31    (155)
-#   verify_layer1      dependency-type over 94 + 5 AP:: singleton         (99)
-#   verify_layer2      positive int + hop-count over 94                  (188)
-#   verify_ref_coverage bidirectional Ref#<->#, monotonic numbering      (206)
+# Collectively the harness asserts 1,193 logical invariants that reconcile with
+# the committed ``pnt_data.py`` (94 main rows / 282 evidence rows).  Counts below
+# are logical invariants; the parenthesised second figure is the number of
+# predicate evaluations actually executed (higher where one invariant is checked
+# by several composed predicates, e.g. the shared ``_citation_readable`` helper):
+#   verify_group1              role + snippet + citation over 63 Core rows    253 (316)
+#   verify_group2              3 discriminators + snippet + citation over 31  187 (218)
+#   verify_layer1              dependency-type over 94 + 5 AP:: singleton     194 (194)
+#   verify_layer2              positive int + hop-count over 94               189 (189)
+#   verify_ref_coverage        bidirectional Ref#<->#, monotonic numbering    216 (216)
+#   verify_new_service_mapping New Service Location column + 12 mapping rows  154 (154)
+#                                                                    TOTAL  1,193 (1,663)
+# The 1,663 evaluations occur at 45 distinct predicate sites.
 # ===========================================================================
 
 # Line references in the audit are cited as e.g. "1510-1518", "79-88, 92" or a

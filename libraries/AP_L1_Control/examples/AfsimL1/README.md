@@ -51,9 +51,10 @@ them — the service must decouple the state source another way. Two options exi
   reads exactly the host-injected state, while the guidance **math** remains the real
   `AP_L1_Control` compiled against the real `AP_Math` / `AP_Common/Location` geometry and
   the real `AP_Param` defaults — so the numbers are preserved bit-for-bit. This keeps the
-  `.so` small and free of the EKF/DCM stack. The standalone CMake build sets this up for
-  you: it generates the shim tree, puts it first on the include path, and defines the
-  `AFSIML1_L1_USES_SHIM_AHRS` macro that signals the seam is active.
+  `.so` small and free of the EKF/DCM stack. **Both shipped build files set this up for
+  you** — the standalone `CMakeLists.txt` and the in-tree `wscript` each generate the shim
+  tree, put it first on the include path, and define the `AFSIML1_L1_USES_SHIM_AHRS` macro
+  that signals the seam is active, which is why the two builds produce identical output.
 - **Option A — real `AP_AHRS` (documented fallback, maximum fidelity).** Link the real
   `AP_AHRS` together with its transitive EKF/DCM dependency graph and drive it from an
   external navigation source. Behaviour-identical, but far heavier; retained only as the
@@ -62,8 +63,8 @@ them — the service must decouple the state source another way. Two options exi
 Because binding the controller to the shim is only correct under the seam, the façade guards
 the requirement at compile time: `AfsimL1Behavior.h` opens (before any include) with a hard
 `#error` that fires unless `AFSIML1_L1_USES_SHIM_AHRS` is defined. Any build that compiles
-the façade **without** the seam therefore fails loudly with a directive to use the seam
-(CMake) build, rather than silently compiling a service whose controller reads a
+the façade **without** the seam therefore fails loudly with a directive to use one of the two
+seam-providing build files, rather than silently compiling a service whose controller reads a
 never-written state source. Consuming the service through the C ABI (`l1_c_api.h`, Path B
 below) never touches that header, so an external host is unaffected by the guard.
 
@@ -191,6 +192,27 @@ from the internal `std::unordered_set` live-handle registry) that `-fvisibility=
 cannot suppress — so the bare `nm -D --defined-only libafsim_l1.so` above is exactly eight lines,
 which are the complete, intended C-ABI contract.
 
+### Running the unit tests
+
+The same CMake build also produces **`afsim_l1_tests`**, a self-contained suite (no external
+test framework) covering the AHRS shim accessors and setters, the East/North velocity
+convention, the `Location`-from-datum construction, every facade method, all eight C-ABI
+entry points including `NULL`- and destroyed-handle safety, and — most importantly —
+**behavior preservation**: injected-`dt` determinism, the default-off legacy
+`AP_HAL::micros()` path, and the `dt > 1 s` cross-track-integrator reset clamp. Run it
+directly, or through CTest:
+
+```bash
+$ ./afsim_l1_tests
+=== AfsimL1 unit tests: 111 checks, 0 failures ===
+
+$ ctest --output-on-failure
+100% tests passed, 0 tests failed out of 2
+```
+
+CTest registers two cases: `afsim_l1_unit_tests` (the suite above) and
+`afsim_l1_demo_smoke` (asserts the demo still runs and exits `0`).
+
 ### In-tree ArduPilot example (waf)
 
 The sibling `wscript` registers the module as an in-tree ArduPilot example following the
@@ -198,16 +220,36 @@ established convention (`bld.ap_example(use='ap')`, matching the reference
 `AP_AHRS/examples/AHRS_Test/wscript`):
 
 ```bash
-$ ./waf configure --board sitl
+$ ./waf configure --board linux
 $ ./waf build --targets examples/AfsimL1
+$ ./build/linux/examples/AfsimL1
+roll_deg = -38.639999, lat_accel = -7.840306
 ```
 
-The **injectable, state-routing service is built with the standalone CMake target above**,
-not through `use='ap'`. The AHRS decoupling relies on the compile-time include seam
-(Option B), whereas `use='ap'` links the firmware's real `AP_AHRS`; the façade therefore
-refuses to compile without the seam via the `#error` described under **AHRS state
-decoupling**. That guard applies to **every** build path — including waf/in-tree — so no
-build can silently produce a state-invariant binary. Use the CMake build for the `.so`.
+This path builds the **same Option-B seam** the CMake target uses, so it is a genuine
+second build of the service rather than a degraded variant: the `wscript` generates the shim
+tree into the build directory, places it **first** on the include path, defines
+`AFSIML1_L1_USES_SHIM_AHRS`, and compiles the wrapped `AP_L1_Control.cpp` from its
+unmodified in-tree location so the controller binds the shim. The resulting binary prints
+**byte-identical** guidance output to the CMake `afsim_l1_demo`, which is the practical
+proof that both builds compute the same numbers.
+
+The two paths differ only in what they *emit*: the in-tree target produces the runnable
+**example executable**, whereas the CMake target additionally produces the **`libafsim_l1.so`
+shared library with the pinned eight-symbol export list** — the artifact an external host
+binds at run time. **For the `.so`, use the CMake build.**
+
+`--board sitl` builds the example equally well, but currently needs a one-line environment
+prefix that relaxes a single warning in vendored third-party code unrelated to this service
+(`modules/littlefs` has an unused local that trips the board's `-Werror=unused-variable`):
+
+```bash
+$ CFLAGS='-Wno-error=unused-variable' ./waf configure --board sitl
+$ CFLAGS='-Wno-error=unused-variable' ./waf build --targets examples/AfsimL1
+```
+
+Prefer `--board linux`, which needs no prefix and keeps ArduPilot's full strict-diagnostics
+posture (29 explicit `-Werror=` C++ flags) in force over the service sources.
 
 ## Usage
 

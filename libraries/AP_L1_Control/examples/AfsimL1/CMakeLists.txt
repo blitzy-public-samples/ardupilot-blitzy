@@ -88,6 +88,70 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
+# --------------- Phase 2b: Diagnostics posture (upstream-equivalent) ---------
+# The service reuses REAL ArduPilot translation units (AP_L1_Control, AP_Math,
+# AP_Common/Location), so this standalone build enforces the SAME warning
+# contract those sources are held to in-tree.  The list below is ArduPilot's own
+# C++ diagnostics set from Board.configure_env() in
+# Tools/ardupilotwaf/boards.py (`env.CXXFLAGS`), reproduced verbatim and in the
+# same order, so a warning that would fail the in-tree waf build also fails --
+# or at minimum surfaces in -- this build.  Without this block CMake adds NO
+# warning flags at all, which would leave the deliverable's "zero warnings"
+# property untested by the documented `cmake .. && make` recipe.
+#
+# ONE deliberate omission, `-Werror=undef`:
+#   AP_Math/ftype.h:14 and AP_Math/AP_Math.h:25 test `#if HAL_WITH_EKF_DOUBLE`,
+#   a macro supplied by AP_HAL/board/<board>.h (linux.h:84, sitl.h:82, ...).
+#   This target selects CONFIG_HAL_BOARD=HAL_BOARD_EMPTY and shims
+#   <AP_HAL/AP_HAL.h> (Option B), so AP_HAL_Boards.h is never included and the
+#   macro is legitimately undefined -- which is the intended single-precision
+#   configuration.  `-Werror=undef` would therefore reject a correct build for a
+#   condition that only the full board-config machinery can satisfy, so it is
+#   excluded here rather than worked around by defining a board macro this
+#   minimal-footprint target does not otherwise need.
+#
+# Flags are appended to CMAKE_CXX_FLAGS (not add_compile_options) so they remain
+# compatible with cmake_minimum_required(VERSION 3.5), and are appended rather
+# than assigned so a caller-supplied -DCMAKE_CXX_FLAGS=... is preserved.
+set(AFSIML1_WARNING_FLAGS
+    -Wall
+    -Wextra
+    -Wpointer-arith
+    -Wno-unused-parameter
+    -Wno-missing-field-initializers
+    -Wno-redundant-decls
+    -Wno-unknown-pragmas
+    -Wno-expansion-to-defined
+    -Wno-trigraphs
+    -Wuninitialized
+    -Warray-bounds
+    -Werror=reorder
+    -Werror=cast-align
+    -Werror=attributes
+    -Werror=format-security
+    -Werror=format-extra-args
+    -Werror=enum-compare
+    -Werror=format
+    -Werror=array-bounds
+    -Werror=uninitialized
+    -Werror=init-self
+    -Werror=narrowing
+    -Werror=return-type
+    -Werror=switch
+    -Werror=sign-compare
+    -Werror=type-limits
+    -Werror=unused-result
+    -Werror=shadow
+    -Werror=unused-value
+    -Werror=unused-variable
+    -Werror=delete-non-virtual-dtor
+    -Werror=parentheses
+)
+foreach(_afsiml1_flag ${AFSIML1_WARNING_FLAGS})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${_afsiml1_flag}")
+endforeach()
+unset(_afsiml1_flag)
+
 # ------------------------- Phase 3: Include-path roots -----------------------
 # This file lives at libraries/AP_L1_Control/examples/AfsimL1/CMakeLists.txt, so
 # the repository "libraries/" root is three directories up.  Adding it to the
@@ -435,5 +499,58 @@ target_compile_definitions(afsim_l1 PRIVATE AFSIML1_L1_USES_SHIM_AHRS)
 # as a lightweight end-to-end smoke test for CI.
 add_executable(afsim_l1_demo "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 target_link_libraries(afsim_l1_demo PRIVATE afsim_l1)
+
+# ------------------------- Phase 7: Unit test suite --------------------------
+# tests/test_afsim_l1.cpp exercises all three layers of the service plus the
+# additive AP_L1_Control timing seam (AAP 0.5.1 "unit test for the facade"):
+#   Group 1  AfsimL1_AHRS_Shim   -- the six AP_AHRS read APIs, the four injection
+#                                   setters, the N/E <-> E/N velocity convention,
+#                                   yaw wrapping and NaN rejection.
+#   Group 2  AfsimL1Behavior     -- leg/state injection, execute(), and proof that
+#                                   get_roll_deg()/get_lat_accel() are EXACTLY
+#                                   nav_roll_cd()/100 and lateral_acceleration().
+#   Group 3  AP_L1_Control seam  -- BEHAVIOR PRESERVATION: the injected dt scales
+#                                   the publicly observable cross-track
+#                                   integrator exactly linearly, the seam is
+#                                   default-off, the dt>1 s reinitialisation and
+#                                   the dt>0.1 s cap behave exactly as stock,
+#                                   invalid host dt never latches, and the loiter
+#                                   path consumes the injected millisecond
+#                                   timebase.
+#   Group 4  extern "C" ABI      -- handle lifecycle, instance independence, and
+#                                   NULL / unregistered / stale / double-destroy
+#                                   safety on every entry point.
+#
+# It is deliberately built from ${SOURCES} directly rather than linked against
+# libafsim_l1.so: the .so exports ONLY the eight C entry points (by design -- see
+# the version script above), so the C++ facade, the shim and the wrapped
+# controller are unreachable from outside it. Compiling the same translation
+# units into the test binary is what makes the internal layers testable while
+# keeping the shipped ABI surface minimal.
+#
+# The seam macro is required for the same reason the shared library needs it: the
+# test includes AfsimL1Behavior.h and AP_L1_Control.h directly.
+#
+# There is no third-party test framework here. AAP 0.5.2 mandates "no new
+# third-party dependency", so the suite carries a small self-contained assertion
+# harness and signals failure through its exit status.
+add_executable(afsim_l1_tests
+    ${SOURCES}
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_afsim_l1.cpp"
+)
+target_compile_definitions(afsim_l1_tests PRIVATE AFSIML1_L1_USES_SHIM_AHRS)
+
+# Register with CTest so `ctest --output-on-failure` runs the suite. enable_testing()
+# and add_test() are both available on CMake 3.5, matching the minimum above.
+enable_testing()
+add_test(NAME afsim_l1_unit_tests
+         COMMAND afsim_l1_tests
+         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+
+# The demo doubles as an end-to-end smoke test, so register it too: `ctest` then
+# covers both the unit suite and the documented runnable flow.
+add_test(NAME afsim_l1_demo_smoke
+         COMMAND afsim_l1_demo
+         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
 

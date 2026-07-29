@@ -9,7 +9,8 @@ the real work:
   ``New Service Location`` mapping onto the ``AfsimL1Behavior`` service surface.
 * :mod:`pnt_render` -- the ReportLab renderer (:func:`render_pdf`) *and* the six
   ``verify_*`` integrity checks aggregated by :func:`run_all_verifications`
-  (~838 discrete assertions).
+  (1,193 logical invariants, evaluated through 1,663 predicate evaluations
+  across 45 distinct predicate sites).
 
 Generation contract (validate-first, refuse-on-failure)
 -------------------------------------------------------
