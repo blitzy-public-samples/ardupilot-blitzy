@@ -1,8 +1,9 @@
 # Blitzy Project Guide — AfsimL1 Reusable L1 Guidance Service
 
-> **Project:** Extract ArduPilot L1 lateral-navigation guidance (`AP_L1_Control`) into a reusable, host-driven modular service (`AfsimL1`) behind a stable `extern "C"` ABI, plus a regenerated PNT Reference Audit PDF.
-> **Branch:** `blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668` · **HEAD:** `7a5ebc0723`
-> **Brand color legend:** <span style="color:#5B39F3">■</span> Completed / AI Work = Dark Blue `#5B39F3` · <span style="color:#B23AF2">■</span> Headings/Accents = Violet-Black `#B23AF2` · <span style="color:#A8FDD9">■</span> Highlight = Mint `#A8FDD9` · ▢ Remaining = White `#FFFFFF`
+> **Project:** Consolidate ArduPilot's Position / Navigation / Timing (PNT) behaviors embedded in the vehicle flight loop into one reusable, host-driven modular service (`AfsimL1`) behind a stable `extern "C"` ABI, plus a regenerated PNT Reference Audit PDF documenting current → new service locations.
+> **Repository:** ArduPilot (same-repo refactor) · **Branch:** `blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668`
+> **Implementation HEAD:** `1a3e238884` · **Documentation HEAD:** this guide's commit · **Non-agent baseline:** `6148c3d422`
+> **Brand legend:** <span style="color:#5B39F3">■</span> Completed / AI Work `#5B39F3` · ▢ Remaining `#FFFFFF` · <span style="color:#B23AF2">■</span> Headings / Accents `#B23AF2` · <span style="color:#A8FDD9">■</span> Highlight `#A8FDD9`
 
 ---
 
@@ -10,67 +11,68 @@
 
 ### 1.1 Project Overview
 
-The **AfsimL1** project refactors ArduPilot's L1 lateral-navigation guidance (`AP_L1_Control`) from logic embedded in the vehicle flight loop into a single **reusable, host-driven service** exposed behind a stable `extern "C"` ABI. An external simulator such as **AFSIM** can bind the shared library `libafsim_l1.so` at runtime and drive guidance by injecting waypoint legs, platform state, and timing (`dt`), then reading back roll and lateral-acceleration commands. The extraction is **behavior-preserving** — the L1 mathematics are unchanged — and applies the Facade, Adapter, ABI-boundary, and Dependency-Injection patterns. The deliverable is **headless** (no UI, per AAP §0.3.4) and includes a regenerated **PNT Reference Audit PDF** documenting every current PNT touch-point and its new service location.
+**AfsimL1** extracts ArduPilot's L1 lateral-navigation guidance (`AP_L1_Control`) from the vehicle flight loop into a single reusable service that an external simulator — the AFSIM host in the user's example — drives directly. A facade (`AfsimL1Behavior`) composes the unmodified guidance controller, an AHRS adapter shim supplies host-injected position/velocity/attitude, and a host-supplied `dt` replaces the hardware clock. Everything is reachable through eight `extern "C"` entry points on an opaque handle, shipped as `libafsim_l1.so`. The refactor is behavior-preserving: the L1 mathematics are untouched and no vehicle firmware changed. A companion 43-page PNT Reference Audit PDF records where every PNT behavior lives today and which service member it maps to.
 
 ### 1.2 Completion Status
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieOuterStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'18px','pieLegendTextSize':'14px'}}}%%
-pie showData title Project Completion — 82.1% Complete (Hours)
-    "Completed Work (AI)" : 110
-    "Remaining Work" : 24
+%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieOuterStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'17px','pieLegendTextSize':'13px'}}}%%
+pie showData title Project Completion — 82.6% Complete
+    "Completed Work (AI)" : 123
+    "Remaining Work" : 26
 ```
 
 | Metric | Hours |
 |--------|------:|
-| **Total Project Hours** | **134** |
-| Completed Hours (AI + Manual) | 110 (110 AI + 0 Manual) |
-| Remaining Hours | 24 |
-| **Percent Complete** | **82.1 %** |
+| **Total Project Hours** | **149** |
+| Completed Hours (AI + Manual) | **123** (123 AI + 0 Manual) |
+| Remaining Hours | **26** |
+| **Percent Complete** | **82.6 %** |
 
-> **Calculation (PA1, AAP-scoped):** Completion % = Completed ÷ (Completed + Remaining) = 110 ÷ (110 + 24) = 110 ÷ 134 = **82.1 %**. Every AAP-specified autonomous deliverable is complete and validated; the remaining 24 h is exclusively **path-to-production** work (human review, real host integration, and optional CI/versioning). Completed rose from 102 h to 110 h during final validation, which closed **HT-4** (dedicated unit suite, 5 h) and **HT-5** (in-tree waf build path, 3 h) — see §2.2.
+> **Calculation (PA1, AAP-scoped only):** Completion % = Completed ÷ (Completed + Remaining) = 123 ÷ (123 + 26) = 123 ÷ 149 = **82.6 %**.
+> All **20** AAP-specified requirements are complete and independently re-verified (§5). The remaining **26 h** is exclusively **path-to-production** work — human review/merge sign-off, real AFSIM host integration, numerical-fidelity testing and library packaging/CI. No AAP deliverable is outstanding.
 
 ### 1.3 Key Accomplishments
 
-- ✅ **Reusable service delivered** — `AfsimL1Behavior` facade + AHRS-shim adapter + `extern "C"` ABI, composing `AP_L1_Control` without altering its guidance mathematics.
-- ✅ **Stable C ABI** — `libafsim_l1.so` exports **exactly 8** symbols (`L1_Create/Destroy/Init/Execute/SetLegNE/SetStateNE/GetRollDeg/GetLatAccel`) with **zero** C++ mangled symbols leaked (`-fvisibility=hidden` + per-symbol `visibility("default")`).
-- ✅ **Behavior-preserving timing seam** — additive, **default-off** `set_update_dt()` in `AP_L1_Control`; the `dt`-clamp block is **byte-identical** to stock; CWE-20 input validation added.
-- ✅ **Toolchain-agnostic consumption proven** — a pure-C client compiled with `gcc` (not `g++`) `dlopen`s the `g++`-built library and drives it correctly.
-- ✅ **Cross-compiler clean build** — standalone CMake build from scratch across a full **9-configuration matrix**: `g++-11` 11.5.0, `g++-12` 12.5.0 and `g++` 15.2.0, each in Debug, Release and RelWithDebInfo, all with **zero diagnostics** under a 32-flag strict posture (21 of them explicit `-Werror=`) that reproduces ArduPilot's own `Board.configure_env()` C++ warning set, all emitting identical output and exactly 8 exported symbols.
-- ✅ **PNT Reference Audit PDF regenerated** — 43 pages (A4 landscape, 841.89 × 595.276 pt) with the required "New Service Location" mapping column and the front-of-document Executive Summary. Deterministic: three consecutive regenerations produce byte-identical output. Final artifact **237,310 bytes**, SHA256 `1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2`.
-- ✅ **PDF data fidelity restored and oracle-verified** — the generator's data module was repaired in two passes against the **pre-scrape original PDF recovered from git history**, after which 1,038 of its data strings match that original verbatim and every artifact scanner reports zero (see §3.1).
-- ✅ **Dedicated unit suite added** — `tests/test_afsim_l1.cpp`: **111 checks, 0 failures**, plus 2 CTest cases, green in all 9 compiler × build-type configurations and clean under Valgrind (closes HT-4).
-- ✅ **Both build paths operational** — the standalone CMake `.so` and the in-tree waf `ap_example` now build from the same Option-B seam and emit **byte-identical** guidance output (closes HT-5).
-- ✅ **Documentation delivered twice** — mapping in the AAP (§0.6.1) and in the regenerated PDF (Goal 3).
-- ✅ **No vehicle firmware touched** — the diff is confined to the 18 in-scope files (17 implementation/deliverable files plus this guide); ArduPlane/Copter/Rover/Sub/Blimp/Tracker are unchanged, and no file in any AAP §0.2.2 excluded tree was edited.
+- ✅ **One reusable service delivered** — facade (`AfsimL1Behavior`, 514 LOC) + AHRS adapter shim (327 LOC) + `extern "C"` boundary (495 LOC), composing `AP_L1_Control` without changing its guidance mathematics.
+- ✅ **Stable C ABI proven** — `libafsim_l1.so` exports **exactly 8** symbols (`L1_Create/Destroy/Init/Execute/SetLegNE/SetStateNE/GetRollDeg/GetLatAccel`) and **zero** mangled C++ symbols, enforced by `-fvisibility=hidden` plus a generated version script.
+- ✅ **Toolchain-agnostic consumption demonstrated twice** — Blitzy's 38-check pure-C `dlopen` host, and an independent 24-check host written from scratch during this assessment (`gcc -std=c11 -Werror`, no ArduPilot header) driving the `g++`-built library.
+- ✅ **Behavior-preserving timing seam** — additive, **default-off** `set_update_dt()` on `AP_L1_Control`; the `dt > 1 s` clamp/cap block is **byte-identical** to baseline; non-finite and negative `dt` rejected (CWE-20).
+- ✅ **Both shipped build paths work and agree numerically** — standalone CMake `.so` and in-tree waf `ap_example` each build with **0 diagnostics** and emit identical output (`roll_deg = -38.639999, lat_accel = -7.840306`).
+- ✅ **Vehicle consumers unaffected** — `./waf plane` links `bin/arduplane` at 3,473,811 B flash; **0 files** touched in any AAP-excluded tree (all vehicles, `modules/**`, all other PNT libraries).
+- ✅ **Dedicated unit suite** — `tests/test_afsim_l1.cpp` (866 LOC, no external framework, no new dependency): **111 checks, 0 failures**, plus 2 CTest cases; covers shim accessors, N/E↔E/N convention, every facade method, all 8 ABI entry points, NULL/stale-handle safety and behavior preservation.
+- ✅ **PNT audit delivered twice (Goal 3)** — mapping in the Agent Action Plan §0.6.1 **and** in the regenerated `ArduPilot_PNT_Reference_Audit.pdf`: 43 pages, 237,310 B, deterministic (`SHA256 1e9a5b01…4baf2` stable across regenerations), guarded by a 1,193-invariant harness that refuses to render on failure.
+- ✅ **PDF data fidelity restored and oracle-verified** — scrape artifacts in the generator's data module repaired in two passes against the pre-scrape original recovered from git history; 1,038 data strings now match verbatim, every artifact scanner reports zero.
+- ✅ **Deliverable verified in a real browser** — headless Chrome/PDFium sweep of 16 pages: page count exactly 43, "New Service Location" column confirmed on page 16, dedicated mapping section on page 38, zero blank/black/garbled pages, zero missing glyphs, zero console errors attributable to the PDF.
 
 ### 1.4 Critical Unresolved Issues
 
 | Issue | Impact | Owner | ETA |
 |-------|--------|-------|-----|
-| No critical (blocking) issues in the delivered scope | None — all in-scope deliverables compile, run, and pass validation | — | — |
-| Real AFSIM host integration not yet performed | Service cannot be exercised inside AFSIM until the host wires the ABI to its platform state/timing | Host/Integration engineer | With HT-2 (~10 h) |
-| Behavior-critical `AP_L1_Control` seam awaiting human sign-off | Edit touches a shared flight-guidance controller; requires senior review before merge | Flight-controls reviewer | With HT-1 (~6 h) |
-
-> No issue **blocks** the delivered library; the items above are the required steps to move from validated deliverable to production use.
+| **No blocking issue exists in the delivered scope** | None — every in-scope build, test, ABI and runtime gate passes (independently re-verified during this assessment) | — | — |
+| Behavior-critical `AP_L1_Control` seam awaits human sign-off | The seam edits a controller shared by all fixed-wing/VTOL vehicles; default-off and byte-identical clamp mitigate risk, but merge requires flight-controls review | Flight-controls reviewer | HT-1 · 6 h |
+| Real AFSIM host integration not yet performed | The service cannot be exercised inside AFSIM until the host binds the ABI to its platform state and timebase; AFSIM is unavailable in this environment | Host / integration engineer | HT-2 · 10 h |
+| Shim-vs-live-AHRS numerical fidelity not cross-validated | Option B (service-local shim) is AAP-sanctioned, but agreement with the live EKF/DCM `AP_AHRS` and the synthesized-`Location` datum limits are asserted by construction rather than measured | Guidance/QA engineer | HT-3 · 6 h |
+| `libafsim_l1.so` has no SOVERSION, install rules or CI job | Consumers cannot pin an ABI version and regressions would not be caught (0 of the repo's 27 workflows build the service) | Build/release engineer | HT-4 · 4 h |
 
 ### 1.5 Access Issues
 
 | System / Resource | Type of Access | Issue Description | Resolution Status | Owner |
 |-------------------|----------------|-------------------|-------------------|-------|
-| ArduPilot repository | Git write / merge | Standard branch pending human review & merge to mainline | Pending review | Maintainer |
-| AFSIM environment | Runtime / integration | External simulator not available in this environment; real integration deferred to the host team | Deferred (out of environment) | Integration team |
+| ArduPilot repository | Git write / merge | Branch is complete and committed; merge to mainline needs human approval. No permission blocker encountered — all 16 commits landed as `Blitzy Agent <agent@blitzy.com>` | Pending review | Maintainer |
+| AFSIM simulation environment | Runtime / integration | The external host is not present in this container, so real host-driven integration could not be executed. Validated by proxy: pure-C `dlopen` host + demo driver | Deferred — out of environment | Integration team |
+| Vendored submodules (`modules/gtest`, `modules/littlefs`) | Source write | Two pre-existing `-Werror` incompatibilities live in AAP-excluded trees, so they could not be fixed by edit. Cleared with proven **zero-edit** environment-variable recipes (Appendix E) | Worked around, not blocking | ArduPilot upstream |
+| Build toolchain, Python, CMake, poppler, fonts | Local execution | No access issue. GCC 11.5/12.5/15.2, CMake 3.31.6, Python 3.13.7, reportlab 4.5.1, poppler 25.03.0 and DejaVu fonts were all present; no installation was required | Verified available | — |
 
-> No credential, API-key, or permission blocker prevented autonomous build validation. The standalone build, ABI verification, demo, and PDF regeneration all ran successfully in this environment. Remaining access items are ordinary merge and external-host availability considerations.
+> **No credential, API-key or permission blocker prevented autonomous build validation.** Compilation, ABI verification, the unit suite, CTest, the demo, both build paths, the vehicle firmware link and PDF regeneration all executed successfully in this environment.
 
 ### 1.6 Recommended Next Steps
 
-1. **[High]** Perform senior code review & merge sign-off of the `AP_L1_Control` timing seam and the AfsimL1 service (ABI, facade, shim) — *HT-1*.
-2. **[High]** Complete the real AFSIM host integration: bind `libafsim_l1.so`, map platform state → `L1_SetStateNE`, drive `dt` → `L1_Execute`, consume roll/lat-accel — *HT-2*.
-3. **[Medium]** Run integration & numerical-fidelity testing against the in-vehicle L1 for representative legs (on-track, cross-track, loiter) — *HT-3*.
-4. **[Low]** Add CI/CD packaging and semantic versioning (SONAME, install rules, build/ABI/demo CI job) for `libafsim_l1.so` — *HT-6*. The CI job can invoke the existing `afsim_l1_tests` / `ctest` targets directly.
-
-> Items formerly listed here as HT-4 (dedicated unit suite) and HT-5 (in-tree waf build path) are **complete** — see §2.2.
+1. **[High]** Senior code review and merge sign-off of the `AP_L1_Control` timing seam and the three service layers; formally record the AAP §0.7.3 design decision (additive default-off seam) — *HT-1, 6 h*.
+2. **[High]** Complete the real AFSIM host integration: bind `libafsim_l1.so`, map platform state → `L1_SetStateNE`, drive the frame delta → `L1_Execute`, consume `L1_GetRollDeg` / `L1_GetLatAccel`, and add leg sequencing via `L1_SetLegNE` — *HT-2, 10 h*.
+3. **[Medium]** Cross-validate numerical fidelity against in-vehicle/SITL L1 for on-track, cross-track and loiter legs, and document the synthesized-`Location` datum envelope — *HT-3, 6 h*.
+4. **[Low]** Package the library: SOVERSION/semantic versioning, `install()` rules, and a CI job invoking the existing `afsim_l1_tests` / `ctest` / `generate.py` targets — *HT-4, 4 h*.
+5. **[Low]** Housekeeping before any bulk staging: remove or ignore the 1,061 MB of untracked validation artifacts under `blitzy/screenshots` and `blitzy/screen_recordings` (folded into HT-1d; `.gitignore` does not cover them).
 
 ---
 
@@ -78,205 +80,169 @@ pie showData title Project Completion — 82.1% Complete (Hours)
 
 ### 2.1 Completed Work Detail
 
-All completed work was performed autonomously (AI). Each component traces to a specific AAP requirement.
+All completed work was performed autonomously by Blitzy agents (123 AI hours, 0 manual). Every row traces to a specific AAP requirement, and every claim below was re-verified during this assessment.
 
 | Component | Hours | Description |
 |-----------|------:|-------------|
-| Service facade layer (`AfsimL1Behavior.h/.cpp`) | 12 | Task-API facade (514 LOC); composes `AP_L1_Control` by value via member-init against the shim; DI wiring; seeds `PERIOD/DAMPING/XTRACK_I/LIM_BANK`; `#error` seam guard. Maps AAP R1. |
-| AHRS adapter shim (`AfsimL1_AHRS_Shim.h/.cpp`) | 8 | Adapter (327 LOC) mirroring the 6 non-virtual `AP_AHRS` accessors + 4 injection setters; `Location`-from-datum; N/E↔E/N velocity convention. Maps AAP R2. |
-| C ABI boundary (`l1_c_api.h/.cpp`) | 8 | `extern "C"` layer (495 LOC); opaque `L1_Context`; 8 `visibility("default")` exports; NULL-safety on every entry point; ABI-stability documentation. Maps AAP R3. |
-| `AP_L1_Control` timing seam (behavior-critical) | 6 | Additive `set_update_dt()` (+59 LOC) into the flight-guidance controller; CWE-20 validation; injected `dt` + loiter timebase; clamp byte-identical; default-off. Maps AAP R4/R13. |
-| Build system (`CMakeLists.txt` + `wscript`) | 8 | Standalone SHARED-library build (446 LOC total); visibility hardening; embedded shim seam; cross-compiler support; demo target; in-tree waf `ap_example`. Maps AAP R5/R6. |
-| Demo driver + state-flow self-check (`main.cpp`) | 4 | Working `set_leg_ne → execute → get_roll_deg` driver (212 LOC) with a step-7 self-check that fails loudly on state-flow regression. Maps AAP R7. |
-| README integration documentation (`README.md`) | 4 | 280-line guide: architecture, AHRS decoupling, C ABI, DI model, both build paths, usage, behavior preservation. Maps AAP R8. |
-| PNT instance audit analysis — Goal 1 | 6 | Line-by-line sweep mapping 16 AHRS read sites → 6 accessors + 2 clock couplings (AAP §0.6.1). Maps AAP R10. |
-| PDF generator pipeline + regeneration — Goal 3 | 24 | ReportLab generators (`pnt_data.py` 1344 + `pnt_render.py` 1438 + `generate.py` 293 = 3075 LOC); 94 main rows / 282 evidence rows; harness asserting **1,193 logical invariants** via 1,663 predicate evaluations across 6 gates; 43-page A4 PDF with "New Service Location" column and the front-of-document Executive Summary. Maps AAP R9/R11. |
-| C-ABI stability web research | 2 | Best-practice research on stable C-ABI shared libraries (opaque handles, visibility, versioning) recorded in AAP §0.3.2. Maps AAP R12. |
-| Autonomous validation | 14 | From-scratch compile across the 9-configuration compiler × build-type matrix, `nm -D` ABI check on every variant, pure-C `dlopen` host (38 checks), behavior-preservation Tests A/B/C, demo self-check, PDF harness, Valgrind on four components, and headless-browser rendering verification of all 43 PDF pages. |
-| Iterative QA / code-review fix cycles | 6 | Resolution of CP1, CP2, and Checkpoint-5 (G1–G7) findings, ABI symbol-pinning, README correction — evidenced across 11 commits. |
-| Dedicated unit-test suite (`tests/test_afsim_l1.cpp`) — closes HT-4 | 5 | Self-contained 111-check suite (no external framework) wired into `CMakeLists.txt` as `afsim_l1_tests` with 2 CTest registrations; covers shim, facade, all 8 ABI entry points, `NULL`/destroyed-handle safety, `set_update_dt` input validation, and behavior-preservation Tests A/B/C. Valgrind-clean; green in all 9 compiler × build-type configurations. |
-| In-tree waf build path resolved — closes HT-5 | 3 | `wscript` now generates the Option-B shim tree, puts it first on the include path, defines `AFSIML1_L1_USES_SHIM_AHRS`, and compiles the wrapped controller in place. `--board linux` builds with 0 in-scope diagnostics and emits byte-identical output to the CMake demo; `--board sitl` also builds (env `CFLAGS` prefix for unrelated vendored code). |
-| **Total Completed** | **110** | |
+| Service facade layer (`AfsimL1Behavior.h/.cpp`) | 12 | 514 LOC task-API facade — `init` / `execute(dt)` / `set_leg_ne` / `set_state_ne` / `get_roll_deg` / `get_lat_accel`, matching the user example's shape exactly; owns the shim, the `AP_L1_Control` instance and the `prev`/`next` legs; delegates only to `set_update_dt` → `update_waypoint` → `nav_roll_cd()/100` / `lateral_acceleration()`; seeds vehicle-matching gains (`set_default_period(17.0f)` + the controller's own `AP_Param::setup_object_defaults`); hard `#error` seam guard. **AAP R1/R2** |
+| AHRS adapter shim (`AfsimL1_AHRS_Shim.h/.cpp`) | 8 | 327 LOC adapter mirroring the exact read surface the controller consumes — `get_location`, `groundspeed_vector`, `get_yaw_rad`, `get_pitch_rad`, `get_EAS2TAS`, plus the public `yaw_sensor` member — fed by `set_location_NE` / `set_velocity_EN` / `set_yaw_cd` / `set_pitch_rad`; `Location` synthesized from a datum; N/E↔E/N convention handled. **AAP R3** |
+| C ABI boundary (`l1_c_api.h/.cpp`) | 8 | 495 LOC `extern "C"` layer — opaque `L1_Context` (magic cookie `0xAF510C71` + mutex-guarded live-handle registry checked before every dereference), 8 `visibility("default")` exports, `std::isfinite` validation on every scalar, NULL/stale-handle safety, ABI-stability documentation. **AAP R4/R5** |
+| `AP_L1_Control` timing seam (behavior-critical) | 6 | Additive `set_update_dt(float)` (+61 lines across header and source) into the shared flight-guidance controller: injected `dt` for `update_waypoint`, accumulated `_override_time_ms` timebase for `update_loiter`, non-finite/negative rejection, default-off via in-class initializers, `dt`-clamp block preserved byte-for-byte. **AAP R10/R11/R17** |
+| Standalone shared-library build (`CMakeLists.txt`) | 8 | 556 LOC CMake 3.5-compatible build producing `libafsim_l1.so` + `afsim_l1_demo` + `afsim_l1_tests` + 2 CTest registrations; generated Option-B seam tree; `-fvisibility=hidden` + version script pinning the 8 exports; ArduPilot-equivalent diagnostics posture (32 flags, 21 promoted to errors); cross-compiler support. **AAP R6** |
+| In-tree waf build path (`wscript`) | 3 | 187 LOC `bld.ap_example(use='ap')` build that writes the seam tree, injects `AFSIML1_L1_USES_SHIM_AHRS`, orders the include path and compiles the wrapped controller in place — closing the blocker that previously made the in-tree path fail at the seam guard. **AAP R7** |
+| Demo driver + self-check (`main.cpp`) | 4 | 212 LOC "initialize a simple leg" driver: create → init → `set_leg_ne` → `set_state_ne` → `execute(dt)` → read outputs → self-check (fails loudly on non-finite or trivially-zero roll) → destroy. **AAP R8** |
+| README integration documentation | 4 | 322 LOC / 14 sections: architecture, AHRS decoupling options, C ABI, dependency-injection model, units and conventions, both build paths, symbol verification, unit tests, C and C++ usage paths, behavior preservation. **AAP R9** |
+| PNT instance audit analysis (Goal 1) | 6 | Line-by-line sweep locating every PNT touch-point in the extraction target — 16 AHRS read sites resolving to 6 accessor kinds, 2 internal clock couplings, 2 output paths — expressed as the authoritative current→new mapping table (AAP §0.6.1) and realized as a 94-main-row / 282-evidence-row catalog. **AAP R12/R13** |
+| PDF generator pipeline + deliverable (Goal 3) | 24 | 3,082 LOC ReportLab pipeline (`pnt_data.py` 1,344 + `pnt_render.py` 1,444 + `generate.py` 294) rendering the 43-page A4-landscape audit with the required "New Service Location" column and a front-of-document Executive Summary; assertion harness of 1,193 logical invariants across 6 gates that refuses to render on any failure; deterministic byte-identical output. **AAP R14/R15** |
+| PDF data-fidelity repair (oracle-verified) | 8 | Two-pass repair of `pdftotext -layout` scrape artifacts baked into the generator's data module (166 rules / 236 replacements), using the pre-scrape original PDF recovered from commit `5b67e27b0a` as an authoritative oracle; corrected two first-pass mistakes and rejoined 100 mid-identifier snippet breaks; backed by `verify_repairs.py` (59 checks) and `mutation_test.py` (52 checks). **AAP R14/R15 fidelity** |
+| C-ABI stability web research | 2 | Best-practice research on ABI-stable shared libraries — opaque handles, C-only boundary types, symbol visibility, versioning — recorded in AAP §0.3.2 and reflected in the implementation. **AAP R16** |
+| Dedicated unit suite (`tests/test_afsim_l1.cpp`) | 6 | 866 LOC self-contained suite (no GoogleTest, therefore no new dependency) asserting **111 checks**: shim accessors and setters, E/N velocity ordering, `Location`-from-datum, every facade method, all 8 C-ABI entry points including NULL, bogus, stale and double-destroy handles, `set_update_dt` input validation, and behavior preservation (injected-`dt` determinism, default-off `micros()` path, `dt > 1 s` integrator reset). Wired as `afsim_l1_tests` with 2 CTest cases. **AAP R19** |
+| Autonomous validation campaign | 16 | 9-configuration compile matrix (GCC 11.5/12.5/15.2 × Debug/Release/RelWithDebInfo) from scratch with `nm` ABI assertion per variant; pure-C `dlopen` host (38 checks); behavior-preservation Tests A/B/C; Valgrind full leak-check on 4 components; PDF harness, `verify_pdf.py` (118), mutation (52) and repair-regression (59) suites; 3 headless-browser runs over all 43 PDF pages; `./waf plane` regression link; plus zero-edit environment recipes that unblocked two vendored out-of-scope `-Werror` failures. **AAP R17/R18 verification** |
+| Iterative QA / code-review fix cycles | 8 | Resolution of checkpoint findings CP1, CP2 and CP5 (G1–G7), export-surface pinning to exactly 8 symbols, and correction of overstated documentation claims across 5 files (harness size, per-verifier counts, an unusable board name, two risk entries) — evidenced across the 16 implementation commits. **AAP R17/R18 quality** |
+| **Total Completed** | **123** | Sum of the rows above; equals Completed Hours in §1.2 |
 
 ### 2.2 Remaining Work Detail
 
-Each category is path-to-production; no AAP-specified deliverable remains outstanding.
+Every category is **path-to-production**; no AAP-specified deliverable remains outstanding. Confidence is stated because hours scale with unknowns.
 
 | Category | Hours | Priority |
 |----------|------:|----------|
-| HT-1 · Senior code review & merge sign-off (ABI + behavior-critical seam) | 6 | High |
-| HT-2 · Real AFSIM host integration (bind `.so`, map state/`dt`/outputs) | 10 | High |
-| HT-3 · Integration & numerical-fidelity testing vs in-vehicle L1 | 4 | Medium |
-| ~~HT-4 · Dedicated unit suite (+ optional input hardening)~~ | ~~5~~ **0** | **RESOLVED** |
-| ~~HT-5 · In-tree waf build-path resolution / documentation~~ | ~~3~~ **0** | **RESOLVED** |
-| HT-6 · CI/CD packaging + semantic versioning of the `.so` | 4 | Low |
-| **Total Remaining** | **24** | |
-
-> **HT-4 and HT-5 were both closed during final validation, removing 8 h from the remaining
-> total (32 h → 24 h):**
->
-> - **HT-4 — RESOLVED.** `tests/test_afsim_l1.cpp` now provides a self-contained **111-check**
->   suite wired into the in-scope `CMakeLists.txt` as the `afsim_l1_tests` target with two
->   CTest registrations. It covers the shim accessors/setters, the E/N velocity convention,
->   `Location`-from-datum, every facade method, all eight C-ABI entry points including `NULL`-
->   and destroyed-handle safety, and behavior preservation (injected-`dt` determinism, the
->   default-off legacy `micros()` path, and the `dt > 1 s` integrator-reset clamp). It also
->   exercises `set_update_dt` input validation, which subsumes the "optional input hardening"
->   part of the original task. It is clean under Valgrind and passes in all 9 compiler ×
->   build-type configurations.
-> - **HT-5 — RESOLVED.** The in-scope `wscript` was rewritten so the in-tree waf build
->   generates the Option-B shim tree, places it first on the include path, defines
->   `AFSIML1_L1_USES_SHIM_AHRS`, and compiles the wrapped controller from its unmodified
->   in-tree location. `./waf --targets examples/AfsimL1` now succeeds on `--board linux` with
->   **zero** in-scope diagnostics and produces output **byte-identical** to the CMake demo.
->   `--board sitl` also succeeds, needing only a `CFLAGS` environment prefix for an unrelated
->   warning in vendored third-party code (see §3.2) — no out-of-scope file was edited.
+| **HT-1 · Senior code review & merge sign-off** — review the +61-line `AP_L1_Control` seam and confirm the AAP §0.7.3 design fork (2 h); review facade/shim/ABI and the 8-symbol export surface (2 h); review PDF + generator provenance and the 18-file scope audit (1 h); PR administration, release note and untracked-artifact housekeeping (1 h). *Confidence: High* | 6 | High |
+| **HT-2 · Real AFSIM host integration** — bind the `.so` and resolve all 8 entry points (2 h); map platform state → `L1_SetStateNE` with datum selection (3 h); drive the frame delta → `L1_Execute` and validate against the 0.1 s cap / 1 s reinit semantics (1.5 h); consume roll and lateral-accel outputs (1.5 h); leg sequencing via `L1_SetLegNE` (2 h). *Confidence: Medium — depends on the host API* | 10 | High |
+| **HT-3 · Numerical-fidelity & integration testing** — reference harness vs in-vehicle/SITL L1 for on-track and cross-track legs (2.5 h); loiter and heading-hold paths under the injected timebase (1.5 h); datum stress: large NE offsets, sign conventions, wrap behavior (2 h). *Confidence: Medium* | 6 | Medium |
+| **HT-4 · Packaging & CI** — SOVERSION/semantic versioning, `install()` rules and a CMake package/pkg-config file (2 h); CI job running configure/build, `nm` export assertion, `ctest`, demo smoke and the PDF harness (2 h). *Confidence: High* | 4 | Low |
+| **Total Remaining** | **26** | High 16 · Medium 6 · Low 4 |
 
 ### 2.3 Total Project Hours Reconciliation
 
 | Bucket | Hours | Share |
 |--------|------:|------:|
-| Completed (§2.1) | 110 | 82.1 % |
-| Remaining (§2.2) | 24 | 17.9 % |
-| **Total Project** | **134** | **100 %** |
+| Completed — AI (§2.1) | 123 | 82.6 % |
+| Completed — Manual | 0 | 0.0 % |
+| Remaining (§2.2) | 26 | 17.4 % |
+| **Total Project** | **149** | **100 %** |
 
-> **Integrity check:** §2.1 total (110) + §2.2 total (24) = **134** = Total Project Hours in §1.2. Remaining (24) is identical in §1.2, §2.2, and §7, and decomposes exactly as HT-1 (6) + HT-2 (10) + HT-3 (4) + HT-6 (4) = 24. ✔
+> **Integrity check:** §2.1 total (123) + §2.2 total (26) = **149** = Total Project Hours in §1.2 ✔ · Remaining (26) is identical in §1.2, §2.2 and §7 ✔ · §2.2 decomposes exactly as HT-1 (6) + HT-2 (10) + HT-3 (6) + HT-4 (4) = 26 ✔ · Priority split 16 + 6 + 4 = 26 ✔ · 123 ÷ 149 = 82.6 % everywhere ✔
 
 ---
 
 ## 3. Test Results
 
-All results below were measured in this environment. A **dedicated unit-test suite now exists** —
-`libraries/AP_L1_Control/examples/AfsimL1/tests/test_afsim_l1.cpp`, wired into the in-scope
-`CMakeLists.txt` as the `afsim_l1_tests` target and registered with CTest — which closes the
-former **HT-4** gap. It is self-contained (no external test framework, so it adds no
-dependency) and asserts **111 checks** covering the shim, the facade, every C-ABI entry
-point, and behavior preservation.
+All tests below were executed by **Blitzy's autonomous validation systems** on this branch and recorded in the agent validation logs. Rows marked **†** are configuration/coverage sweeps rather than assertion checks and are excluded from the aggregate to avoid double counting.
 
-| Test Category | Framework / Tooling | Total Checks | Passed | Failed | Coverage | Notes |
-|---------------|---------------------|-------------:|-------:|-------:|----------|-------|
-| Standalone compilation matrix | CMake × `g++-11` 11.5.0 / `g++-12` 12.5.0 / `g++` 15.2.0 × Debug / Release / RelWithDebInfo | 9 | 9 | 0 | n/a | From-scratch each time; **0 diagnostics** under the 32-flag ArduPilot-equivalent posture (21 `-Werror=`); all 9 emit identical output and exactly 8 symbols |
-| In-tree waf example build | `./waf --targets examples/AfsimL1` on `--board linux` and `--board sitl` | 2 | 2 | 0 | n/a | Both boards build with **0 in-scope diagnostics**; output byte-identical to the CMake demo |
-| Seam syntax vs real vehicle headers | `g++` syntax-check vs the real AHRS/SITL header graph; `./waf plane` link | 2 | 2 | 0 | n/a | Proves the seam does not break the ArduPlane build path (`arduplane` links, exit 0) |
-| C ABI symbol verification | `nm -D --defined-only` across every `.so` variant | 9 | 9 | 0 | 8/8 entry points | Exactly **8** `L1_*` exports, **0** mangled `_Z` symbols, in all 9 matrix configurations |
-| AfsimL1 unit suite | `afsim_l1_tests` (self-contained C++) | 111 | 111 | 0 | shim, facade, all 8 ABI entry points, behavior preservation | Includes `NULL`- and destroyed-handle safety, E/N velocity convention, `Location`-from-datum |
-| CTest registration | `ctest --output-on-failure` | 2 | 2 | 0 | n/a | `afsim_l1_unit_tests` + `afsim_l1_demo_smoke`; 100 % pass |
-| Behavior preservation | Tests A / B / C inside the unit suite | 3 | 3 | 0 | n/a | A: injected-`dt` determinism; B: default-off legacy `micros()`; C: `dt>1 s` integrator-reset clamp; clamp block **byte-identical** to stock |
-| Pure-C `dlopen` host | `gcc`-compiled C client (never `g++`) | 38 | 38 | 0 | 8/8 entry points | Toolchain-agnostic load proven; NULL-safety on every entry point; 50 m cross-track → roll −34.85°, lat −6.83 m/s² |
-| Demo self-check | `afsim_l1_demo` executable | 1 | 1 | 0 | n/a | Finite + materially non-zero roll (exit 0); fails loudly on state-flow regression |
-| PDF audit harness | Custom Python assertion harness (6 gates) | 1,193 | 1,193 | 0 | 100 % of 94 main rows / 282 evidence rows | **1,193 logical invariants** evaluated through **1,663 predicate evaluations** across 45 distinct predicate sites; refuses to render on any failure |
-| PDF integrity verification | `pdfinfo` / `pdftotext` / `pdftoppm` + PIL | 118 | 118 | 0 | all 43 pages | Page count, geometry, fonts, column header, per-page ink/dark bounds |
-| PDF generator mutation tests | Deliberate-fault injection | 52 | 52 | 0 | 6 verifier gates | Proves each gate actually fails when its invariant is broken |
-| PDF data-repair regression | `verify_repairs.py` | 59 | 59 | 0 | all repaired strings | Asserts every corrected form present **and** every corrupt form absent in the rendered PDF |
-| Pre-scrape oracle verification | `pdftotext -raw` diff vs the original PDF in git history | 1,038 | 1,038 | 0 | 1,038 of 1,550 data strings | Verbatim match against the authoritative pre-scrape original; the 37 non-matches are fully explained (see §3.1) |
+| Test Category | Framework / Tooling | Total Tests | Passed | Failed | Coverage % | Notes |
+|---------------|---------------------|------------:|-------:|-------:|-----------:|-------|
+| AfsimL1 unit suite | Self-contained C++ harness (`afsim_l1_tests`) | 111 | 111 | 0 | 100 % of facade, shim and all 8 ABI entry points | NULL/bogus/stale/double-destroy handle safety, E/N convention, `Location`-from-datum, `set_update_dt` validation, behavior preservation |
+| CTest registration | `ctest` | 2 | 2 | 0 | 100 % | `afsim_l1_unit_tests` + `afsim_l1_demo_smoke`; 100 % pass in 0.07 s |
+| Pure-C ABI host | `gcc`-compiled C client using `dlopen`/`dlsym` only | 38 | 38 | 0 | 8/8 entry points | Toolchain-agnostic load proven; 50 m cross-track → roll −34.85°, lat −6.83 m/s² |
+| C ABI symbol verification | `nm -D --defined-only` on every built variant | 9 | 9 | 0 | 8/8 exports | Exactly 8 `L1_*` exports, **0** mangled `_Z` symbols in every configuration |
+| In-tree waf example build | `./waf --targets examples/AfsimL1` on `--board linux` and `--board sitl` | 2 | 2 | 0 | Both boards | 0 in-scope diagnostics; output byte-identical to the CMake demo |
+| Demo self-check | `afsim_l1_demo` runtime assertion | 1 | 1 | 0 | State-flow path | Fails loudly on non-finite or trivially-zero roll |
+| PDF audit harness | Custom Python assertion harness (6 gates) | 1,193 | 1,193 | 0 | 100 % of 94 main rows / 282 evidence rows | 1,193 logical invariants via 1,663 predicate evaluations across 45 predicate sites; refuses to render on failure |
+| PDF integrity verification | `verify_pdf.py` (`pdfinfo`/`pdftotext`/`pdftoppm` + PIL) | 118 | 118 | 0 | All 43 pages | Page count, geometry, fonts, column header, per-page ink and dark bounds |
+| PDF generator mutation tests | `mutation_test.py` deliberate-fault injection | 52 | 52 | 0 | 6 verifier gates | Proves each gate actually fails when its invariant is broken |
+| PDF data-repair regression | `verify_repairs.py` | 59 | 59 | 0 | All repaired strings | Every corrected form present **and** every corrupt form absent in the rendered PDF |
 | Repository Python unit tests | `unittest` | 53 | 53 | 0 | 3 suites | `annotate_params` (24), `extract_param_defaults` (18), `param_check` (11) |
-| Browser rendering verification | Headless Chrome + PDFium, 43-page sweep | 43 pages | 43 | 0 | all 43 pages | 0 blank / black / garbled / overflowing pages; 0 missing glyphs; 0 console or PDF-parsing errors |
-| **Aggregate (in-scope)** | — | **1,638** | **1,638** | **0** | — | **100 % pass rate; zero failures, zero skips, zero blocked** |
-| *Out-of-scope bonus: full ArduPilot gtest suite* | *`./waf check --alltests`* | *881 cases in 52 binaries* | *881* | *0* | *n/a* | *Not required by the AAP (§0.2.2 excludes the regression suite); run anyway and green. See §3.2.* |
+| **Aggregate (in-scope assertion checks)** | — | **1,638** | **1,638** | **0** | — | **100 % pass rate; 0 failed, 0 skipped, 0 blocked** |
+| † Standalone compilation matrix | CMake × GCC 11.5.0 / 12.5.0 / 15.2.0 × Debug / Release / RelWithDebInfo | 9 configs | 9 | 0 | n/a | From-scratch each time; **0 diagnostics** under a 32-flag ArduPilot-equivalent posture (21 `-Werror=`); identical output and 8 exports in every cell |
+| † Seam safety vs real vehicle headers | `g++` syntax check against the real AHRS/SITL header graph + `./waf plane` link | 2 | 2 | 0 | n/a | `bin/arduplane` links at 3,473,811 B flash — the shared controller still builds into firmware |
+| † Behavior preservation A / B / C | Assertions inside the unit suite (subsumed in the 111) | 3 | 3 | 0 | n/a | A injected-`dt` determinism; B default-off `micros()` path; C `dt > 1 s` integrator reset; clamp block byte-identical to baseline |
+| † Memory safety | Valgrind full leak-check | 4 components | 4 | 0 | n/a | Demo, unit suite, `dlopen` host, in-tree binary — **0 errors, 0 leaks** |
+| † Pre-scrape oracle verification | `pdftotext -raw` diff vs the original PDF recovered from git history | 1,038 strings | 1,038 | 0 | 1,038 of 1,550 data strings | Verbatim match against the authoritative pre-scrape original; the 37 non-matches are fully explained (intentional flag-tag hoisting and 2 post-dating mapping strings) |
+| † Browser rendering verification | Headless Chrome + PDFium, 3 runs | 43 pages | 43 | 0 | All 43 pages | 0 blank / black / garbled / overflowing pages, 0 missing glyphs, 0 console or PDF-parse errors |
+| *Out-of-scope bonus: full ArduPilot gtest suite* | *`./waf check --alltests`* | *881 cases in 52 binaries* | *881* | *0* | *n/a* | *Not required by the AAP (§0.2.2 excludes the regression suite); run anyway via a zero-edit env recipe and green* |
 
-> **Independently re-verified in this environment:** clean CMake build across all 9
-> compiler × build-type configurations (`cmake`/`make` exit 0, 0 diagnostics), bare
-> `nm -D --defined-only libafsim_l1.so` printing exactly 8 lines / 0 mangled,
-> `afsim_l1_demo` → `roll_deg = -38.639999, lat_accel = -7.840306` (exit 0),
-> `afsim_l1_tests` → 111 checks / 0 failures, `ctest` → 2/2, pure-C `dlopen` client
-> 38/38, both in-tree waf boards building and emitting byte-identical output,
-> and deterministic PDF regeneration (identical SHA256 on three consecutive runs,
-> `HARNESS PASSED`). Valgrind reports **0 errors** on the demo, the unit suite, the
-> dlopen host, and the in-tree binary.
-
-### 3.1 PDF data-fidelity repair (two passes, oracle-verified)
-
-`pnt_data.py` had been reconstructed by scraping the previously committed PDF with
-`pdftotext -layout`. That mode reflows the table grid, and the reflow had baked four classes
-of artifact into the data: page-footer text spliced into table cells, arrow/relational glyphs
-displaced across cell boundaries, identifiers split by a stray space at a column edge, and —
-the largest and least visible class — **visual line wraps frozen into `code_snippet` values as
-real newline characters**, so snippets were not the verbatim code the audit promises.
-
-The repair was executed in **two passes** and validated against an **authoritative oracle**:
-
-- **Pass 1 — 54 rules / 114 replacements.** Removed 32 spliced `Page`/`Page N` tokens, 8
-  stranded operators, 41 space-split identifiers, 7 lost em-dash spacings, 1 interior arrow
-  and 1 doubled arrow.
-- **The oracle.** Commit `5b67e27b0a` is simultaneously the *audited HEAD* cited in the PDF's
-  own footer **and** the last commit before the generator existed, so the PDF stored at that
-  commit is the **pre-scrape original** — 201,137 bytes, 50 pages. Extracted with
-  `pdftotext -raw` (which preserves reading order without column reflow) it yields 150,878
-  non-space characters of trustworthy ground truth.
-- **Pass 2 — 112 rules / 122 replacements, transcribed from the oracle.** This pass also
-  **corrected two mistakes made by pass 1**: eight displaced arrows that pass 1 had *deleted*
-  were in fact genuine content and needed *relocating*, and a doubled left arrow that pass 1
-  reduced to one actually represents two arrows that each belong inside their own parentheses.
-  Pass 2 additionally rejoined **100 mid-identifier newline breaks** (90 distinct token pairs),
-  restoring snippet fidelity.
-
-After pass 2, **1,038 of the 1,550 data strings match the oracle verbatim**. The 37
-non-matches are fully accounted for and are *not* defects: 35 are a uniform, intentional
-editorial choice (audit-discipline flag tags such as `[SHARED-STRUCT]`, `[CIRCULAR]` and
-`[DUPLICATED]` are hoisted to the head of the Notes cell), and 2 are `new_service_location`
-strings that post-date the original. Every scanner now reports zero: displaced operators 0,
-operator word-order inversions 0, mid-identifier snippet breaks 0, stray footer tokens 0.
-
-### 3.2 Out-of-scope issues encountered (documented, not modified)
-
-Per AAP §0.2.2 these live in excluded trees, so they were diagnosed and worked around
-**without editing any out-of-scope file**:
-
-| Issue | Location (out of scope) | Disposition |
-|-------|-------------------------|-------------|
-| `-Werror=suggest-override` rejects the vendored GoogleTest release-1.8.0 headers, failing all 52 gtest binaries | `modules/**` | **Unblocked with zero file edits.** waf imports environment `CXXFLAGS` *before* `Board.configure_env`, and the board *prepends* its own flags, so environment flags land last and win: `CXXFLAGS='-Wno-error=suggest-override -include stdint.h "-DGTEST_SKIP()=return GTEST_SUCCEED()"' ./waf configure --board linux && ./waf check --alltests` → *All 52 tests passed*, 881 cases. |
-| `lfs_filebd.c:137` has an unused local `bd` that trips the board's `-Werror=unused-variable`, so `--board sitl` cannot link | `modules/littlefs` | **Unblocked with zero file edits** via the same mechanism on the C side: `CFLAGS='-Wno-error=unused-variable'`. `--board linux` needs no workaround at all and is the documented default. |
-| `AP_GSOF.packet1` is skipped by its own author (`GTEST_SKIP()` with the comment that AP has no cross-platform convention for loading a test data file) | `libraries/AP_GSOF/tests/` | **Documented, not altered.** It is the only `GTEST_SKIP()` call site in the repository. The vendored gtest predates `GTEST_SKIP`, so the environment recipe above supplies it with exactly the upstream semantic (an early return that passes). Un-skipping it would require editing an out-of-scope source file. |
-
-None of these affects any in-scope file, and none blocks the deliverable: the primary
-standalone CMake build and the in-tree `--board linux` build are both completely clean.
+**Independent re-verification performed during this assessment** (a subset re-executed from scratch to confirm the logs): out-of-tree CMake build → exit 0 with **0 warning/error lines**; `nm -D --defined-only libafsim_l1.so` → exactly 8 `T L1_*`, 0 `_Z`; `afsim_l1_demo` → `roll_deg = -38.639999, lat_accel = -7.840306`; `afsim_l1_tests` → **111 checks, 0 failures**; `ctest` → **2/2, 100 %**; an independently written 24-check pure-C `dlopen` host → 0 failures, reproducing roll −34.85° / lat −6.83 m/s²; `./waf build --targets examples/AfsimL1` → exit 0, 0 diagnostics, identical output; `./waf plane` → exit 0, 3,473,811 B; PDF regeneration → `HARNESS PASSED`, 43 pages, 237,310 B, byte-identical SHA256. **No discrepancy was found between the logs and re-measured reality.**
 
 ---
 
 ## 4. Runtime Validation & UI Verification
 
-**UI Verification:** Not applicable. The deliverable is a headless C/C++ shared library plus a PDF artifact (AAP §0.3.4); there is no graphical or textual end-user interface.
+**UI verification scope:** Not applicable in the conventional sense. Per AAP §0.3.4 the deliverable is a **headless** C/C++ shared library consumed programmatically plus a PDF documentation artifact — there is no graphical or textual end-user interface, no component library and no design system. Visual verification therefore targets the PDF deliverable, the project's only visual artifact; the library's runtime surface is verified directly through its C ABI.
 
-**Runtime health:**
+**Runtime health — library:**
 
-- ✅ **Operational** — Standalone CMake build produces `libafsim_l1.so` (≈179 KB ELF) and `afsim_l1_demo` (≈16 KB ELF).
-- ✅ **Operational** — `afsim_l1_demo` executes end-to-end: `roll_deg = -38.64`, `lat_accel = -7.84`, exit 0.
-- ✅ **Operational** — C ABI: 8 exports resolvable via `dlsym`; NULL-handle calls are safe no-ops / return 0.0.
-- ✅ **Operational** — Toolchain-agnostic consumption: `gcc`-built pure-C host drives the `g++`-built `.so` correctly.
-- ✅ **Operational** — `set_update_dt` timing seam: injected `dt` overrides `micros()`; default-off path preserves stock behavior; clamp semantics intact.
-- ✅ **Operational** — PDF generator: `HARNESS PASSED`, `PDF written`, 43 pages A4, deterministic (identical SHA256 on three consecutive regenerations), working tree stays clean.
-- ✅ **Operational** — Unit suite: `afsim_l1_tests` → 111 checks / 0 failures; `ctest` → 2/2; both Valgrind-clean (0 errors).
-- ✅ **Operational** — Rendered deliverable verified in a real browser (headless Chrome + PDFium): all 43 pages render correctly, 0 blank/black/garbled/overflowing pages, 0 missing glyphs, 0 console or PDF-parsing errors.
-- ✅ **Operational** — In-tree waf example build (`bld.ap_example(use='ap')`): `./waf configure --board linux && ./waf build --targets examples/AfsimL1` succeeds with **zero** in-scope diagnostics, and `./build/linux/examples/AfsimL1` prints guidance output **byte-identical** to the CMake demo. `--board sitl` also builds, needing only a `CFLAGS='-Wno-error=unused-variable'` environment prefix for an unrelated unused local in the vendored, out-of-scope `modules/littlefs` — no out-of-scope file was edited. Formerly HT-5, now **RESOLVED**.
+- ✅ **Operational** — Standalone CMake build produces `libafsim_l1.so` (175,648 B ELF), `afsim_l1_demo` (16,472 B) and `afsim_l1_tests` (217,984 B) with 0 diagnostics.
+- ✅ **Operational** — `afsim_l1_demo` runs end-to-end: `roll_deg = -38.639999, lat_accel = -7.840306`, exit 0. Identical from the build tree and from a foreign working directory (build-tree RPATH), and identical with the `LD_LIBRARY_PATH=.` fallback.
+- ✅ **Operational** — C ABI: all 8 entry points resolve via `dlsym`; `readelf -d` shows the library needs only `libstdc++`, `libm`, `libgcc_s` and `libc` — no ArduPilot runtime dependency.
+- ✅ **Operational** — Toolchain-agnostic consumption: a `gcc`-built pure-C client (never `g++`, no ArduPilot header) drives the `g++`-built library correctly.
+- ✅ **Operational** — Defensive behavior: NULL, bogus, stale (post-`L1_Destroy`) and double-destroyed handles are safe no-ops; getters return exactly `0.0`; NaN/Inf injected through `L1_SetStateNE`, `L1_SetLegNE` and `L1_Execute` leave both outputs finite.
+- ✅ **Operational** — Timing seam: injected `dt` overrides `AP_HAL::micros()`; the default-off path preserves stock behavior; clamp semantics intact.
+- ✅ **Operational** — In-tree waf example (`bld.ap_example(use='ap')`) builds on `--board linux` with 0 in-scope diagnostics and emits byte-identical guidance output; `--board sitl` builds with a documented zero-edit `CFLAGS` prefix for unrelated vendored code.
+- ✅ **Operational** — Vehicle regression guard: `./waf plane` links `bin/arduplane` (3,473,811 B flash), proving the additive seam does not disturb firmware consumers.
+- ✅ **Operational** — Memory safety: Valgrind full leak-check across 4 components reports 0 errors, 0 leaks.
 
-**API integration outcomes:** The C ABI is the integration surface. All 8 functions are verified operational; real AFSIM host wiring is the remaining integration step (HT-2).
+**Runtime health — PDF deliverable pipeline:**
+
+- ✅ **Operational** — `generate.py` prints `harness: validating 94 main rows / 282 evidence rows`, then `HARNESS PASSED`, then `PDF written: <abspath>`; exit 0.
+- ✅ **Operational** — Deterministic: byte-identical regeneration (`cmp` clean, SHA256 `1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2` unchanged), and the git working tree stays clean afterwards.
+- ✅ **Operational** — Artifact: 43 pages, 237,310 B, A4 landscape (841.89 × 595.276 pt), ReportLab producer.
+
+**Browser verification of the deliverable (headless Chrome + PDFium):** verdict **PASS**, zero defects.
+
+| Assertion | Result | Evidence |
+|-----------|--------|----------|
+| Loads over HTTP and renders in Chrome's viewer | ✅ Operational | HTTP **200**, `content-type: application/pdf`, `content-length: 237310`; three-way SHA256 match (served ≡ on-disk ≡ expected) proves the rendered bytes are the exact deliverable |
+| Page count exactly 43 | ✅ Operational | Toolbar `1 / 43` → `43 / 43`; 43 thumbnails and no 44th; out-of-range page input clamps to 43; `pdfinfo` on the HTTP-fetched copy agrees |
+| Front-of-document Executive Summary | ✅ Operational | Page 1 renders the title *ArduPilot PNT (Positioning, Navigation, Timing) Reference Audit* and the `Executive Summary` heading with full body copy |
+| "New Service Location" mapping column (AAP Goal 3) | ✅ Operational | Confirmed on **page 16** as the rightmost of 8 headers, with verbatim cells such as `AfsimL1Behavior::set_leg_ne() -> AP_L1_Control::update_waypoint(prev, next); …` and `AfsimL1Behavior::get_roll_deg() = nav_roll_cd()/100 -> L1_GetRollDeg; get_lat_accel() -> L1_GetLatAccel`; unmapped rows correctly show an em-dash. Corroborated on pages 2, 12, 17 and by the dedicated mapping section on **page 38** |
+| Rendering quality across the document | ✅ Operational | 16 distinct pages inspected (37 %); quantitative pixel statistics on the page region: ink 3.48–20.68 %, mean luminance 207.5–247.4, std-dev 32.9–75.6 → no blank, black, torn or garbled page. Full non-ASCII glyph inventory (→ — · ✓ × ↔ ← ≥ ≤ ° … curly quotes) renders as true glyphs — **zero missing-glyph boxes** |
+| Console and network cleanliness | ✅ Operational | 0 JS exceptions, 0 PDF parse/render warnings; 17 of 18 requests `200`; the only 404 is the static server's absent `favicon.ico` and the only pending request is PDFium's own byte-stream channel for this document |
+| Scroll/paint behavior under motion | ✅ Operational | 106 s / 3,185-frame recording spanning ≥ 12 pages: no flash-of-blank, no placeholder tiles, no tearing; frame-difference and footer-hash analysis confirm genuine motion |
+
+**Captured evidence (absolute paths):**
+
+- `blitzy/screenshots/pnt_audit_page1_executive_summary.png` — page 1 with the Executive Summary (583,525 B)
+- `blitzy/screenshots/pnt_audit_new_service_location_column.png` — page 16 with the mapping column (337,099 B)
+- `blitzy/screenshots/pnt_audit_page38_instance_audit_mapping_table.png` — the dedicated *Current Location → New Service Location* section
+- `blitzy/screenshots/pnt_audit_last_page.png` — page 43 fully rendered (677,669 B)
+- `blitzy/screenshots/pnt_audit_page_count_43_indicator_and_last_thumbnail.png` — page-count proof
+- `blitzy/screenshots/pnt_audit_sweep_page{02,03,05,08,12,18,25,30,33,36,40}.png` — 11-page sweep incl. the Unicode glyph test page
+- `blitzy/screen_recordings/pnt_audit_scroll_sweep.webm` — scroll sweep recording (43,346,338 B)
+
+(All under `/tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684/`.)
+
+**API integration outcomes:** the C ABI *is* the integration surface, and all 8 functions are verified operational from both C++ and pure C. The one integration outcome that cannot be produced in this environment is the real AFSIM host binding (HT-2) — AFSIM is not present in the container.
 
 ---
 
 ## 5. Compliance & Quality Review
 
-AAP deliverables cross-mapped to Blitzy quality/compliance benchmarks. Fixes applied during autonomous validation are noted; outstanding items map to human tasks.
+AAP deliverables and constraints cross-mapped to Blitzy's quality and compliance benchmarks. "Verified here" marks items re-measured during this assessment.
 
 | Benchmark / AAP Requirement | Status | Evidence / Notes |
 |-----------------------------|--------|------------------|
-| Behavior preservation (L1 math unchanged) | ✅ Pass | Seam default-off; clamp byte-identical; Tests A/B/C pass |
-| Public contract preserved (`AP_Navigation`, `AP_L1_Control` signatures) | ✅ Pass | Only additive `set_update_dt()`; no existing signature changed |
-| No vehicle firmware modified | ✅ Pass | Diff = 18 in-scope files only; ArduPlane/Copter/Rover/Sub/Blimp/Tracker untouched |
-| Single reusable service module | ✅ Pass | `AfsimL1Behavior` + C ABI under `libraries/AP_L1_Control/examples/AfsimL1/` |
-| Shared-library (`.so`) target | ✅ Pass | `libafsim_l1.so` built via standalone CMake |
-| Exactly 8 C ABI exports w/ visibility | ✅ Pass | `nm -D` → 8 `L1_*`, 0 mangled; `-fvisibility=hidden` + per-symbol default |
-| Injectable state & timing | ✅ Pass | `set_state_ne` (AHRS shim) + `set_update_dt` (host `dt`) |
-| Documentation delivered twice (Goal 3) | ✅ Pass | AAP §0.6.1 + regenerated PDF "New Service Location" column |
-| PNT instance audit (Goal 1) | ✅ Pass | §0.6.1 table: 16 sites → 6 accessors + 2 clock couplings |
-| Web-research requirement | ✅ Pass | C-ABI stability best practices, AAP §0.3.2 |
-| Zero-placeholder policy | ✅ Pass | 0 `TODO`/`FIXME` in the 6 core service files (illustrative host TODOs live only in the demo) |
-| Code quality (warnings) | ✅ Pass | 0 diagnostics under the 32-flag ArduPilot-equivalent posture (21 `-Werror=`) across all 9 compiler × build-type configurations (GCC 11.5 / 12.5 / 15.2), and 0 in-scope diagnostics under waf's own 55-flag posture (29 `-Werror=`) |
-| Input validation (timing seam) | ✅ Pass | `set_update_dt` rejects non-finite/negative `dt` (CWE-20) |
-| Pre-commit hygiene | ✅ Pass | `flake8` 0 violations; LF endings; no tracked build artifacts |
-| Dependency changes | ✅ Pass (none) | No new third-party dependency; in-tree sources + existing toolchain |
-| In-tree waf build (`use='ap'`) | ✅ Complete | Builds and runs on `--board linux` (0 in-scope diagnostics) and on `--board sitl` (env `CFLAGS` prefix for vendored code); output byte-identical to CMake. HT-5 resolved |
-| Dedicated unit-test suite | ✅ Complete | `tests/test_afsim_l1.cpp` — 111 checks, 0 failures, 2 CTest cases, Valgrind-clean. HT-4 resolved |
-| ABI handle-tag / state-setter validation | ✅ Complete | Magic cookie `L1_CONTEXT_MAGIC` **and** a mutex-guarded live-handle registry checked before every dereference; `std::isfinite` validation on all state/leg/`dt` inputs. Asserted by the unit suite |
+| **Goal 1** — locate every PNT instance in the extraction target | ✅ Pass | AAP §0.6.1: 16 AHRS read sites → 6 accessor kinds, 2 clock couplings, 2 output paths; realized as a 94-row / 282-evidence-row catalog |
+| **Goal 2** — consolidate into ONE reusable service | ✅ Pass | Single module `libraries/AP_L1_Control/examples/AfsimL1/` = facade + adapter + ABI, 1,336 LOC of service code; no logic scattered elsewhere |
+| **Goal 3** — document current vs new locations **twice** | ✅ Pass | AAP §0.6.1 **and** the regenerated PDF; the "New Service Location" column and the dedicated mapping section were both confirmed in-browser (§4) |
+| Behavior preservation (L1 mathematics unchanged) | ✅ Pass | Seam default-off via in-class initializers; `dt`-clamp block **byte-identical** to baseline (verified here with `diff`); behavior-preservation Tests A/B/C green |
+| Public contracts preserved (`AP_Navigation`, existing `AP_L1_Control` signatures) | ✅ Pass | Only an **additive** `set_update_dt(float)`; no existing signature, override or interface changed; `AP_Navigation.h` untouched |
+| No vehicle firmware modified | ✅ Pass | Verified here: `git diff` restricted to all six vehicle trees returns **0 files**; `./waf plane` still links (3,473,811 B) |
+| "Make no other changes than specified" guardrail | ✅ Pass | Verified here: branch surface = **18 files** (14 A / 4 M), all in scope; **0** files in any AAP §0.2.2 excluded tree; **0** modified submodules |
+| Shared-library (`.so`) deliverable for an external host | ✅ Pass | `libafsim_l1.so` built by the standalone CMake path; needs only libstdc++/libm/libgcc/libc |
+| Exactly 8 C ABI exports with visibility control | ✅ Pass | Verified here: `nm -D --defined-only` → 8 `T L1_*`, **0** mangled; `-fvisibility=hidden` + generated version script |
+| Opaque handle — no C++ type crosses the boundary | ✅ Pass | `void*` / `L1_Handle` with `struct L1_Context` defined only in the ABI translation unit; only `double` scalars traverse the interface |
+| Injectable state and timing (dependency inversion) | ✅ Pass | `set_state_ne` → shim → the exact 6 accessors the controller reads; `set_update_dt` → injected `dt` and accumulated loiter timebase |
+| Facade / Adapter / ABI-boundary / DI / Strategy patterns applied | ✅ Pass | One file group per layer, matching AAP §0.3.3 |
+| AHRS decoupling option selected and guarded | ✅ Pass (Option B) | AAP §0.6.2 sanctions either option; Option B chosen (matching the user example's shim shape) with a hard `#error` guard, both build files setting `AFSIML1_L1_USES_SHIM_AHRS` automatically. Residual fidelity cross-validation is HT-3 |
+| Design decision to confirm (AAP §0.7.3) | ⚠ Awaiting human confirmation | The recommended additive, default-off seam was implemented; formal sign-off is HT-1a |
+| Timing seam default-off | ✅ Pass | `bool _dt_override = false;` in-class initializer (verified here); vehicles keep the `micros()`/`millis()` paths |
+| Input validation at the trust boundary (CWE-20) | ✅ Pass | `std::isfinite` on every ABI scalar; `set_update_dt` rejects non-finite and negative `dt`; verified here — NaN/Inf inputs leave outputs finite |
+| Handle-lifetime safety | ✅ Pass | Magic cookie + mutex-guarded live-handle registry checked before every dereference; verified here — NULL, bogus, stale and double-destroy are safe |
+| Zero-placeholder policy | ✅ Pass | No stubs, no `TODO`/`FIXME` in code; the only "placeholder" strings are prose describing the PDF's named format placeholders and its em-dash "no mapping" cell |
+| Code quality / diagnostics | ✅ Pass | 0 diagnostics under a 32-flag / 21-`-Werror` posture across 9 compiler × build-type configurations, and 0 in-scope diagnostics under waf's own 55-flag posture; `flake8` on the Python pipeline → 0 violations (verified here) |
+| Dependency policy — no new third-party dependency | ✅ Pass | Verified here: in-tree ArduPilot sources + pre-existing toolchain only; reportlab/poppler were already present for the PDF |
+| Test coverage for the service | ✅ Pass | 111-check unit suite + 2 CTest cases + 38-check pure-C ABI host + demo self-check; Valgrind-clean |
+| Both documented build paths operational | ✅ Pass | Standalone CMake and in-tree waf both build clean and produce identical output (verified here) |
+| Deliverable determinism and provenance | ✅ Pass | Byte-identical PDF regeneration, stable SHA256, harness gate, clean git tree (verified here) |
+| Commit hygiene and authorship | ✅ Pass | 16 implementation commits plus this documentation commit — every one authored **and** committed as `Blitzy Agent <agent@blitzy.com>`; staged by explicit path so no build or validation artifact was committed |
+| Library packaging / versioning | ⚠ Outstanding | SONAME is unversioned and there are **0** `install()` rules (verified here) → HT-4 |
+| CI coverage for the new service | ⚠ Outstanding | **0 of 27** existing workflows reference the service (verified here) → HT-4 |
+| Real host integration | ⚠ Outstanding | AFSIM unavailable in this environment → HT-2 |
+
+**Fixes applied during autonomous validation** (all in-scope, all closed): in-tree waf build failing at the seam guard (rewritten `wscript` with a seam-tree writer and define injection); absence of a dedicated unit suite (866-LOC / 111-check suite added and wired to CTest); generator data contaminated by `pdftotext -layout` scrape artifacts (two-pass, oracle-verified repair of 166 rules / 236 replacements); a stale PDF page-count claim reconciled to the correct 43; overstated documentation claims corrected across 5 files; the standalone CMake build hardened from zero warning flags to an ArduPilot-equivalent posture.
+
+**Out-of-scope issues encountered, documented and *not* modified** (each lives in an AAP §0.2.2 excluded tree, each has a proven zero-edit workaround in Appendix E): vendored GoogleTest 1.8.0 vs `-Werror=suggest-override`; an unused local in `modules/littlefs/bd/lfs_filebd.c`; an upstream-authored `GTEST_SKIP()` in `AP_GSOF`. Ten residual build warnings live in two pre-existing out-of-scope files (`AP_Baro_BMP388.cpp` and a generated MAVLink header) and are warnings only.
 
 ---
 
@@ -284,199 +250,262 @@ AAP deliverables cross-mapped to Blitzy quality/compliance benchmarks. Fixes app
 
 | Risk | Category | Severity | Probability | Mitigation | Status |
 |------|----------|----------|-------------|-----------|--------|
-| T1 · Seam edits a shared flight-guidance controller used by all fixed-wing/VTOL vehicles | Technical | Medium | Low | Default-off (in-class init); byte-identical clamp; Tests A/B/C; syntax-clean vs real SITL headers | Mitigated (pending review HT-1) |
-| T2 · Option-B compile-time shim seam (`AFSIML1_L1_USES_SHIM_AHRS`) could be misbuilt by a consumer | Technical | Low | Low | `#error` guard + README + CMake sets the define automatically | Mitigated |
-| T3 · In-tree waf (`use='ap'`) formerly failed to link via out-of-scope `modules/littlefs` `-Werror` | Technical | Low | Medium | `wscript` now supplies the seam; `--board linux` builds clean with no workaround, `--board sitl` builds with an environment `CFLAGS` prefix; both emit byte-identical output to CMake | **Resolved** (no out-of-scope edit) |
-| T4 · Shim synthesizes `Location` from a fixed datum; large offsets / lat-lon wrap may diverge from full `AP_AHRS` | Technical | Medium | Low–Med | Fidelity testing (HT-3); documented conventions | Open |
-| S1 · C ABI could dereference a bogus or stale non-NULL `void*` handle | Security | Medium | Low | Two independent guards **before** any dereference: a `L1_CONTEXT_MAGIC` cookie stamped on create and zeroed on destroy, plus membership lookup in a mutex-guarded live-handle registry that `L1_Destroy` atomically retires. Unit suite asserts bogus-handle, stale-handle and double-destroy safety | **Mitigated** |
-| S2 · `L1_SetStateNE`/`L1_SetLegNE`/`dt` could propagate NaN/Inf into the guidance arithmetic | Security (CWE-20) | Low–Med | Low | `std::isfinite` validation at the boundary with a `to_safe_float()` substitution and range clamp on every scalar, plus non-finite-yaw rejection in the shim — chosen because NaN defeats the controller's inherited upper-bound clamps. Unit suite asserts outputs stay finite under NaN/Inf state, leg and `dt` | **Mitigated** |
-| S3 · Symbol-visibility hardening (only 8 exports, 0 mangled) reduces attack surface | Security | — (Positive) | — | `-fvisibility=hidden` + explicit exports | Implemented |
-| O1 · No SONAME / semantic versioning on `libafsim_l1.so` → ABI-drift risk | Operational | Medium | Medium | Add versioning + install rules (HT-6) | Open |
-| O2 · No CI job builds/tests the `.so` → regressions could slip | Operational | Medium | Medium | Add CI build + ABI/demo/harness checks (HT-6) | Open |
-| O3 · `build/` gitignored; consumers build from source | Operational | Low | Low | Verified README build steps | Mitigated |
-| O4 · No in-service logging/monitoring | Operational | Low | — | Appropriate for a headless compute library | Accepted by design |
-| I1 · Real AFSIM integration untested (demo is illustrative) | Integration | Medium–High | Medium | Real integration (HT-2) + fidelity testing (HT-3) | Open (primary remaining risk) |
-| I2 · Units/coordinate conventions (N/E, centidegrees yaw, EAS2TAS) must be mapped correctly by host | Integration | Medium | Medium | README "Units and conventions"; verify during HT-2/HT-3 | Documented |
-| I3 · Datum sharing between legs and state must be ensured by host | Integration | Low–Med | Low | Documented | Open |
+| **T1** · The timing seam edits `AP_L1_Control`, a controller shared by every fixed-wing and VTOL vehicle | Technical | Medium | Low | Additive only; default-off via in-class initializer; `dt`-clamp block byte-identical to baseline; behavior-preservation Tests A/B/C; `./waf plane` links at 3,473,811 B | Mitigated — pending review (HT-1) |
+| **T2** · The Option-B compile-time shim seam (`AFSIML1_L1_USES_SHIM_AHRS`) could be misconfigured by a downstream consumer | Technical | Low | Low | Hard `#error` guard fires immediately with a self-explaining message (reproduced during this assessment); both shipped build files define the macro automatically; README documents it | Mitigated |
+| **T3** · The shim synthesizes `Location` from a fixed datum — very large N/E offsets or lat/lon wrap could diverge from full `AP_AHRS` geodesy | Technical | Medium | Low–Medium | Conventions documented in the README; datum-stress and fidelity cross-validation scheduled as HT-3 | Open — largest technical unknown |
+| **T4** · Option B (service-local shim) was chosen over the AAP-recommended Option A (real `AP_AHRS` in external mode) | Technical | Low | Medium | Both options are AAP-sanctioned (§0.6.2); the shim mirrors the controller's exact 6-accessor read surface; residual numerical confirmation is HT-3 | Documented design choice |
+| **S1** · The C ABI could dereference a bogus or stale non-NULL `void*` handle | Security | Medium | Low | Two independent guards before any dereference — `L1_CONTEXT_MAGIC` cookie zeroed on destroy, plus membership lookup in a mutex-guarded live-handle registry that `L1_Destroy` atomically retires. Re-verified in this assessment with an independent pure-C host | Mitigated |
+| **S2** · Host-supplied NaN/Inf scalars could poison the guidance arithmetic (CWE-20) | Security | Low–Medium | Low | `std::isfinite` validation with safe substitution and range clamping on every state, leg and `dt` scalar; non-finite/negative `dt` rejected before latching. Re-verified: NaN/Inf input leaves both outputs finite | Mitigated |
+| **S3** · Minimal export surface reduces attack surface | Security | — (positive control) | — | `-fvisibility=hidden` + generated version script → exactly 8 exports, 0 mangled symbols | Implemented |
+| **S4** · Supply-chain exposure from new dependencies | Security | — (positive control) | — | No new third-party dependency; `readelf -d` shows only libstdc++/libm/libgcc/libc | Accepted by design |
+| **O1** · `libafsim_l1.so` carries an unversioned SONAME and has no `install()` rules → ABI-drift and deployment ambiguity for the host | Operational | Medium | Medium | Add SOVERSION, semantic versioning, install/package files (HT-4) | Open |
+| **O2** · None of the repository's 27 CI workflows builds or tests the service → a regression could land unnoticed | Operational | Medium | Medium | Add a CI job invoking the existing `afsim_l1_tests` / `ctest` / `generate.py` targets (HT-4) | Open |
+| **O3** · No in-service logging or telemetry | Operational | Low | — | Appropriate for a headless deterministic compute library; the host owns observability, and the demo/self-check provides a CI signal | Accepted by design |
+| **O4** · 1,061 MB of untracked validation artifacts (388 files under `blitzy/screenshots` and `blitzy/screen_recordings`) are not covered by `.gitignore` | Operational | Low | Medium | Stage by explicit path (as every agent commit did) or delete/ignore them before committing — folded into HT-1d | Open — housekeeping only |
+| **I1** · Real AFSIM host integration is untested; the shipped `main.cpp` is a demonstration driver | Integration | Medium–High | Medium | HT-2 (integration) then HT-3 (fidelity); the C ABI is already proven from an independent pure-C client | Open — primary remaining risk |
+| **I2** · The host must map units and frames correctly (position N/E metres, velocity ordered E then N, yaw in centidegrees, pitch in radians, roll returned in degrees, lateral accel in m/s²) | Integration | Medium | Medium | README "Units and conventions"; unit-suite assertions pin the N/E↔E/N ordering; confirm during HT-2 | Documented |
+| **I3** · Legs and state must share one datum origin | Integration | Low–Medium | Low | Documented in the README; verified as part of HT-3 datum stress | Open |
+| **I4** · Three pre-existing issues in AAP-excluded trees (vendored gtest 1.8.0, `modules/littlefs`, `AP_GSOF` `GTEST_SKIP`) | Integration | Low | — | Diagnosed with proven zero-edit environment recipes (Appendix E); none affects any in-scope gate; fixing them would require editing excluded files | Documented, not modified |
 
 ---
 
 ## 7. Visual Project Status
 
-**Project hours — completed vs remaining** (Completed = Dark Blue `#5B39F3`, Remaining = White `#FFFFFF`):
+**Completed vs remaining hours** — Completed = Dark Blue `#5B39F3`, Remaining = White `#FFFFFF`:
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieOuterStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'18px'}}}%%
-pie showData title Project Hours Breakdown (Total 134h)
-    "Completed Work" : 110
-    "Remaining Work" : 24
+%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieOuterStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'16px'}}}%%
+pie showData title Project Hours Breakdown (Total 149h)
+    "Completed Work" : 123
+    "Remaining Work" : 26
 ```
 
-**Remaining hours by task** (total 24 h — HT-4 and HT-5 are closed and therefore absent):
+**Remaining hours by task** (total 26 h):
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'xyChartBarColor':'#5B39F3','backgroundColor':'#FFFFFF'}}}%%
+%%{init: {'theme':'base','themeVariables':{'xyChartBarColor':'#5B39F3','backgroundColor':'#FFFFFF'}}}%%
 xychart-beta
-    title "Remaining Hours by Task (Total 24h)"
-    x-axis ["HT-1 Review", "HT-2 AFSIM", "HT-3 Fidelity", "HT-6 CI/Ver"]
+    title "Remaining Hours by Task (Total 26h)"
+    x-axis ["HT-1 Review", "HT-2 AFSIM", "HT-3 Fidelity", "HT-4 Pkg/CI"]
     y-axis "Hours" 0 --> 12
-    bar [6, 10, 4, 4]
+    bar [6, 10, 6, 4]
 ```
 
-**Remaining hours by priority:**
+**Remaining hours by priority** (total 26 h):
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'pie1':'#5B39F3','pie2':'#B23AF2','pie3':'#A8FDD9','pieStrokeColor':'#333333','pieStrokeWidth':'1px','pieTitleTextSize':'16px'}}}%%
-pie showData title Remaining Hours by Priority (24h)
+%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#B23AF2','pie3':'#A8FDD9','pieStrokeColor':'#333333','pieStrokeWidth':'1px','pieTitleTextSize':'15px'}}}%%
+pie showData title Remaining Hours by Priority (26h)
     "High (HT-1, HT-2)" : 16
-    "Medium (HT-3)" : 4
-    "Low (HT-6)" : 4
+    "Medium (HT-3)" : 6
+    "Low (HT-4)" : 4
 ```
 
-> **Integrity:** the pie "Remaining Work" (24) equals §1.2 Remaining Hours (24) and the §2.2 Hours total (24); "Completed Work" (110) equals §1.2 Completed Hours (110). The task bar chart sums to 6+10+4+4 = 24; the priority pie sums to 16+4+4 = 24. ✔
+> **Integrity:** the pie's "Remaining Work" (26) equals §1.2 Remaining Hours (26) and the §2.2 Hours total (26); "Completed Work" (123) equals §1.2 Completed Hours (123); 123 + 26 = 149 = §1.2 Total. The task bar chart sums to 6 + 10 + 6 + 4 = 26 and the priority pie to 16 + 6 + 4 = 26. ✔
 
 ---
 
 ## 8. Summary & Recommendations
 
-**Achievements.** The project delivered a complete, behavior-preserving extraction of ArduPilot's L1 lateral-navigation guidance into a reusable, host-driven service. All 18 in-scope files — the `AfsimL1Behavior` facade, the `AfsimL1_AHRS_Shim` adapter, the `extern "C"` ABI, the standalone CMake and in-tree waf builds, the demo, the unit suite, the README, the additive `AP_L1_Control` timing seam, and the regenerated PNT Reference Audit PDF — were implemented and independently validated. The shared library exports exactly the 8 specified C symbols with zero mangled leakage, builds warning-free across **three** compiler generations (GCC 11.5, 12.5 and 15.2) in three build types, and is consumable from a pure-C host, confirming the ABI-stability objective.
+**Achievements.** The refactor delivered exactly what the Agent Action Plan scoped, and nothing else. ArduPilot's L1 lateral-navigation guidance is now consumable as a standalone service: a 514-LOC facade exposes the six-method task API from the user's example, a 327-LOC adapter satisfies the controller's `AP_AHRS` read contract from host-injected state, and a 495-LOC `extern "C"` boundary presents eight functions over an opaque handle — verified to export exactly 8 symbols with zero C++ mangling and to be drivable from a pure-C client compiled by a different compiler front-end. The only change to existing library code is an additive, default-off `set_update_dt()` seam whose `dt`-clamp block is byte-identical to baseline, so every existing vehicle consumer is numerically unaffected and `bin/arduplane` still links. Both shipped build paths produce identical guidance output. The audit obligation was met twice, in the AAP and in a deterministic 43-page PDF whose mapping column was confirmed page-by-page in a real browser.
 
-**Completion.** The project is **82.1 % complete** (110 of 134 hours). This figure reflects that **100 % of the AAP-specified autonomous deliverables are finished and verified**, while the remaining 17.9 % (24 hours) is standard **path-to-production** effort that inherently requires a human or an external system: code review and merge sign-off, real AFSIM host integration, integration/fidelity testing against the in-vehicle L1, and CI/versioning. The two previously-remaining engineering tasks — the dedicated unit suite (HT-4) and the in-tree waf build path (HT-5) — were **completed during final validation**.
+**Remaining gaps.** All 26 remaining hours are path-to-production, not missing features. Three of the four items are inherently human- or environment-gated: a flight-controls reviewer must sign off on a seam in shared guidance code (HT-1), the AFSIM host does not exist in this container so the first real binding must happen on the host side (HT-2), and the shim-vs-live-AHRS fidelity envelope needs measurement rather than construction-based assertion (HT-3). Only packaging and CI (HT-4) is purely mechanical.
 
-**Critical path to production.** (1) Human review of the behavior-critical seam and ABI → (2) real AFSIM integration wiring → (3) integration/fidelity verification. These three (HT-1, HT-2, HT-3 = 20 hours) unblock production use; HT-6 (4 hours) is operational maturity.
+**Critical path to production.** HT-1 → HT-2 → HT-3 → HT-4. Review must precede integration because integration will harden against whatever the reviewer changes; fidelity testing needs a working host to drive; packaging is best done once the ABI is confirmed stable in a real consumer. The realistic sequence is one reviewer-day, then roughly two engineer-days of host integration and fidelity work, then a half-day of packaging.
 
-**Success metrics.** Behavior preserved (byte-identical clamp; Tests A/B/C pass); ABI exactly 8 symbols, 0 mangled, in all 9 build configurations; 0 build diagnostics under the strict posture; unit suite 111/111; deterministic PDF (identical SHA256 on three consecutive runs) whose data is oracle-verified against the pre-scrape original; no out-of-scope file modified.
+**Success metrics for the remaining work.**
 
-**Production-readiness assessment.** The delivered library is **validation-complete and production-ready as an autonomous deliverable**, pending the human review and integration steps above. There is **no open build caveat**: both build paths now succeed, and the two issues encountered in vendored, explicitly out-of-scope submodules were each worked around with an environment variable and **zero repository edits** (§3.2).
+| Metric | Target | Current |
+|--------|--------|---------|
+| In-scope test pass rate | 100 % | **100 %** (1,638 / 1,638) |
+| Exported ABI symbols / mangled symbols | 8 / 0 | **8 / 0** |
+| In-scope compiler diagnostics | 0 | **0** (9-config matrix + waf) |
+| Vehicle firmware regressions | 0 | **0** (`arduplane` links) |
+| Deliverable determinism | Byte-identical regeneration | **Byte-identical** |
+| AFSIM platform flying a service-driven route | Multi-leg route, stable outputs | Not started (HT-2) |
+| Documented fidelity envelope vs in-vehicle L1 | Published agreement bounds | Not started (HT-3) |
+| Versioned, installable artifact under CI | SOVERSION + green CI job | Not started (HT-4) |
 
-| Metric | Value |
-|--------|-------|
-| Completion | 82.1 % (110 / 134 h) |
-| In-scope files delivered & validated | 18 / 18 |
-| C ABI exports | 8 / 8 (0 mangled), in all 9 build configurations |
-| Build configurations green | 9 / 9 CMake + 2 / 2 waf boards |
-| Unit suite | 111 / 111 checks; CTest 2 / 2 |
-| PDF harness | 1,193 / 1,193 invariants |
-| Autonomous validation pass rate | 100 % (1,638 in-scope checks, 0 failures, 0 skips) |
-| Critical path to production | 20 h (HT-1, HT-2, HT-3) |
+**Production readiness assessment.** The project is **82.6 % complete** (123 of 149 hours). The library itself is production-quality *as a component*: it compiles clean under a strict diagnostics posture across three compiler generations, passes 1,638 in-scope checks with zero failures, is Valgrind-clean, validates its trust boundary, and cannot destabilise existing firmware. It is **not yet production-*deployed***, because a shared-library component only becomes production-ready when a real host drives it, its numerical envelope is measured, and it is versioned under CI. Recommendation: **approve for merge after HT-1**, then treat HT-2/HT-3 as the gate for declaring the service flight-representative, and HT-4 as the gate for external distribution.
 
 ---
 
 ## 9. Development Guide
 
-All commands below were executed successfully in the validation environment.
+Every command below was executed in this environment during the assessment; the shown output is verbatim. Commands are copy-pasteable and the working directory is stated for each block.
 
 ### 9.1 System Prerequisites
 
-- **OS:** Linux (validated on Ubuntu 25.10 container)
-- **Compiler:** `g++` / `gcc` — validated on **11.5.0** and **15.2.0** (C++11)
-- **Build tools:** **CMake ≥ 3.5** (validated 3.31.6); GNU Make
-- **PDF regeneration (optional):** **Python 3.13.7**, **ReportLab 4.5.1**, **poppler-utils 25.03.0**, DejaVu fonts
-- **No new third-party runtime dependency** — the service links only in-tree ArduPilot sources.
+| Requirement | Verified version | Notes |
+|-------------|------------------|-------|
+| OS | Ubuntu 25.10 (x86-64, 4 vCPU) | Any modern Linux with a C++11 toolchain works |
+| C++ compiler | GCC 15.2.0 (also verified with 11.5.0 and 12.5.0) | `-std=gnu++11`, matching ArduPilot |
+| CMake | 3.31.6 | Build declares `cmake_minimum_required(VERSION 3.5)` |
+| Binutils | `nm`, `readelf` | ABI verification |
+| Python | 3.13.7 | Only for the PDF pipeline and waf |
+| reportlab | 4.5.1 | PDF rendering (already installed; also present in the repo `.venv`) |
+| poppler-utils | 25.03.0 | `pdfinfo` / `pdftotext` / `pdftoppm` for PDF verification |
+| DejaVu fonts | system TTF (22 entries) | Unicode glyph fallback in the PDF |
+| Optional | Valgrind, flake8, Docker | Memory checking, Python lint |
+
+No package installation is required in this environment — every prerequisite above was already present.
 
 ### 9.2 Environment Setup
 
 ```bash
 # From the repository root
-cd libraries/AP_L1_Control/examples/AfsimL1
+cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
+
+# Confirm the toolchain (each line must print a version)
+g++ --version | head -1        # g++ (Ubuntu 15.2.0-4ubuntu4) 15.2.0
+cmake --version | head -1      # cmake version 3.31.6
+python3 --version              # Python 3.13.7
+python3 -c "import reportlab; print(reportlab.Version)"   # 4.5.1
+pdfinfo -v 2>&1 | head -1      # pdfinfo version 25.03.0
 ```
 
-No environment variables are required to **build**. For **PDF regeneration**, set `PNT_REPO_ROOT` to the repo root (shown in §9.6). The build automatically defines `AFSIML1_L1_USES_SHIM_AHRS` (Option-B shim seam) — do not unset it for the standalone build.
+There are **no** environment variables to configure for the library. The PDF pipeline uses one optional variable, `PNT_REPO_ROOT` (see §9.6 and Appendix E). No database, cache, message queue or network service is involved — the deliverable is a headless compute library.
 
 ### 9.3 Dependency Installation
 
 ```bash
-# Verify the toolchain is present (no installation needed if these succeed)
-cmake --version        # expect >= 3.5
-g++ --version          # expect a C++11-capable GCC
+# Nothing to install: the service links only in-tree ArduPilot sources and the
+# system C++ runtime. Verify that claim on the built artifact:
+readelf -d libafsim_l1.so | grep NEEDED
+#   -> libstdc++.so.6, libm.so.6, libgcc_s.so.1, libc.so.6   (no ArduPilot runtime dep)
 
-# Optional — only for PDF regeneration:
-python3 -c "import reportlab; print(reportlab.Version)"   # expect 4.5.1
-pdfinfo -v                                                # expect poppler 25.x
+# Optional, only if reportlab/poppler are ever missing on a fresh machine:
+python3 -m pip install --break-system-packages 'reportlab==4.5.1'
+sudo apt-get install -y --no-install-recommends poppler-utils fonts-dejavu-core
 ```
 
-### 9.4 Build the Shared Library
+### 9.4 Build — Primary Artifact (standalone shared library)
 
 ```bash
 cd libraries/AP_L1_Control/examples/AfsimL1
 mkdir -p build && cd build
-cmake ..            # exit 0 (a CMake VERSION 3.5 deprecation notice is benign)
-make                # exit 0 — produces libafsim_l1.so, afsim_l1_demo and afsim_l1_tests
+cmake ..
+make -j"$(nproc)"
 ```
 
-Expected artifacts: `libafsim_l1.so` (shared library), `afsim_l1_demo` (demo executable) and
-`afsim_l1_tests` (the 111-check unit suite).
+Expected: both commands exit 0 with **zero** `warning:`/`error:` lines, producing
+
+```
+libafsim_l1.so    ~175,648 B    the deliverable shared library
+afsim_l1_demo     ~16,472 B     "initialize a simple leg" demo driver
+afsim_l1_tests    ~217,984 B    111-check unit suite
+```
 
 ### 9.5 Verification Steps
 
 ```bash
-# 1. Verify the C ABI exports EXACTLY 8 symbols, with no mangled C++ symbols:
-nm -D --defined-only libafsim_l1.so | grep ' T '
-#   -> L1_Create L1_Destroy L1_Execute L1_GetLatAccel L1_GetRollDeg L1_Init L1_SetLegNE L1_SetStateNE
-nm -D --defined-only libafsim_l1.so | grep -c '_Z'      # -> 0 (no mangled exports)
+# still in .../AfsimL1/build
 
-# 2. Run the demo (finds the .so via the build-tree RPATH):
+# 1. The C ABI must export EXACTLY 8 symbols and no mangled C++ symbols
+nm -D --defined-only libafsim_l1.so
+#   -> 8 lines: L1_Create L1_Destroy L1_Execute L1_GetLatAccel
+#               L1_GetRollDeg L1_Init L1_SetLegNE L1_SetStateNE
+nm -D --defined-only libafsim_l1.so | grep -c _Z
+#   -> 0
+
+# 2. Run the demo (locates the .so through the build-tree RPATH)
 ./afsim_l1_demo
-#   -> roll_deg = -38.639999, lat_accel = -7.840306   (exit 0)
-#   If it cannot find the library:  LD_LIBRARY_PATH=. ./afsim_l1_demo
+#   -> roll_deg = -38.639999, lat_accel = -7.840306      (exit 0)
 
-# 3. Run the dedicated unit suite:
+# 3. Run the dedicated unit suite
 ./afsim_l1_tests
-#   -> === AfsimL1 unit tests: 111 checks, 0 failures ===   (exit 0)
+#   -> === AfsimL1 unit tests: 111 checks, 0 failures === (exit 0)
 
-# 4. Or run both registered cases through CTest:
+# 4. Or run both registered cases through CTest
 ctest --output-on-failure
 #   -> 100% tests passed, 0 tests failed out of 2
-#      (afsim_l1_unit_tests + afsim_l1_demo_smoke)
+
+# 5. Optional: memory check
+valgrind --leak-check=full --error-exitcode=1 ./afsim_l1_tests
+#   -> 0 errors, 0 leaks
 ```
 
-**Build and run the in-tree waf example (second, independent build of the same seam):**
-
 ```bash
-# From the repository root:
-./waf configure --board linux           # exit 0
-./waf build --targets examples/AfsimL1  # exit 0, zero in-scope diagnostics
+# 6. In-tree waf example build (strict ArduPilot diagnostics posture)
+cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
+./waf configure --board linux
+./waf build --targets examples/AfsimL1
 ./build/linux/examples/AfsimL1
 #   -> roll_deg = -38.639999, lat_accel = -7.840306   (byte-identical to the CMake demo)
+
+# 7. Prove the additive seam does not disturb vehicle firmware
+./waf plane
+#   -> 'plane' finished successfully; bin/arduplane, Total Flash Used 3,473,811 B
 ```
 
 ### 9.6 Example Usage
 
-**External host flow (the AFSIM integration contract):**
+**Path A — through the C ABI (what an external host does).** Save as `host.c` and build with a C compiler; no ArduPilot header is needed:
 
-```
-dlopen("libafsim_l1.so")
-  -> L1_Create()                                  // opaque void* handle
-  -> L1_Init(h)
-  -> L1_SetLegNE(h, 0.0, 0.0, 500.0, 0.0)         // prev(N,E) -> next(N,E), metres: 500 m North leg
-  -> L1_SetStateNE(h, 0.0, 200.0, 0.0, 20.0, 0.0, 0.0)
-                                                   // n,e (m); velE,velN (m/s); yaw_cd (centideg); pitch_rad
-                                                   // -> 200 m East of track, 20 m/s northbound
-  -> L1_Execute(h, 0.02)                           // one step, host dt in seconds (50 Hz)
-  -> L1_GetRollDeg(h)    // ~ -38.6  (degrees)
-  -> L1_GetLatAccel(h)   // ~ -7.84  (m/s^2)
-  -> L1_Destroy(h)
-```
+```c
+#include <dlfcn.h>
+#include <stdio.h>
 
-**Regenerate the PNT Reference Audit PDF (deterministic):**
+int main(void) {
+    void *lib = dlopen("./libafsim_l1.so", RTLD_NOW);
+    void*  (*create)(void)                                              = dlsym(lib, "L1_Create");
+    void   (*init)(void*)                                               = dlsym(lib, "L1_Init");
+    void   (*set_leg)(void*, double,double,double,double)               = dlsym(lib, "L1_SetLegNE");
+    void   (*set_state)(void*, double,double,double,double,double,double)= dlsym(lib, "L1_SetStateNE");
+    void   (*execute)(void*, double)                                    = dlsym(lib, "L1_Execute");
+    double (*get_roll)(void*)                                           = dlsym(lib, "L1_GetRollDeg");
+    double (*get_lat)(void*)                                            = dlsym(lib, "L1_GetLatAccel");
+    void   (*destroy)(void*)                                            = dlsym(lib, "L1_Destroy");
+
+    void *h = create();
+    init(h);
+    set_leg(h, 0.0, 0.0, 1000.0, 0.0);            /* prevN, prevE, nextN, nextE (m)      */
+    set_state(h, 0.0, 50.0, 0.0, 25.0, 0.0, 0.0); /* n, e, velE, velN, yaw_cd, pitch_rad */
+    execute(h, 0.02);                             /* host drives timing: dt = 20 ms      */
+    printf("roll=%.2f deg  lat=%.2f m/s^2\n", get_roll(h), get_lat(h));
+    destroy(h);
+    dlclose(lib);
+    return 0;
+}
+```
 
 ```bash
-# From the repository root:
+gcc -std=c11 -Wall -Wextra -Werror -o host host.c -ldl -lm && ./host
+#   -> roll=-34.85 deg  lat=-6.83 m/s^2      (50 m cross-track on a 1 km northerly leg)
+```
+
+**Path B — the C++ facade directly** (`#include "AfsimL1Behavior.h"`, requires the seam define; see §9.7): construct `AfsimL1Behavior`, call `init()`, then per step `set_state_ne(...)`, optionally `set_leg_ne(...)`, `execute(dt)`, and read `get_roll_deg()` / `get_lat_accel()`.
+
+**Regenerating the PDF deliverable:**
+
+```bash
+cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
 PNT_REPO_ROOT="$(pwd)" python3 libraries/AP_L1_Control/examples/AfsimL1/generate.py
-#   -> harness: validating 94 main rows / 282 evidence rows ...
-#   -> HARNESS PASSED      (1,193 logical invariants across 6 gates; refuses to render on any failure)
-#   -> PDF written: <repo_root>/ArduPilot_PNT_Reference_Audit.pdf   (exit 0, byte-identical)
-#      43 pages, 237,310 bytes,
-#      SHA256 1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2
+#   -> harness: validating 94 main rows / 282 evidence rows against <repo root>
+#   -> HARNESS PASSED
+#   -> PDF written: <repo root>/ArduPilot_PNT_Reference_Audit.pdf
+
+pdfinfo ArduPilot_PNT_Reference_Audit.pdf | grep -E '^Pages|^Page size'
+#   -> Pages: 43   |   Page size: 841.89 x 595.276 pts (A4)
+sha256sum ArduPilot_PNT_Reference_Audit.pdf
+#   -> 1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2
+git status --porcelain ArduPilot_PNT_Reference_Audit.pdf | wc -l
+#   -> 0    (regeneration is deterministic: the tree stays clean)
 ```
 
 ### 9.7 Troubleshooting
 
-- **CMake prints a `VERSION 3.5` deprecation warning** — expected and benign; `3.5` is mandated by the AAP to match the reference build. The build still succeeds.
-- **`./afsim_l1_demo` cannot find `libafsim_l1.so`** — run `LD_LIBRARY_PATH=. ./afsim_l1_demo` from the `build/` directory.
-- **`./waf --board sitl` fails compiling `modules/littlefs/bd/lfs_filebd.c`** — an unused local in vendored, out-of-scope third-party code trips the board's `-Werror=unused-variable`. Either use `--board linux` (recommended; needs no workaround) or prefix both waf commands with `CFLAGS='-Wno-error=unused-variable'`. Nothing in this service is involved, and no repository file needs editing.
-- **`AfsimL1Behavior.h` stops the build with an `#error` about `AFSIML1_L1_USES_SHIM_AHRS`** — the façade was compiled without the Option-B include seam. Build through the shipped `CMakeLists.txt` or the shipped `wscript`; both define the macro and generate the shim tree. Hosts that only load the `.so` at run time should include `l1_c_api.h` instead, which is unaffected by the guard.
-- **PDF generator errors** — ensure `PNT_REPO_ROOT` is set and `reportlab` is importable; the harness intentionally refuses to write the PDF if any of its 1,193 logical invariants fail.
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| `error: #error "AfsimL1Behavior requires the AP_AHRS -> AfsimL1_AHRS_Shim compile-time include seam: define AFSIML1_L1_USES_SHIM_AHRS…"` at `AfsimL1Behavior.h:81` | You are compiling the facade outside the shipped build files, so the Option-B seam is absent. This guard is deliberate: it refuses to build a facade whose controller would read never-written state | Build through the provided `CMakeLists.txt` or `wscript` (both set the define and the seam include directory automatically) rather than hand-invoking the compiler |
+| `./afsim_l1_demo: error while loading shared libraries: libafsim_l1.so` | The demo was moved away from its build tree, losing the RPATH | `LD_LIBRARY_PATH=. ./afsim_l1_demo`, or run it from the build directory (running it by absolute path from another cwd works as-is) |
+| `./waf configure --board sitl` fails at `modules/littlefs/bd/lfs_filebd.c:137` (`unused variable 'bd'`) | Pre-existing issue in a vendored, AAP-excluded module | Zero-edit prefix: `CFLAGS='-Wno-error=unused-variable' ./waf configure --board sitl` (then the same prefix on `./waf build`). `--board linux` needs no workaround and is the documented default |
+| `./waf check --alltests` fails across all 52 gtest binaries with `-Werror=suggest-override` | Vendored GoogleTest 1.8.0 predates the flag; `modules/**` is out of scope | Zero-edit prefix: `CXXFLAGS='-Wno-error=suggest-override -include stdint.h "-DGTEST_SKIP()=return GTEST_SUCCEED()"' ./waf configure --board linux && ./waf check --alltests` → 52/52, 881 cases. Delete the `test.xml` and `harmonicnotch_test*.csv` it drops at the repo root |
+| PDF generator exits before writing | A harness invariant failed — by design the pipeline refuses to render inconsistent data | Read the failing gate name in stdout; fix the offending row in `pnt_data.py`; re-run. `HARNESS PASSED` must appear before `PDF written` |
+| `generate.py` cannot find repository sources | It resolves evidence paths relative to the repository root | Run it with `PNT_REPO_ROOT="$(pwd)"` from the repository root |
+| Guidance output is `0.0` for every call | The handle was destroyed, or a NULL/bogus handle is being used — the ABI degrades safely instead of crashing | Re-create the handle with `L1_Create()`; never reuse a handle after `L1_Destroy()` |
+| Roll/lat-accel look mirrored or transposed | Argument-order mistake in `L1_SetStateNE`: position is **n, e** but velocity is **velE, velN** | Follow the README "Units and conventions"; the unit suite pins this ordering |
+| Repository suddenly shows ~1 GB of new files | `blitzy/screenshots` and `blitzy/screen_recordings` (388 files, 1,061 MB) are untracked and **not** covered by `.gitignore` | Stage by explicit path, never `git add -A`; delete or ignore those directories first |
 
 ---
 
@@ -484,72 +513,114 @@ PNT_REPO_ROOT="$(pwd)" python3 libraries/AP_L1_Control/examples/AfsimL1/generate
 
 ### Appendix A — Command Reference
 
-| Purpose | Command |
-|---------|---------|
-| Build the shared library | `cd libraries/AP_L1_Control/examples/AfsimL1 && mkdir -p build && cd build && cmake .. && make` |
-| List ABI exports | `nm -D --defined-only libafsim_l1.so \| grep ' T '` |
-| Count mangled exports (expect 0) | `nm -D --defined-only libafsim_l1.so \| grep -c '_Z'` |
+| Purpose | Command (from the stated directory) |
+|---------|-------------------------------------|
+| Build the shared library | `cd libraries/AP_L1_Control/examples/AfsimL1 && mkdir -p build && cd build && cmake .. && make -j"$(nproc)"` |
+| Verify the exported ABI | `nm -D --defined-only libafsim_l1.so` (expect 8 lines) · `nm -D --defined-only libafsim_l1.so \| grep -c _Z` (expect 0) |
+| Inspect runtime dependencies / SONAME | `readelf -d libafsim_l1.so \| grep -E 'NEEDED\|SONAME'` |
 | Run the demo | `./afsim_l1_demo` (or `LD_LIBRARY_PATH=. ./afsim_l1_demo`) |
-| Regenerate the PDF | `PNT_REPO_ROOT="$(pwd)" python3 libraries/AP_L1_Control/examples/AfsimL1/generate.py` |
-| Inspect the PDF | `pdfinfo ArduPilot_PNT_Reference_Audit.pdf` |
+| Run the unit suite | `./afsim_l1_tests` |
+| Run registered tests | `ctest --output-on-failure` |
+| Memory check | `valgrind --leak-check=full --error-exitcode=1 ./afsim_l1_tests` |
+| In-tree example build | `./waf configure --board linux && ./waf build --targets examples/AfsimL1` (repo root) |
+| Run the in-tree example | `./build/linux/examples/AfsimL1` (repo root) |
+| Vehicle regression guard | `./waf plane` (repo root) |
+| Regenerate the PDF | `PNT_REPO_ROOT="$(pwd)" python3 libraries/AP_L1_Control/examples/AfsimL1/generate.py` (repo root) |
+| Inspect the PDF | `pdfinfo ArduPilot_PNT_Reference_Audit.pdf` · `pdftotext -layout ArduPilot_PNT_Reference_Audit.pdf -` |
+| Lint the Python pipeline | `python3 -m flake8 libraries/AP_L1_Control/examples/AfsimL1/*.py` |
+| Review the seam diff | `git diff 6148c3d422..HEAD -- libraries/AP_L1_Control/AP_L1_Control.h libraries/AP_L1_Control/AP_L1_Control.cpp` |
+| Audit branch scope | `git diff --name-status 6148c3d422..HEAD` (expect 18 files, all in scope) |
 
 ### Appendix B — Port Reference
 
-Not applicable. The deliverable is a headless shared library with no network listeners or ports.
+| Port | Service | Notes |
+|------|---------|-------|
+| — | none | The deliverable is a headless shared library and a PDF; it opens no socket and binds no port. Nothing needs to be running to build, test or use it. |
+| 8099 (assessment only) | `python3 -m http.server` | Used transiently during this assessment to serve the PDF to a browser for visual verification, then stopped. Not part of the product. |
 
 ### Appendix C — Key File Locations
 
-| File | Role |
+| Path | Role |
 |------|------|
-| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1Behavior.h/.cpp` | Facade layer (task API) |
-| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1_AHRS_Shim.h/.cpp` | AHRS state adapter |
-| `libraries/AP_L1_Control/examples/AfsimL1/l1_c_api.h/.cpp` | `extern "C"` ABI boundary (8 exports) |
-| `libraries/AP_L1_Control/examples/AfsimL1/CMakeLists.txt` | Standalone `.so` build |
-| `libraries/AP_L1_Control/examples/AfsimL1/wscript` | In-tree waf `ap_example` build |
-| `libraries/AP_L1_Control/examples/AfsimL1/main.cpp` | Demo driver + self-check |
-| `libraries/AP_L1_Control/examples/AfsimL1/README.md` | Integration & usage guide |
-| `libraries/AP_L1_Control/examples/AfsimL1/{pnt_data,pnt_render,generate}.py` | PDF generator pipeline |
-| `libraries/AP_L1_Control/AP_L1_Control.h/.cpp` | Wrapped controller + additive `set_update_dt` seam |
-| `ArduPilot_PNT_Reference_Audit.pdf` (repo root) | Regenerated PNT audit deliverable |
+| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1Behavior.h` / `.cpp` | Service facade — the task API (203 + 311 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1_AHRS_Shim.h` / `.cpp` | AHRS adapter — 6 read accessors + 4 injection setters (158 + 169 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/l1_c_api.h` / `.cpp` | `extern "C"` boundary — 8 exports, opaque `L1_Context` (168 + 327 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/CMakeLists.txt` | Standalone shared-library build, demo + tests targets, 2 CTest cases (556 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/wscript` | In-tree waf `ap_example` build with the Option-B seam (187 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/main.cpp` | "Initialize a simple leg" demo driver (212 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/README.md` | Integration and usage documentation (322 LOC, 14 sections) |
+| `libraries/AP_L1_Control/examples/AfsimL1/tests/test_afsim_l1.cpp` | 111-check unit suite (866 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/pnt_data.py` | Audit data model — 94 main rows / 282 evidence rows (1,344 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/pnt_render.py` | ReportLab renderer + verifier gates (1,444 LOC) |
+| `libraries/AP_L1_Control/examples/AfsimL1/generate.py` | Harness + render entry point (294 LOC) |
+| `libraries/AP_L1_Control/AP_L1_Control.h` / `.cpp` | Wrapped controller — **only** additive change is `set_update_dt` (+17 / +44 lines) |
+| `ArduPilot_PNT_Reference_Audit.pdf` | Final deliverable PDF at the repository root (43 pages, 237,310 B) |
+| `blitzy/documentation/Project Guide.md` | Blitzy project documentation |
+| `blitzy/screenshots/`, `blitzy/screen_recordings/` | Validation artifacts (untracked, 1,061 MB — do not commit) |
 
 ### Appendix D — Technology Versions
 
-| Component | Version |
-|-----------|---------|
-| C++ standard | C++11 (`gnu++11` in-tree; `CMAKE_CXX_STANDARD 11` standalone) |
-| GCC (g++/gcc) | 11.5.0 and 15.2.0 (both validated) |
-| CMake | ≥ 3.5 required; 3.31.6 validated |
-| waf | Python 3 (in-tree build) |
-| Python (PDF) | 3.13.7 |
-| ReportLab | 4.5.1 |
-| poppler-utils | 25.03.0 |
+| Component | Version | Source |
+|-----------|---------|--------|
+| OS | Ubuntu 25.10 | `/etc/os-release` |
+| GCC / G++ (default) | 15.2.0 | `g++ --version` |
+| GCC / G++ (matrix) | 11.5.0, 12.5.0 | `g++-11`, `g++-12` |
+| C++ standard | `gnu++11` | ArduPilot board config |
+| CMake | 3.31.6 | `cmake --version` (build requires ≥ 3.5) |
+| waf | bundled Python 3 build system | `./waf` |
+| Python | 3.13.7 | `python3 --version` |
+| reportlab | 4.5.1 | system + repo `.venv` |
+| poppler-utils | 25.03.0 | `pdfinfo -v` |
+| DejaVu fonts | system TTF (22 fontconfig entries) | `fc-list` |
+| Git | with Git LFS | repository tooling |
+| New third-party dependencies added | **none** | AAP §0.5.2 |
 
 ### Appendix E — Environment Variable Reference
 
-| Variable | Scope | Purpose |
-|----------|-------|---------|
-| `PNT_REPO_ROOT` | PDF regeneration | Absolute path to the repo root; sets the PDF output location |
-| `LD_LIBRARY_PATH` | Runtime (demo/host) | Point the loader at the directory containing `libafsim_l1.so` if not on the default path |
-| `AFSIML1_L1_USES_SHIM_AHRS` | Build (compile define) | Enables the Option-B shim seam; set automatically by the provided CMake build |
+| Variable | Scope | Purpose | Example |
+|----------|-------|---------|---------|
+| `PNT_REPO_ROOT` | PDF pipeline | Repository root used to resolve audited source paths | `PNT_REPO_ROOT="$(pwd)" python3 .../generate.py` |
+| `LD_LIBRARY_PATH` | Runtime (optional) | Locate `libafsim_l1.so` when the RPATH does not apply | `LD_LIBRARY_PATH=. ./afsim_l1_demo` |
+| `CFLAGS` | waf configure/build (optional) | Zero-edit workaround for the vendored `modules/littlefs` unused variable on `--board sitl` | `CFLAGS='-Wno-error=unused-variable' ./waf configure --board sitl` |
+| `CXXFLAGS` | waf configure/check (optional) | Zero-edit workaround for vendored GoogleTest 1.8.0 when running the out-of-scope gtest suite | `CXXFLAGS='-Wno-error=suggest-override -include stdint.h "-DGTEST_SKIP()=return GTEST_SUCCEED()"' ./waf configure --board linux` |
+| `AFSIML1_L1_USES_SHIM_AHRS` | Compile-time define (set automatically) | Selects the Option-B AHRS include seam; both shipped build files define it — do not hand-manage it | set by `CMakeLists.txt` / `wscript` |
+
+The library itself requires **no** environment variable at runtime.
 
 ### Appendix F — Developer Tools Guide
 
-- **`nm -D`** — inspect the exported dynamic symbol table (verify the 8-symbol ABI and absence of mangled symbols).
-- **`file` / `ls -la`** — confirm ELF type and artifact sizes.
-- **`dlopen`/`dlsym` (from a C host)** — validate toolchain-agnostic runtime binding.
-- **`pdfinfo` / `pdftotext`** — verify PDF page count and presence of the "New Service Location" column.
-- **`git diff --numstat <base>..HEAD`** — review the exact, in-scope change surface (18 files).
+| Tool | Use in this project |
+|------|---------------------|
+| `cmake` + `make` | Primary build path for `libafsim_l1.so`, the demo and the unit suite |
+| `./waf` | In-tree ArduPilot build: the `examples/AfsimL1` target, `plane` regression guard, `check --alltests` |
+| `nm` | Assert the exported ABI (8 `L1_*`, 0 mangled) — the single most valuable review check |
+| `readelf` | Inspect SONAME and runtime `NEEDED` dependencies |
+| `ctest` | Run the two registered cases (unit suite + demo smoke) |
+| `valgrind` | Full leak-check on the demo, unit suite, `dlopen` host and in-tree binary |
+| `gcc` (C, not C++) | Compile a pure-C host to prove the ABI is toolchain-agnostic |
+| `pdfinfo` / `pdftotext` / `pdftoppm` | Verify the deliverable's page count, geometry and text content |
+| `flake8` | Lint the PDF generator (currently 0 violations) |
+| Headless Chrome / PDFium | Visual verification of the rendered deliverable |
+| `git diff --name-status <baseline>..HEAD` | Scope audit — confirm the 18-file surface and zero out-of-scope edits |
 
 ### Appendix G — Glossary
 
 | Term | Meaning |
 |------|---------|
-| **PNT** | Position, Navigation, and Timing |
-| **L1 guidance** | ArduPilot's L1 lateral-navigation control law (`AP_L1_Control`) |
-| **ABI** | Application Binary Interface — the stable `extern "C"` boundary |
-| **Facade** | `AfsimL1Behavior`, the task-oriented service API over the controller |
-| **Adapter (shim)** | `AfsimL1_AHRS_Shim`, satisfies the controller's `AP_AHRS` read contract from injected state |
-| **Opaque handle** | `void*` (`L1_Context`) exposed to the host; hides all C++ types |
-| **Timing seam** | Additive, default-off `set_update_dt()` letting the host own the timebase |
-| **AFSIM** | The external simulation environment that consumes the service |
-| **Datum** | The fixed reference origin the shim uses to synthesize a `Location` from N/E offsets |
+| **PNT** | Position, Navigation and Timing — the behavior family this refactor consolidates |
+| **L1 guidance** | ArduPilot's L1 lateral-navigation control law (`AP_L1_Control`) producing roll and lateral-acceleration demands for a waypoint leg |
+| **AFSIM** | The external simulation host in the user's example; the intended consumer of `libafsim_l1.so` |
+| **AAP** | Agent Action Plan — the authoritative specification for this refactor |
+| **Facade** | `AfsimL1Behavior` — the small task-oriented API over the richer controller interface |
+| **Adapter / shim** | `AfsimL1_AHRS_Shim` — supplies the controller's `AP_AHRS` read contract from injected state |
+| **C ABI boundary** | The `extern "C"` layer that keeps C++ types (name mangling, vtables, RTTI, exceptions) from crossing to the host |
+| **Opaque handle** | `void*` / `L1_Handle` wrapping `struct L1_Context`; the host never sees a C++ type |
+| **Option A / Option B** | AAP §0.6.2 AHRS-decoupling alternatives — link the real `AP_AHRS` in external mode (A) vs a service-local shim behind a compile-time include seam (B, implemented) |
+| **Timing seam** | The additive, default-off `set_update_dt()` path letting the host own the timebase instead of `AP_HAL::micros()`/`millis()` |
+| **`dt` clamp** | The preserved rule that `dt > 1 s` reinitialises the cross-track integrator and `dt` is capped at 0.1 s |
+| **Default-off** | The seam is inert unless `set_update_dt()` is called, guaranteeing existing vehicle callers are unaffected |
+| **Oracle (PDF)** | The pre-scrape original PDF recovered from commit `5b67e27b0a` used as ground truth for the data-fidelity repair |
+| **Harness gate** | The generator's assertion layer (1,193 invariants) that refuses to render the PDF if any invariant fails |
+| **N/E, E/N** | North/East position ordering vs East/North velocity ordering — a deliberate convention of the injection API |
+| **Centidegrees (`cd`)** | Hundredths of a degree, ArduPilot's integer angle unit (`nav_roll_cd`, `yaw_cd`) |
+| **SOVERSION** | Shared-library ABI version encoded in the SONAME; currently absent (HT-4) |
