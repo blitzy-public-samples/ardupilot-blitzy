@@ -1,0 +1,187 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+# =============================================================================
+#  In-tree waf build for the AfsimL1 reusable L1 guidance service
+#  (libraries/AP_L1_Control/examples/AfsimL1).
+# -----------------------------------------------------------------------------
+#  ROLE (AAP 0.2.1 / 0.4.1):
+#    Registers the AfsimL1 example with ArduPilot's in-tree waf build so the
+#    service can be compiled and run alongside the firmware toolchain:
+#
+#        ./waf configure --board linux
+#        ./waf --targets examples/AfsimL1
+#        ./build/linux/examples/AfsimL1
+#
+#    It is built via bld.ap_example(use='ap') -- the standard ArduPilot example
+#    entry point (see the reference libraries/AP_AHRS/examples/AHRS_Test/wscript)
+#    -- so the example lands in the 'examples' program group and is picked up by
+#    `./waf examples`, `./waf check` and `./waf check --alltests`.
+#
+#    The sibling CMakeLists.txt remains the PRIMARY deliverable: it produces the
+#    standalone shared library libafsim_l1.so that an external host (AFSIM) binds
+#    at runtime. This wscript produces the in-tree demonstration executable. Both
+#    build paths compile the same service sources and are verified to produce
+#    bit-identical guidance output.
+#
+#  WHY THIS FILE NEEDS MORE THAN A BARE bld.ap_example(use='ap'):
+#    The service realises AAP 0.6.2 "Option B" -- a COMPILE-TIME INCLUDE SEAM
+#    that resolves the token `AP_AHRS` to the injectable AfsimL1_AHRS_Shim, so
+#    AP_L1_Control's non-virtual `_ahrs.<method>` call sites read host-injected
+#    state instead of live EKF/DCM sensor fusion. Three consequences follow, and
+#    each is handled below:
+#
+#      1. AfsimL1Behavior.h opens with a hard `#error` unless
+#         AFSIML1_L1_USES_SHIM_AHRS is defined (it refuses to compile a facade
+#         whose controller would read a never-written state source). The define
+#         and the seam include directory must therefore be supplied together --
+#         see `defines` and `includes` below.
+#
+#      2. The aggregate `ap` static library is compiled against the REAL
+#         AP_AHRS, so its AP_L1_Control objects mangle as
+#         `AP_L1_Control::AP_L1_Control(AP_AHRS&, AP_TECS const*)` while a
+#         seam-consistent example needs
+#         `AP_L1_Control::AP_L1_Control(AfsimL1_AHRS_Shim&, AP_TECS const*)`.
+#         The example therefore compiles its OWN seam-consistent translation
+#         unit of libraries/AP_L1_Control/AP_L1_Control.cpp (the identical,
+#         unmodified source -- no fork, no copy). Because that object defines
+#         every AP_L1_Control symbol the link needs, and nothing else in `ap`
+#         references AP_L1_Control, ld never pulls the archive member and no
+#         duplicate definition can arise.
+#
+#      3. ArduPilot library sources declare `extern const AP_HAL::HAL& hal;` and
+#         expect the *program* to define it -- normally through the AP_HAL_MAIN()
+#         macro in the example's main file. main.cpp is deliberately a pure-C
+#         consumer of l1_c_api.h (that is what makes it valid for the standalone
+#         CMake build and representative of a real external host), so it must not
+#         gain an ArduPilot include. The one-line definition is supplied by the
+#         generated seam translation unit instead.
+#
+#  SCOPE (AAP 0.2.2 / 0.7.1):
+#    Everything here is confined to this example directory and the build tree.
+#    No vehicle firmware, no out-of-scope library and no waf tooling under
+#    Tools/ardupilotwaf/ is touched, and AP_L1_Control.cpp is REUSED verbatim
+#    rather than modified.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Generated Option-B include seam.
+#
+# Written into <build>/libraries/AP_L1_Control/examples/AfsimL1/afsim_shim/ so no
+# tracked file is produced and a `./waf clean`/`distclean` removes it. That
+# directory is placed FIRST on the include path (see `includes` below) so it wins
+# the header search for exactly the two shadowed headers; every other
+# angle-bracket include (AP_Math, AP_Common, AP_Param, AP_HAL, AP_Navigation, ...)
+# falls through to the real in-tree sources, so the guidance mathematics, the
+# Location geometry and the AP_Param defaults are all the genuine ArduPilot ones.
+#
+#   AP_AHRS/AP_AHRS.h  Aliases AP_AHRS to the local injectable shim. This is the
+#                      seam itself: it is what makes AP_L1_Control read
+#                      host-supplied position / velocity / yaw / pitch.
+#   AP_TECS/AP_TECS.h  AP_L1_Control only ever holds a `const AP_TECS*` and
+#                      AfsimL1Behavior always passes nullptr. Shadowing it with a
+#                      trivial declaration keeps the seam self-consistent: the
+#                      real AP_TECS.h relies on Filter/LowPassFilter.h being
+#                      pulled in transitively by the real AP_AHRS.h, which the
+#                      alias above no longer does, and it would otherwise drag
+#                      AP_Landing / AP_FixedWing / Filter into a translation unit
+#                      that never calls a single TECS method.
+#   afsim_l1_waf_seam.cpp
+#                      Supplies the `hal` reference every ArduPilot library
+#                      source expects the program to define (point 3 above).
+# -----------------------------------------------------------------------------
+SEAM_DIR_NAME = 'afsim_shim'
+
+SEAM_FILES = {
+    'AP_AHRS/AP_AHRS.h': """// GENERATED by wscript -- AfsimL1 in-tree seam (do not edit here).
+#pragma once
+#include <AfsimL1_AHRS_Shim.h>
+using AP_AHRS = AfsimL1_AHRS_Shim;
+""",
+    'AP_TECS/AP_TECS.h': """// GENERATED by wscript -- AfsimL1 in-tree seam (do not edit here).
+#pragma once
+#include <AP_AHRS/AP_AHRS.h>
+class AP_TECS {
+public:
+    float get_target_airspeed() const { return 0.0f; }
+};
+""",
+    'afsim_l1_waf_seam.cpp': """// GENERATED by wscript -- AfsimL1 in-tree seam (do not edit here).
+//
+// ArduPilot library sources reference `hal` via `extern const AP_HAL::HAL& hal;`
+// and rely on the program to define it (vehicles and stock examples do so
+// through AP_HAL_MAIN()). main.cpp is intentionally a pure-C consumer of
+// l1_c_api.h, so the definition lives here instead.
+#include <AP_HAL/AP_HAL.h>
+
+const AP_HAL::HAL &hal = AP_HAL::get_HAL();
+""",
+}
+
+# The wrapped guidance controller, compiled into the example as its own
+# seam-consistent translation unit (point 2 in the header comment). Path is
+# repository-root relative.
+WRAPPED_CONTROLLER_SOURCE = 'libraries/AP_L1_Control/AP_L1_Control.cpp'
+
+# Signals that this target activates the AP_AHRS -> AfsimL1_AHRS_Shim include
+# seam, satisfying the hard guard at the top of AfsimL1Behavior.h. It is a seam
+# ACTIVATION signal, not a feature switch: the facade has a single, unconditional
+# realisation and is only well-typed under the seam.
+SEAM_MACRO = 'AFSIML1_L1_USES_SHIM_AHRS'
+
+
+def _write_seam(bld):
+    """Materialise the generated include seam in the build tree.
+
+    Returns the seam directory node plus the list of generated source nodes that
+    must be compiled into the example.
+    """
+    seam_dir = bld.path.get_bld().make_node(SEAM_DIR_NAME)
+    generated_sources = []
+
+    for rel_path, text in SEAM_FILES.items():
+        node = seam_dir.make_node(rel_path)
+        node.parent.mkdir()
+        # Node.write() is idempotent for identical content, so this does not
+        # dirty the build on every invocation.
+        if not node.exists() or node.read() != text:
+            node.write(text)
+        if rel_path.endswith('.cpp'):
+            generated_sources.append(node)
+
+    return seam_dir, generated_sources
+
+
+def _service_sources(bld):
+    """Collect the AfsimL1 service translation units plus the wrapped controller.
+
+    The local sources are globbed (mirroring what ap_example() does by default)
+    so the target stays correct if the service gains a source file, and the
+    wrapped controller is appended explicitly.
+    """
+    sources = bld.path.ant_glob('*.cpp')
+    if not sources:
+        bld.fatal('AfsimL1: no *.cpp sources found in %s' % bld.path.abspath())
+
+    controller = bld.srcnode.find_node(WRAPPED_CONTROLLER_SOURCE)
+    if controller is None:
+        bld.fatal('AfsimL1: cannot locate the wrapped controller source %s' %
+                  WRAPPED_CONTROLLER_SOURCE)
+    sources.append(controller)
+
+    return sources
+
+
+def build(bld):
+    seam_dir, generated_sources = _write_seam(bld)
+
+    bld.ap_example(
+        use='ap',
+        source=_service_sources(bld) + generated_sources,
+        # ORDER IS CRITICAL: the seam directory must be searched before the real
+        # libraries root (which waf appends via env.INCLUDES) so the two shadowed
+        # headers win, while bld.path resolves the seam's <AfsimL1_AHRS_Shim.h>
+        # and the local service headers.
+        includes=[seam_dir, bld.path],
+        defines=[SEAM_MACRO],
+    )
