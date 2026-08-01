@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<!--
+  ArduPilot PNT Reference Audit — Executive Presentation
+  ============================================================================
+  Deliverable 3 of the ArduPilot PNT Reference Audit briefing pack.
+
+  AUDIENCE   Non-technical leadership. Communicates business value, risk and
+             operational readiness of the briefing pack without requiring code
+             literacy. No path:line citation, struct name or flag token is ever
+             the substance of a slide.
+
+  SCOPE      The work performed in this engagement is the AUTHORING OF THE
+             BRIEFING PACK. "What changed architecturally" therefore means the
+             content architecture that turns one 43-page reference document
+             into three audience-matched artifacts — it is NOT an analysis of
+             the ArduPilot refactor, and no new static analysis was performed.
+
+  FIDELITY   Quote, never recompute. Every figure on every slide is a value the
+             audit itself states, carried forward unchanged from its committed
+             catalog. No finding is altered, re-scored or reinterpreted, and no
+             derived tally is printed.
+
+  DELIVERY   One self-contained file. No build step, no local file dependency,
+             no bundler, no vendored library. The three JavaScript libraries and
+             three web-font families are referenced at pinned versions from a
+             content-delivery network at VIEW TIME ONLY; nothing is installed.
+             Diagram and icon start-up is guarded, so an unreachable network
+             degrades the visuals but never breaks slide navigation.
+
+  STRUCTURE  16 sections — 1 title, 9 content, 5 dividers, 1 closing. Every
+             section carries at least one non-text visual: 4 Mermaid diagrams,
+             2 KPI card grids, 3 token-styled tables, 1 icon row, and a thematic
+             icon on the title, each divider and the closing.
+
+  THEME      Authored inline from the binding Blitzy presentation specification.
+             Every colour, font, gradient, spacing, radius, shadow and depth
+             value resolves through a custom property; the only literals used
+             outside :root are 0, none, auto, inherit, currentColor and
+             transparent.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Executive presentation for the ArduPilot PNT Reference Audit briefing pack: scope, business value, content architecture, content-fidelity risks and continuity.">
+<meta name="author" content="Blitzy">
+<title>ArduPilot PNT Reference Audit — Executive Presentation</title>
+
+<!-- Inline data URI keeps the deck to a single file: no favicon request. -->
+<link rel="icon" href="data:,">
+
+<!--
+  Load order is deliberate: web fonts, then the reveal.js core stylesheet, then
+  the neutral white base theme, then the inline Blitzy theme LAST so it wins the
+  cascade over both framework stylesheets.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Fira+Code:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css">
+
+<style>
+/* ==========================================================================
+   1. DESIGN TOKENS
+   --------------------------------------------------------------------------
+   The first 21 properties are the mandated Blitzy presentation tokens,
+   transcribed character-for-character: 15 colour, 3 font-family, 3 gradient.
+   Nothing below alters any of them.
+
+   The remaining properties resolve a documented gap: the specification fixes
+   colour, typography and gradients exhaustively but is silent on geometry and
+   depth, which would leave margins, paddings, radii, elevation, stacking order
+   and type sizing without a token to reference. A named scale is therefore
+   derived for each, declared in this same block, so that every value in the
+   stylesheet still resolves through a token. These derived tokens are purely
+   additive.
+   ========================================================================== */
+:root {
+  /* -- Mandated brand colours ------------------------------------------- */
+  --blitzy-primary: #5B39F3;
+  --blitzy-primary-dark: #2D1C77;
+  --blitzy-primary-navy: #1A105F;
+  --blitzy-primary-light: #7A6DEC;
+  --blitzy-primary-deep: #4101DB;
+  --blitzy-accent-teal: #94FAD5;
+  --blitzy-surface-0: #FFFFFF;
+  --blitzy-surface-1: #F4EFF6;
+  --blitzy-surface-2: #F2F0FE;
+  --blitzy-surface-3: #F5F5F5;
+  --blitzy-border: #D9D9D9;
+  --blitzy-border-soft: rgba(91, 57, 243, 0.18);
+  --blitzy-text: #333333;
+  --blitzy-text-muted: #999999;
+  --blitzy-text-invert: #FFFFFF;
+
+  /* -- Mandated typography ---------------------------------------------- */
+  --ff-body: 'Inter', system-ui, sans-serif;
+  --ff-display: 'Space Grotesk', 'Inter', sans-serif;
+  --ff-mono: 'Fira Code', 'Courier New', monospace;
+
+  /* -- Mandated gradients ----------------------------------------------- */
+  --gradient-hero: linear-gradient(68deg, #7A6DEC 15.56%, #5B39F3 62.74%, #4101DB 84.44%);
+  --gradient-divider: linear-gradient(135deg, #2D1C77 0%, #5B39F3 100%);
+  --gradient-accent-bar: linear-gradient(90deg, #5B39F3 0%, #94FAD5 100%);
+
+  /* -- Derived: spacing scale ------------------------------------------- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+
+  /* -- Derived: radius scale -------------------------------------------- */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+
+  /* -- Derived: border widths ------------------------------------------- */
+  --bw-hair: 1px;
+  --bw-thin: 2px;
+  --bw-thick: 4px;
+
+  /* -- Derived: elevation ----------------------------------------------- */
+  --shadow-card: 0 2px 10px rgba(26, 16, 95, 0.08);
+  --shadow-raised: 0 6px 24px rgba(26, 16, 95, 0.14);
+
+  /* -- Derived: stacking order ------------------------------------------ */
+  --z-base: 0;
+  --z-raised: 1;
+  --z-skip-link: 100;
+
+  /* -- Derived: type scale ----------------------------------------------- */
+  /* Sized in em so the whole scale tracks the runtime's slide font size, and
+     calibrated for the mandated 1920x1080 stage: body copy lands near 28px and
+     the smallest label near 17px, both legible from the back of a room. */
+  --fs-eyebrow: 0.5em;
+  --fs-hero-title: 1.75em;
+  --fs-hero-lede: 0.72em;
+  --fs-divider-title: 1.9em;
+  --fs-divider-lede: 0.56em;
+  --fs-title: 1.28em;
+  --fs-lede: 0.66em;
+  --fs-bullet: 0.62em;
+  --fs-kpi-value: 1.6em;
+  --fs-kpi-label: 0.4em;
+  --fs-table: 0.52em;
+  --fs-caption: 0.42em;
+  --fs-lockup: 0.6em;
+  --fs-diagram: 0.56em;
+  /* A table caption is a child of the table, so an em value here would compound
+     against the table's own em and collapse the caption to a fraction of its
+     intended size. Sized in rem instead, it is measured against the document
+     root and therefore cannot compound, while still scaling with the stage. */
+  --fs-table-caption: 1.1rem;
+
+  /* -- Derived: line heights and tracking ------------------------------- */
+  --lh-tight: 1.1;
+  --lh-snug: 1.3;
+  --lh-body: 1.5;
+  --tracking-eyebrow: 0.14em;
+  --tracking-lockup: 0.06em;
+
+  /* -- Derived: font weights -------------------------------------------- */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* -- Derived: icon sizes ---------------------------------------------- */
+  --icon-hero: 4rem;
+  --icon-divider: 3.5rem;
+  --icon-closing: 3rem;
+  --icon-kpi: 1.6rem;
+  --icon-row: 2.25rem;
+
+  /* -- Derived: component geometry -------------------------------------- */
+  --accent-bar-height: 0.375rem;
+  --accent-bar-width: 38%;
+  --measure-full: 100%;
+  --measure-lede: 46rem;
+  --slide-pad-block: var(--sp-6);
+  --slide-pad-inline: var(--sp-7);
+  --kpi-columns: repeat(4, minmax(0, 1fr));
+  --kpi-columns-narrow: repeat(2, minmax(0, 1fr));
+  --icon-row-columns: repeat(4, minmax(0, 1fr));
+  /* A diagram fills the width it is given and keeps its aspect ratio, so tall
+     diagrams need a ceiling: without one a narrow, deep diagram would grow past
+     the bottom of the slide. At this ceiling the drawing scales down and centres
+     inside its frame instead of overflowing. */
+  --diagram-max-height: 46rem;
+
+  /* -- Derived: motion --------------------------------------------------- */
+  --motion-fast: 180ms;
+  --motion-ease: ease-out;
+
+  /* -- Derived: off-screen parking position for the skip link ------------- */
+  --offscreen-inset: -20000px;
+}
+
+/* ==========================================================================
+   2. RESET AND BASE
+   ========================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/*
+  The presentation runtime sizes itself with a percentage height, which can only
+  resolve against an ancestor that has a definite height of its own. This
+  semantic wrapper is that ancestor, so it is given one explicitly. Without it
+  the runtime's own box collapses to nothing and — because the runtime also
+  clips its overflow — the entire deck paints blank while remaining structurally
+  present in the document. The wrapper is therefore load-bearing, not decorative.
+*/
+.deck {
+  height: var(--measure-full);
+}
+
+.reveal {
+  font-family: var(--ff-body);
+  font-weight: var(--fw-regular);
+  color: var(--blitzy-text);
+}
+
+.reveal .slides {
+  text-align: start;
+}
+
+/*
+  Every slide is a vertical flex column with its content optically centred.
+  The runtime writes an inline display value onto each loaded slide, and an
+  inline declaration outranks any stylesheet rule, so the flex box type is
+  requested through the runtime's own display option (see the start-up block)
+  rather than fought over with an importance override. The declaration below
+  states the same intent for readers of this stylesheet and covers the case
+  where the runtime never arrives at all.
+*/
+.reveal .slides section {
+  padding-block: var(--slide-pad-block);
+  padding-inline: var(--slide-pad-inline);
+  height: var(--measure-full);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* The final element on a slide contributes no trailing gap, so centred content
+   sits optically centred rather than pushed up by its own bottom margin. */
+.reveal .slides section > :last-child {
+  margin-block-end: 0;
+}
+
+.reveal h1,
+.reveal h2,
+.reveal h3 {
+  font-family: var(--ff-display);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--blitzy-text);
+  text-transform: none;
+  letter-spacing: normal;
+  margin-block: 0 var(--sp-4);
+}
+
+.reveal h1 {
+  font-size: var(--fs-hero-title);
+}
+
+.reveal h2 {
+  font-size: var(--fs-title);
+}
+
+.reveal p {
+  line-height: var(--lh-body);
+  margin-block: 0 var(--sp-4);
+}
+
+.reveal strong {
+  font-weight: var(--fw-semibold);
+  color: var(--blitzy-primary);
+}
+
+.reveal a {
+  color: var(--blitzy-primary);
+}
+
+/* Short inline expressions only — the specification forbids code blocks. */
+.reveal code {
+  font-family: var(--ff-mono);
+  font-weight: var(--fw-medium);
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+/* Keyboard focus is visible for keyboard users without ringing mouse clicks. */
+.reveal :focus-visible,
+.skip-link:focus-visible {
+  outline: var(--bw-thin) solid var(--blitzy-primary);
+  outline-offset: var(--sp-1);
+}
+
+/* Skip navigation: the first tab stop, revealed only when focused. */
+.skip-link {
+  position: fixed;
+  inset-block-start: var(--sp-2);
+  inset-inline-start: var(--offscreen-inset);
+  z-index: var(--z-skip-link);
+  padding-block: var(--sp-2);
+  padding-inline: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--blitzy-primary);
+  color: var(--blitzy-text-invert);
+  font-family: var(--ff-body);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  inset-inline-start: var(--sp-2);
+}
+
+/* ==========================================================================
+   3. SLIDE TYPES
+   --------------------------------------------------------------------------
+   Three named types plus the unclassed default content slide. Inverted text
+   appears ONLY on the gradient and dark fields, so every light-surface pairing
+   keeps its contrast.
+   ========================================================================== */
+
+/* -- 3.1 Title slide: hero gradient, white text, monospace teal eyebrow --- */
+.reveal .slide-title {
+  background: var(--gradient-hero);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.reveal .slide-title h1,
+.reveal .slide-title p {
+  color: var(--blitzy-text-invert);
+}
+
+.reveal .slide-title .lede {
+  font-size: var(--fs-hero-lede);
+  max-width: var(--measure-lede);
+}
+
+.reveal .slide-title .slide-meta {
+  color: var(--blitzy-accent-teal);
+}
+
+/* -- 3.2 Section divider: dark purple gradient, centred, thematic icon --- */
+.reveal .slide-divider {
+  background: var(--gradient-divider);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.reveal .slide-divider h2 {
+  font-size: var(--fs-divider-title);
+  color: var(--blitzy-text-invert);
+  margin-block: var(--sp-5) var(--sp-3);
+}
+
+/* The sub-line is width-constrained for readability, so it needs symmetric
+   inline auto margins to stay optically centred under the heading. */
+.reveal .slide-divider p {
+  font-size: var(--fs-divider-lede);
+  color: var(--blitzy-accent-teal);
+  margin-block: 0;
+  margin-inline: auto;
+  max-width: var(--measure-lede);
+}
+
+.reveal .slide-divider svg {
+  width: var(--icon-divider);
+  height: var(--icon-divider);
+  stroke: var(--blitzy-accent-teal);
+  stroke-width: var(--bw-thin);
+}
+
+/* -- 3.3 Closing slide: navy field, takeaway, lockup, accent bar --------- */
+.reveal .slide-closing {
+  background: var(--blitzy-primary-navy);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.reveal .slide-closing h2,
+.reveal .slide-closing li {
+  color: var(--blitzy-text-invert);
+}
+
+.reveal .slide-closing h2 {
+  font-size: var(--fs-divider-title);
+}
+
+.reveal .slide-closing svg {
+  width: var(--icon-closing);
+  height: var(--icon-closing);
+  stroke: var(--blitzy-accent-teal);
+  stroke-width: var(--bw-thin);
+}
+
+/* -- 3.4 Default content slide: light surface, dark text ----------------- */
+.reveal .slides section:not(.slide-title):not(.slide-divider):not(.slide-closing) {
+  background: var(--blitzy-surface-0);
+}
+
+/* ==========================================================================
+   4. COMPONENTS
+   ========================================================================== */
+
+/* -- 4.1 eyebrow: monospace label above a heading ------------------------ */
+.eyebrow {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--blitzy-primary);
+  margin-block: 0 var(--sp-3);
+}
+
+/* On the gradient and dark fields the eyebrow takes the teal accent. */
+.slide-title .eyebrow,
+.slide-closing .eyebrow {
+  color: var(--blitzy-accent-teal);
+}
+
+/* -- 4.2 hero-icon: the title slide's thematic mark --------------------- */
+.hero-icon {
+  margin-block: 0 var(--sp-5);
+  line-height: var(--lh-tight);
+}
+
+.hero-icon svg {
+  width: var(--icon-hero);
+  height: var(--icon-hero);
+  stroke: var(--blitzy-accent-teal);
+  stroke-width: var(--bw-thin);
+}
+
+/* -- 4.3 accent-bar: gradient rule on the title and closing slides ------ */
+.accent-bar {
+  height: var(--accent-bar-height);
+  width: var(--accent-bar-width);
+  background: var(--gradient-accent-bar);
+  border-radius: var(--radius-sm);
+  margin-block: var(--sp-5) 0;
+}
+
+/* -- 4.4 brand-lockup: the closing signature ---------------------------- */
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--ff-display);
+  font-size: var(--fs-lockup);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-lockup);
+  color: var(--blitzy-text-invert);
+  margin-block: var(--sp-6) 0;
+}
+
+.brand-lockup .lockup-rule {
+  height: var(--accent-bar-height);
+  width: var(--icon-closing);
+  background: var(--gradient-accent-bar);
+  border-radius: var(--radius-sm);
+}
+
+/* -- 4.5 kpi-grid / kpi-card / kpi-value / kpi-label / kpi-icon --------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: var(--kpi-columns);
+  gap: var(--sp-4);
+  margin-block: var(--sp-5) var(--sp-4);
+}
+
+.kpi-grid.kpi-grid-narrow {
+  grid-template-columns: var(--kpi-columns-narrow);
+}
+
+.kpi-card {
+  background: var(--blitzy-surface-2);
+  border: var(--bw-hair) solid var(--blitzy-border-soft);
+  border-inline-start: var(--bw-thick) solid var(--blitzy-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding-block: var(--sp-4);
+  padding-inline: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.kpi-icon {
+  line-height: var(--lh-tight);
+}
+
+.kpi-icon svg {
+  width: var(--icon-kpi);
+  height: var(--icon-kpi);
+  stroke: var(--blitzy-primary);
+  stroke-width: var(--bw-thin);
+}
+
+.kpi-value {
+  font-family: var(--ff-display);
+  font-size: var(--fs-kpi-value);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  color: var(--blitzy-primary-dark);
+}
+
+.kpi-label {
+  font-family: var(--ff-body);
+  font-size: var(--fs-kpi-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-snug);
+  color: var(--blitzy-text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-lockup);
+}
+
+/* -- 4.6 icon-row: a short sequence of concepts, visually anchored ------ */
+.icon-row {
+  display: grid;
+  grid-template-columns: var(--icon-row-columns);
+  gap: var(--sp-4);
+  margin-block: var(--sp-4);
+  padding-block: var(--sp-4);
+  border-block: var(--bw-hair) solid var(--blitzy-border-soft);
+}
+
+.icon-row > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: center;
+}
+
+.icon-row svg {
+  width: var(--icon-row);
+  height: var(--icon-row);
+  stroke: var(--blitzy-primary);
+  stroke-width: var(--bw-thin);
+}
+
+.icon-row span {
+  font-size: var(--fs-kpi-label);
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-lockup);
+  color: var(--blitzy-text-muted);
+}
+
+/* ==========================================================================
+   5. CONTENT PRIMITIVES
+   ========================================================================== */
+
+/* -- 5.1 lede: the single body paragraph a content slide is allowed ------ */
+.lede {
+  font-size: var(--fs-lede);
+  line-height: var(--lh-body);
+  max-width: var(--measure-lede);
+  color: var(--blitzy-text);
+}
+
+/* -- 5.2 bullets: capped at four per content slide ----------------------- */
+.reveal ul {
+  list-style: none;
+  margin-block: 0 var(--sp-4);
+  margin-inline: 0;
+  padding-inline-start: 0;
+  max-width: var(--measure-lede);
+}
+
+.reveal ul li {
+  position: relative;
+  font-size: var(--fs-bullet);
+  line-height: var(--lh-snug);
+  padding-inline-start: var(--sp-5);
+  margin-block: 0 var(--sp-3);
+}
+
+/* Marker is a token-coloured rule, never a glyph or an emoji. */
+.reveal ul li::before {
+  content: "";
+  position: absolute;
+  inset-block-start: var(--sp-3);
+  inset-inline-start: 0;
+  width: var(--sp-4);
+  height: var(--bw-thin);
+  border-radius: var(--radius-sm);
+  background: var(--blitzy-primary);
+}
+
+.reveal .slide-closing ul li::before {
+  background: var(--blitzy-accent-teal);
+}
+
+/* -- 5.3 caption / slide-meta: fine print, lowest emphasis --------------- */
+.slide-meta,
+figcaption {
+  font-size: var(--fs-caption);
+  line-height: var(--lh-snug);
+  color: var(--blitzy-text-muted);
+  margin-block: var(--sp-4) 0;
+}
+
+/* -- 5.4 Token-styled tables -------------------------------------------- */
+.reveal table {
+  width: var(--measure-full);
+  border-collapse: collapse;
+  font-size: var(--fs-table);
+  margin-block: var(--sp-4);
+  border: var(--bw-hair) solid var(--blitzy-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.reveal table caption {
+  caption-side: top;
+  font-family: var(--ff-mono);
+  font-size: var(--fs-table-caption);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  text-align: start;
+  color: var(--blitzy-primary);
+  padding-block: 0 var(--sp-3);
+}
+
+.reveal table th {
+  background: var(--blitzy-surface-1);
+  font-family: var(--ff-body);
+  font-weight: var(--fw-semibold);
+  color: var(--blitzy-primary-dark);
+  text-align: start;
+  text-transform: none;
+  padding-block: var(--sp-3);
+  padding-inline: var(--sp-4);
+  border-block-end: var(--bw-thin) solid var(--blitzy-primary);
+  vertical-align: middle;
+}
+
+.reveal table td {
+  color: var(--blitzy-text);
+  text-align: start;
+  padding-block: var(--sp-3);
+  padding-inline: var(--sp-4);
+  border-block-end: var(--bw-hair) solid var(--blitzy-border);
+  vertical-align: top;
+  line-height: var(--lh-snug);
+  overflow-wrap: break-word;
+}
+
+/* Zebra striping, and no rule beneath the final row. */
+.reveal table tbody tr:nth-child(even) td {
+  background: var(--blitzy-surface-3);
+}
+
+.reveal table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+/* First column carries the row's subject, so it reads as a heading. */
+.reveal table tbody th[scope="row"] {
+  background: var(--blitzy-surface-0);
+  font-weight: var(--fw-semibold);
+  color: var(--blitzy-primary-dark);
+  border-block-end: var(--bw-hair) solid var(--blitzy-border);
+  border-inline-start: var(--bw-thick) solid var(--blitzy-primary);
+}
+
+.reveal table tbody tr:nth-child(even) th[scope="row"] {
+  background: var(--blitzy-surface-3);
+}
+
+.reveal table tbody tr:last-child th[scope="row"] {
+  border-block-end: 0;
+}
+
+/* ==========================================================================
+   6. MERMAID DIAGRAM CONTAINER
+   --------------------------------------------------------------------------
+   The specification's class inventory names a mermaid container; the framework
+   supplies no framing helper, so the frame is composed from a stacking context
+   plus the border and surface tokens. No literal value is introduced.
+   ========================================================================== */
+.diagram-frame {
+  border: var(--bw-hair) solid var(--blitzy-border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--blitzy-surface-0);
+  box-shadow: var(--shadow-card);
+  padding-block: var(--sp-4);
+  padding-inline: var(--sp-4);
+  margin-block: var(--sp-4) 0;
+  z-index: var(--z-base);
+}
+
+pre.mermaid {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
+  width: var(--measure-full);
+  margin: 0;
+  padding: 0;
+  font-family: var(--ff-body);
+  font-size: var(--fs-diagram);
+  line-height: var(--lh-snug);
+  text-align: center;
+  overflow: visible;
+  /* Until the drawing replaces it, this element holds the diagram's authored
+     definition. Preserving its line breaks while still wrapping over-long lines
+     is what lets that definition stay readable when the diagram library cannot
+     be reached, rather than collapsing into a single run-on line. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/*
+  The drawing is asked to fill the frame it sits in and to keep the aspect ratio
+  declared by its own coordinate system, with a ceiling so that a deep diagram
+  scales down and centres rather than growing past the foot of the slide.
+*/
+pre.mermaid svg {
+  width: var(--measure-full);
+  height: auto;
+  max-width: var(--measure-full);
+  max-height: var(--diagram-max-height);
+}
+
+/*
+  Diagram labels are drawn as glyphs in the drawing's own coordinate space, so
+  their metrics are immune to the presentation runtime's scaling transform. Left
+  as HTML labels they would be measured in already-scaled pixels and written back
+  as unscaled units, making every label box narrower than the text it holds; the
+  start-up block therefore turns HTML labels off at both the levels the library
+  consults.
+
+  Should the library still fall back to an HTML label for a shape it cannot draw
+  as glyphs, the rules below make that fallback non-destructive. The clip has to
+  be lifted on the foreign-object element itself, because that is where the
+  user-agent stylesheet applies it — lifting it only on the descendants leaves
+  the clip in force. Wrapping is deliberately NOT re-enabled here: the library
+  sizes the box for a single line, so allowing a second line would push the
+  label's remaining words behind that clip and lose them outright, which is
+  far worse than a few pixels of overhang.
+*/
+pre.mermaid foreignObject {
+  overflow: visible;
+}
+
+pre.mermaid foreignObject div,
+pre.mermaid foreignObject span,
+pre.mermaid foreignObject p {
+  overflow: visible;
+}
+
+/* ==========================================================================
+   7. MOTION
+   --------------------------------------------------------------------------
+   Transitions are opt-in for readers who have not asked for reduced motion.
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  .skip-link {
+    transition: inset-inline-start var(--motion-fast) var(--motion-ease);
+  }
+
+  .kpi-card {
+    transition: box-shadow var(--motion-fast) var(--motion-ease);
+  }
+}
+
+@media (hover: hover) {
+  /* Raised above its neighbours so the deeper shadow is not painted underneath
+     the adjacent card. */
+  .kpi-card:hover {
+    box-shadow: var(--shadow-raised);
+    position: relative;
+    z-index: var(--z-raised);
+  }
+}
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#deck">Skip to presentation</a>
+
+<main id="deck" class="deck">
+<div class="reveal">
+<div class="slides">
+
+  <!-- ====================================================================
+       SECTION 1 of 16 — TITLE
+       Visual: hero icon + gradient accent bar.
+       ==================================================================== -->
+  <section class="slide-title">
+    <div class="hero-icon"><i data-lucide="presentation" aria-hidden="true"></i></div>
+    <p class="eyebrow">Executive presentation &middot; For leadership</p>
+    <h1>The audit, made presentable</h1>
+    <p class="lede">One read-only reference document on ArduPilot positioning, navigation and
+      timing, turned into three briefing artifacts &mdash; each matched to an audience that has
+      to act.</p>
+    <p class="slide-meta">ArduPilot PNT Reference Audit &middot; audited HEAD <code>5b67e27b0a</code>
+      &middot; read-only static-analysis catalog &middot; every figure as the audit states it</p>
+    <div class="accent-bar"></div>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 2 of 16 — CONTENT: headline summary
+       Visual: KPI card grid (four cards).
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">What was delivered</p>
+    <h2>Three artifacts, one unchanged source</h2>
+    <p class="lede">The audit was already finished and scored. This engagement built the
+      communication layer over it &mdash; nothing was re-analysed.</p>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="layers" aria-hidden="true"></i></div>
+        <div class="kpi-value">3</div>
+        <div class="kpi-label">Briefing artifacts</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="users" aria-hidden="true"></i></div>
+        <div class="kpi-value">3</div>
+        <div class="kpi-label">Audiences served</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="file-check" aria-hidden="true"></i></div>
+        <div class="kpi-value">1</div>
+        <div class="kpi-label">Read-only source</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="shield-check" aria-hidden="true"></i></div>
+        <div class="kpi-value">0</div>
+        <div class="kpi-label">Findings altered</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 3 of 16 — CONTENT: architecture overview
+       Visual: Mermaid flowchart (diagram 1 of 4) — the pack's content
+       architecture, not the ArduPilot refactor.
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">Content architecture</p>
+    <h2>One source, two axes, three artifacts</h2>
+
+    <div class="diagram-frame r-stack">
+      <pre class="mermaid">
+flowchart LR
+  SRC["Audit of record"] --> TL["Transcription layer"]
+  DAT["Catalogued data"] --> TL
+  TL --> SEV["Severity axis"]
+  TL --> CAT["Category axis"]
+  SEV --> BRF["Executive brief"]
+  CAT --> BRF
+  SEV --> FUL["Full findings"]
+  CAT --> FUL
+  TL --> EXP["This presentation"]
+      </pre>
+    </div>
+
+    <p class="slide-meta">A single transcription layer feeds all three artifacts, so a figure is
+      defined once and read three times &mdash; the control that keeps the pack consistent.</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 4 of 16 — DIVIDER: What Was Done
+       Visual: thematic Lucide icon.
+       ==================================================================== -->
+  <section class="slide-divider">
+    <i data-lucide="clipboard-check" aria-hidden="true"></i>
+    <h2>What Was Done</h2>
+    <p>Scope of work and deliverables</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 5 of 16 — CONTENT: scope of work
+       Visual: token-styled table (table 1 of 3).
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">Scope of work</p>
+    <h2>Each artifact answers to one audience</h2>
+
+    <table>
+      <caption>Deliverables, audiences and organising principles</caption>
+      <thead>
+        <tr>
+          <th scope="col">Artifact</th>
+          <th scope="col">Audience</th>
+          <th scope="col">Size</th>
+          <th scope="col">Organising principle</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Executive brief</th>
+          <td>Client readership</td>
+          <td>10 slides</td>
+          <td>Themes and patterns, never individual rows</td>
+        </tr>
+        <tr>
+          <th scope="row">Full findings</th>
+          <td>Technical reviewers</td>
+          <td>239 slides</td>
+          <td>Exhaustive: severity first, then category</td>
+        </tr>
+        <tr>
+          <th scope="row">This presentation</th>
+          <td>Non-technical leadership</td>
+          <td>16 slides</td>
+          <td>Business outcomes, no code literacy assumed</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 6 of 16 — CONTENT: the source of record
+       Visual: KPI card grid (four cards) with a document icon.
+       Every figure is stated by the audit; none is recomputed here.
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">The source of record</p>
+    <h2>What the pack is built on</h2>
+    <p class="lede">A finished, integrity-verified catalog. Read-only, and left byte-identical
+      by this engagement.</p>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="file-search" aria-hidden="true"></i></div>
+        <div class="kpi-value">43</div>
+        <div class="kpi-label">Pages of catalog</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="crosshair" aria-hidden="true"></i></div>
+        <div class="kpi-value">94</div>
+        <div class="kpi-label">Catalogued touch-points</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="list-checks" aria-hidden="true"></i></div>
+        <div class="kpi-value">282</div>
+        <div class="kpi-label">Evidence rows</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="book-open-check" aria-hidden="true"></i></div>
+        <div class="kpi-value">109</div>
+        <div class="kpi-label">Coverage entries</div>
+      </div>
+    </div>
+
+    <p class="slide-meta">63 core and 31 indirect references; 18 catalogued data objects;
+      27 of the coverage entries are checked absences &mdash; evidence the sweep was exhaustive
+      rather than opportunistic. Audited HEAD <code>5b67e27b0a</code>.</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 7 of 16 — DIVIDER: Why It Was Done
+       Visual: thematic Lucide icon.
+       ==================================================================== -->
+  <section class="slide-divider">
+    <i data-lucide="target" aria-hidden="true"></i>
+    <h2>Why It Was Done</h2>
+    <p>The business value unlocked</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 8 of 16 — CONTENT: business value
+       Visual: Mermaid flowchart (diagram 2 of 4) — each audience mapped to
+       the decision the pack lets them make. Audiences are the audit's own.
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">Business value unlocked</p>
+    <h2>Every audience gets to a decision</h2>
+
+    <div class="diagram-frame r-stack">
+      <pre class="mermaid">
+flowchart LR
+  ENG["Integration engineers"] --> ENGD["Wire to a named contract"]
+  REV["Flight-controls reviewers"] --> REVD["Sign off the seam"]
+  MNT["Firmware maintainers"] --> MNTD["See coupling before changing it"]
+  LED["Leadership"] --> LEDD["Judge scope and risk without code"]
+      </pre>
+    </div>
+
+    <p class="slide-meta">A 43-page reference document answers every question but suits no
+      audience. The value is time-to-decision: each reader now starts at the depth their
+      decision needs.</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 9 of 16 — DIVIDER: What Changed
+       Visual: thematic Lucide icon.
+       ==================================================================== -->
+  <section class="slide-divider">
+    <i data-lucide="git-compare" aria-hidden="true"></i>
+    <h2>What Changed</h2>
+    <p>The content architecture, before and after</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 10 of 16 — CONTENT: before and after
+       Visual: Mermaid two-lane comparison (diagram 3 of 4).
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">Before and after</p>
+    <h2>From one document to three</h2>
+
+    <div class="diagram-frame r-stack">
+      <pre class="mermaid">
+flowchart LR
+  B1["Before: one dense catalog"] --> B2["Every reader reads all 43 pages"]
+  B2 --> AFT["After: three routes in"]
+  AFT --> A1["Themes, for a client"]
+  AFT --> A2["Every row, for a reviewer"]
+  AFT --> A3["Outcomes, for a leader"]
+      </pre>
+    </div>
+
+    <p class="slide-meta">Nothing was removed from the record. The catalog remains the
+      authoritative source; the pack adds routes into it.</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 11 of 16 — CONTENT: organising axes
+       Visual: Mermaid flowchart (diagram 4 of 4). Both axes are borrowed
+       from the audit; no new severity scale is introduced.
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">How the findings are organised</p>
+    <h2>Two axes the audit already owns</h2>
+
+    <div class="diagram-frame r-stack">
+      <pre class="mermaid">
+flowchart TB
+  SEV["Severity: risk markers from the audit"] --> X["Every finding has one address"]
+  CAT["Category: core and indirect references"] --> X
+  X --> P["Positioning"]
+  X --> N["Navigation"]
+  X --> T["Timing"]
+      </pre>
+    </div>
+
+    <p class="slide-meta">The audit defines no numeric severity scale, so none was invented.
+      Both axes are its own, which is why a reader holding the catalog can navigate the deck
+      without translation.</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 12 of 16 — DIVIDER: Risks and Mitigations
+       Visual: thematic Lucide icon.
+       ==================================================================== -->
+  <section class="slide-divider">
+    <i data-lucide="shield-alert" aria-hidden="true"></i>
+    <h2>Risks and Mitigations</h2>
+    <p>What could go wrong with the pack, and what prevents it</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 13 of 16 — CONTENT: risks and controls
+       Visual: token-styled table (table 2 of 3).
+       These are the CONTENT-FIDELITY risks of the briefing pack itself. No
+       engineering, deployment, schedule or readiness risk appears here.
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">Risks and controls</p>
+    <h2>Fidelity is enforced, not trusted</h2>
+
+    <table>
+      <caption>Each content-fidelity risk and the control that closes it</caption>
+      <thead>
+        <tr>
+          <th scope="col">Risk to the pack</th>
+          <th scope="col">Control in place</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">A figure gets recomputed and differs</th>
+          <td>Quote, never recompute &mdash; only figures the audit states are printed</td>
+        </tr>
+        <tr>
+          <th scope="row">A copied reference gets mangled</th>
+          <td>Identifiers taken from the catalogued data, not from extracted text</td>
+        </tr>
+        <tr>
+          <th scope="row">A finding gets dropped</th>
+          <td>A completeness check gates the exhaustive deck and prints its own reconciliation</td>
+        </tr>
+        <tr>
+          <th scope="row">The brief outgrows its cap</th>
+          <td>A slide-count check refuses to save the brief above ten slides</td>
+        </tr>
+        <tr>
+          <th scope="row">The source gets altered</th>
+          <td>The source document is fingerprinted before and after, and left unchanged</td>
+        </tr>
+        <tr>
+          <th scope="row">Visuals fail without a network</th>
+          <td>Guarded start-up and system font fallbacks keep this deck readable offline</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 14 of 16 — DIVIDER: Onboarding and Continuity
+       Visual: thematic Lucide icon.
+       ==================================================================== -->
+  <section class="slide-divider">
+    <i data-lucide="route" aria-hidden="true"></i>
+    <h2>Onboarding and Continuity</h2>
+    <p>How to use the pack, and how to extend it</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 15 of 16 — CONTENT: using and extending the pack
+       Visual: icon row + token-styled table (table 3 of 3).
+       ==================================================================== -->
+  <section>
+    <p class="eyebrow">Using and extending the pack</p>
+    <h2>Pick the artifact, then extend in place</h2>
+
+    <div class="icon-row">
+      <div><i data-lucide="users" aria-hidden="true"></i><span>Brief a client</span></div>
+      <div><i data-lucide="table-2" aria-hidden="true"></i><span>Check a finding</span></div>
+      <div><i data-lucide="presentation" aria-hidden="true"></i><span>Update leadership</span></div>
+      <div><i data-lucide="git-compare" aria-hidden="true"></i><span>Refresh the pack</span></div>
+    </div>
+
+    <table>
+      <caption>Which artifact to open, and where it grows</caption>
+      <thead>
+        <tr>
+          <th scope="col">Need</th>
+          <th scope="col">Start here</th>
+          <th scope="col">Where it extends</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Brief a client</th>
+          <td>Executive brief</td>
+          <td>Add a theme, keeping inside the ten-slide cap</td>
+        </tr>
+        <tr>
+          <th scope="row">Check a finding</th>
+          <td>Full findings</td>
+          <td>Extend the matching category block</td>
+        </tr>
+        <tr>
+          <th scope="row">Update leadership</th>
+          <td>This presentation</td>
+          <td>Add a content slide behind an existing divider</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="slide-meta">If the catalog is ever reissued, the pack is refreshed from the new
+      source rather than edited in place &mdash; each artifact states the audited baseline it
+      describes on its own face.</p>
+  </section>
+
+  <!-- ====================================================================
+       SECTION 16 of 16 — CLOSING
+       Visual: thematic Lucide icon + brand lockup + gradient accent bar.
+       Takeaway heading is five words; three bullets.
+       ==================================================================== -->
+  <section class="slide-closing">
+    <i data-lucide="circle-check" aria-hidden="true"></i>
+    <p class="eyebrow">Key takeaway</p>
+    <h2>One audit, three audiences served</h2>
+    <ul>
+      <li>The catalog is unchanged and remains the authoritative record.</li>
+      <li>Every audience now has an artifact pitched at its own decision.</li>
+      <li>Next: choose an artifact, brief its audience, and extend it in place.</li>
+    </ul>
+    <div class="brand-lockup">
+      <span class="lockup-rule" aria-hidden="true"></span>
+      <span>Blitzy</span>
+    </div>
+    <div class="accent-bar"></div>
+  </section>
+
+</div>
+</div>
+</main>
+
+<!--
+  Pinned library versions, referenced from a content-delivery network at view
+  time. Nothing is installed, vendored, bundled or committed alongside this file.
+-->
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+
+<script>
+  /* ========================================================================
+     PRESENTATION START-UP
+     ------------------------------------------------------------------------
+     Every call into a third-party library is guarded twice — an existence
+     check and a try/catch — so that an unreachable content-delivery network
+     costs the visuals but never the ability to navigate the deck.
+     ======================================================================== */
+  (function () {
+    'use strict';
+
+    /* The deck's body typeface, read back from the stylesheet rather than
+       repeated here, so the diagram library measures and draws its labels in the
+       same family as the rest of the deck without a second copy of the value. */
+    function tokenValue(name) {
+      try {
+        return getComputedStyle(document.documentElement)
+          .getPropertyValue(name).trim();
+      } catch (e) {
+        return '';
+      }
+    }
+
+    /* Diagram theming. Automatic start is DISABLED: nothing may render before
+       the deck has been laid out, because the diagram library measures live
+       geometry and a diagram measured on an unlaid-out slide collapses.
+       These five values are the mandated diagram theme variables.
+
+       HTML labels are turned OFF deliberately. With them on, the library
+       measures each label with a viewport-relative call that returns lengths
+       already multiplied by the runtime's slide scale, then writes those numbers
+       back into the drawing as unscaled coordinates — so every label box comes
+       out a few percent too narrow and the text inside it is clipped or loses
+       its trailing word. Drawn as glyphs instead, labels are measured in the
+       drawing's own coordinate space, which no ancestor transform can distort,
+       so the mismatch cannot arise at any slide scale.
+
+       The switch is set BOTH at the top level and under the flowchart key on
+       purpose. The routine that draws a node decides between glyph and HTML
+       labels from the TOP-LEVEL setting; the per-diagram-type setting alone
+       never reaches it, and because the top level carries no default the
+       library's own truthiness test on a missing value answers "use HTML".
+       Setting only the flowchart key therefore looks correct and silently does
+       nothing at all.
+
+       The width cap is turned OFF for the same family of reasons: it pins the
+       drawing to the pixel width it happened to be measured at, which on this
+       stage leaves a diagram at roughly half the width available to it. Without
+       it the drawing scales to its frame and the stylesheet governs its size. */
+    if (typeof mermaid !== 'undefined') {
+      try {
+        var diagramFont = tokenValue('--ff-body');
+        var mermaidConfig = {
+          startOnLoad: false,
+          theme: 'base',
+          securityLevel: 'strict',
+          htmlLabels: false,
+          flowchart: { htmlLabels: false, useMaxWidth: false },
+          themeVariables: {
+            primaryColor: '#F2F0FE',
+            primaryTextColor: '#333333',
+            primaryBorderColor: '#5B39F3',
+            lineColor: '#999999',
+            secondaryColor: '#F4EFF6'
+          }
+        };
+        if (diagramFont) {
+          mermaidConfig.fontFamily = diagramFont;
+        }
+        mermaid.initialize(mermaidConfig);
+      } catch (e) {
+        /* Theming is cosmetic; a failure here must not stop the deck. */
+      }
+    }
+
+    /* The slide currently on screen, or the whole document if the
+       presentation runtime never arrived. */
+    function currentScope() {
+      if (typeof Reveal !== 'undefined' && typeof Reveal.getCurrentSlide === 'function') {
+        return Reveal.getCurrentSlide() || document;
+      }
+      return document;
+    }
+
+    /* Diagrams on a slide that have not yet been rendered. */
+    function pendingDiagrams(scope) {
+      return Array.prototype.slice.call(
+        scope.querySelectorAll('pre.mermaid:not([data-processed])')
+      );
+    }
+
+    /* The authored definition is stashed before rendering, because rendering
+       replaces the element's own text with the finished drawing. */
+    function stashSource(block) {
+      if (!block.hasAttribute('data-mermaid-source')) {
+        block.setAttribute('data-mermaid-source', block.textContent.trim());
+      }
+    }
+
+    /*
+      A diagram that renders while its slide has no layout box collapses, and
+      the library marks it processed either way — which would permanently
+      block a retry. Any block that ends up marked but holds no drawing is
+      therefore restored and unmarked, so the next slide change retries it.
+      Together with the widened view distance set below, this makes diagram
+      rendering self-healing rather than one-shot.
+    */
+    function recoverFailedDiagrams(blocks) {
+      blocks.forEach(function (block) {
+        if (block.querySelector('svg')) { return; }
+        var source = block.getAttribute('data-mermaid-source');
+        if (!source) { return; }
+        block.removeAttribute('data-processed');
+        block.textContent = source;
+      });
+    }
+
+    /* Render this slide's diagrams and hydrate its icons. Runs once the deck
+       reports ready, and again on every slide change. */
+    function hydrate() {
+      try {
+        if (typeof mermaid !== 'undefined' && typeof mermaid.run === 'function') {
+          var blocks = pendingDiagrams(currentScope());
+          if (blocks.length) {
+            blocks.forEach(stashSource);
+            /* Mandated entry point, scoped to this slide's pending diagrams
+               so nothing is rendered against an unlaid-out slide. */
+            var run = mermaid.run({ nodes: blocks, suppressErrors: true });
+            if (run && typeof run.then === 'function') {
+              run.then(function () {
+                recoverFailedDiagrams(blocks);
+              }, function () {
+                recoverFailedDiagrams(blocks);
+              });
+            }
+          }
+        }
+      } catch (e) {
+        /* Diagrams are enhancement; navigation must survive their failure. */
+      }
+
+      try {
+        if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+          lucide.createIcons();
+        }
+      } catch (e) {
+        /* Icons are enhancement; navigation must survive their failure. */
+      }
+    }
+
+    /* Longest the first render will wait for web fonts before going ahead with
+       whichever family is already available. */
+    var FONT_SETTLE_TIMEOUT_MS = 1500;
+
+    /* Label metrics depend on the web fonts having arrived, so the first render
+       waits for them where the browser can report on them. The wait is capped
+       and the callback is one-shot, so a font load that never settles — an
+       unreachable font host, or a browser without the reporting interface —
+       delays the drawing briefly and then renders with the fallback family
+       rather than withholding it altogether. */
+    function hydrateWhenFontsReady() {
+      var started = false;
+
+      function once() {
+        if (started) { return; }
+        started = true;
+        hydrate();
+      }
+
+      try {
+        if (document.fonts && document.fonts.ready &&
+            typeof document.fonts.ready.then === 'function') {
+          document.fonts.ready.then(once, once);
+          window.setTimeout(once, FONT_SETTLE_TIMEOUT_MS);
+          return;
+        }
+      } catch (e) {
+        /* Fall through to rendering immediately. */
+      }
+
+      once();
+    }
+
+    if (typeof Reveal !== 'undefined') {
+      Reveal.initialize({
+        hash: true,
+        transition: 'slide',
+        controlsTutorial: false,
+        width: 1920,
+        height: 1080,
+        /* Widened so every slide keeps a real layout box — the precondition
+           for measuring diagrams correctly (see note 1 above). */
+        viewDistance: 20,
+        /* The runtime stamps this value inline onto every loaded slide, and an
+           inline declaration outranks any stylesheet rule. Requesting the flex
+           box type here is therefore what lets the slide-type rules centre their
+           content, and it avoids reaching for an importance override. */
+        display: 'flex'
+      }).then(hydrateWhenFontsReady);
+
+      Reveal.on('ready', hydrateWhenFontsReady);
+      Reveal.on('slidechanged', hydrate);
+    } else {
+      /* No presentation runtime reached the reader: still hydrate the icons
+         and diagrams so the document degrades into a readable page. */
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hydrate);
+      } else {
+        hydrate();
+      }
+    }
+  }());
+</script>
+
+</body>
+</html>
