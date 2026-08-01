@@ -15,10 +15,14 @@
              into three audience-matched artifacts — it is NOT an analysis of
              the ArduPilot refactor, and no new static analysis was performed.
 
-  FIDELITY   Quote, never recompute. Every figure on every slide is a value the
-             audit itself states, carried forward unchanged from its committed
-             catalog. No finding is altered, re-scored or reinterpreted, and no
-             derived tally is printed.
+  FIDELITY   Quote, never recompute. Every audit-derived figure is carried
+             forward exactly as the audit states it, unchanged from its
+             committed catalog: no finding is altered, re-scored or
+             reinterpreted, and no audit tally is recomputed. The deck also
+             prints a few figures about the pack itself — how many artifacts it
+             holds, how many audiences it serves and how long each artifact
+             runs — and each of those is labelled on its own slide as
+             describing the pack rather than the audit.
 
   DELIVERY   One self-contained file. No build step, no local file dependency,
              no bundler, no vendored library. The three JavaScript libraries and
@@ -434,9 +438,16 @@
   margin-block: 0 var(--sp-3);
 }
 
-/* On the gradient and dark fields the eyebrow takes the teal accent. */
-.slide-title .eyebrow,
-.slide-closing .eyebrow {
+/* On the gradient and dark fields the eyebrow takes the teal accent.
+   These selectors carry the `.reveal` prefix deliberately. The title slide
+   paints its copy white through `.reveal .slide-title p`, whose specificity
+   (0,2,1) outranks a bare `.slide-title .eyebrow` (0,2,0) and would leave the
+   eyebrow white. Prefixing lifts this rule to (0,3,0) so the mandated teal
+   wins, matching the pattern already used by `.reveal .slide-title
+   .slide-meta`. The closing slide inverts only `h2` and `li`, so its eyebrow
+   was already teal and its rendering is unchanged. */
+.reveal .slide-title .eyebrow,
+.reveal .slide-closing .eyebrow {
   color: var(--blitzy-accent-teal);
 }
 
@@ -820,13 +831,16 @@ pre.mermaid foreignObject p {
       timing, turned into three briefing artifacts &mdash; each matched to an audience that has
       to act.</p>
     <p class="slide-meta">ArduPilot PNT Reference Audit &middot; audited HEAD <code>5b67e27b0a</code>
-      &middot; read-only static-analysis catalog &middot; every figure as the audit states it</p>
+      &middot; read-only static-analysis catalog &middot; every audit figure exactly as the audit
+      states it</p>
     <div class="accent-bar"></div>
   </section>
 
   <!-- ====================================================================
        SECTION 2 of 16 — CONTENT: headline summary
        Visual: KPI card grid (four cards).
+       These four values describe the briefing pack itself, not the audit, so
+       the caption says so: the audit's own figures are quoted in section 6.
        ==================================================================== -->
   <section>
     <p class="eyebrow">What was delivered</p>
@@ -856,6 +870,8 @@ pre.mermaid foreignObject p {
         <div class="kpi-label">Findings altered</div>
       </div>
     </div>
+
+    <p class="slide-meta">These four figures describe the pack, not the audit.</p>
   </section>
 
   <!-- ====================================================================
@@ -905,7 +921,8 @@ flowchart LR
     <h2>Each artifact answers to one audience</h2>
 
     <table>
-      <caption>Deliverables, audiences and organising principles</caption>
+      <caption>Deliverables, audiences and organising principles &mdash; the sizes describe the
+        pack, not the audit</caption>
       <thead>
         <tr>
           <th scope="col">Artifact</th>
@@ -1005,9 +1022,9 @@ flowchart LR
       </pre>
     </div>
 
-    <p class="slide-meta">A 43-page reference document answers every question but suits no
-      audience. The value is time-to-decision: each reader now starts at the depth their
-      decision needs.</p>
+    <p class="slide-meta">The catalog holds the complete evidence at one technical depth. The
+      pack adds an entry route per audience, so each reader starts at the depth their decision
+      needs.</p>
   </section>
 
   <!-- ====================================================================
@@ -1023,6 +1040,9 @@ flowchart LR
   <!-- ====================================================================
        SECTION 10 of 16 — CONTENT: before and after
        Visual: Mermaid two-lane comparison (diagram 3 of 4).
+       The before-state is stated as what the catalog IS — the complete
+       evidence held at one technical depth — never as a claim about what
+       every reader does with it or about what it does or does not answer.
        ==================================================================== -->
   <section>
     <p class="eyebrow">Before and after</p>
@@ -1031,7 +1051,7 @@ flowchart LR
     <div class="diagram-frame r-stack">
       <pre class="mermaid">
 flowchart LR
-  B1["Before: one dense catalog"] --> B2["Every reader reads all 43 pages"]
+  B1["Before: one dense catalog"] --> B2["Complete evidence, one technical depth"]
   B2 --> AFT["After: three routes in"]
   AFT --> A1["Themes, for a client"]
   AFT --> A2["Every row, for a reviewer"]
@@ -1047,6 +1067,11 @@ flowchart LR
        SECTION 11 of 16 — CONTENT: organising axes
        Visual: Mermaid flowchart (diagram 4 of 4). Both axes are borrowed
        from the audit; no new severity scale is introduced.
+       The two axes are not one-to-one and the diagram must not imply that
+       they are: category places a row in exactly one source table, while the
+       audit's risk markers are optional annotations a row may carry none,
+       one or several of, and a touch-point spanning pillars is listed under
+       each pillar it spans.
        ==================================================================== -->
   <section>
     <p class="eyebrow">How the findings are organised</p>
@@ -1055,17 +1080,17 @@ flowchart LR
     <div class="diagram-frame r-stack">
       <pre class="mermaid">
 flowchart TB
-  SEV["Severity: risk markers from the audit"] --> X["Every finding has one address"]
-  CAT["Category: core and indirect references"] --> X
-  X --> P["Positioning"]
-  X --> N["Navigation"]
-  X --> T["Timing"]
+  CAT["Category: the source table a row sits in"] --> ROW["A catalogued row"]
+  SEV["Severity: risk markers, none, one or several"] --> ROW
+  ROW --> P["Positioning"]
+  ROW --> N["Navigation"]
+  ROW --> T["Timing"]
       </pre>
     </div>
 
-    <p class="slide-meta">The audit defines no numeric severity scale, so none was invented.
-      Both axes are its own, which is why a reader holding the catalog can navigate the deck
-      without translation.</p>
+    <p class="slide-meta">The audit defines no numeric severity scale, so none was invented. A
+      row may carry several risk markers or none, and a touch-point spanning pillars is listed
+      under each. Both axes belong to the audit.</p>
   </section>
 
   <!-- ====================================================================
@@ -1099,7 +1124,8 @@ flowchart TB
       <tbody>
         <tr>
           <th scope="row">A figure gets recomputed and differs</th>
-          <td>Quote, never recompute &mdash; only figures the audit states are printed</td>
+          <td>Quote, never recompute &mdash; audit figures print exactly as stated, and figures
+            about the pack are labelled as such</td>
         </tr>
         <tr>
           <th scope="row">A copied reference gets mangled</th>
