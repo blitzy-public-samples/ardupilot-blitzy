@@ -71,9 +71,13 @@
   Load order is deliberate: web fonts, then the reveal.js core stylesheet, then
   the neutral white base theme, then the inline Blitzy theme LAST so it wins the
   cascade over both framework stylesheets.
+
+  The three stylesheet links below and the three script sources at the end of the
+  body are this file's COMPLETE external-reference set: six coordinates, each
+  stated exactly once, each pinned to an exact version. Nothing else reaches the
+  network — no connection hint, no prefetch, no favicon request (see the inline
+  data URI above) and no local asset of any kind.
 -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Fira+Code:wght@400;500&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css">
@@ -266,13 +270,9 @@
 }
 
 /*
-  Every slide is a vertical flex column with its content optically centred.
-  The runtime writes an inline display value onto each loaded slide, and an
-  inline declaration outranks any stylesheet rule, so the flex box type is
-  requested through the runtime's own display option (see the start-up block)
-  rather than fought over with an importance override. The declaration below
-  states the same intent for readers of this stylesheet and covers the case
-  where the runtime never arrives at all.
+  Every slide is a vertical flex column with its content optically centred. This
+  declaration carries the padding, the definite height and the centring, and it
+  is what governs when the runtime is absent altogether.
 */
 .reveal .slides section {
   padding-block: var(--slide-pad-block);
@@ -281,6 +281,28 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+/*
+  The runtime writes an inline display value onto each slide as it takes that
+  slide in or out of its working set, and an inline declaration outranks an
+  ordinary stylesheet rule. The box type therefore has to be claimed with an
+  importance flag to survive, which is the sole use of importance in this file.
+
+  Two consequences are deliberate. Because the claim ignores the runtime's
+  working set, every slide keeps a laid-out box at all times, which is what lets
+  a diagram measure its own width correctly before the slide it lives on is first
+  shown. And because non-present slides are held back by opacity rather than by
+  the box type, giving them a box does not reveal them.
+
+  The rule is confined to screen media and stands aside for the runtime's print
+  view, so both of the framework's own print declarations keep their existing
+  precedence untouched.
+*/
+@media screen {
+  html:not(.reveal-print) .reveal .slides section {
+    display: flex !important;
+  }
 }
 
 /* The final element on a slide contributes no trailing gap, so centred content
@@ -1324,12 +1346,46 @@ flowchart TB
   /* ========================================================================
      PRESENTATION START-UP
      ------------------------------------------------------------------------
-     Every call into a third-party library is guarded twice — an existence
+     The order below is deliberate and fixed: the presentation runtime is
+     started first, the diagram library is themed second, the reusable hydration
+     routines are defined third, and the runtime's own lifecycle events are
+     wired last.
+
+     Calls into the two enhancement libraries are guarded twice — an existence
      check and a try/catch — so that an unreachable content-delivery network
-     costs the visuals but never the ability to navigate the deck.
+     costs the visuals but never the ability to navigate the deck. Starting the
+     runtime is guarded by an existence check ONLY: if the runtime arrived but
+     cannot start, that is a real failure of the deck and it surfaces rather
+     than being quietly swallowed. The case where the runtime never arrives at
+     all is handled by the no-runtime branch at the end of this block, which
+     leaves the document a readable page.
      ======================================================================== */
   (function () {
     'use strict';
+
+    /* Whether the presentation runtime reached the reader. Read once, so the
+       start-up call above and the lifecycle wiring at the end of this block
+       cannot disagree about it. */
+    var hasRuntime = typeof Reveal !== 'undefined';
+
+    /* Start the runtime. These five settings are the deck's entire runtime
+       configuration: deep-linkable slide addresses, the slide transition, the
+       first-visit control hint suppressed, and the fixed presentation
+       coordinate space that the runtime scales to whatever viewport it finds.
+       Everything else the deck needs from its own layout is settled in the
+       stylesheet, not here.
+
+       Ready is dispatched asynchronously, so the handlers registered at the end
+       of this block still receive it. */
+    if (hasRuntime) {
+      Reveal.initialize({
+        hash: true,
+        transition: 'slide',
+        controlsTutorial: false,
+        width: 1920,
+        height: 1080
+      });
+    }
 
     /* The deck's body typeface, read back from the stylesheet rather than
        repeated here, so the diagram library measures and draws its labels in the
@@ -1424,8 +1480,8 @@ flowchart TB
       the library marks it processed either way — which would permanently
       block a retry. Any block that ends up marked but holds no drawing is
       therefore restored and unmarked, so the next slide change retries it.
-      Together with the widened view distance set below, this makes diagram
-      rendering self-healing rather than one-shot.
+      Together with the layout box the stylesheet keeps on every slide, this
+      makes diagram rendering self-healing rather than one-shot.
     */
     function recoverFailedDiagrams(blocks) {
       blocks.forEach(function (block) {
@@ -1474,61 +1530,54 @@ flowchart TB
        whichever family is already available. */
     var FONT_SETTLE_TIMEOUT_MS = 1500;
 
+    /* One latch for the whole of start-up, shared by every route that can reach
+       the first render: the fonts-settled callback, its rejection path, the cap
+       that bounds the wait for it, and the no-runtime branch at the end of this
+       block. Holding the latch here rather than inside any one of those routes
+       is what keeps the first render to exactly one, whichever of them gets
+       there first. */
+    var initialHydrationStarted = false;
+
+    function beginInitialHydration() {
+      if (initialHydrationStarted) { return; }
+      initialHydrationStarted = true;
+      hydrate();
+    }
+
     /* Label metrics depend on the web fonts having arrived, so the first render
-       waits for them where the browser can report on them. The wait is capped
-       and the callback is one-shot, so a font load that never settles — an
-       unreachable font host, or a browser without the reporting interface —
-       delays the drawing briefly and then renders with the fallback family
-       rather than withholding it altogether. */
+       waits for them where the browser can report on them. The wait is capped,
+       so a font load that never settles — an unreachable font host, or a browser
+       without the reporting interface — delays the drawing briefly and then
+       renders with the fallback family rather than withholding it altogether. */
     function hydrateWhenFontsReady() {
-      var started = false;
-
-      function once() {
-        if (started) { return; }
-        started = true;
-        hydrate();
-      }
-
       try {
         if (document.fonts && document.fonts.ready &&
             typeof document.fonts.ready.then === 'function') {
-          document.fonts.ready.then(once, once);
-          window.setTimeout(once, FONT_SETTLE_TIMEOUT_MS);
+          document.fonts.ready.then(beginInitialHydration, beginInitialHydration);
+          window.setTimeout(beginInitialHydration, FONT_SETTLE_TIMEOUT_MS);
           return;
         }
       } catch (e) {
         /* Fall through to rendering immediately. */
       }
 
-      once();
+      beginInitialHydration();
     }
 
-    if (typeof Reveal !== 'undefined') {
-      Reveal.initialize({
-        hash: true,
-        transition: 'slide',
-        controlsTutorial: false,
-        width: 1920,
-        height: 1080,
-        /* Widened so every slide keeps a real layout box — the precondition
-           for measuring diagrams correctly (see note 1 above). */
-        viewDistance: 20,
-        /* The runtime stamps this value inline onto every loaded slide, and an
-           inline declaration outranks any stylesheet rule. Requesting the flex
-           box type here is therefore what lets the slide-type rules centre their
-           content, and it avoids reaching for an importance override. */
-        display: 'flex'
-      }).then(hydrateWhenFontsReady);
-
+    /* Lifecycle wiring, and the deck's only two triggers. Ready drives the first
+       render — a single path, so nothing renders twice — and every slide change
+       renders whatever the newly shown slide still needs. */
+    if (hasRuntime) {
       Reveal.on('ready', hydrateWhenFontsReady);
       Reveal.on('slidechanged', hydrate);
     } else {
       /* No presentation runtime reached the reader: still hydrate the icons
-         and diagrams so the document degrades into a readable page. */
+         and diagrams so the document degrades into a readable page. This route
+         shares the same latch, so it cannot double up with anything else. */
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', hydrate);
+        document.addEventListener('DOMContentLoaded', hydrateWhenFontsReady);
       } else {
-        hydrate();
+        hydrateWhenFontsReady();
       }
     }
   }());
