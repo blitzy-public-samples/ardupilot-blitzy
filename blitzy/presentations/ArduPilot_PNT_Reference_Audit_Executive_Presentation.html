@@ -34,6 +34,51 @@
              unreachable network degrades the visuals but never delays or breaks
              slide navigation.
 
+  TRUST      The version pin says which release of a library to fetch; it cannot
+             say that the release arrived unaltered. So each of the five immutable
+             package members also carries the digest of the exact bytes it is
+             expected to return and is fetched under anonymous cross-origin rules,
+             which lets the browser discard a substituted answer before any of it
+             is applied or run. The sixth coordinate, the web-font stylesheet, is
+             generated per request from the asking browser's capabilities and so
+             has no fixed bytes to pin; every font declaration here ends in a
+             system fallback, which is what makes that the harmless case. No
+             request carries this document's address, and none carries a
+             credential, an endpoint or a reader identity, because the deck holds
+             none. Fetching anything remotely does disclose the reader's address
+             and browser to the host that serves it; that residue is inherent to
+             the buildless, self-contained delivery this deck is specified to use.
+
+  DRAWING    The drawing library's version is fixed by the binding specification
+             and is not a free choice here: the specification pins it explicitly,
+             and the four diagrams it renders are the only non-text visual on the
+             four sections that carry them, so neither moving off the pin nor
+             dropping the diagrams is available. What is available is to make the
+             library's risk surface unreachable rather than merely supervised, and
+             that is the posture taken.
+
+             Five controls, none of which relies on the library policing itself.
+             Its strict security level and glyph — not markup — labels are set
+             before anything is drawn. Both, plus the sanitiser options, are
+             entered on the library's own protected-key list, so nothing can relax
+             them afterwards. Drawing is refused outright unless those settings are
+             confirmed to have landed, rather than proceeding on the library's
+             defaults. Every definition is checked against the small grammar this
+             deck's four diagrams are written in, so a definition carrying a
+             directive, a link, a markup label, front matter, a formula, a style
+             override or another diagram type is turned away before the parser sees
+             it — which is what puts the library's bundled markup-sanitising,
+             front-matter and formula dependencies out of reach of this deck's
+             content. And the bytes themselves are pinned by digest, so the release
+             that arrives is the release that was reviewed.
+
+             Rendering into an isolated frame was considered and rejected: it draws
+             into a document with no access to this deck's fonts or stylesheet,
+             needs a policy exemption to load at all, and mis-sizes a diagram on a
+             scaled stage — it would cost the four diagrams their legibility to
+             re-cover ground the controls above already hold.
+
+
   STRUCTURE  16 sections — 1 title, 9 content, 5 dividers, 1 closing. Every
              section carries at least one non-text visual: 4 Mermaid diagrams,
              2 KPI card grids, 3 token-styled tables, 1 icon row, and a thematic
@@ -63,6 +108,106 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!--
+  Delivery policy, declared before the first thing it governs.
+
+  The deck's own defences decide what its code does with what it is given. This
+  states separately, and in one place the browser enforces rather than the deck,
+  what the deck is permitted to fetch and run at all. It is what remains if any
+  of those defences is one day edited away: the six coordinates below are the
+  only places anything may come from, and the one measured script is the only
+  code of the deck's own that may run.
+
+  Read directive by directive:
+
+    nothing by default. Every category not named afterwards is refused, which
+    covers the ones a presentation has no business using at all — no network
+    call of any kind, no worker, no manifest, no media. This was checked against
+    the three pinned libraries rather than assumed: none of them opens a socket,
+    starts a worker or issues a request. The one call in the diagram library
+    whose name suggests otherwise belongs to its formula parser and fetches a
+    token, not a URL.
+
+    script: the measured digest of this file's one start-up block, plus the
+    single host the three libraries come from. Naming the digest is what makes
+    the allowance specific to the script as authored: any edit to it, of any
+    size, stops it running rather than running something unmeasured. No
+    allowance is made for evaluating text as code, which was likewise verified
+    to be unnecessary — none of the three libraries does it.
+
+    style: the two stylesheet hosts, plus an allowance for styles written from
+    script, which cannot be avoided here because the presentation runtime sizes
+    its stage by writing measurements onto the page and the diagram library
+    themes its drawings by adding a stylesheet to the document. Both are the
+    libraries' normal operation, not this deck's choice.
+
+    font from the font host, and also from the library host — which needs
+    explaining, because no font is ever fetched from the library host. The
+    runtime's base theme pulls in a stylesheet of its own that declares four
+    faces of a family this deck never uses, and a browser checks the addresses
+    a face declares when it builds its list of available faces, not when it
+    first needs to draw with one. Leaving the library host out therefore
+    produced eight refusals on every single load — four faces, each naming two
+    formats the browser can read — while changing nothing whatsoever on screen,
+    because this deck's own typography already wins everywhere the theme would
+    otherwise have applied that family. Measured with the host named, not one
+    of those eight addresses is requested: the faces stay unloaded and nothing
+    goes to the network. Naming it costs nothing in reach either, since the
+    same host is already trusted to deliver this deck's script and its
+    stylesheets, which is a far larger permission than delivering a font. The
+    apparent alternative — dropping the base theme so the declarations are
+    never seen — is not available: the theme is one of the pinned references
+    this deck is specified to load, and removing it also removes the stage's
+    type scale and the navigation control's colour.
+
+    images only as data carried in the file itself — the deck fetches no image,
+    and the two data URLs in play are its own placeholder icon and the
+    runtime's built-in control glyph.
+
+    the rest close doors that lead outward: no document base may be rewritten,
+    no form may submit anywhere, no frame may be embedded, no plugin may load.
+
+  One limit is worth stating plainly rather than leaving a reader to assume
+  otherwise: a policy delivered in the document, as this one is, cannot restrict
+  who embeds the deck, and cannot impose a sandbox — the browser ignores both of
+  those when they arrive this way, and a file meant to be opened directly has no
+  header to carry them in instead. Being embedded is therefore governed by the
+  start-up block, which shuts off the cross-window control channel the runtime
+  would otherwise leave open.
+
+  One directive is deliberately absent. Nothing names an outward network
+  allowance, so every fetch, socket and beacon falls to the refusal at the top.
+  With a debugger attached the browser goes looking for the two source maps the
+  pinned bundles advertise and reports each refusal; with no debugger attached
+  neither is ever attempted. Granting that allowance to quiet two messages only
+  a developer sees would hand the page a way of sending data outward, which is
+  exactly the capability the refusal exists to withhold, so the messages are
+  accepted as the cheaper of the two costs.
+
+  Naming a host here permits a request; it does not make one. This policy adds
+  no coordinate: the deck still names six, and the only other address in play is
+  the one the base theme imports on its own behalf, which it did long before any
+  policy was written here.
+
+  MAINTENANCE: the digest below is of the start-up block's exact bytes. Edit
+  that block and the digest must be recomputed, or the deck will load its
+  libraries and then run none of its own code.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-7ADMnE6SgrlukcxOPKDClG8dCDL/Qr9jevzV7AjSEik=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+
+<!--
+  Referrer suppression, declared before anything is fetched so that it governs
+  every request this file makes. Retrieving a remote asset unavoidably tells its
+  host the reader's address and browser; it does not have to tell it which
+  document asked. Nothing here is a secret — the deck ships no credential, no
+  private endpoint and no reader identity — but a stylesheet host has no need of
+  the presentation's own address, so it is not sent one. The address-and-browser
+  disclosure inherent to fetching anything remotely remains, and is the price of
+  the buildless, self-contained delivery this deck is specified to use.
+-->
+<meta name="referrer" content="no-referrer">
+
 <meta name="description" content="Executive presentation for the ArduPilot PNT Reference Audit briefing pack: scope, business value, content architecture, content-fidelity risks and continuity.">
 <meta name="author" content="Blitzy">
 <title>ArduPilot PNT Reference Audit — Executive Presentation</title>
@@ -82,10 +227,25 @@
   data URI above) and no local asset of any kind. Two of the six — the drawing
   and icon libraries — are fetched asynchronously so that they cannot delay the
   deck becoming navigable; see the note above the scripts at the end of the body.
+
+  Five of the six are immutable published package members, so each one carries the
+  digest of the exact bytes it is expected to return and is fetched under anonymous
+  cross-origin rules so the browser is able to check that digest. A host that
+  answers with anything other than those bytes is refused rather than applied: the
+  version pin says which release to fetch, and the digest proves the release
+  arrived unaltered. The remaining coordinate — the web-font stylesheet — is
+  deliberately left without a digest, because it is generated per request from the
+  asking browser's capabilities and therefore has no single expected byte sequence
+  to pin; its failure mode is benign, since every font declaration in this file
+  ends in a system fallback.
 -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Fira+Code:wght@400;500&display=swap">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"
+  integrity="sha384-YgvgKeZJykuztG+iQPoZHNZENTFZvOcOJ/uRzmJTje6GHYN9zAw+y5rx/L8MQKA/"
+  crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css"
+  integrity="sha384-/TZMdZeq0ZGi4iePTHhOMXOkyv2f72ZcwmhAtOmSZlPkx+5qCOfyc/U1kjd5Su6S"
+  crossorigin="anonymous">
 
 <style>
 /* ==========================================================================
@@ -315,6 +475,80 @@
   html:not(.reveal-print) .reveal .slides section:not([style*="display: none"]) {
     display: flex !important;
   }
+}
+
+/*
+  The runtime can reach the reader and still fail to start: its configuration is
+  partly taken from the address, and an address that names a setting it expects to
+  be a list makes it throw while reading its own settings. By then its stylesheet
+  has claimed the page — the document is clipped to one viewport and every slide
+  is lifted out of normal flow and stacked at a single spot — so without this the
+  reader would be left looking at sixteen slides printed on top of one another.
+
+  This marker is set on exactly one path, the start-up failure handler, and it
+  hands the page back to normal flow: slides follow one another down the document
+  and the document scrolls. A runtime that cannot start therefore costs the reader
+  the presentation, never the content. Nothing else sets the marker, so this rule
+  has no effect on any other path.
+*/
+html.runtime-unstarted,
+html.runtime-unstarted body,
+html.runtime-unstarted .deck,
+html.runtime-unstarted .reveal,
+html.runtime-unstarted .reveal .slides,
+html.runtime-unstarted .reveal .slides section {
+  position: static;
+  height: auto;
+  overflow: visible;
+}
+
+/*
+  Returning the slides to normal flow is necessary but not sufficient. The
+  runtime measures and scales its stage from a listener on the window load
+  event, and that listener fires whether or not start-up succeeded, so the
+  slide container is left carrying a fixed width, a fixed height, an offset and
+  a scale written directly onto the element. Declarations set on an element
+  outrank every selector, so overriding them is the only way to reach them.
+
+  Left alone they cost the reader real content rather than merely polish: the
+  container keeps the width of the presentation stage, and the offset that
+  centred it against that stage now measures against the page instead, pulling
+  the whole stack half its width to the left of the page and half its height
+  above the top of it. A page cannot be scrolled left of its own origin, so the
+  left of every line and the opening heading would be unreachable.
+
+  The stylesheet also makes the slide container transparent to the pointer,
+  because with the runtime in charge the pointer is meant to reach the controls
+  drawn over the slides rather than the slides themselves. With the runtime
+  absent there are no controls to reach, and the effect is that a reader looking
+  at a wall of text cannot select or copy any of it. Taking it back is what
+  leaves the fallback usable rather than merely visible.
+
+  This applies on the one failure path alone, because nothing else sets the
+  marker it is keyed on.
+*/
+html.runtime-unstarted .reveal .slides {
+  inset: auto !important;
+  width: auto !important;
+  height: auto !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+
+/*
+  The same withdrawal is applied a second time one level down, because the
+  stylesheet withholds the pointer from every slide except the one it considers
+  present, and marking a slide present is the runtime's job. With the runtime
+  absent no slide is ever marked, so the exception never applies to any of them
+  and each stays closed to the pointer even once its container has been opened.
+  Reaching the container alone is enough for a reader to sweep a selection
+  across the page, but it leaves the pointer landing on the container rather
+  than on the words under it, so anything resolved per element — the shape of
+  the cursor, a hover, a link — would still be lost. Opening the slides
+  themselves is what makes the whole of the fallback answer the pointer.
+*/
+html.runtime-unstarted .reveal .slides > section {
+  pointer-events: auto !important;
 }
 
 /* The final element on a slide contributes no trailing gap, so centred content
@@ -1361,10 +1595,25 @@ flowchart TB
   either of them. Each carries a marker attribute so the start-up block can
   watch for its arrival or its failure by name; the marker is data only, and no
   behaviour is attached to the markup itself.
+
+  All three are immutable published package members, so each states the digest of
+  the exact bytes it expects and is fetched under anonymous cross-origin rules so
+  the browser can check it. A host that answers with different bytes has its
+  answer discarded before a single statement of it runs. The check composes with
+  the arrival watcher rather than fighting it: a refused enhancement library
+  reports as a failed request, which is the same path an unreachable network
+  takes, so the deck loses that library's visuals and keeps everything else. A
+  refused runtime leaves the document the readable page described below.
 -->
-<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js" async data-optional-library="mermaid"></script>
-<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js" async data-optional-library="lucide"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"
+  integrity="sha384-M/JtqCVlLcK9lwVnBnMXP0V577CBULkjodKsR/PITOe4MSKNbbwqCemEyluOw0+5"
+  crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js" async data-optional-library="mermaid"
+  integrity="sha384-Wm9qzEgq4j1jEnuFK2FxKTlwuhbV2QqtGhcchvjDoKxeJ7WWAW7fysBq+1s6myfX"
+  crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js" async data-optional-library="lucide"
+  integrity="sha384-ieG+IKD0d/ZPXyCBTMVAbqsQdns8QGJR/e26WMw7M4fkaI/rHcS/YIoi+ah9WGge"
+  crossorigin="anonymous"></script>
 
 <script>
   /* ========================================================================
@@ -1388,19 +1637,66 @@ flowchart TB
      Calls into the two enhancement libraries are guarded twice — an existence
      check and a try/catch — so that an unreachable content-delivery network
      costs the visuals but never the ability to navigate the deck. Starting the
-     runtime is guarded by an existence check ONLY: if the runtime arrived but
-     cannot start, that is a real failure of the deck and it surfaces rather
-     than being quietly swallowed. The case where the runtime never arrives at
-     all is handled by the no-runtime branch at the end of this block, which
-     leaves the document a readable page.
+     runtime is treated differently, because a runtime that cannot start is a
+     real failure of the deck rather than a missing embellishment: the failure is
+     RE-RAISED on its own task, so the browser reports it exactly as it would
+     report any other start-up failure, and it is never quietly swallowed. What
+     the handler does do is leave the reader a readable document, since a
+     presentation nobody can read is a worse outcome than a presentation that
+     does not animate. The case where the runtime never arrives at all is handled
+     by the no-runtime branch at the end of this block, on the same footing.
+
+     The address the deck is opened at is an INPUT, not decoration: the runtime
+     reads parameters out of it as configuration and gives them precedence over
+     the settings it is handed. Two controls follow from that, both below — the
+     address is filtered before the runtime can read it, and the two settings
+     that decide whether another window may drive this one are re-asserted after
+     the runtime has finished merging the address, where nothing in the address
+     can reach them.
      ======================================================================== */
   (function () {
     'use strict';
 
     /* Whether the presentation runtime reached the reader. Read once, so the
-       start-up call above and the lifecycle wiring at the end of this block
+       start-up call below and the lifecycle wiring at the end of this block
        cannot disagree about it. */
     var hasRuntime = typeof Reveal !== 'undefined';
+
+    /* Whether it went on to start. Arriving and starting are different
+       questions — an address can be crafted to make the start-up call itself
+       fail — and every branch downstream has to follow the same answer. */
+    var runtimeStarted = false;
+
+    /* The only parameter this deck honours in its own address: the runtime's
+       print flag, which carries no value and so is not configuration at all.
+       Every other parameter is removed before the runtime reads the address,
+       because the runtime treats a parameter as a setting and lets it outrank
+       the settings below. Filtering is what keeps a crafted address from
+       reaching them at all; the re-assertion further down is what holds even
+       when filtering cannot be applied. */
+    var ADDRESS_PARAMETERS_KEPT = ['print-pdf'];
+
+    function filterAddressConfiguration() {
+      var search = window.location.search;
+      if (!search || search === '?') { return; }
+
+      var kept = search.slice(1).split('&').filter(function (parameter) {
+        return parameter !== '' &&
+          ADDRESS_PARAMETERS_KEPT.indexOf(parameter.split('=')[0]) !== -1;
+      });
+      var filtered = kept.length ? '?' + kept.join('&') : '';
+      if (filtered === search) { return; }
+
+      try {
+        window.history.replaceState(null, '',
+          window.location.pathname + filtered + window.location.hash);
+      } catch (error) {
+        /* Some browsers refuse to rewrite the address of a local file. Nothing
+           is forced here: the address is left as it was and the two controls
+           that do not depend on it — the re-assertion below and the failure
+           handler around it — carry the weight instead. */
+      }
+    }
 
     /* Start the runtime. These five settings are the deck's entire runtime
        configuration: deep-linkable slide addresses, the slide transition, the
@@ -1412,13 +1708,77 @@ flowchart TB
        Ready is dispatched asynchronously, so the handlers registered at the end
        of this block still receive it. */
     if (hasRuntime) {
-      Reveal.initialize({
-        hash: true,
-        transition: 'slide',
-        controlsTutorial: false,
-        width: 1920,
-        height: 1080
-      });
+      filterAddressConfiguration();
+
+      try {
+        Reveal.initialize({
+          hash: true,
+          transition: 'slide',
+          controlsTutorial: false,
+          width: 1920,
+          height: 1080
+        });
+
+        /* Two settings the runtime defaults to values a published deck must not
+           ship with, turned off here rather than added to the five above.
+
+           Left alone, the runtime answers instructions sent from any other
+           window that can reach this one — a page embedding it, or the page that
+           opened it — and one of the instructions it accepts is its own start-up
+           call, which takes a list of further scripts to fetch and run. A deck
+           that leaves that channel open therefore lets another window run code
+           of its choosing inside this document. Both directions of the channel
+           are closed: the deck neither accepts instructions nor reports its
+           state outward, and it needs neither, because it is opened directly and
+           driven by the reader.
+
+           The placement is the control, not a stylistic choice. Named among the
+           five settings above, these would be overridden by anyone who put the
+           same names in the address, since the runtime gives the address the last
+           word. Asserted HERE — synchronously, the instant the start-up call
+           returns — they land after that merge, and they land before the runtime
+           reaches the deferred task on which it would create the cross-window
+           listener, so the answer that task reads is already no. It also leaves
+           the five settings above exactly as specified. */
+        Reveal.configure({ postMessage: false, postMessageEvents: false });
+
+        runtimeStarted = true;
+      } catch (error) {
+        /* Reached when the runtime is present but throws while starting, which a
+           crafted address can provoke by naming a setting it expects to be a
+           list. Recording that it did not start is left to the check that follows
+           this block, because a runtime that never arrived needs the same
+           treatment and never reaches a catch.
+
+           What belongs here is the failure itself, re-raised on its own task. It
+           is NOT swallowed:
+           the browser reports it as an uncaught start-up failure the way it
+           reports any other, so a genuine defect stays visible instead of hiding
+           behind a page that merely looks plain. Execution continues to the
+           no-runtime branch at the end of this block, which hydrates what it can
+           so the readable page keeps its drawings and icons. */
+        runtimeStarted = false;
+        window.setTimeout(function () { throw error; }, 0);
+      }
+    }
+
+    /* Marked on every path where the runtime is not in charge, not only where it
+       threw. The two are genuinely different situations and both need this.
+
+       The runtime arrives as two separate members of its package, a stylesheet
+       and a script, each fetched and checked on its own. So the stylesheet can
+       apply while the script does not — a digest that no longer matches, a
+       filtered script, a policy that turns one away — and in that case the
+       stylesheet has taken every slide out of normal flow and stacked them at a
+       single spot with nothing left running to page through them. Keying the
+       marker on the failure handler alone would leave exactly that case
+       unmarked, because nothing threw: the script simply never arrived.
+
+       Where neither member arrives the marker costs nothing, since the slides
+       were never moved out of flow in the first place and the rule it selects
+       only restates what is already true. */
+    if (!runtimeStarted) {
+      document.documentElement.classList.add('runtime-unstarted');
     }
 
     /* The deck's body typeface, read back from the stylesheet rather than
@@ -1464,9 +1824,106 @@ flowchart TB
        library is fetched asynchronously and so may land after this block has
        finished. The watcher near the end of the block calls this the instant the
        library is there — and before anything is drawn, since automatic start is
-       off — so the deck's own theme is always the one in force. */
+       off — so the deck's own theme is always the one in force.
+
+       Not everything set here is cosmetic, and telling the two apart decides how
+       a failure must be handled. Two of these settings are the reason drawing a
+       diagram is safe at all: the strict security level, and labels drawn as
+       glyphs rather than as markup. The library's own default for flowchart
+       labels is MARKUP, so a settings call that throws part-way through does not
+       leave the deck merely unthemed — it leaves it building labels as markup and
+       passing them through the library's bundled sanitiser, which is exactly the
+       machinery this deck declines to depend on. The latch below therefore
+       records whether the settings actually landed, and nothing is drawn unless
+       they did. A diagram that cannot be configured safely is left as the
+       authored text it was written as, which still reads.
+
+       The protected-key list is the library's own mechanism for refusing later
+       changes to named settings: it discards any attempt to set one of them after
+       this point. The first six entries are the library's documented defaults,
+       restated so that naming the list does not silently drop them; the two
+       additions are the label mode and the sanitiser options, so neither of the
+       settings that make drawing safe can be relaxed afterwards. */
+    var diagramsConfigured = false;
+
+    /* Stop the library starting itself, as a step of its own that runs before any
+       other setting is touched.
+
+       The library registers a page-load handler of its own when it executes, and
+       that handler draws every diagram in the document on its own terms unless
+       automatic start has been turned off by then. Carrying that one setting
+       inside the main settings call below is not enough: should that call be
+       rejected for any reason, the setting never lands, the library's handler
+       still runs, and it draws all four diagrams with the very label mode the
+       note above explains the deck must not use — replacing each authored
+       definition with its own drawing in the process. The deck's own refusal to
+       draw cannot prevent that, because the library is drawing on its own
+       initiative rather than being asked to.
+
+       Its handler tests two things and needs both: a property on the library
+       object, and the same-named setting in its resolved configuration. Turning
+       off either one is sufficient, so both are turned off, in order of how
+       little can go wrong:
+
+         the property first, as a plain assignment that involves none of the
+         settings machinery and so has nothing in it to reject; then
+
+         the setting, in an attempt of its own, so that a rejection there cannot
+         strand the assignment that already succeeded.
+
+       The result is then read back rather than assumed. Where neither reads as
+       off, the diagram elements are sealed instead. */
+    function autoStartHalted() {
+      try {
+        if (mermaid.startOnLoad === false) { return true; }
+        if (mermaid.mermaidAPI && typeof mermaid.mermaidAPI.getConfig === 'function') {
+          return mermaid.mermaidAPI.getConfig().startOnLoad === false;
+        }
+      } catch (e) { }
+      return false;
+    }
+
+    function haltDiagramAutoStart() {
+      try { mermaid.startOnLoad = false; } catch (e) { }
+      try { mermaid.initialize({ startOnLoad: false }); } catch (e) { }
+      return autoStartHalted();
+    }
+
+    /* Last resort, for the case where automatic start could not be confirmed off:
+       mark every diagram element as already drawn. The library's drawing loop
+       skips an element carrying that mark, so a run it starts by itself passes
+       over all four and leaves their authored text exactly as written. The deck's
+       own selection excludes the same mark, so this closes both routes at once.
+       The second mark records why, for anyone reading the page afterwards. */
+    function sealDiagramsFromLibrary() {
+      try {
+        var sealed = document.querySelectorAll('pre.mermaid');
+        for (var i = 0; i < sealed.length; i += 1) {
+          sealed[i].setAttribute('data-processed', 'true');
+          sealed[i].setAttribute('data-diagram-sealed', '');
+        }
+      } catch (e) { }
+    }
+
+    /* A failure to configure leaves the diagrams undrawn by design, which looks
+       from the outside exactly like a slide that was authored without one. Saying
+       so once distinguishes the two for whoever has to tell them apart. */
+    function reportDiagramFailure(error) {
+      try {
+        if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+          console.warn('Diagrams disabled: the safe drawing settings could not be applied.', error);
+        }
+      } catch (e) { }
+    }
+
     function configureDiagrams() {
-      if (typeof mermaid === 'undefined') { return; }
+      diagramsConfigured = false;
+      if (typeof mermaid === 'undefined' || typeof mermaid.initialize !== 'function') { return; }
+      if (!haltDiagramAutoStart()) {
+        sealDiagramsFromLibrary();
+        reportDiagramFailure(new Error('Automatic diagram rendering could not be turned off.'));
+        return;
+      }
       try {
         var diagramFont = tokenValue('--ff-body');
         var mermaidConfig = {
@@ -1475,6 +1932,10 @@ flowchart TB
           securityLevel: 'strict',
           htmlLabels: false,
           flowchart: { htmlLabels: false, useMaxWidth: false },
+          secure: [
+            'secure', 'securityLevel', 'startOnLoad', 'maxTextSize',
+            'suppressErrorRendering', 'maxEdges', 'htmlLabels', 'dompurifyConfig'
+          ],
           themeVariables: {
             primaryColor: '#F2F0FE',
             primaryTextColor: '#333333',
@@ -1487,8 +1948,16 @@ flowchart TB
           mermaidConfig.fontFamily = diagramFont;
         }
         mermaid.initialize(mermaidConfig);
+        diagramsConfigured = true;
       } catch (e) {
-        /* Theming is cosmetic; a failure here must not stop the deck. */
+        /* Left unset deliberately. Per the note above, a library holding its own
+           defaults would build labels as markup, so the deck draws nothing at all
+           rather than drawing them that way. Automatic start was already turned
+           off in the step before this one, so nothing draws them on the library's
+           initiative either; sealing the elements records that settled state in
+           the page itself, where it can be read back. */
+        sealDiagramsFromLibrary();
+        reportDiagramFailure(e);
       }
     }
 
@@ -1501,10 +1970,12 @@ flowchart TB
       return document;
     }
 
-    /* Diagrams on a slide that have not yet been rendered. */
+    /* Diagrams on a slide that have not yet been rendered. A definition the
+       shape test below has already turned away is excluded too, so a refusal is
+       final rather than retried on every slide change. */
     function pendingDiagrams(scope) {
       return Array.prototype.slice.call(
-        scope.querySelectorAll('pre.mermaid:not([data-processed])')
+        scope.querySelectorAll('pre.mermaid:not([data-processed]):not([data-diagram-refused])')
       );
     }
 
@@ -1514,6 +1985,78 @@ flowchart TB
       if (!block.hasAttribute('data-mermaid-source')) {
         block.setAttribute('data-mermaid-source', block.textContent.trim());
       }
+    }
+
+    /*
+      The four diagrams in this deck are fixed, authored text. They are not
+      supplied by a reader, fetched from anywhere, or assembled at run time, and
+      they never will be: the deck is a single file whose diagrams are part of its
+      source. That makes their shape knowable in advance, and a definition whose
+      shape is knowable in advance does not need to be handed to a general-purpose
+      parser on trust.
+
+      So each definition is checked line by line against the small grammar the
+      four of them are written in, and only a definition entirely made of those
+      line forms is drawn. Four forms are accepted and nothing else: a blank line;
+      the flow-direction header; an accessible title or description; and a chain
+      of plain node references, each optionally carrying a quoted label, joined by
+      plain arrows. A definition must contain the header to be accepted at all, so
+      this is a statement of what is allowed rather than a list of what is not.
+
+      The label and caption character class is deliberately narrow — letters,
+      digits, spaces and a handful of punctuation marks. It admits none of
+      < > & % { } $ # = / \ ` | ! ? * + [ ] and no bare quote, which is what makes
+      the refusal structural rather than a matter of pattern-matching known bad
+      input. A configuration directive needs %% and braces; a clickable link needs
+      the click keyword; a markup label needs angle brackets; document front
+      matter needs three dashes; an embedded formula needs dollars and a
+      backslash; a style override needs a brace and a colour literal; any other
+      diagram type needs its own keyword in place of the header. Every one of
+      those is unwritable in this grammar, so the parser paths that read them are
+      unreachable from this deck's own content by construction — including the
+      markup-sanitising, front-matter and formula paths that the library carries
+      bundled dependencies for.
+
+      A refused definition is not drawn and not repaired. Its own text stays on
+      the slide, because authored diagram text still says what the diagram says,
+      and a reader is better served by a readable definition than by a drawing
+      this deck cannot vouch for.
+    */
+    var AUTHORED_DIAGRAM_LINE_FORMS = [
+      /^[ \t]*$/,
+      /^[ \t]*flowchart[ \t]+(?:LR|RL|TB|TD|BT)[ \t]*$/,
+      /^[ \t]*acc(?:Title|Descr):[ \t]*[A-Za-z0-9 ,.:;'()-]+$/,
+      /^[ \t]*[A-Za-z][A-Za-z0-9]*(?:\["[A-Za-z0-9 ,.:;'()-]+"\])?(?:[ \t]*-->[ \t]*[A-Za-z][A-Za-z0-9]*(?:\["[A-Za-z0-9 ,.:;'()-]+"\])?)*[ \t]*$/
+    ];
+
+    /* Index of the flow-direction header within the table above. A definition
+       without it declares no diagram type and is therefore not one of ours. */
+    var DIAGRAM_HEADER_FORM = 1;
+
+    function isAuthoredDiagramForm(definition) {
+      if (typeof definition !== 'string' || !definition) { return false; }
+      var lines = definition.split(/\r?\n/);
+      var declaresDiagram = false;
+      for (var i = 0; i < lines.length; i += 1) {
+        var matched = -1;
+        for (var form = 0; form < AUTHORED_DIAGRAM_LINE_FORMS.length; form += 1) {
+          if (AUTHORED_DIAGRAM_LINE_FORMS[form].test(lines[i])) { matched = form; break; }
+        }
+        if (matched < 0) { return false; }
+        if (matched === DIAGRAM_HEADER_FORM) { declaresDiagram = true; }
+      }
+      return declaresDiagram;
+    }
+
+    /* Split this slide's pending diagrams into the ones whose definitions are in
+       the authored shape and the ones that are not, marking each refusal so it is
+       left alone from here on. */
+    function acceptedDiagrams(blocks) {
+      return blocks.filter(function (block) {
+        if (isAuthoredDiagramForm(block.getAttribute('data-mermaid-source'))) { return true; }
+        block.setAttribute('data-diagram-refused', '');
+        return false;
+      });
     }
 
     /*
@@ -1538,19 +2081,26 @@ flowchart TB
        reports ready, and again on every slide change. */
     function hydrate() {
       try {
-        if (typeof mermaid !== 'undefined' && typeof mermaid.run === 'function') {
+        /* Three conditions, all required: the library is here, its settings
+           landed, and it offers the mandated entry point. A library that arrived
+           but could not be configured is deliberately not used. */
+        if (diagramsConfigured && typeof mermaid !== 'undefined' && typeof mermaid.run === 'function') {
           var blocks = pendingDiagrams(currentScope());
           if (blocks.length) {
             blocks.forEach(stashSource);
-            /* Mandated entry point, scoped to this slide's pending diagrams
-               so nothing is rendered against an unlaid-out slide. */
-            var run = mermaid.run({ nodes: blocks, suppressErrors: true });
-            if (run && typeof run.then === 'function') {
-              run.then(function () {
-                recoverFailedDiagrams(blocks);
-              }, function () {
-                recoverFailedDiagrams(blocks);
-              });
+            var drawable = acceptedDiagrams(blocks);
+            if (drawable.length) {
+              /* Mandated entry point, scoped to this slide's pending diagrams
+                 so nothing is rendered against an unlaid-out slide, and to the
+                 definitions whose shape has been checked. */
+              var run = mermaid.run({ nodes: drawable, suppressErrors: true });
+              if (run && typeof run.then === 'function') {
+                run.then(function () {
+                  recoverFailedDiagrams(drawable);
+                }, function () {
+                  recoverFailedDiagrams(drawable);
+                });
+              }
             }
           }
         }
@@ -1664,14 +2214,20 @@ flowchart TB
 
     /* Lifecycle wiring, and the deck's only two triggers. Ready drives the first
        render — a single path, so nothing renders twice — and every slide change
-       renders whatever the newly shown slide still needs. */
-    if (hasRuntime) {
+       renders whatever the newly shown slide still needs.
+
+       The condition is whether the runtime STARTED, not merely whether it
+       arrived: a runtime that threw on start-up will never dispatch either event,
+       so wiring handlers to it would strand the drawings and icons on a page the
+       reader can otherwise read. That case takes the branch below instead. */
+    if (runtimeStarted) {
       Reveal.on('ready', hydrateWhenFontsReady);
       Reveal.on('slidechanged', hydrate);
     } else {
-      /* No presentation runtime reached the reader: still hydrate the icons
-         and diagrams so the document degrades into a readable page. This route
-         shares the same latch, so it cannot double up with anything else. */
+      /* No presentation runtime is driving the deck — it never arrived, or it
+         arrived and could not start: still hydrate the icons and diagrams so the
+         document degrades into a readable page. This route shares the same latch,
+         so it cannot double up with anything else. */
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', hydrateWhenFontsReady);
       } else {
