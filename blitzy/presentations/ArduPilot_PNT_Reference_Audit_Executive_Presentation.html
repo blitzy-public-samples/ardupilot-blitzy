@@ -28,8 +28,11 @@
              no bundler, no vendored library. The three JavaScript libraries and
              three web-font families are referenced at pinned versions from a
              content-delivery network at VIEW TIME ONLY; nothing is installed.
-             Diagram and icon start-up is guarded, so an unreachable network
-             degrades the visuals but never breaks slide navigation.
+             Only the presentation runtime is on the path to a navigable deck:
+             the drawing and icon libraries are fetched asynchronously and picked
+             up whenever they land. Their start-up is guarded, so a slow or
+             unreachable network degrades the visuals but never delays or breaks
+             slide navigation.
 
   STRUCTURE  16 sections — 1 title, 9 content, 5 dividers, 1 closing. Every
              section carries at least one non-text visual: 4 Mermaid diagrams,
@@ -76,7 +79,9 @@
   body are this file's COMPLETE external-reference set: six coordinates, each
   stated exactly once, each pinned to an exact version. Nothing else reaches the
   network — no connection hint, no prefetch, no favicon request (see the inline
-  data URI above) and no local asset of any kind.
+  data URI above) and no local asset of any kind. Two of the six — the drawing
+  and icon libraries — are fetched asynchronously so that they cannot delay the
+  deck becoming navigable; see the note above the scripts at the end of the body.
 -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Fira+Code:wght@400;500&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
@@ -286,21 +291,28 @@
 /*
   The runtime writes an inline display value onto each slide as it takes that
   slide in or out of its working set, and an inline declaration outranks an
-  ordinary stylesheet rule. The box type therefore has to be claimed with an
-  importance flag to survive, which is the sole use of importance in this file.
+  ordinary stylesheet rule. A slide the runtime is showing therefore needs its
+  box type claimed with an importance flag to survive, which is the sole use of
+  importance in this file.
 
-  Two consequences are deliberate. Because the claim ignores the runtime's
-  working set, every slide keeps a laid-out box at all times, which is what lets
-  a diagram measure its own width correctly before the slide it lives on is first
-  shown. And because non-present slides are held back by opacity rather than by
-  the box type, giving them a box does not reveal them.
+  The claim deliberately DEFERS to the runtime's working set rather than
+  overriding it: the guard excludes any slide the runtime has taken out of that
+  set, so a slide the runtime has hidden stays hidden and contributes no box, no
+  layout and no paint. Only the slides the runtime is actually showing — the one
+  on screen and the one sliding off it during a transition — are claimed, which
+  is why the claim costs nothing and why moving between slides never reflows the
+  one leaving the screen.
+
+  Nothing depends on a hidden slide having a box. Diagram rendering is scoped to
+  the slide on screen and retried on the next slide change, so a diagram always
+  measures itself on a slide that is laid out.
 
   The rule is confined to screen media and stands aside for the runtime's print
   view, so both of the framework's own print declarations keep their existing
   precedence untouched.
 */
 @media screen {
-  html:not(.reveal-print) .reveal .slides section {
+  html:not(.reveal-print) .reveal .slides section:not([style*="display: none"]) {
     display: flex !important;
   }
 }
@@ -1337,19 +1349,41 @@ flowchart TB
 <!--
   Pinned library versions, referenced from a content-delivery network at view
   time. Nothing is installed, vendored, bundled or committed alongside this file.
+
+  Only the FIRST of the three is required to read the deck: it is the
+  presentation runtime, so it is fetched the ordinary blocking way and the
+  start-up block below runs the moment it has executed.
+
+  The other two are enhancement — drawings and icons — and together they are by
+  far the larger download, so they are marked for asynchronous fetching. An
+  asynchronous request does not hold up the parser, which means the start-up
+  block below is reached, and the deck becomes navigable, without waiting on
+  either of them. Each carries a marker attribute so the start-up block can
+  watch for its arrival or its failure by name; the marker is data only, and no
+  behaviour is attached to the markup itself.
 -->
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js" async data-optional-library="mermaid"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js" async data-optional-library="lucide"></script>
 
 <script>
   /* ========================================================================
      PRESENTATION START-UP
      ------------------------------------------------------------------------
      The order below is deliberate and fixed: the presentation runtime is
-     started first, the diagram library is themed second, the reusable hydration
-     routines are defined third, and the runtime's own lifecycle events are
-     wired last.
+     started first, the diagram library's theming is defined second, the
+     reusable hydration routines are defined third, and the runtime's own
+     lifecycle events are wired last.
+
+     Starting the runtime is the FIRST thing this block does, and this block is
+     reached as soon as the runtime's own script has executed: the two
+     enhancement libraries are fetched asynchronously, so neither can stand
+     between the reader and a navigable deck no matter how slow or how large it
+     is. Whichever of them arrives, arrives later and is picked up by the
+     watcher near the end of this block, which themes the diagram library if it
+     is the one that landed and then runs the same single hydration routine the
+     lifecycle events use. Whichever of them fails, fails explicitly and is
+     simply not waited on again.
 
      Calls into the two enhancement libraries are guarded twice — an existence
      check and a try/catch — so that an unreachable content-delivery network
@@ -1424,8 +1458,15 @@ flowchart TB
        The width cap is turned OFF for the same family of reasons: it pins the
        drawing to the pixel width it happened to be measured at, which on this
        stage leaves a diagram at roughly half the width available to it. Without
-       it the drawing scales to its frame and the stylesheet governs its size. */
-    if (typeof mermaid !== 'undefined') {
+       it the drawing scales to its frame and the stylesheet governs its size.
+
+       Theming lives in a routine rather than running inline because the diagram
+       library is fetched asynchronously and so may land after this block has
+       finished. The watcher near the end of the block calls this the instant the
+       library is there — and before anything is drawn, since automatic start is
+       off — so the deck's own theme is always the one in force. */
+    function configureDiagrams() {
+      if (typeof mermaid === 'undefined') { return; }
       try {
         var diagramFont = tokenValue('--ff-body');
         var mermaidConfig = {
@@ -1563,6 +1604,63 @@ flowchart TB
 
       beginInitialHydration();
     }
+
+    /* How each enhancement library's request ended. Read before acting, so a
+       library that reports twice — a reader reloading while its request is still
+       in flight, a browser replaying a cached response — cannot drive a second
+       theming pass or a second render. */
+    var optionalLibraryState = { mermaid: 'pending', lucide: 'pending' };
+
+    /* One of the two enhancement libraries finished its request.
+
+       On arrival: theme the diagram library if it is the one that landed, then,
+       if the first render has already happened, run the same hydration routine
+       again so the slide on screen picks the new library up. If the first render
+       has NOT happened yet, nothing is forced here — the render that is already
+       on its way will find the library in place.
+
+       On failure: record it and stop. Every call into either library is guarded
+       by an existence check and a try/catch, so a library that never arrives
+       costs the deck its drawings or its icons and nothing else; navigation,
+       text, tables and metric cards are untouched. */
+    function optionalLibraryResolved(name, arrived) {
+      if (optionalLibraryState[name] !== 'pending') { return; }
+      optionalLibraryState[name] = arrived ? 'ready' : 'unavailable';
+      if (!arrived) { return; }
+      if (name === 'mermaid') { configureDiagrams(); }
+      if (initialHydrationStarted) { hydrate(); }
+    }
+
+    /* Watch the two asynchronously fetched libraries.
+
+       Each is resolved from this one synchronous pass, by whichever of two routes
+       applies: a library whose script has already executed is resolved on the
+       spot, and one that has not is resolved later by its own element's load or
+       error event. Because this pass cannot be interrupted, a request cannot slip
+       between the two routes, so no arrival and no failure is ever missed. The
+       markers are read from the markup rather than repeated here, so the library
+       coordinates stay stated exactly once, in the element that fetches them. */
+    function watchOptionalLibraries() {
+      var tags = document.querySelectorAll('script[data-optional-library]');
+      Array.prototype.forEach.call(tags, function (tag) {
+        var name = tag.getAttribute('data-optional-library');
+        if (!Object.prototype.hasOwnProperty.call(optionalLibraryState, name)) {
+          return;
+        }
+        if (typeof window[name] !== 'undefined') {
+          optionalLibraryResolved(name, true);
+          return;
+        }
+        tag.addEventListener('load', function () {
+          optionalLibraryResolved(name, true);
+        });
+        tag.addEventListener('error', function () {
+          optionalLibraryResolved(name, false);
+        });
+      });
+    }
+
+    watchOptionalLibraries();
 
     /* Lifecycle wiring, and the deck's only two triggers. Ready drives the first
        render — a single path, so nothing renders twice — and every slide change
