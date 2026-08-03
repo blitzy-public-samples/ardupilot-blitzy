@@ -30,7 +30,7 @@
   block and the digest must be recomputed, or the deck will load its libraries
   and then run none of its own code.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-KzFforeeah93C06iV4JxUjf2SeEJFK89JYwKoi6dNZ4=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-6nlL+HIeIcwygSaLNCMi3fN+z8kfiE1+JJUTpUmx1xM=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
 
 <!-- Declared before anything is fetched, so it governs every request this file
      makes: a remote host has no need of the asking document's address, so it is
@@ -129,26 +129,61 @@
   --z-skip-link: 100;
 
   /* Sized in em so the whole scale tracks the runtime's slide font size, and
-     calibrated for the mandated 1920x1080 stage. */
-  --fs-eyebrow: 0.5em;
+     calibrated for the mandated 1920x1080 stage.
+
+     The eyebrow's value is not free. Its colour and its typeface are both fixed
+     by the design system, and on the gradient field that pairing sits close to
+     the lightest stop of the gradient, where it separates from its background by
+     a little over three to one. That is the ratio required of text at large
+     scale, and short of it for text below that threshold, so the size is what
+     decides whether the mandated pairing reads or not. Sized to land above the
+     large-scale threshold on the stage this deck is authored for, the pairing is
+     kept exactly as the system specifies and the separation it already has
+     becomes sufficient rather than short. The gradient itself, the accent, and
+     the typeface are untouchable; the size was the one lever left, and it is the
+     one that was moved.
+
+     The rest of the scale moves with it, in smaller steps. The smallest roles
+     were the smallest text in the deck by a wide margin, and lifting them costs
+     nothing on the field they sit on -- body text on a light surface separates by
+     better than twelve to one -- while it buys back legibility everywhere the
+     stage is scaled down. */
+  --fs-eyebrow: 0.64em;
   --fs-hero-title: 1.75em;
   --fs-hero-lede: 0.72em;
+  /* The provenance line under the title. It carries the same weight of claim as
+     the eyebrow above it and sits on the same gradient, so it is sized to the
+     same threshold; unlike the eyebrow its colour is not mandated, so it takes
+     the invert token the design system assigns to text on this field. */
+  --fs-hero-meta: 0.64em;
   --fs-divider-title: 1.9em;
-  --fs-divider-lede: 0.56em;
+  --fs-divider-lede: 0.62em;
   --fs-title: 1.28em;
   --fs-lede: 0.66em;
-  --fs-bullet: 0.62em;
+  --fs-bullet: 0.68em;
   --fs-kpi-value: 1.6em;
-  --fs-kpi-label: 0.4em;
-  --fs-table: 0.52em;
-  --fs-caption: 0.42em;
-  --fs-lockup: 0.6em;
+  --fs-kpi-label: 0.46em;
+  --fs-table: 0.56em;
+  --fs-caption: 0.5em;
+  --fs-lockup: 0.66em;
   --fs-diagram: 0.56em;
   /* A table caption is a child of the table, so an em value here would compound
      against the table's own em and collapse the caption to a fraction of its
      intended size. Sized in rem instead, it is measured against the document
      root and therefore cannot compound, while still scaling with the stage. */
-  --fs-table-caption: 1.1rem;
+  --fs-table-caption: 1.3rem;
+  /* The runtime sizes its navigation buttons as a multiple of the control
+     cluster's own text size, and positions them in the same unit — so this one
+     value sets how large the buttons are AND keeps their spacing proportional.
+     The framework's own value leaves each button below the smallest comfortable
+     pointer target; this one carries them past it. Stated in root units because
+     the cluster sits outside the scaled stage, where a stage-relative unit would
+     resolve against the wrong basis. */
+  --fs-control: 0.8rem;
+  /* The skip link lives on the document, outside the scaled stage, so it is sized
+     in root units for the same reason as the control cluster: a stage-relative
+     unit would resolve against the document's text size instead and collapse. */
+  --fs-skip-link: 1rem;
 
   --lh-tight: 1.1;
   --lh-snug: 1.3;
@@ -172,6 +207,10 @@
   --icon-kpi: 1.6rem;
   --icon-row: 2.25rem;
 
+  /* Floor for anything a reader points at or taps. Stated in root units because
+     every such element in this deck sits outside the scaled stage. */
+  --target-min: 2.75rem;
+
   --accent-bar-height: 0.375rem;
   --accent-bar-width: 38%;
   --measure-full: 100%;
@@ -188,8 +227,41 @@
 
   --motion-fast: 180ms;
   --motion-ease: ease-out;
+  /* Named so that the reduced-motion branch can collapse a duration by reference
+     rather than by writing a bare zero into a rule. */
+  --motion-none: 0s;
 
   --offscreen-inset: -20000px;
+
+  /*
+    The runtime's own chrome — its navigation chevrons and its progress bar —
+    takes its colour from the base theme's custom properties rather than from any
+    rule this stylesheet can outrank. Overriding the base theme's ELEMENT rules is
+    therefore not enough: while its properties stand undeclared here they keep
+    their own values, and the chevrons and the progress fill paint in a blue that
+    belongs to no token in this file. Restating each of them as a reference to a
+    Blitzy token is what closes that route, so every painted surface in the
+    document — content and chrome alike — resolves through this block.
+
+    Two of the base theme's properties are deliberately left alone. Its slide font
+    size is load-bearing: the whole em scale above is calibrated against it, so
+    redeclaring it would rescale every slide. And its overlay pair holds bare
+    colour components rather than colours, because the framework composes them
+    inside a translucent colour function; a token would not parse there.
+  */
+  --r-link-color: var(--blitzy-primary);
+  --r-link-color-dark: var(--blitzy-primary-deep);
+  --r-link-color-hover: var(--blitzy-primary-light);
+  --r-main-font: var(--ff-body);
+  --r-heading-font: var(--ff-display);
+  --r-code-font: var(--ff-mono);
+  --r-main-color: var(--blitzy-text);
+  --r-heading-color: var(--blitzy-text);
+  --r-heading-text-transform: none;
+  --r-heading-letter-spacing: var(--tracking-normal);
+  --r-background-color: var(--blitzy-surface-0);
+  --r-selection-background-color: var(--blitzy-surface-2);
+  --r-selection-color: var(--blitzy-text);
 }
 
 *,
@@ -343,24 +415,85 @@ html.runtime-unstarted .reveal .slides > section {
   padding: 0;
 }
 
-.reveal :focus-visible,
-.skip-link:focus-visible {
+.reveal :focus-visible {
   outline: var(--bw-thin) solid var(--blitzy-primary);
   outline-offset: var(--sp-1);
 }
 
+/*
+  The runtime's navigation buttons need their focus ring stated separately, and
+  the reason is specificity rather than styling. The framework clears the outline
+  on those buttons with a rule naming both a class chain and the element type; the
+  general rule above names one class fewer and one type fewer, so it loses on every
+  count and the ring never painted — while the offset, which the outline shorthand
+  does not reset, survived and left the buttons reporting an outline four pixels
+  from an outline that was zero wide. Naming the same chain plus the focus state
+  outranks it.
+
+  Two additions beyond the ring. The button is lifted to full strength, because the
+  framework rests the backwards arrow at a third of its opacity and a ring on a
+  barely-visible control is barely a ring. And a shadow is drawn as well as an
+  outline: a shadow is the one indicator an outline reset cannot suppress, so the
+  focus state survives even if the framework's rule ever reaches further.
+
+  On the dark fields the ring changes to the teal accent. The brand violet is a
+  near neighbour of those fields and would be hard to make out against them; the
+  teal separates from all three by a wide margin, and from the white surface the
+  violet separates likewise.
+*/
+.reveal .controls button:focus-visible {
+  outline: var(--bw-thin) solid var(--blitzy-primary);
+  outline-offset: var(--sp-1);
+  box-shadow: 0 0 0 var(--bw-thin) var(--blitzy-surface-0);
+}
+
+/*
+  Full strength while focused, stated separately because it has a different rule to
+  outrank. The framework rests the backwards arrow at a third of its strength, and
+  it says so through a longer chain than the one that clears the outline — long
+  enough that the rule above loses this one declaration while winning the others.
+  Transparency applies to everything an element paints, its ring included, so
+  losing it would have left the ring on that arm drawn through a third of an alpha:
+  declared, measurable, and not perceivable. This chain names the framework's own
+  and adds the focus state, which is what carries it.
+
+  Only the focused state is claimed. The resting fade is the framework's own way of
+  saying which way a reader has already come, and it is left exactly as it is.
+*/
+.reveal:not(.rtl) .controls[data-controls-back-arrows] button.enabled:focus-visible {
+  opacity: 1;
+}
+
+.reveal.has-dark-background .controls button:focus-visible {
+  outline-color: var(--blitzy-accent-teal);
+  box-shadow: 0 0 0 var(--bw-thin) var(--blitzy-primary-navy);
+}
+
+/*
+  The skip link sits on the document rather than inside the stage, so its size is
+  measured against the document's own text size and not the stage's. A relative
+  size authored for the stage therefore collapsed here to a few pixels — the link
+  was the smallest text in the deck and the smallest target in it, which is the
+  wrong way round for the first thing a keyboard reader meets. It takes an absolute
+  size of its own, and a floor on its height that carries it past the smallest
+  comfortable pointer target; the content is centred so the floor adds room rather
+  than shifting the label.
+*/
 .skip-link {
   position: fixed;
   inset-block-start: var(--sp-2);
   inset-inline-start: var(--offscreen-inset);
   z-index: var(--z-skip-link);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
   padding-block: var(--sp-2);
   padding-inline: var(--sp-4);
   border-radius: var(--radius-sm);
   background: var(--blitzy-primary);
   color: var(--blitzy-text-invert);
   font-family: var(--ff-body);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-skip-link);
   font-weight: var(--fw-semibold);
   text-decoration: none;
 }
@@ -369,9 +502,74 @@ html.runtime-unstarted .reveal .slides > section {
   inset-inline-start: var(--sp-2);
 }
 
+/*
+  The skip link's own ring is white and hugs the pill rather than standing off it.
+  Drawn in the brand violet it was the same colour as the pill it surrounded and a
+  near neighbour of the gradient behind it, so it read as part of the pill instead
+  of as a state. White separates strongly from the pill on one side and from every
+  field this deck paints on the other, so the ring is identifiable whatever is
+  underneath. A violet shadow outside the white keeps the pair legible where the
+  field itself is light.
+*/
+.skip-link:focus-visible {
+  outline: var(--bw-thin) solid var(--blitzy-text-invert);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--bw-thick) var(--blitzy-primary);
+}
+
+
+/*
+  Where a slide-type field is painted, and why it is painted on exactly one
+  surface.
+
+  The runtime builds a full-page backdrop element per slide and copies that
+  slide's class list onto it, so a rule written for a slide type matches TWICE —
+  once on the backdrop, which fills the window, and once on the slide box, which
+  is the fixed stage inset by its margin. A gradient resolved over two boxes of
+  different shape traverses its stops at two different rates, and the boundary
+  between them reads as a rectangle nobody drew. It hides at 16:9, because the two
+  boxes then differ only by a uniform scale about a shared centre; it is plainly
+  visible the moment the window's aspect ratio departs from the stage's.
+
+  The field therefore belongs to the backdrop alone: one box, one traversal, no
+  boundary, and the window is covered edge to edge at every aspect ratio. The slide
+  box keeps only its layout.
+
+  The flat colour underneath the gradient is not decoration and is not visible —
+  the gradient is opaque and covers it. It is there to be MEASURED. The runtime
+  decides whether a slide is dark by reading the backdrop's resolved background
+  COLOUR and requires it to be opaque; a gradient is an image, leaving the colour
+  transparent, so without this declaration a dark slide is never recognised as one
+  and the runtime's own contrast adaptation never fires on it — which is what left
+  the chevrons rendering in a light accent over these dark fields. Each value is
+  the gradient's own darkest stop, so the measurement describes what is painted.
+
+  The backdrop selector deliberately does NOT name the container the backdrop
+  normally sits in. That container is emptied in two of the runtime's own modes —
+  printing moves each backdrop into the page it belongs to, and the scrolling
+  reading mode moves each one into its scroll page — and in both the element keeps
+  rendering at full size. A field that required the container would stop painting
+  in both, which on these slides means inverted copy on nothing: white on white.
+  Naming the backdrop wherever it lives covers every mode in which the runtime
+  provides one, and still paints exactly one surface.
+
+  The second selector is the remaining case: the runtime never started, so there
+  is no backdrop at all and the slide box is the only surface there is. Nothing is
+  double-painted, because the two selectors describe mutually exclusive states.
+*/
+.reveal .slide-background.slide-title,
+html.runtime-unstarted .reveal .slides section.slide-title {
+  background-color: var(--blitzy-primary-deep);
+  background-image: var(--gradient-hero);
+}
+
+.reveal .slide-background.slide-divider,
+html.runtime-unstarted .reveal .slides section.slide-divider {
+  background-color: var(--blitzy-primary-dark);
+  background-image: var(--gradient-divider);
+}
 
 .reveal .slide-title {
-  background: var(--gradient-hero);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -387,12 +585,22 @@ html.runtime-unstarted .reveal .slides > section {
   max-width: var(--measure-lede);
 }
 
+/*
+  The provenance line under the title used to borrow the accent, which the design
+  system reserves for the eyebrow, the terminal stop of the accent bar, and the
+  metric icons -- not for running copy. The system's own assignment for text on
+  the title, divider and closing fields is the invert token, and taking it here is
+  both the more faithful reading and the better-separated one: on the lightest
+  stop of the gradient the accent gives a little over three to one and the invert
+  gives four, and the line is sized above the large-scale threshold so either
+  would qualify. It takes the invert by inheriting it, so there is one place in
+  this stylesheet that decides what colour text on this field is.
+*/
 .reveal .slide-title .slide-meta {
-  color: var(--blitzy-accent-teal);
+  font-size: var(--fs-hero-meta);
 }
 
 .reveal .slide-divider {
-  background: var(--gradient-divider);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -414,7 +622,38 @@ html.runtime-unstarted .reveal .slides > section {
   max-width: var(--measure-lede);
 }
 
-.reveal .slide-divider svg {
+/*
+  Each icon is written as an empty element that the icon library later swaps for a
+  drawing. An empty element of that kind holds no box, so until the library
+  arrives every icon in the deck occupies nothing and its neighbours sit where
+  they would sit if it were not there — then the drawing lands, the box appears,
+  and everything below it moves. The movement is small and it happens once, but it
+  happens on the reader's first look at every slide, which is the worst moment for
+  anything to move.
+
+  The remedy is to give the placeholder the box the drawing will have, so that the
+  swap changes what is in the space rather than how much space there is. The
+  placeholder is admitted to each of the rules below beside the drawing it stands
+  in for, which is what keeps the two sizes the same size: they are one
+  declaration, reading one token, not two that have to be remembered together.
+
+  Only the display mode is stated separately, because a drawing already holds a
+  box of its own and an empty element has to be told it may. It is told in the
+  mode that keeps a placeholder aligned exactly as the drawing is: both are then
+  inline-level boxes sitting on the text baseline where they sit inside a line, and
+  both are laid out as blocks where their parent arranges its children, so the
+  space measures the same either way.
+
+  Nothing here survives the swap. Once the library has run there are no
+  placeholders left for these rules to reach, so the finished slide is laid out by
+  the drawing rules alone, exactly as it was before.
+*/
+i[data-lucide] {
+  display: inline-block;
+}
+
+.reveal .slide-divider svg,
+.reveal .slide-divider i[data-lucide] {
   width: var(--icon-divider);
   height: var(--icon-divider);
   stroke: var(--blitzy-accent-teal);
@@ -437,7 +676,8 @@ html.runtime-unstarted .reveal .slides > section {
   font-size: var(--fs-divider-title);
 }
 
-.reveal .slide-closing svg {
+.reveal .slide-closing svg,
+.reveal .slide-closing i[data-lucide] {
   width: var(--icon-closing);
   height: var(--icon-closing);
   stroke: var(--blitzy-accent-teal);
@@ -446,6 +686,37 @@ html.runtime-unstarted .reveal .slides > section {
 
 .reveal .slides section:not(.slide-title):not(.slide-divider):not(.slide-closing) {
   background: var(--blitzy-surface-0);
+}
+
+
+/*
+  The navigation buttons are the deck's only pointer affordance, and the framework
+  sizes them from this one text size — button extent and inter-button spacing are
+  both stated as multiples of it — so raising it enlarges the targets without
+  disturbing their arrangement. The chevron drawn inside is likewise proportional,
+  so the glyph grows with the target rather than sitting in a larger empty box.
+*/
+.reveal .controls {
+  font-size: var(--fs-control);
+}
+
+/*
+  The progress bar. Restating the base theme's properties above already brings its
+  fill inside the palette, but the fill takes ONE colour for the whole deck while
+  the deck alternates between a white surface and two dark fields, and the runtime's
+  own dark-field adaptation reaches its chevrons and not this bar. Naming the two
+  cases is what keeps the fill distinguishable from whatever is behind it: the brand
+  violet reads on the white surface, the teal accent reads on the gradient and navy
+  fields. The bar draws its fill from the element's own text colour, so setting that
+  colour is how the fill is set.
+*/
+.reveal .progress {
+  background: var(--blitzy-border-soft);
+  color: var(--blitzy-primary);
+}
+
+.reveal.has-dark-background .progress {
+  color: var(--blitzy-accent-teal);
 }
 
 
@@ -473,7 +744,8 @@ html.runtime-unstarted .reveal .slides > section {
   line-height: var(--lh-tight);
 }
 
-.hero-icon svg {
+.hero-icon svg,
+.hero-icon i[data-lucide] {
   width: var(--icon-hero);
   height: var(--icon-hero);
   stroke: var(--blitzy-accent-teal);
@@ -531,7 +803,8 @@ html.runtime-unstarted .reveal .slides > section {
   line-height: var(--lh-tight);
 }
 
-.kpi-icon svg {
+.kpi-icon svg,
+.kpi-icon i[data-lucide] {
   width: var(--icon-kpi);
   height: var(--icon-kpi);
   stroke: var(--blitzy-primary);
@@ -576,7 +849,8 @@ html.runtime-unstarted .reveal .slides > section {
   text-align: center;
 }
 
-.icon-row svg {
+.icon-row svg,
+.icon-row i[data-lucide] {
   width: var(--icon-row);
   height: var(--icon-row);
   stroke: var(--blitzy-primary);
@@ -808,13 +1082,101 @@ pre.mermaid foreignObject p {
     z-index: var(--z-raised);
   }
 }
+
+/*
+  Moving from one slide to the next slides the whole stage sideways, which is the
+  transition the specification asks for and the one this deck keeps. Some readers
+  ask their system not to be shown movement of that kind, and for them the
+  movement is not a flourish but a symptom trigger.
+
+  The request is honoured here rather than in the configuration, and the difference
+  matters: the configured transition stays exactly as specified, so the deck is
+  still the deck the specification describes, and what changes is only how long the
+  specified movement is allowed to take. Collapsing the duration leaves every other
+  part of the transition intact -- which property moves, how it eases, the order
+  things happen in -- so slides still arrive and depart, they simply arrive already
+  there.
+
+  Both layers have to be named because the stage and the field behind it are moved
+  independently, and a stage that stops while its background still slides is worse
+  than either moving alone. The interface flourishes elsewhere in this stylesheet
+  need no mention: they are declared only under the opposite preference, so a
+  reader who asks for less movement never receives them in the first place.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .reveal .slides > section {
+    transition-duration: var(--motion-none);
+  }
+
+  .reveal .backgrounds .slide-background {
+    transition-duration: var(--motion-none);
+  }
+}
+
+/*
+  A phone holds the stage at a fifth of the size it was authored for, and every
+  size in this deck is stated against that stage, so a fifth is what a phone
+  reader gets. The stage cannot change: its dimensions are fixed by the
+  specification, and the runtime derives its scale from them. The only room left
+  is inside it, and this block uses all three parts of it -- the type scale comes
+  up, the copy is allowed more of the stage's width so that taller lines do not
+  simply become more lines, and the two grids that run four across drop to two so
+  each cell holds its label on fewer rows.
+
+  Not one word of content is touched. Every declaration here is a size, a column
+  count or a measure, which is what keeps the deck's text identical at every
+  width: a reader who is sent a slide at one size and opens it at another is
+  reading the same slide, character for character.
+
+  This does not make a phone the equal of a projector, and it is not offered as
+  if it did. At a fifth scale the arithmetic is what it is, and the fixed stage is
+  a requirement rather than an oversight. What the block does is carry every text
+  role in the deck past the size at which glyphs stop resolving into letters,
+  which is the difference between small and unreadable.
+*/
+@media (max-width: 640px) {
+  :root {
+    --fs-eyebrow: 0.9em;
+    --fs-hero-title: 2.2em;
+    --fs-hero-lede: 1em;
+    --fs-hero-meta: 0.9em;
+    --fs-divider-title: 2.3em;
+    --fs-divider-lede: 0.95em;
+    --fs-title: 1.7em;
+    --fs-lede: 0.95em;
+    --fs-bullet: 0.95em;
+    --fs-kpi-value: 2em;
+    --fs-kpi-label: 0.86em;
+    --fs-table: 0.86em;
+    --fs-caption: 0.86em;
+    --fs-lockup: 0.9em;
+    --fs-diagram: 0.86em;
+    /* Measured against the document root rather than the stage, so it needs a
+       larger step than the em-based roles to arrive at the same rendered size. */
+    --fs-table-caption: 2.2rem;
+    /* The stage keeps its authored width at every viewport, and the reading
+       measure was holding copy to about two-fifths of it. Widening the measure is
+       what pays for the larger type: the same words occupy fewer lines, so the
+       slide grows in size without growing in height. */
+    --measure-lede: 76rem;
+    --kpi-columns: repeat(2, minmax(0, 1fr));
+    --icon-row-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 </style>
 </head>
 <body>
 
 <a class="skip-link" href="#deck">Skip to presentation</a>
 
-<main id="deck" class="deck">
+<!--
+  The region the skip link targets is given a programmatic focus point. A fragment
+  target only receives focus if it can hold focus, and a landmark cannot by default
+  — so activating the link moved the reading position without moving focus itself,
+  which keyboard readers recover from silently and screen-reader users do not.
+  Negative one keeps it out of the tab sequence: it is a destination, not a stop.
+-->
+<main id="deck" class="deck" tabindex="-1">
 <div class="reveal">
 <div class="slides">
 
@@ -1269,7 +1631,27 @@ flowchart TB
           transition: 'slide',
           controlsTutorial: false,
           width: 1920,
-          height: 1080
+          height: 1080,
+
+          /* Declining the runtime's narrow-window reading mode, which it would
+             otherwise switch itself into below a width of its own choosing.
+
+             That mode is a different presentation: it replaces the staged deck
+             with a scrolling page per slide, and in doing so it stops writing the
+             address, hides the on-screen controls and the progress bar, replaces
+             the slide transitions with scroll snapping, and leaves its own
+             go-to-slide call unable to find a slide to go to. Every one of those
+             is a property this deck is specified to have at any width — a slide
+             has to remain shareable as a link, and the fixed stage is what makes
+             one file legible from a phone to a projector. A width of zero can
+             never be reached, so the mode never activates and the specified
+             behaviour is the only behaviour.
+
+             It is set here rather than after start-up because the runtime decides
+             on the mode while it lays out, which happens inside this call. The
+             address cannot reintroduce it: every parameter but the print flag is
+             stripped before the runtime reads it. */
+          scrollActivationWidth: 0
         });
 
         /* Two settings the runtime defaults to values a published deck must
@@ -1431,6 +1813,33 @@ flowchart TB
       }
       try {
         var diagramFont = tokenValue('--ff-body');
+        /*
+          The drawing library is configured in script rather than in style, so its
+          five colours cannot be written as token references the way every colour
+          in the stylesheet is -- they have to be handed over as strings. Reading
+          them back off the document first is what keeps them tokens anyway: each
+          of the five is the value the design system already declares for the role
+          the library uses it in, so the palette has exactly one definition and the
+          drawings inherit it instead of restating it.
+
+          One of the five matters beyond tidiness. The muted grey is the token the
+          system assigns to its quietest material, and the drawings' connecting
+          lines are the only place in this deck where quiet is the right amount of
+          emphasis: on running text that same grey would fall short of the contrast
+          text has to meet, and it is deliberately not used there. A line is not
+          text, so it is the one surface where the token can be both applied and
+          appropriate -- which is where it now comes from.
+
+          The literals stay as fallbacks, and they are not duplicates of the tokens
+          so much as the specification's own values written out: should a reader's
+          browser not report custom properties back, the drawings are still drawn
+          in the specified palette rather than in the library's defaults.
+        */
+        var diagramNodeFill = tokenValue('--blitzy-surface-2') || '#F2F0FE';
+        var diagramNodeText = tokenValue('--blitzy-text') || '#333333';
+        var diagramNodeEdge = tokenValue('--blitzy-primary') || '#5B39F3';
+        var diagramLine = tokenValue('--blitzy-text-muted') || '#999999';
+        var diagramNodeAlt = tokenValue('--blitzy-surface-1') || '#F4EFF6';
         var mermaidConfig = {
           startOnLoad: false,
           theme: 'base',
@@ -1442,11 +1851,11 @@ flowchart TB
             'suppressErrorRendering', 'maxEdges', 'htmlLabels', 'dompurifyConfig'
           ],
           themeVariables: {
-            primaryColor: '#F2F0FE',
-            primaryTextColor: '#333333',
-            primaryBorderColor: '#5B39F3',
-            lineColor: '#999999',
-            secondaryColor: '#F4EFF6'
+            primaryColor: diagramNodeFill,
+            primaryTextColor: diagramNodeText,
+            primaryBorderColor: diagramNodeEdge,
+            lineColor: diagramLine,
+            secondaryColor: diagramNodeAlt
           }
         };
         if (diagramFont) {
@@ -1549,21 +1958,91 @@ flowchart TB
     }
 
     /*
-      A diagram that renders while its slide has no layout box collapses, and the
-      library marks it processed either way — which would permanently block a
-      retry. Any block left marked but holding no drawing is therefore restored
-      and unmarked. Rendering is scoped to the slide on screen, the one slide the
-      stylesheet guarantees a box for, so a restored block is retried on a later
-      slide change rather than lost.
+      A drawing laid out with no box to lay it out in comes back the size of
+      nothing. The library still produces an element, still gives it a view box,
+      and still marks the block done — the element is simply a couple of dozen
+      units across instead of several hundred. Nothing about it announces the
+      failure, so asking whether a drawing exists is the wrong question; the
+      question is how big it is.
+
+      The floor sits far below every drawing this deck holds — the smallest is over
+      five hundred units wide and over two hundred and sixty tall — and far above a
+      collapsed one, so the two cannot be mistaken for each other. Both extents
+      have to fall under it before a drawing is called collapsed, which is what
+      keeps a legitimately small drawing safe, and a drawing carrying no view box
+      at all is left alone: a missing measurement is not evidence of a small one. A
+      view box that measures zero or less is the exception, because zero is not an
+      ambiguous size.
+    */
+    var MIN_DRAWING_EXTENT_PX = 32;
+
+    function drawingCollapsed(drawing) {
+      if (!drawing || typeof drawing.getAttribute !== 'function') { return false; }
+      var box = drawing.getAttribute('viewBox');
+      if (!box) { return false; }
+      var extents = box.split(/[\s,]+/).filter(function (part) { return part !== ''; });
+      if (extents.length < 4) { return false; }
+      var width = parseFloat(extents[2]);
+      var height = parseFloat(extents[3]);
+      if (!isFinite(width) || !isFinite(height)) { return false; }
+      if (width <= 0 || height <= 0) { return true; }
+      return width < MIN_DRAWING_EXTENT_PX && height < MIN_DRAWING_EXTENT_PX;
+    }
+
+    /* Put the authored text back and clear the done mark, which is what returns a
+       block to the pending set. Reports whether it could: a block whose source was
+       never stashed has nothing to be restored to, and is left as it is. */
+    function restoreDiagram(block) {
+      var source = block.getAttribute('data-mermaid-source');
+      if (!source) { return false; }
+      block.removeAttribute('data-processed');
+      block.textContent = source;
+      return true;
+    }
+
+    /*
+      Called on the drawings this pass just attempted. A block holding no drawing,
+      or holding one that came back collapsed, is restored and unmarked. Rendering
+      is scoped to the slide on screen — the one slide the stylesheet guarantees a
+      box for — so a restored block is retried on a later slide change rather than
+      lost.
     */
     function recoverFailedDiagrams(blocks) {
       blocks.forEach(function (block) {
-        if (block.querySelector('svg')) { return; }
-        var source = block.getAttribute('data-mermaid-source');
-        if (!source) { return; }
-        block.removeAttribute('data-processed');
-        block.textContent = source;
+        var drawing = block.querySelector('svg');
+        if (drawing && !drawingCollapsed(drawing)) { return; }
+        restoreDiagram(block);
       });
+    }
+
+    /*
+      The pass above only sees the blocks it attempted, and it runs when the
+      attempt settles. A block can be left collapsed by an attempt whose settling
+      was overtaken — many slide changes arriving inside a single turn of the event
+      loop will do it — and from then on it is invisible to both routes: the done
+      mark keeps it out of the pending set, and no later attempt includes it, so it
+      stays collapsed for the rest of the session while reporting itself finished.
+      That is the one failure that does not heal on the next visit.
+
+      So before anything is selected, the slide's finished drawings are measured,
+      and any that came back collapsed are returned to the pending set — where the
+      selection immediately below picks them up and draws them again, now that the
+      slide has the box it was missing.
+
+      Two marks are honoured rather than measured. A refused block was judged, not
+      drawn, and a sealed one was stopped before drawing began; neither holds a
+      drawing to measure, and neither should be revived by a routine meant for
+      accidents. Requiring a drawing to be present before measuring it says the
+      same thing a second way, so the two guards do not depend on each other.
+    */
+    function reclaimCollapsedDiagrams(scope) {
+      var marked = scope.querySelectorAll(
+        'pre.mermaid[data-processed]:not([data-diagram-refused]):not([data-diagram-sealed])'
+      );
+      for (var i = 0; i < marked.length; i += 1) {
+        var drawing = marked[i].querySelector('svg');
+        if (drawing && drawingCollapsed(drawing)) { restoreDiagram(marked[i]); }
+      }
     }
 
     /* Render this slide's diagrams and hydrate its icons. Runs once the deck
@@ -1571,7 +2050,9 @@ flowchart TB
     function hydrate() {
       try {
         if (diagramsConfigured && typeof mermaid !== 'undefined' && typeof mermaid.run === 'function') {
-          var blocks = pendingDiagrams(currentScope());
+          var scope = currentScope();
+          reclaimCollapsedDiagrams(scope);
+          var blocks = pendingDiagrams(scope);
           if (blocks.length) {
             blocks.forEach(stashSource);
             var drawable = acceptedDiagrams(blocks);
