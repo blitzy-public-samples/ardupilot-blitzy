@@ -30,7 +30,7 @@
   block and the digest must be recomputed, or the deck will load its libraries
   and then run none of its own code.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-6nlL+HIeIcwygSaLNCMi3fN+z8kfiE1+JJUTpUmx1xM=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-mLQvhhK54eECbue+TJiwD9YlEFe4dj0L12md53jPBTc=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
 
 <!-- Declared before anything is fetched, so it governs every request this file
      makes: a remote host has no need of the asking document's address, so it is
@@ -215,6 +215,15 @@
   --accent-bar-width: 38%;
   --measure-full: 100%;
   --measure-lede: 46rem;
+  /* One reading measure for running copy. The fine print under a diagram or a
+     table takes the same measure as the lede rather than the full column: at the
+     fine print's size the column holds over two hundred characters, and a line
+     that long loses the reader's eye on its way back to the next one. Declared
+     under its own name so the two roles stay distinguishable in the rules below,
+     and resolved to the lede's value so the deck has one measure rather than two
+     that happen to agree — including inside the small-viewport branch, where
+     widening the lede widens this with it. */
+  --measure-meta: var(--measure-lede);
   --slide-pad-block: var(--sp-6);
   --slide-pad-inline: var(--sp-7);
   --kpi-columns: repeat(4, minmax(0, 1fr));
@@ -224,6 +233,16 @@
      the bottom of the slide. At this ceiling the drawing scales down and centres
      inside its frame instead of overflowing. */
   --diagram-max-height: 46rem;
+  /* Every drawing is laid out at its own authored size multiplied by this one
+     figure, so a label is the same size whichever diagram a reader is looking at.
+     Left to fill the width it is given, each drawing instead takes a scale set by
+     its own proportions: the widest drawing in this deck ends up at three fifths
+     the scale of the shallowest, and the same label reads a third smaller on one
+     slide than on another. The figure is the largest that keeps the widest
+     drawing in the deck inside the frame it is given, which is what makes one
+     scale safe to apply to all of them; the ceiling above and the frame's own
+     width remain in force should a drawing ever be authored larger. */
+  --diagram-scale: 1.55;
 
   --motion-fast: 180ms;
   --motion-ease: ease-out;
@@ -315,6 +334,27 @@
   html:not(.reveal-print) .reveal .slides section:not([style*="display: none"]) {
     display: flex !important;
   }
+}
+
+/*
+  The export layout, which is how a reader turns this deck into a document to
+  circulate, is laid out by the framework rather than by this stylesheet: it sizes
+  a page, insets each slide inside it, and — the part that matters here — removes
+  the slide's own padding with an importance flag. With the padding gone every
+  full-width element on the slide runs to the very edge of the printed slide, so
+  the fine print reaches the trim and a framed diagram loses the border on its
+  right side. Restating the two padding properties for that mode, with the same
+  importance the framework used, gives the exported pages the same inset the
+  screen has and keeps every element inside the page it is printed on.
+
+  Only the padding is restated. The framework's display and position declarations
+  are what stack the slides into one document, so they are deliberately left in
+  force; this rule changes where the content sits on each page, not how the pages
+  are made.
+*/
+html.reveal-print .reveal .slides section {
+  padding-block: var(--slide-pad-block) !important;
+  padding-inline: var(--slide-pad-inline) !important;
 }
 
 /*
@@ -587,8 +627,8 @@ html.runtime-unstarted .reveal .slides section.slide-divider {
 
 /*
   The provenance line under the title used to borrow the accent, which the design
-  system reserves for the eyebrow, the terminal stop of the accent bar, and the
-  metric icons -- not for running copy. The system's own assignment for text on
+  system reserves for the eyebrow, the terminal stop of the accent bar, the brand
+  signature and the metric icons -- not for running copy. The system's own assignment for text on
   the title, divider and closing fields is the invert token, and taking it here is
   both the more faithful reading and the better-separated one: on the lightest
   stop of the gradient the accent gives a little over three to one and the invert
@@ -760,6 +800,14 @@ i[data-lucide] {
   margin-block: var(--sp-5) 0;
 }
 
+/*
+  The signature takes the accent rather than the invert, which is the treatment
+  the two companion decks in this pack give it. It is a mark, not copy: it sits
+  beside the gradient rule whose terminal stop is this same accent, so mark and
+  rule read as one lockup instead of a white word next to a coloured line. On the
+  navy field the accent gives well over thirteen to one, so nothing is traded for
+  the match.
+*/
 .brand-lockup {
   display: flex;
   align-items: center;
@@ -768,7 +816,7 @@ i[data-lucide] {
   font-size: var(--fs-lockup);
   font-weight: var(--fw-bold);
   letter-spacing: var(--tracking-lockup);
-  color: var(--blitzy-text-invert);
+  color: var(--blitzy-accent-teal);
   margin-block: var(--sp-6) 0;
 }
 
@@ -811,12 +859,21 @@ i[data-lucide] {
   stroke-width: var(--bw-thin);
 }
 
+/*
+  The metric takes the brand primary, which is the colour the two companion decks
+  in this pack give the same figure. Three artifacts describing one audit should
+  not disagree about what a headline number looks like, and the primary is also
+  the colour already carrying the card's left rule and its icon — so the card is
+  now one colour statement rather than two. Against the card's own fill this
+  clears the threshold for normal-size copy by a wide margin, and the figure is
+  set far above the large-scale threshold in any case.
+*/
 .kpi-value {
   font-family: var(--ff-display);
   font-size: var(--fs-kpi-value);
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
-  color: var(--blitzy-primary-dark);
+  color: var(--blitzy-primary);
 }
 
 /* De-emphasised by size, weight and tracking rather than by a lighter
@@ -913,6 +970,7 @@ i[data-lucide] {
   line-height: var(--lh-snug);
   color: var(--blitzy-text);
   margin-block: var(--sp-4) 0;
+  max-width: var(--measure-meta);
 }
 
 .reveal table {
@@ -935,6 +993,11 @@ i[data-lucide] {
   text-align: start;
   color: var(--blitzy-primary);
   padding-block: 0 var(--sp-3);
+  /* Held to the same reading measure as the rest of the running copy. Set in
+     tracked, upper-case monospace, this label runs wider per character than any
+     other text in the deck, so the full column is where it goes furthest past a
+     comfortable line. */
+  max-width: var(--measure-meta);
 }
 
 .reveal table th {
@@ -997,6 +1060,15 @@ i[data-lucide] {
   padding-inline: var(--sp-4);
   margin-block: var(--sp-4) 0;
   z-index: var(--z-base);
+  /* The frame is drawn around the drawing, not around the column. Once every
+     drawing is laid out at one shared scale the drawings no longer all fill the
+     column, and a frame held to the full width would put a ruled border and a
+     shadow around a band of empty surface beside the shallower ones. Shrinking
+     to the drawing and centring keeps the border meaningful; the ceiling is the
+     column, so a drawing as wide as the column still gets a full-width frame. */
+  width: fit-content;
+  max-width: var(--measure-full);
+  margin-inline: auto;
 }
 
 pre.mermaid {
@@ -1020,6 +1092,19 @@ pre.mermaid {
   overflow-wrap: break-word;
 }
 
+/*
+  The width here is the fallback, not the intended layout: the start-up block
+  gives each drawing an explicit width of its own authored size times the shared
+  drawing scale, and does so on the drawing itself, where it outranks this rule.
+  Filling the column is what a drawing should do if that never happens — a
+  library that loaded but whose sizing pass did not run still produces a legible
+  diagram at the deck's previous behaviour rather than a miniature one.
+
+  Only the width is ever written. A drawing carries its own aspect ratio, so an
+  automatic height follows from the width and no explicit height can contradict
+  it; the two ceilings then remain real safety nets, reducing a drawing that
+  would otherwise leave its frame instead of distorting it.
+*/
 pre.mermaid svg {
   width: var(--measure-full);
   height: auto;
@@ -1259,6 +1344,7 @@ flowchart LR
     <i data-lucide="clipboard-check" aria-hidden="true"></i>
     <h2>What Was Done</h2>
     <p>Scope of work and deliverables</p>
+    <div class="accent-bar"></div>
   </section>
 
   <section>
@@ -1329,14 +1415,15 @@ flowchart LR
     </div>
 
     <p class="slide-meta">63 core and 31 indirect references; 18 catalogued data objects;
-      27 of the coverage entries are checked absences &mdash; evidence the sweep was exhaustive
-      rather than opportunistic. Audited HEAD <code>5b67e27b0a</code>.</p>
+      27 of the coverage entries are checked absences &mdash; evidence of an exhaustive
+      sweep. Audited HEAD <code>5b67e27b0a</code>.</p>
   </section>
 
   <section class="slide-divider">
     <i data-lucide="target" aria-hidden="true"></i>
     <h2>Why It Was Done</h2>
     <p>The business value unlocked</p>
+    <div class="accent-bar"></div>
   </section>
 
   <section>
@@ -1368,6 +1455,7 @@ flowchart LR
     <i data-lucide="git-compare" aria-hidden="true"></i>
     <h2>What Changed</h2>
     <p>The content architecture, before and after</p>
+    <div class="accent-bar"></div>
   </section>
 
   <section>
@@ -1424,6 +1512,7 @@ flowchart TB
     <i data-lucide="shield-alert" aria-hidden="true"></i>
     <h2>Risks and Mitigations</h2>
     <p>What could go wrong with the pack, and what prevents it</p>
+    <div class="accent-bar"></div>
   </section>
 
   <section>
@@ -1472,6 +1561,7 @@ flowchart TB
     <i data-lucide="route" aria-hidden="true"></i>
     <h2>Onboarding and Continuity</h2>
     <p>How to use the pack, and how to extend it</p>
+    <div class="accent-bar"></div>
   </section>
 
   <section>
@@ -1509,6 +1599,11 @@ flowchart TB
           <th scope="row">Update leadership</th>
           <td>This presentation</td>
           <td>Add a content slide behind an existing divider</td>
+        </tr>
+        <tr>
+          <th scope="row">Refresh the pack</th>
+          <td>The reissued catalog</td>
+          <td>Rebuild all three artifacts from the new source</td>
         </tr>
       </tbody>
     </table>
@@ -1873,11 +1968,73 @@ flowchart TB
       }
     }
 
+    /* Whether the runtime is showing the whole deck at once rather than one slide.
+
+       Two of its modes do that, and both of them are reachable without the deck
+       ever changing slide: the export layout, which stacks every slide into one
+       long document so a reader can print it, and the overview, which zooms out
+       to a grid of thumbnails. The slide-change event is what drives rendering
+       slide by slide, and in these two modes it does not arrive — the export
+       layout never fires one, and a reader who presses the overview key on the
+       title slide has not moved off it. A pass scoped to one slide therefore
+       leaves every diagram elsewhere in the deck holding its authored text, in a
+       mode where the reader can see all of them at once.
+
+       The runtime is asked first, because it knows its own mode. The class it
+       writes on the document for the export layout is read as a fallback so the
+       answer still holds if that call is ever absent. */
+    function printViewShown() {
+      try {
+        if (typeof Reveal !== 'undefined' && typeof Reveal.isPrintView === 'function') {
+          return Reveal.isPrintView();
+        }
+      } catch (e) { }
+      try {
+        return document.documentElement.classList.contains('print-pdf');
+      } catch (e) { }
+      return false;
+    }
+
+    function overviewShown() {
+      try {
+        if (typeof Reveal !== 'undefined' && typeof Reveal.isOverview === 'function') {
+          return Reveal.isOverview();
+        }
+      } catch (e) { }
+      return false;
+    }
+
+    function wholeDeckShown() {
+      return printViewShown() || overviewShown();
+    }
+
+    /* Where a pass looks for work: the whole document in the two modes above, one
+       slide otherwise. One slide is the right answer in ordinary reading because
+       the runtime keeps the others out of layout, and a diagram measured where
+       there is no box to measure in comes back the size of nothing. */
     function currentScope() {
+      if (wholeDeckShown()) { return document; }
       if (typeof Reveal !== 'undefined' && typeof Reveal.getCurrentSlide === 'function') {
         return Reveal.getCurrentSlide() || document;
       }
       return document;
+    }
+
+    /* Put the slide a block sits on into layout before a document-wide pass.
+
+       In the overview the runtime keeps slides beyond a window around the current
+       one out of layout entirely, so a diagram on one of those has no box and
+       would come back collapsed. Loading is the runtime's own published way of
+       giving a slide its box — it is what the runtime does itself when a reader
+       arrives at one — so the pass borrows it rather than reaching past the
+       runtime to move slides around. A block whose slide cannot be resolved, or a
+       runtime without the call, is left to the recovery path below. */
+    function ensureLaidOut(block) {
+      try {
+        if (typeof Reveal === 'undefined' || typeof Reveal.loadSlide !== 'function') { return; }
+        var slide = typeof block.closest === 'function' ? block.closest('section') : null;
+        if (slide) { Reveal.loadSlide(slide); }
+      } catch (e) { }
     }
 
     function pendingDiagrams(scope) {
@@ -1989,23 +2146,120 @@ flowchart TB
       return width < MIN_DRAWING_EXTENT_PX && height < MIN_DRAWING_EXTENT_PX;
     }
 
+    /*
+      A drawing made while the overview is open is measured at thumbnail scale. The
+      runtime shrinks the whole deck to fit a grid of tiles, and the library records
+      each label's advance from a measurement taken in viewport terms, so inside the
+      grid the advances it writes down are reduced by that scale. On the tile this
+      is invisible and in fact correct — the tile really is that size — but the
+      drawing outlives the grid: on the full-size slide the label boxes are full
+      size while the advances stay reduced, which reads as compressed, mis-set text.
+
+      Such a drawing is therefore marked provisional as it is made, and the mark is
+      honoured the moment the grid closes: the block is returned to its authored
+      definition and drawn again at full size. Redrawing costs nothing, because the
+      definition is stashed before the first attempt, and it is what puts a
+      correctly set diagram on the slide the reader arrives at. The print layout is
+      deliberately not marked: it lays every slide out at its authored size, so a
+      drawing made there is already measured at the size it will be read at.
+    */
+    var PROVISIONAL_DRAWING = 'data-diagram-thumbnail';
+
+    function markProvisionalDrawings(blocks) {
+      blocks.forEach(function (block) {
+        try { block.setAttribute(PROVISIONAL_DRAWING, ''); } catch (e) { }
+      });
+    }
+
     /* Put the authored text back and clear the done mark, which is what returns a
-       block to the pending set. Reports whether it could: a block whose source was
-       never stashed has nothing to be restored to, and is left as it is. */
+       block to the pending set. The provisional mark goes with them: a block in the
+       pending set holds no drawing, provisional or otherwise. Reports whether it
+       could: a block whose source was never stashed has nothing to be restored to,
+       and is left as it is. */
     function restoreDiagram(block) {
       var source = block.getAttribute('data-mermaid-source');
       if (!source) { return false; }
       block.removeAttribute('data-processed');
+      block.removeAttribute(PROVISIONAL_DRAWING);
       block.textContent = source;
       return true;
     }
 
+    /* Called when the overview closes. Every provisional drawing is returned to the
+       pending set, then ALL of them are drawn again in one document-wide pass — not
+       just the one on the slide the reader lands on.
+
+       Redrawing the whole set is what keeps the deck in a settled state: a block
+       left holding its authored definition would be a diagram-shaped piece of text
+       sitting in the document until the reader happened to arrive at its slide, and
+       the pass costs nothing on later closes because a diagram already drawn at
+       full size is never marked provisional and never re-entered into the pending
+       set. Off-screen slides are given their box by the same load call the
+       document-wide pass uses everywhere else, so each drawing is measured at the
+       size it will be read at. */
+    function redrawProvisionalDrawings() {
+      try {
+        var provisional = document.querySelectorAll('pre.mermaid[' + PROVISIONAL_DRAWING + ']');
+        for (var i = 0; i < provisional.length; i += 1) {
+          restoreDiagram(provisional[i]);
+        }
+      } catch (e) { }
+      hydrateScope(document);
+    }
+
+    /*
+      One scale for every drawing.
+
+      A drawing left to fill the width it is given takes whatever scale that width
+      implies for its own proportions, and a label's size on the slide is that
+      scale times the size the library drew it at — so a wide, shallow drawing and
+      a narrow, deep one end up setting the same label a third apart. Laying each
+      drawing out at its authored size times one shared figure removes that
+      coupling: the label size becomes a property of the deck rather than of the
+      diagram's shape.
+
+      The figure is read from the stylesheet rather than written here, so it lives
+      with the other design values and can be reasoned about alongside them. Only
+      the width is written, because a drawing carries its own aspect ratio and
+      takes its height from it — writing one dimension therefore cannot distort
+      it, and the stylesheet's ceilings still apply to anything that would leave
+      its frame. A drawing whose recorded extent cannot be read is left exactly as
+      the stylesheet laid it out.
+    */
+    function drawingScale() {
+      try {
+        var declared = getComputedStyle(document.documentElement)
+          .getPropertyValue('--diagram-scale');
+        var scale = parseFloat(declared);
+        if (isFinite(scale) && scale > 0) { return scale; }
+      } catch (e) { }
+      return 0;
+    }
+
+    function sizeDrawings(blocks) {
+      var scale = drawingScale();
+      if (!scale) { return; }
+      blocks.forEach(function (block) {
+        try {
+          var drawing = block.querySelector('svg');
+          if (!drawing) { return; }
+          var extents = (drawing.getAttribute('viewBox') || '')
+            .split(/[\s,]+/).filter(function (part) { return part !== ''; });
+          if (extents.length < 4) { return; }
+          var width = parseFloat(extents[2]);
+          if (!isFinite(width) || width <= 0) { return; }
+          drawing.style.width = (width * scale) + 'px';
+        } catch (e) { }
+      });
+    }
+
     /*
       Called on the drawings this pass just attempted. A block holding no drawing,
-      or holding one that came back collapsed, is restored and unmarked. Rendering
-      is scoped to the slide on screen — the one slide the stylesheet guarantees a
-      box for — so a restored block is retried on a later slide change rather than
-      lost.
+      or holding one that came back collapsed, is restored and unmarked — which
+      returns it to the pending set, so it is drawn again by the next pass that
+      reaches it rather than being left as a collapsed drawing nothing revisits.
+      For a reader that next pass is the slide change that brings the block's slide
+      on screen; in the two whole-deck modes it is the next pass over the document.
     */
     function recoverFailedDiagrams(blocks) {
       blocks.forEach(function (block) {
@@ -2045,26 +2299,30 @@ flowchart TB
       }
     }
 
-    /* Render this slide's diagrams and hydrate its icons. Runs once the deck
-       reports ready, and again on every slide change. */
-    function hydrate() {
+    /* Render the pending diagrams within the given scope and hydrate the icons,
+       which are hydrated document-wide whatever the scope because the call that
+       does it takes no scope. */
+    function hydrateScope(scope) {
       try {
         if (diagramsConfigured && typeof mermaid !== 'undefined' && typeof mermaid.run === 'function') {
-          var scope = currentScope();
           reclaimCollapsedDiagrams(scope);
           var blocks = pendingDiagrams(scope);
           if (blocks.length) {
             blocks.forEach(stashSource);
+            if (scope === document) { blocks.forEach(ensureLaidOut); }
             var drawable = acceptedDiagrams(blocks);
             if (drawable.length) {
-              /* Mandated entry point, scoped to this slide's pending diagrams
-                 so nothing is rendered against an unlaid-out slide, and to the
-                 definitions whose shape has been checked. */
+              if (overviewShown()) { markProvisionalDrawings(drawable); }
+              /* Mandated entry point, scoped to the pending diagrams that have a
+                 slide laid out to be measured in, and to the definitions whose
+                 shape has been checked. */
               var run = mermaid.run({ nodes: drawable, suppressErrors: true });
               if (run && typeof run.then === 'function') {
                 run.then(function () {
+                  sizeDrawings(drawable);
                   recoverFailedDiagrams(drawable);
                 }, function () {
+                  sizeDrawings(drawable);
                   recoverFailedDiagrams(drawable);
                 });
               }
@@ -2082,6 +2340,14 @@ flowchart TB
       } catch (e) {
         /* Icons are enhancement; navigation must survive their failure. */
       }
+    }
+
+    /* The pass the runtime's lifecycle events drive: whatever is on screen, which
+       is one slide while a reader is reading and the whole deck in the two modes
+       that show it all at once. Written to take no argument, because the runtime
+       hands its handlers an event object and the scope is never that. */
+    function hydrate() {
+      hydrateScope(currentScope());
     }
 
     var FONT_SETTLE_TIMEOUT_MS = 1500;
@@ -2176,6 +2442,25 @@ flowchart TB
     if (runtimeStarted) {
       Reveal.on('ready', hydrateWhenFontsReady);
       Reveal.on('slidechanged', hydrate);
+
+      /* The two events that announce a mode showing the whole deck at once. Both
+         are needed because neither is preceded by a slide change: the export
+         layout is entered from the address the deck was opened at, and the
+         overview from a key press that leaves the current slide where it is.
+
+         The export event is the one the runtime fires after it has finished
+         paginating, which is the first moment every slide has the box its
+         diagram has to be measured in — earlier than that there is nothing
+         useful to measure. Both handlers share the routine the reader-driven
+         path uses, and a diagram already drawn is skipped by the same mark that
+         skips it on a revisit, so neither event can redraw anything twice. */
+      Reveal.on('pdf-ready', hydrate);
+      Reveal.on('overviewshown', hydrate);
+
+      /* The grid closing is the counterpart of the grid opening: it is where the
+         drawings made at tile size are redrawn at the size the reader now sees
+         them at. */
+      Reveal.on('overviewhidden', redrawProvisionalDrawings);
     } else {
       /* Hydrate anyway, so the document degrades into a readable page. This
          route shares the latch used by the runtime-driven one, so the two
