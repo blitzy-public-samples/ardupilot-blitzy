@@ -973,7 +973,23 @@ i[data-lucide] {
   max-width: var(--measure-meta);
 }
 
-.reveal table {
+/*
+  Every rule below names the stage, not the deck, and the reason is that the
+  framework builds a table of its own outside the stage. The help overlay a reader
+  opens with `?` is appended beside the stage rather than inside it, and it colours
+  its keyboard-shortcut rows by inheritance from a near-white overlay. A colour
+  stated directly on a cell beats an inherited one whatever the specificity, so a
+  rule naming only `.reveal table td` reached that overlay and repainted its rows in
+  body text colour on a near-black scrim — while the every-other-row fill reached
+  only half of them, because the framework's header row counts as the first child of
+  the same row group and shifts the alternation by one. Naming the stage holds these
+  rules to the three authored tables and leaves the framework's own chrome to the
+  framework, which states its contrast there and states it well. The chrome that IS
+  deliberately themed elsewhere in this file — the progress bar, the navigation
+  controls, the focus rings — is untouched by this, and each of those improves on
+  what it replaces rather than degrading it.
+*/
+.reveal .slides table {
   width: var(--measure-full);
   border-collapse: collapse;
   font-size: var(--fs-table);
@@ -983,7 +999,7 @@ i[data-lucide] {
   overflow: hidden;
 }
 
-.reveal table caption {
+.reveal .slides table caption {
   caption-side: top;
   font-family: var(--ff-mono);
   font-size: var(--fs-table-caption);
@@ -1000,7 +1016,7 @@ i[data-lucide] {
   max-width: var(--measure-meta);
 }
 
-.reveal table th {
+.reveal .slides table th {
   background: var(--blitzy-surface-1);
   font-family: var(--ff-body);
   font-weight: var(--fw-semibold);
@@ -1013,7 +1029,7 @@ i[data-lucide] {
   vertical-align: middle;
 }
 
-.reveal table td {
+.reveal .slides table td {
   color: var(--blitzy-text);
   text-align: start;
   padding-block: var(--sp-3);
@@ -1024,15 +1040,15 @@ i[data-lucide] {
   overflow-wrap: break-word;
 }
 
-.reveal table tbody tr:nth-child(even) td {
+.reveal .slides table tbody tr:nth-child(even) td {
   background: var(--blitzy-surface-3);
 }
 
-.reveal table tbody tr:last-child td {
+.reveal .slides table tbody tr:last-child td {
   border-block-end: 0;
 }
 
-.reveal table tbody th[scope="row"] {
+.reveal .slides table tbody th[scope="row"] {
   background: var(--blitzy-surface-0);
   font-weight: var(--fw-semibold);
   color: var(--blitzy-primary-dark);
@@ -1040,11 +1056,11 @@ i[data-lucide] {
   border-inline-start: var(--bw-thick) solid var(--blitzy-primary);
 }
 
-.reveal table tbody tr:nth-child(even) th[scope="row"] {
+.reveal .slides table tbody tr:nth-child(even) th[scope="row"] {
   background: var(--blitzy-surface-3);
 }
 
-.reveal table tbody tr:last-child th[scope="row"] {
+.reveal .slides table tbody tr:last-child th[scope="row"] {
   border-block-end: 0;
 }
 
