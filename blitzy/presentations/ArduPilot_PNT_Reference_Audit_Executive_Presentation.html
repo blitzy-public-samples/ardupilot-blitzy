@@ -31,7 +31,7 @@
   block and the digest must be recomputed, or the deck will load its libraries
   and then run none of its own code.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-CQvjLoE2u+nrfFqiQkVEmEg4UhAD4rjO5EMxulf03mw=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-xd6po8ivK5u/lQ4pktnpoyfLkaO+idsLpHiMBTNJRoM=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
 
 <!-- Declared before anything is fetched, so it governs every request this file
      makes: a remote host has no need of the asking document's address, so it is
@@ -138,6 +138,13 @@
   --sp-5: 1.5rem;
   --sp-6: 2rem;
   --sp-7: 3rem;
+  /* One step beyond the rest of the scale, and it exists for one job: the stage's
+     inline frame at phone width. The runtime never scales the stage below a fifth,
+     so on a viewport narrower than a fifth of the stage the stage is wider than the
+     window and hangs off both edges — sixty stage units on each side at the
+     narrowest width in common use. A frame of this step clears that overhang, so
+     the text sits inside the window even where the field it sits on does not. */
+  --sp-8: 4rem;
 
   --radius-sm: 0.25rem;
   --radius-md: 0.625rem;
@@ -247,8 +254,9 @@
      that long loses the reader's eye on its way back to the next one. Declared
      under its own name so the two roles stay distinguishable in the rules below,
      and resolved to the lede's value so the deck has one measure rather than two
-     that happen to agree — including inside the small-viewport branch, where
-     widening the lede widens this with it. */
+     that happen to agree. The small-viewport branch is where the two part company,
+     and for the reason stated there: at phone scale the fine print is the text most
+     at risk of becoming a paragraph, so it is given the whole column instead. */
   --measure-meta: var(--measure-lede);
   --slide-pad-block: var(--sp-6);
   --slide-pad-inline: var(--sp-7);
@@ -785,6 +793,21 @@ i[data-lucide] {
   color: var(--blitzy-accent-teal);
 }
 
+/*
+  The button that ends the blanked-screen state the runtime enters on a key press.
+  It is the framework's own markup, not this deck's, and the framework draws it
+  ten pixels short of the smallest comfortable target — while making it a genuine
+  keyboard stop, so a reader who blanks the deck and then reaches for the control
+  is reaching for something below the floor every other control in this deck is
+  held to. Only the height is named: the button is already far wider than the
+  floor, and its own padding decides how the label sits inside it, so raising the
+  floor here changes the target and nothing else. The value is the same token the
+  skip link and the navigation cluster resolve to, so the deck has one floor.
+*/
+.reveal .pause-overlay .resume-button {
+  min-height: var(--target-min);
+}
+
 
 .eyebrow {
   font-family: var(--ff-mono);
@@ -1135,6 +1158,32 @@ pre.mermaid {
 }
 
 /*
+  The authored definition is a FALLBACK, and the rule above would otherwise paint
+  it on a healthy load too: the library is fetched asynchronously and its bundle is
+  the largest thing this deck asks for, so between first paint and the library
+  landing there is a window -- a fraction of a second on a fast connection, several
+  seconds on a slow one -- in which a reader looking at a diagram slide is shown
+  the diagram's source text instead of the diagram. That window is what this rule
+  closes: while the marker below is on the document, a block that has not yet been
+  drawn is laid out exactly as before but not painted.
+
+  Every path that ends the wait removes the marker, so the fallback keeps working:
+  a library that fails its request, a library that arrives and finishes its first
+  pass, a settings call that could not be made safe, and a cap that bounds the wait
+  when a request neither succeeds nor fails. The three marks named here are the
+  three states in which a block is holding text it is MEANT to show -- drawn,
+  judged unfit to draw, or stopped before drawing -- and each stays painted whether
+  the marker is present or not.
+
+  Opacity rather than visibility, so the block keeps its box and its announced role
+  throughout: the layout is identical before and after, which is what keeps the
+  arrival of a drawing from shifting anything on the slide.
+*/
+html.diagrams-awaited pre.mermaid:not([data-processed]):not([data-diagram-refused]):not([data-diagram-sealed]) {
+  opacity: 0;
+}
+
+/*
   The width here is the fallback, not the intended layout: the start-up block
   gives each drawing an explicit width of its own authored size times the shared
   drawing scale, and does so on the drawing itself, where it outranks this rule.
@@ -1229,6 +1278,15 @@ pre.mermaid foreignObject p {
   than either moving alone. The interface flourishes elsewhere in this stylesheet
   need no mention: they are declared only under the opposite preference, so a
   reader who asks for less movement never receives them in the first place.
+
+  The three that follow are the framework's, not this deck's, and they are the
+  reason naming only the two layers above was not enough: the progress bar slides
+  its fill across on every slide change, each navigation button eases its own
+  appearance, and the blanked-screen panel fades in over a full second. All three
+  are movement a reader who asked for none would still be shown, so all three are
+  collapsed to nothing here. As above, only the duration is touched -- what moves
+  and how it eases are left exactly as the framework wrote them, so the interface
+  keeps its behaviour and loses only the travel.
 */
 @media (prefers-reduced-motion: reduce) {
   .reveal .slides > section {
@@ -1236,6 +1294,21 @@ pre.mermaid foreignObject p {
   }
 
   .reveal .backgrounds .slide-background {
+    transition-duration: var(--motion-none);
+  }
+
+  .reveal .progress span {
+    transition-duration: var(--motion-none);
+  }
+
+  .reveal .controls .navigate-left,
+  .reveal .controls .navigate-right,
+  .reveal .controls .navigate-up,
+  .reveal .controls .navigate-down {
+    transition-duration: var(--motion-none);
+  }
+
+  .reveal .pause-overlay {
     transition-duration: var(--motion-none);
   }
 }
@@ -1260,27 +1333,68 @@ pre.mermaid foreignObject p {
   a requirement rather than an oversight. What the block does is carry every text
   role in the deck past the size at which glyphs stop resolving into letters,
   which is the difference between small and unreadable.
+
+  The sizes below are chosen against the size a reader actually receives, not the
+  size written down. A phone holds the stage at a fifth, so a role reaches the
+  reader at a fifth of the figure stated here -- and the threshold every role has
+  to clear is twelve pixels, the size below which the same measurement tools that
+  judge a page stop calling its text legible. Sixty pixels on the stage is what
+  clears it, so every role that carries a sentence, a label, a cell or a caption
+  is stated at or above that, and the display roles that were already past it are
+  left where they were. The two paddings come down at the same time: the space
+  taken back from the frame is what pays for the larger type, so a slide holds the
+  same words in the same shape rather than growing past the stage it is drawn in.
 */
 @media (max-width: 640px) {
   :root {
-    --fs-eyebrow: 0.9em;
+    --fs-eyebrow: 1.45em;
     --fs-hero-title: 2.2em;
-    --fs-hero-lede: 1em;
-    --fs-hero-meta: 0.9em;
+    --fs-hero-lede: 1.5em;
+    --fs-hero-meta: 1.45em;
     --fs-divider-title: 2.3em;
-    --fs-divider-lede: 0.95em;
+    --fs-divider-lede: 1.5em;
     --fs-title: 1.7em;
-    --fs-lede: 0.95em;
-    --fs-bullet: 0.95em;
+    --fs-lede: 1.5em;
+    --fs-bullet: 1.5em;
     --fs-kpi-value: 2em;
-    --fs-kpi-label: 0.86em;
-    --fs-table: 0.86em;
-    --fs-caption: 0.86em;
-    --fs-lockup: 0.9em;
-    --fs-diagram: 0.86em;
+    --fs-kpi-label: 1.45em;
+    --fs-table: 1.45em;
+    --fs-caption: 1.45em;
+    --fs-lockup: 1.45em;
+    --fs-diagram: 1.45em;
     /* Measured against the document root rather than the stage, so it needs a
        larger step than the em-based roles to arrive at the same rendered size. */
-    --fs-table-caption: 2.2rem;
+    --fs-table-caption: 3.8rem;
+    /* The frame, the rhythm and the measures give space back to the type, because
+       the type is what a reader cannot do without. Larger text costs vertical room
+       three times over -- each line is taller, each block is pushed further down,
+       and copy held to a narrow measure turns into more lines -- so all three are
+       answered here.
+
+       The paddings and the three larger steps of the spacing scale come down, which
+       tightens every gap in the deck at once rather than slide by slide. The two
+       line heights come in to the tightest values that still leave a comfortable
+       gap between lines at this size. And the fine print is released from the
+       reading measure to the full column: at phone scale it is the text most likely
+       to run to four or five lines, and the column is nearly twice the measure, so
+       the same words occupy roughly half as many lines. Nothing is hidden, nothing
+       is shortened, and no word changes -- only the room the same words are given.
+
+       The inline frame is the exception that goes the other way, and it is not about
+       type at all. Held at a fifth, the stage is 384 units wide on screen, so on the
+       narrowest phones in common use -- 360 -- it is wider than the window and hangs
+       twelve units off each edge. The frame is therefore WIDENED to the step that
+       clears that overhang: the field a slide is painted on is still cut at those
+       widths, which nobody can see on a flat colour, but no letter is. */
+    --slide-pad-block: var(--sp-4);
+    --slide-pad-inline: var(--sp-8);
+    --sp-5: 1rem;
+    --sp-6: 1.25rem;
+    --sp-7: 1.5rem;
+    --lh-body: 1.35;
+    --lh-snug: 1.2;
+    --measure-meta: var(--measure-full);
+    --icon-row: 1.75rem;
     /* The stage keeps its authored width at every viewport, and the reading
        measure was holding copy to about two-fifths of it. Widening the measure is
        what pays for the larger type: the same words occupy fewer lines, so the
@@ -1314,9 +1428,13 @@ pre.mermaid foreignObject p {
     <p class="lede">One read-only reference document on ArduPilot positioning, navigation and
       timing, turned into three briefing artifacts &mdash; each matched to an audience that has
       to act.</p>
-    <p class="slide-meta">ArduPilot PNT Reference Audit &middot; audited HEAD <code>5b67e27b0a</code>
-      &middot; read-only static-analysis catalog &middot; every audit figure exactly as the audit
-      states it</p>
+    <!-- The pack's one provenance line. The same four clauses, in the same order
+         and the same words, are the running footer of both slide decks, so a
+         reader who is handed any one of the three artifacts is told where it comes
+         from in identical terms. -->
+    <p class="slide-meta">Source: ArduPilot_PNT_Reference_Audit.pdf &middot; audited HEAD
+      <code>5b67e27b0a</code> &middot; read-only static-analysis catalog &middot; every audit
+      figure as stated</p>
     <div class="accent-bar"></div>
   </section>
 
@@ -1781,6 +1899,42 @@ flowchart TB
        fail — and every branch downstream has to follow the same answer. */
     var runtimeStarted = false;
 
+    /* The wait for the diagram library, declared on the document so the
+       stylesheet can keep an undrawn diagram's source text out of paint for
+       exactly as long as a drawing is still expected.
+
+       It is added HERE, from script, rather than written into the markup: a
+       document whose script never runs is a document where nothing will ever be
+       drawn, and it must fall back to showing the definitions rather than hiding
+       them. Adding the marker from the same block that removes it makes that the
+       default — no script, no marker, no hiding.
+
+       The cap is the last of the four release paths and the only one that does not
+       depend on the library reporting anything. A request that neither succeeds
+       nor fails leaves the other three waiting forever, so the wait is bounded and
+       the fallback appears; the figure is well past this deck's own cold-load cost
+       on a slow connection, so it cannot pre-empt a library that is merely late. */
+    var DIAGRAM_WAIT_CAP_MS = 12000;
+    var diagramWaitReleased = false;
+
+    function releaseDiagramWait() {
+      if (diagramWaitReleased) { return; }
+      diagramWaitReleased = true;
+      try {
+        document.documentElement.classList.remove('diagrams-awaited');
+      } catch (e) { }
+    }
+
+    try {
+      document.documentElement.classList.add('diagrams-awaited');
+      window.setTimeout(releaseDiagramWait, DIAGRAM_WAIT_CAP_MS);
+    } catch (e) {
+      /* A browser that cannot hold the marker never hid anything, so there is
+         nothing to release and the deck behaves as it did before the marker
+         existed: the definition is painted until a drawing replaces it. */
+      diagramWaitReleased = true;
+    }
+
     /* The only parameter this deck honours in its own address: the runtime's
        print flag, which carries no value and so is not configuration at all.
        Every other parameter is removed before the runtime reads the address,
@@ -1821,6 +1975,17 @@ flowchart TB
           width: 1920,
           height: 1080,
 
+          /* The runtime dims a usable back arrow by default, on the reasoning
+             that forward is the direction a deck is read in. Dimmed, it holds
+             three tenths of its opacity, which leaves the glyph separated from a
+             light slide by less than two to one -- below the ratio a control a
+             reader is meant to find has to meet, and the deck restores full
+             opacity only once the arrow is focused, which a reader has to find it
+             to do. Asked to stay visible, the arrow is drawn at full strength
+             whenever it can actually be used, and the runtime still hides it
+             outright on the first slide, where there is nothing behind to go to. */
+          controlsBackArrows: 'visible',
+
           /* Declining the runtime's narrow-window reading mode, which it would
              otherwise switch itself into below a width of its own choosing.
 
@@ -1843,7 +2008,7 @@ flowchart TB
         });
 
         /* Two settings the runtime defaults to values a published deck must
-           not ship with, turned off here rather than added to the five above.
+           not ship with, turned off here rather than added to the seven above.
 
            Left alone, the runtime answers instructions sent from any other
            window that can reach this one, and one of the instructions it accepts
@@ -1852,7 +2017,7 @@ flowchart TB
            needs neither, because it is opened directly and driven by the reader.
 
            The placement is the control, not a stylistic choice. Named among the
-           five settings above, these would be overridden by anyone who put the
+           seven settings above, these would be overridden by anyone who put the
            same names in the address, since the runtime gives the address the last
            word. Asserted HERE — synchronously, the instant the start-up call
            returns — they land after that merge, and before the runtime reaches
@@ -2027,6 +2192,9 @@ flowchart TB
       if (!haltDiagramAutoStart()) {
         sealDiagramsFromLibrary();
         reportDiagramFailure(new Error('Automatic diagram rendering could not be turned off.'));
+        /* Nothing will be drawn from here on, so the wait for a drawing is over
+           and the definitions are the content again. */
+        releaseDiagramWait();
         return;
       }
       try {
@@ -2092,6 +2260,7 @@ flowchart TB
            settled state in the page itself, where it can be read back. */
         sealDiagramsFromLibrary();
         reportDiagramFailure(e);
+        releaseDiagramWait();
       }
     }
 
@@ -2454,10 +2623,16 @@ flowchart TB
                 run.then(function () {
                   sizeDrawings(drawable);
                   recoverFailedDiagrams(drawable);
+                  releaseDiagramWait();
                 }, function () {
                   sizeDrawings(drawable);
                   recoverFailedDiagrams(drawable);
+                  releaseDiagramWait();
                 });
+              } else {
+                /* A library that draws without reporting back leaves nothing to
+                   wait on, so the wait ends with the call. */
+                releaseDiagramWait();
               }
             }
           }
@@ -2536,7 +2711,12 @@ flowchart TB
     function optionalLibraryResolved(name, arrived) {
       if (optionalLibraryState[name] !== 'pending') { return; }
       optionalLibraryState[name] = arrived ? 'ready' : 'unavailable';
-      if (!arrived) { return; }
+      if (!arrived) {
+        /* A diagram library that will not arrive is the case the authored
+           definitions exist for, so the wait ends here and they are shown. */
+        if (name === 'mermaid') { releaseDiagramWait(); }
+        return;
+      }
       if (name === 'mermaid') { configureDiagrams(); }
       if (initialHydrationStarted) { hydrate(); }
     }
