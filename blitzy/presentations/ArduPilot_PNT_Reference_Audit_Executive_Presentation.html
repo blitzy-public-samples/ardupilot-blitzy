@@ -17,9 +17,10 @@
   never uses, and a browser checks the addresses a face declares when it builds
   its list of available faces rather than when it first draws with one — naming
   the host silences those refusals while fetching nothing. And no outward network
-  allowance is granted, so the two source maps the pinned bundles advertise are
-  refused; that costs a developer two messages and withholds from the page any
-  means of sending data out.
+  allowance is granted, so the two source maps that are advertised — one by the
+  presentation runtime and one by the icon set, the drawing library advertising
+  none — are refused; that costs a developer two messages, only ever with a
+  debugger attached, and withholds from the page any means of sending data out.
 
   A policy delivered in the document cannot restrict who embeds the deck and
   cannot impose a sandbox — a browser ignores both when they arrive this way.
@@ -30,11 +31,23 @@
   block and the digest must be recomputed, or the deck will load its libraries
   and then run none of its own code.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-mLQvhhK54eECbue+TJiwD9YlEFe4dj0L12md53jPBTc=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-CQvjLoE2u+nrfFqiQkVEmEg4UhAD4rjO5EMxulf03mw=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
 
 <!-- Declared before anything is fetched, so it governs every request this file
      makes: a remote host has no need of the asking document's address, so it is
-     not sent one. -->
+     not sent one, and none of them is.
+
+     Three of the requests a reader's browser makes are not this file's to govern,
+     and saying so is more useful than implying otherwise. The web-font stylesheet
+     fetches the font files it names itself, and a stylesheet's own fetches take
+     their referrer from the stylesheet rather than from the page that asked for
+     it — so the referrer those three send is the font service's own address. That
+     address holds no part of this document's: not its host, not its path, not its
+     name, and this document is opened at no query or fragment for it to hold.
+     Nothing declarable here changes it. Separately, and not a referrer: a font is
+     always fetched under cross-origin rules, so those requests state this page's
+     scheme, host and port as their origin — the header a browser is required to
+     send for such a fetch, carrying no path, no name and no address beyond that. -->
 <meta name="referrer" content="no-referrer">
 
 <meta name="description" content="Executive presentation for the ArduPilot PNT Reference Audit briefing pack: scope, business value, content architecture, content-fidelity risks and continuity.">
@@ -56,6 +69,19 @@
   because it is generated per request from the asking browser's capabilities and
   so has no fixed byte sequence to pin; its failure mode is benign, since every
   font declaration here ends in a system fallback.
+
+  What a reader's browser actually fetches is eleven things from four hosts, not
+  the six named in this file: this document, the five package members below and
+  further down, the web-font stylesheet, the three font files it names, and one
+  stylesheet the runtime's own base theme imports. That import is worth naming
+  because it is the one member of the set that cannot be digest-checked — a digest
+  attaches to a tag, and a stylesheet reached from inside another stylesheet has
+  no tag of its own. Three things bound it instead: its address is written inside
+  the parent stylesheet, whose bytes ARE digest-checked, so the address cannot be
+  substituted without failing that check; it sits on the same immutable versioned
+  path as the parent; and it was read — it declares four faces of one family, by
+  relative address, with no script and no further import, and this deck names that
+  family nowhere, so not one of those font files is ever fetched.
 -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Fira+Code:wght@400;500&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"
@@ -1662,6 +1688,57 @@ flowchart TB
   answers with different bytes has its answer discarded before a single statement
   of it runs — which reads to the watcher as a failed request, the same path an
   unreachable network takes.
+
+  ADVISORY STANDING OF THE PINNED DRAWING LIBRARY — recorded here, on the artifact
+  itself, because this deck is the only place it can be recorded: the briefing pack
+  is three presentations and no fourth document.
+
+  Six published advisories apply to the drawing library at the version pinned
+  above: GHSA-8gwm-58g9-j8pw (CVE-2025-54880) and GHSA-7rqq-prvp-x9jh
+  (CVE-2025-54881), first fixed in 11.10.0; and GHSA-xcj9-5m2h-648r
+  (CVE-2026-41148), GHSA-ghcm-xqfw-q4vr (CVE-2026-41149), GHSA-6m6c-36f7-fhxh
+  (CVE-2026-41150) and GHSA-87f9-hvmw-gh4p (CVE-2026-41159), first fixed in
+  11.15.0. A further nineteen apply to the markup sanitiser the bundle carries
+  inside it at 3.1.6 — fifteen moderate and four low — whose highest first-fixed
+  version is 3.4.12, which no release of the drawing library yet carries. Every one
+  of the twenty-five is graded moderate or low; none is high or critical.
+
+  Two of those facts are worth stating plainly. The sanitiser is not a request of
+  its own and appears in no list of this deck's dependencies — it was found by
+  reading the bundle's bytes — so a review that reads only the tags below will
+  under-count the surface. And because no release carries a sanitiser new enough,
+  moving the pin forward would not close the sanitiser's nineteen; only declining
+  to use the library at all would, and this deck's specification requires it.
+
+  The pin is not this deck's to move: the specification that governs this artifact
+  fixes these three versions and states they are not upgraded even though newer
+  releases exist. The version therefore stands, and the exposure is carried by
+  construction rather than by version:
+
+    - Only a definition written entirely in the four line forms of this deck's own
+      grammar is drawn, and every one of the six advisory grammars is unwritable in
+      it — the sequence, architecture, state and gantt diagram types need their own
+      keyword in place of the flow header; a style override needs a brace and a
+      colour literal; a configuration directive needs %% and braces; a formula
+      needs dollars and a backslash.
+    - Labels are drawn as glyphs rather than as markup, at both settings that
+      decide it, which removes the construction path the label-injection advisories
+      need; and the only markup the bundled sanitiser is ever handed is markup the
+      library itself produced from one of the four accepted definitions, never
+      anything a reader or a payload supplied.
+    - The protected-key list below refuses any later change to the settings that
+      carry style, so the advisory that injects style through a setting is refused
+      by the library's own mechanism as well as by the grammar.
+    - Nothing a reader supplies ever reaches the library: the deck is a static file
+      holding four author-written definitions, and there is no input of any kind.
+    - The delivery policy at the top of this file grants no outward allowance and
+      no script of its own beyond one measured block, so a payload that somehow
+      drew could still neither run nor send anything.
+
+  What remains, and is owned rather than argued away: a digest proves the bytes are
+  the bytes that were published, not that what was published is sound, so a
+  maliciously published release upstream is not detectable from here. That is
+  inherent to using a library one does not build.
 -->
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"
   integrity="sha384-M/JtqCVlLcK9lwVnBnMXP0V577CBULkjodKsR/PITOe4MSKNbbwqCemEyluOw0+5"
@@ -1851,12 +1928,42 @@ flowchart TB
        as markup and passing them through the library's bundled sanitiser, which
        is exactly the machinery this deck declines to depend on. The latch below
        records whether the settings landed, and nothing is drawn unless they did.
+
        The protected-key list is the library's own mechanism for refusing later
-       changes to named settings: its first six entries are the library's
-       documented defaults, restated so that naming the list does not silently
-       drop them, and the two additions keep the label mode and the sanitiser
-       options from being relaxed afterwards. */
+       changes to named settings, and naming the list replaces the library's own,
+       so its first six entries are that default restated rather than silently
+       dropped. Seven are additions. Two keep the label mode and the sanitiser
+       options from being relaxed afterwards. The other five are every setting that
+       carries style — the two font families, the raw stylesheet hook, the theme and
+       its variables — which is the route one of the published advisories against
+       this pinned version takes; naming them has the library refuse that route at
+       its own gate rather than leaving the grammar check below to carry it alone.
+       Listing a setting costs this deck nothing: the list governs changes made
+       after the settings call, not the call itself.
+
+       Three settings the list has always named are now also given values. The two
+       size bounds close the one exposure a grammar can never close: a chain of
+       plain arrows is written in the accepted grammar however long it runs, so a
+       definition of a hundred thousand nodes would satisfy the check and then cost
+       a reader's browser everything it has. Both bounds are the deck's own, applied
+       by the check itself before the library is called and restated here so the
+       library holds the same two numbers as a second line; both sit an order of
+       magnitude above this deck's largest drawing, so neither can reach a
+       legitimate one. Restating them matters for a reason worth writing down: over
+       the character bound the library does not decline to draw, it swaps the
+       definition for a small drawing of its own that says the bound was passed —
+       which is why the bound has to be applied before it, where a definition that
+       fails one is simply not drawn. The third setting turns off the library's
+       error drawing, so a definition it rejects for any other reason keeps its
+       authored text rather than being replaced by a graphic. */
     var diagramsConfigured = false;
+
+    /* The bounds named above. One definition of each number, read both by the check
+       that admits a definition and by the settings handed to the library, so the two
+       cannot drift apart. This deck's largest drawing is four hundred and forty-one
+       characters and nine arrows. */
+    var MAX_DIAGRAM_DEFINITION_CHARS = 4000;
+    var MAX_DIAGRAM_ARROWS = 64;
 
     /* Stop the library starting itself, as a step of its own that runs before any
        other setting is touched.
@@ -1956,10 +2063,14 @@ flowchart TB
           theme: 'base',
           securityLevel: 'strict',
           htmlLabels: false,
+          maxTextSize: MAX_DIAGRAM_DEFINITION_CHARS,
+          maxEdges: MAX_DIAGRAM_ARROWS,
+          suppressErrorRendering: true,
           flowchart: { htmlLabels: false, useMaxWidth: false },
           secure: [
             'secure', 'securityLevel', 'startOnLoad', 'maxTextSize',
-            'suppressErrorRendering', 'maxEdges', 'htmlLabels', 'dompurifyConfig'
+            'suppressErrorRendering', 'maxEdges', 'htmlLabels', 'dompurifyConfig',
+            'fontFamily', 'altFontFamily', 'themeCSS', 'theme', 'themeVariables'
           ],
           themeVariables: {
             primaryColor: diagramNodeFill,
@@ -2076,11 +2187,11 @@ flowchart TB
 
       Each definition is therefore checked line by line against the small grammar
       the four of them are written in, and only a definition made entirely of
-      those line forms is drawn. Four forms are accepted and nothing else: a blank
-      line; the flow-direction header, which a definition must contain to be
-      accepted at all; an accessible title or description; and a chain of plain
-      node references, each optionally carrying a quoted label, joined by plain
-      arrows.
+      those line forms, and no larger than the two bounds declared above, is drawn.
+      Four forms are accepted and nothing else: a blank line; the flow-direction
+      header, which a definition must contain to be accepted at all; an accessible
+      title or description; and a chain of plain node references, each optionally
+      carrying a quoted label, joined by plain arrows.
 
       The label and caption character class is deliberately narrow, admitting none
       of < > & % { } $ # = / \ ` | ! ? * + [ ] and no bare quote. A configuration
@@ -2109,6 +2220,12 @@ flowchart TB
 
     function isAuthoredDiagramForm(definition) {
       if (typeof definition !== 'string' || !definition) { return false; }
+      /* Size first, because the line forms below say nothing about how many times
+         they may repeat: a chain of plain arrows is written in this grammar however
+         long it runs. Both bounds are the ones the library is handed as well, and
+         both are checked here so a definition over either is never drawn at all. */
+      if (definition.length > MAX_DIAGRAM_DEFINITION_CHARS) { return false; }
+      if (definition.split('-->').length - 1 > MAX_DIAGRAM_ARROWS) { return false; }
       var lines = definition.split(/\r?\n/);
       var declaresDiagram = false;
       for (var i = 0; i < lines.length; i += 1) {
