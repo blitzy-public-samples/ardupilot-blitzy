@@ -1,9 +1,7 @@
-# Blitzy Project Guide — AfsimL1 Reusable L1 Guidance Service
+# Blitzy Project Guide
+## ArduPilot PNT Reference Audit — Presentation Pack
 
-> **Project:** Consolidate ArduPilot's Position / Navigation / Timing (PNT) behaviors embedded in the vehicle flight loop into one reusable, host-driven modular service (`AfsimL1`) behind a stable `extern "C"` ABI, plus a regenerated PNT Reference Audit PDF documenting current → new service locations.
-> **Repository:** ArduPilot (same-repo refactor) · **Branch:** `blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668`
-> **Implementation HEAD:** `1a3e238884` · **Documentation HEAD:** this guide's commit · **Non-agent baseline:** `6148c3d422`
-> **Brand legend:** <span style="color:#5B39F3">■</span> Completed / AI Work `#5B39F3` · ▢ Remaining `#FFFFFF` · <span style="color:#B23AF2">■</span> Headings / Accents `#B23AF2` · <span style="color:#A8FDD9">■</span> Highlight `#A8FDD9`
+> **Brand legend** — <span style="color:#5B39F3">**Dark Blue `#5B39F3`**</span> = Completed / AI work · **White `#FFFFFF`** = Remaining / not completed · <span style="color:#B23AF2">Violet-Black `#B23AF2`</span> = headings & accents · <span style="color:#A8FDD9">Mint `#A8FDD9`</span> = highlights
 
 ---
 
@@ -11,68 +9,75 @@
 
 ### 1.1 Project Overview
 
-**AfsimL1** extracts ArduPilot's L1 lateral-navigation guidance (`AP_L1_Control`) from the vehicle flight loop into a single reusable service that an external simulator — the AFSIM host in the user's example — drives directly. A facade (`AfsimL1Behavior`) composes the unmodified guidance controller, an AHRS adapter shim supplies host-injected position/velocity/attitude, and a host-supplied `dt` replaces the hardware clock. Everything is reachable through eight `extern "C"` entry points on an opaque handle, shipped as `libafsim_l1.so`. The refactor is behavior-preserving: the L1 mathematics are untouched and no vehicle firmware changed. A companion 43-page PNT Reference Audit PDF records where every PNT behavior lives today and which service member it maps to.
+This engagement builds a client-facing presentation pack that communicates the findings of an already-completed, already-scored engineering audit — the ArduPilot PNT Reference Audit — without repeating or extending the analysis behind it. The audit is a finished 43-page catalog of 94 Position/Navigation/Timing references across the ArduPilot firmware monorepo. Three artifacts were authored: a 10-slide executive brief for a prospective client, a 239-slide exhaustive findings deck for engineers, and a 16-section reveal.js presentation for non-technical leadership. Target users are prospective clients, audit stakeholders, and engineering leadership evaluating a PNT extraction effort. The work is purely additive documentation — no application code, build, or test behaviour changes anywhere.
 
 ### 1.2 Completion Status
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieOuterStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'17px','pieLegendTextSize':'13px'}}}%%
-pie showData title Project Completion — 82.6% Complete
-    "Completed Work (AI)" : 123
-    "Remaining Work" : 26
+%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#D9D9D9','pieOuterStrokeColor':'#B23AF2','pieSectionTextColor':'#FFFFFF','pieTitleTextColor':'#B23AF2','pieLegendTextColor':'#333333'}}}%%
+pie title 90.0% COMPLETE — 216 h of 240 h
+    "Completed Work (AI)" : 216
+    "Remaining Work" : 24
 ```
 
-| Metric | Hours |
-|--------|------:|
-| **Total Project Hours** | **149** |
-| Completed Hours (AI + Manual) | **123** (123 AI + 0 Manual) |
-| Remaining Hours | **26** |
-| **Percent Complete** | **82.6 %** |
+| Metric | Value |
+|--------|-------|
+| **Total Hours** | **240** |
+| **Completed Hours (AI + Manual)** | **216** (216 AI + 0 Manual) |
+| **Remaining Hours** | **24** |
+| **Percent Complete** | **90.0%** |
 
-> **Calculation (PA1, AAP-scoped only):** Completion % = Completed ÷ (Completed + Remaining) = 123 ÷ (123 + 26) = 123 ÷ 149 = **82.6 %**.
-> All **20** AAP-specified requirements are complete and independently re-verified (§5). The remaining **26 h** is exclusively **path-to-production** work — human review/merge sign-off, real AFSIM host integration, numerical-fidelity testing and library packaging/CI. No AAP deliverable is outstanding.
+**Calculation (PA1, AAP-scoped):** `216 / (216 + 24) = 216 / 240 = 90.0%`
+
+Every AAP-specified requirement is **Completed**; there are zero Partially Completed and zero Not Started items. The remaining 24 hours are exclusively human-judgement activities — content sign-off, one interpretive confirmation, and delivery decisions — that no agent can discharge on a stakeholder's behalf.
 
 ### 1.3 Key Accomplishments
 
-- ✅ **One reusable service delivered** — facade (`AfsimL1Behavior`, 514 LOC) + AHRS adapter shim (327 LOC) + `extern "C"` boundary (495 LOC), composing `AP_L1_Control` without changing its guidance mathematics.
-- ✅ **Stable C ABI proven** — `libafsim_l1.so` exports **exactly 8** symbols (`L1_Create/Destroy/Init/Execute/SetLegNE/SetStateNE/GetRollDeg/GetLatAccel`) and **zero** mangled C++ symbols, enforced by `-fvisibility=hidden` plus a generated version script.
-- ✅ **Toolchain-agnostic consumption demonstrated twice** — Blitzy's 38-check pure-C `dlopen` host, and an independent 24-check host written from scratch during this assessment (`gcc -std=c11 -Werror`, no ArduPilot header) driving the `g++`-built library.
-- ✅ **Behavior-preserving timing seam** — additive, **default-off** `set_update_dt()` on `AP_L1_Control`; the `dt > 1 s` clamp/cap block is **byte-identical** to baseline; non-finite and negative `dt` rejected (CWE-20).
-- ✅ **Both shipped build paths work and agree numerically** — standalone CMake `.so` and in-tree waf `ap_example` each build with **0 diagnostics** and emit identical output (`roll_deg = -38.639999, lat_accel = -7.840306`).
-- ✅ **Vehicle consumers unaffected** — `./waf plane` links `bin/arduplane` at 3,473,811 B flash; **0 files** touched in any AAP-excluded tree (all vehicles, `modules/**`, all other PNT libraries).
-- ✅ **Dedicated unit suite** — `tests/test_afsim_l1.cpp` (866 LOC, no external framework, no new dependency): **111 checks, 0 failures**, plus 2 CTest cases; covers shim accessors, N/E↔E/N convention, every facade method, all 8 ABI entry points, NULL/stale-handle safety and behavior preservation.
-- ✅ **PNT audit delivered twice (Goal 3)** — mapping in the Agent Action Plan §0.6.1 **and** in the regenerated `ArduPilot_PNT_Reference_Audit.pdf`: 43 pages, 237,310 B, deterministic (`SHA256 1e9a5b01…4baf2` stable across regenerations), guarded by a 1,193-invariant harness that refuses to render on failure.
-- ✅ **PDF data fidelity restored and oracle-verified** — scrape artifacts in the generator's data module repaired in two passes against the pre-scrape original recovered from git history; 1,038 data strings now match verbatim, every artifact scanner reports zero.
-- ✅ **Deliverable verified in a real browser** — headless Chrome/PDFium sweep of 16 pages: page count exactly 43, "New Service Location" column confirmed on page 16, dedicated mapping section on page 38, zero blank/black/garbled pages, zero missing glyphs, zero console errors attributable to the PDF.
+- [x] **All three deliverables authored and committed** — 10-slide executive brief, 239-slide exhaustive findings deck, 16-section reveal.js executive presentation
+- [x] **10 of 10 AAP acceptance gates PASS** (G1–G10, 118 gate checks) — re-run independently three times during this review
+- [x] **337 of 337 automated checks passing, zero failing** across six validator suites
+- [x] **Exhaustive coverage proven, not asserted** — all 94 main catalog rows, 6 Layer 1 + 6 Layer 2 sub-tables, 12 instance-mapping rows, 5 flag kinds, and all 109 coverage-register entries verified present with `missing=0`
+- [x] **Verbatim fidelity enforced mechanically** — all 7 audit aggregates (63/31/94/282/18/109/27) stated in both decks; every KPI drawn from the audit's stated-value set; all five flag counts as the audit prints them
+- [x] **Source audit left byte-identical** — SHA-256 `1e9a5b01…a4baf2` unchanged; blob identical at baseline, HEAD, and worktree
+- [x] **Repository untouched apart from three additions** — `git diff` shows `modes=['A']` only, zero modifications, zero deletions
+- [x] **Zero dependency entered the project** — the PowerPoint writer lives in a throwaway venv outside the checkout; all six protected manifests have 0 commits on the branch
+- [x] **Runtime validated in real viewers** — reveal.js deck in headless Chrome (online *and* CDN-blocked paths), both PPTX decks rendered by LibreOffice at 10/10 and 239/239 pages with zero blanks
+- [x] **Security-hardened HTML** — `default-src 'none'` CSP allowlisting its own inline script by SHA-256 hash rather than `'unsafe-inline'`; 5 SRI `sha384` digests validated at runtime
+- [x] **Design system implemented whole** — 130 `:root` tokens with zero hardcoded colour, spacing, or z-index values outside `:root`
+- [x] **15 review-and-remediation rounds absorbed** across 22 agent commits, including a 31-finding sweep and 6 security findings
 
 ### 1.4 Critical Unresolved Issues
 
+**No engineering defects remain unresolved.** All 337 automated checks pass and all 10 acceptance gates hold. The items below are decisions and verifications reserved to humans by their nature, not outstanding engineering work.
+
 | Issue | Impact | Owner | ETA |
 |-------|--------|-------|-----|
-| **No blocking issue exists in the delivered scope** | None — every in-scope build, test, ABI and runtime gate passes (independently re-verified during this assessment) | — | — |
-| Behavior-critical `AP_L1_Control` seam awaits human sign-off | The seam edits a controller shared by all fixed-wing/VTOL vehicles; default-off and byte-identical clamp mitigate risk, but merge requires flight-controls review | Flight-controls reviewer | HT-1 · 6 h |
-| Real AFSIM host integration not yet performed | The service cannot be exercised inside AFSIM until the host binds the ABI to its platform state and timebase; AFSIM is unavailable in this environment | Host / integration engineer | HT-2 · 10 h |
-| Shim-vs-live-AHRS numerical fidelity not cross-validated | Option B (service-local shim) is AAP-sanctioned, but agreement with the live EKF/DCM `AP_AHRS` and the synthesized-`Location` datum limits are asserted by construction rather than measured | Guidance/QA engineer | HT-3 · 6 h |
-| `libafsim_l1.so` has no SOVERSION, install rules or CI job | Consumers cannot pin an ABI version and regressions would not be caught (0 of the repo's 27 workflows build the service) | Build/release engineer | HT-4 · 4 h |
+| `[severity/category]` axis interpretation awaiting stakeholder confirmation — the user supplied this token with literal square brackets (a placeholder); since re-scoring is forbidden and the audit has no numeric severity scale, both axes were resolved against the audit's own taxonomies | Low — blast radius is bounded to the Full Findings deck's severity-axis block; the AAP states nothing else is affected | Audit / Engagement Lead | 2 h |
+| Client-readership comprehension verdict on the Executive Brief not yet rendered — automation proved the structural half of the success criterion (10 slides, 0 tables, 0 `path:line`), but only a human reader can judge whether the narrative lands | Medium — gates client release of the brief | Client-facing Lead | 4 h |
+| Native Microsoft PowerPoint rendering unverified — both decks were render-proofed in LibreOffice headless, not in the actual target viewer | Medium — font substitution or table pagination could differ in PowerPoint | Deck presenter | 3 h |
+| Distribution and viewing-environment decision outstanding — no decision on whether the HTML deck is hosted or handed over as a file | Low — the deck degrades gracefully when the CDN is unreachable, so neither path fails | Delivery Manager | 3 h |
 
 ### 1.5 Access Issues
 
-| System / Resource | Type of Access | Issue Description | Resolution Status | Owner |
-|-------------------|----------------|-------------------|-------------------|-------|
-| ArduPilot repository | Git write / merge | Branch is complete and committed; merge to mainline needs human approval. No permission blocker encountered — all 16 commits landed as `Blitzy Agent <agent@blitzy.com>` | Pending review | Maintainer |
-| AFSIM simulation environment | Runtime / integration | The external host is not present in this container, so real host-driven integration could not be executed. Validated by proxy: pure-C `dlopen` host + demo driver | Deferred — out of environment | Integration team |
-| Vendored submodules (`modules/gtest`, `modules/littlefs`) | Source write | Two pre-existing `-Werror` incompatibilities live in AAP-excluded trees, so they could not be fixed by edit. Cleared with proven **zero-edit** environment-variable recipes (Appendix E) | Worked around, not blocking | ArduPilot upstream |
-| Build toolchain, Python, CMake, poppler, fonts | Local execution | No access issue. GCC 11.5/12.5/15.2, CMake 3.31.6, Python 3.13.7, reportlab 4.5.1, poppler 25.03.0 and DejaVu fonts were all present; no installation was required | Verified available | — |
+**No access issues identified.** Every resource the work required was reachable, and this was verified against current permissions during this review rather than assumed.
 
-> **No credential, API-key or permission blocker prevented autonomous build validation.** Compilation, ABI verification, the unit suite, CTest, the demo, both build paths, the vehicle firmware link and PDF regeneration all executed successfully in this environment.
+| System/Resource | Type of Access | Issue Description | Resolution Status | Owner |
+|-----------------|----------------|-------------------|-------------------|-------|
+| Repository working tree | Read/Write | None — writes to `blitzy/presentations/` succeeded; clean tree confirmed | ✅ No issue | Blitzy Agent |
+| `ArduPilot_PNT_Reference_Audit.pdf` (source of record) | Read-only | None — readable throughout; hash re-verified unchanged | ✅ No issue | Blitzy Agent |
+| jsDelivr CDN (3 pinned libraries) | Network, view-time only | None — all 5 assets HTTP 200 with byte counts exactly matching the AAP | ✅ No issue | Blitzy Agent |
+| Google Fonts | Network, view-time only | None — 3 woff2 families loaded; `document.fonts.status = "loaded"` | ✅ No issue | Blitzy Agent |
+| PyPI / `python-pptx` 1.0.2 | Package install | None — resolved into the isolated venv; `pip check` clean | ✅ No issue | Blitzy Agent |
+| System Python interpreter | Package install | PEP 668 externally-managed marker refuses direct installation | ✅ Resolved by design — isolated venv outside the checkout, which is *stricter* than overriding the protection and is what the AAP mandates | Blitzy Agent |
+| Chrome 151 / LibreOffice 25.8 | Execute | None — both available and used for runtime validation | ✅ No issue | Blitzy Agent |
 
 ### 1.6 Recommended Next Steps
 
-1. **[High]** Senior code review and merge sign-off of the `AP_L1_Control` timing seam and the three service layers; formally record the AAP §0.7.3 design decision (additive default-off seam) — *HT-1, 6 h*.
-2. **[High]** Complete the real AFSIM host integration: bind `libafsim_l1.so`, map platform state → `L1_SetStateNE`, drive the frame delta → `L1_Execute`, consume `L1_GetRollDeg` / `L1_GetLatAccel`, and add leg sequencing via `L1_SetLegNE` — *HT-2, 10 h*.
-3. **[Medium]** Cross-validate numerical fidelity against in-vehicle/SITL L1 for on-track, cross-track and loiter legs, and document the synthesized-`Location` datum envelope — *HT-3, 6 h*.
-4. **[Low]** Package the library: SOVERSION/semantic versioning, `install()` rules, and a CI job invoking the existing `afsim_l1_tests` / `ctest` / `generate.py` targets — *HT-4, 4 h*.
-5. **[Low]** Housekeeping before any bulk staging: remove or ignore the 1,061 MB of untracked validation artifacts under `blitzy/screenshots` and `blitzy/screen_recordings` (folded into HT-1d; `.gitignore` does not cover them).
+1. **[High]** Confirm the `[severity/category]` axis interpretation with the audit owner — the single interpretive decision the AAP itself flagged for confirmation *(2 h)*
+2. **[High]** Sign off Executive Brief content against the user's verbatim success criterion: a reader grasps the conclusions and top-priority recommendations without consulting the underlying tables *(4 h)*
+3. **[High]** Run a risk-based transcription-fidelity spot audit on the Full Findings deck, focusing on the verbatim code-snippet slides, `[FIX F*]` annotations, and the instance-audit line-number-basis note *(6 h)*
+4. **[Medium]** Open both PPTX decks in genuine Microsoft PowerPoint and confirm font, table, and gradient fidelity *(3 h)*
+5. **[Medium]** Decide distribution: hosted versus file handover for the HTML deck, noting it must be served over `http(s)://` for its CSP and SRI to behave correctly *(3 h)*
 
 ---
 
@@ -80,432 +85,529 @@ pie showData title Project Completion — 82.6% Complete
 
 ### 2.1 Completed Work Detail
 
-All completed work was performed autonomously by Blitzy agents (123 AI hours, 0 manual). Every row traces to a specific AAP requirement, and every claim below was re-verified during this assessment.
-
 | Component | Hours | Description |
-|-----------|------:|-------------|
-| Service facade layer (`AfsimL1Behavior.h/.cpp`) | 12 | 514 LOC task-API facade — `init` / `execute(dt)` / `set_leg_ne` / `set_state_ne` / `get_roll_deg` / `get_lat_accel`, matching the user example's shape exactly; owns the shim, the `AP_L1_Control` instance and the `prev`/`next` legs; delegates only to `set_update_dt` → `update_waypoint` → `nav_roll_cd()/100` / `lateral_acceleration()`; seeds vehicle-matching gains (`set_default_period(17.0f)` + the controller's own `AP_Param::setup_object_defaults`); hard `#error` seam guard. **AAP R1/R2** |
-| AHRS adapter shim (`AfsimL1_AHRS_Shim.h/.cpp`) | 8 | 327 LOC adapter mirroring the exact read surface the controller consumes — `get_location`, `groundspeed_vector`, `get_yaw_rad`, `get_pitch_rad`, `get_EAS2TAS`, plus the public `yaw_sensor` member — fed by `set_location_NE` / `set_velocity_EN` / `set_yaw_cd` / `set_pitch_rad`; `Location` synthesized from a datum; N/E↔E/N convention handled. **AAP R3** |
-| C ABI boundary (`l1_c_api.h/.cpp`) | 8 | 495 LOC `extern "C"` layer — opaque `L1_Context` (magic cookie `0xAF510C71` + mutex-guarded live-handle registry checked before every dereference), 8 `visibility("default")` exports, `std::isfinite` validation on every scalar, NULL/stale-handle safety, ABI-stability documentation. **AAP R4/R5** |
-| `AP_L1_Control` timing seam (behavior-critical) | 6 | Additive `set_update_dt(float)` (+61 lines across header and source) into the shared flight-guidance controller: injected `dt` for `update_waypoint`, accumulated `_override_time_ms` timebase for `update_loiter`, non-finite/negative rejection, default-off via in-class initializers, `dt`-clamp block preserved byte-for-byte. **AAP R10/R11/R17** |
-| Standalone shared-library build (`CMakeLists.txt`) | 8 | 556 LOC CMake 3.5-compatible build producing `libafsim_l1.so` + `afsim_l1_demo` + `afsim_l1_tests` + 2 CTest registrations; generated Option-B seam tree; `-fvisibility=hidden` + version script pinning the 8 exports; ArduPilot-equivalent diagnostics posture (32 flags, 21 promoted to errors); cross-compiler support. **AAP R6** |
-| In-tree waf build path (`wscript`) | 3 | 187 LOC `bld.ap_example(use='ap')` build that writes the seam tree, injects `AFSIML1_L1_USES_SHIM_AHRS`, orders the include path and compiles the wrapped controller in place — closing the blocker that previously made the in-tree path fail at the seam guard. **AAP R7** |
-| Demo driver + self-check (`main.cpp`) | 4 | 212 LOC "initialize a simple leg" driver: create → init → `set_leg_ne` → `set_state_ne` → `execute(dt)` → read outputs → self-check (fails loudly on non-finite or trivially-zero roll) → destroy. **AAP R8** |
-| README integration documentation | 4 | 322 LOC / 14 sections: architecture, AHRS decoupling options, C ABI, dependency-injection model, units and conventions, both build paths, symbol verification, unit tests, C and C++ usage paths, behavior preservation. **AAP R9** |
-| PNT instance audit analysis (Goal 1) | 6 | Line-by-line sweep locating every PNT touch-point in the extraction target — 16 AHRS read sites resolving to 6 accessor kinds, 2 internal clock couplings, 2 output paths — expressed as the authoritative current→new mapping table (AAP §0.6.1) and realized as a 94-main-row / 282-evidence-row catalog. **AAP R12/R13** |
-| PDF generator pipeline + deliverable (Goal 3) | 24 | 3,082 LOC ReportLab pipeline (`pnt_data.py` 1,344 + `pnt_render.py` 1,444 + `generate.py` 294) rendering the 43-page A4-landscape audit with the required "New Service Location" column and a front-of-document Executive Summary; assertion harness of 1,193 logical invariants across 6 gates that refuses to render on any failure; deterministic byte-identical output. **AAP R14/R15** |
-| PDF data-fidelity repair (oracle-verified) | 8 | Two-pass repair of `pdftotext -layout` scrape artifacts baked into the generator's data module (166 rules / 236 replacements), using the pre-scrape original PDF recovered from commit `5b67e27b0a` as an authoritative oracle; corrected two first-pass mistakes and rejoined 100 mid-identifier snippet breaks; backed by `verify_repairs.py` (59 checks) and `mutation_test.py` (52 checks). **AAP R14/R15 fidelity** |
-| C-ABI stability web research | 2 | Best-practice research on ABI-stable shared libraries — opaque handles, C-only boundary types, symbol visibility, versioning — recorded in AAP §0.3.2 and reflected in the implementation. **AAP R16** |
-| Dedicated unit suite (`tests/test_afsim_l1.cpp`) | 6 | 866 LOC self-contained suite (no GoogleTest, therefore no new dependency) asserting **111 checks**: shim accessors and setters, E/N velocity ordering, `Location`-from-datum, every facade method, all 8 C-ABI entry points including NULL, bogus, stale and double-destroy handles, `set_update_dt` input validation, and behavior preservation (injected-`dt` determinism, default-off `micros()` path, `dt > 1 s` integrator reset). Wired as `afsim_l1_tests` with 2 CTest cases. **AAP R19** |
-| Autonomous validation campaign | 16 | 9-configuration compile matrix (GCC 11.5/12.5/15.2 × Debug/Release/RelWithDebInfo) from scratch with `nm` ABI assertion per variant; pure-C `dlopen` host (38 checks); behavior-preservation Tests A/B/C; Valgrind full leak-check on 4 components; PDF harness, `verify_pdf.py` (118), mutation (52) and repair-regression (59) suites; 3 headless-browser runs over all 43 PDF pages; `./waf plane` regression link; plus zero-edit environment recipes that unblocked two vendored out-of-scope `-Werror` failures. **AAP R17/R18 verification** |
-| Iterative QA / code-review fix cycles | 8 | Resolution of checkpoint findings CP1, CP2 and CP5 (G1–G7), export-surface pinning to exactly 8 symbols, and correction of overstated documentation claims across 5 files (harness size, per-verifier counts, an unusable board name, two risk entries) — evidenced across the 16 implementation commits. **AAP R17/R18 quality** |
-| **Total Completed** | **123** | Sum of the rows above; equals Completed Hours in §1.2 |
+|-----------|-------|-------------|
+| Source audit census & aggregate reconciliation | 10 | Page-by-page inventory of the 43-page audit: 6 main tables (94 rows), 12 sub-tables (188 rows), 12 mapping rows, 10 sub-registers (109 entries), flag taxonomy, legend; every stated aggregate reconciled against printed rows |
+| Verbatim transcription layer | 18 | ~400 declarative data records encoding every fact both decks print; PDF-extraction hazard mitigated by sourcing identifier strings from the audit's committed `pnt_data.py` constants |
+| PowerPoint design-token re-expression | 8 | AAP Gap 4 resolution — 15 colour tokens as RGB, 3 font families by role, 4 master layouts at 13.333 × 7.5 in so all three artifacts read as one visual family |
+| D1 theme derivation & 10-slide build | 14 | The engagement's intellectual core: deriving cross-table patterns spanning 94 rows without enumerating any, grounding slides 2 and 9 in Executive Summary prose, plus the builder and slide-cap assertion |
+| D1 QA remediation (3 rounds) | 10 | 23 review findings resolved across commits `db69fa640d`, `87f49052f0`, `79fb6fbc27` |
+| D2 exhaustive 239-slide build | 32 | 216 tables and 4,014 cells across 13 parts; both organising axes; verbatim code-snippet transcription; coverage assertion that generates the reconciliation slide from its own check |
+| D2 QA remediation (4 rounds) | 10 | Findings resolved across `d7a5248923`, `de1ac2a188`, `0efeb83f2b`, `3b20625e05` |
+| D3 design-system implementation | 14 | 1,314 lines of CSS, 181 selectors, 130 `:root` tokens (21 mandated + derived geometry/depth scales for Gap 3), 4 slide types, 11 component classes, zero-hardcoded-values discipline |
+| D3 content & structure authoring | 16 | 16 sections, 4 Mermaid diagrams, 2 KPI grids, 3 token-styled tables, icon rows; resolving the Rule 1 vs P2/P8 conflict by scoping the narrative to this engagement |
+| D3 lifecycle wiring & security hardening | 10 | Deferred Mermaid start with re-run on `ready` and `slidechanged`; guarded calls for offline degradation; `default-src 'none'` CSP with script-src by SHA-256 hash; 5 SRI digests |
+| D3 QA remediation (8 rounds) | 20 | The most heavily reviewed artifact — includes 6 security findings (`54499d5523`), performance (`e34f52205f`), config/lifecycle (`b8b5c0c707`), a 31-finding sweep (`2b9714b63a`), and the final density fix (`9249276cbe`) |
+| Ephemeral toolchain & PEP 668 isolation | 4 | Throwaway venv outside the checkout holding `python-pptx` 1.0.2; non-declaration discipline; bytecode-disabled imports so no cache appears in the tree |
+| Verification suite (12 scripts, 337 checks) | 24 | Acceptance gates G1–G10 (118 checks), PPTX integrity (32), deck content (16), HTML integrity (150), pre-commit equivalence (9), environment check (12) |
+| Validator false-positive diagnosis | 8 | 7 items traced to ground truth and the checkers made *more* precise — notably U+2713 appearing 82× in the source audit as its own "Catalogued ✓" notation, upgraded into a fidelity assertion rather than removed |
+| Runtime validation | 10 | Headless Chrome online and CDN-blocked paths; LibreOffice render-proof of all 249 pages; evidence capture |
+| Prohibition & hygiene compliance verification | 8 | Systematic P1–P12 verification, manifest sweeps, residue checks, harness-never-invoked proof, and 3 hygiene remediations |
+| **Total Completed** | **216** | |
 
 ### 2.2 Remaining Work Detail
 
-Every category is **path-to-production**; no AAP-specified deliverable remains outstanding. Confidence is stated because hours scale with unknowns.
-
 | Category | Hours | Priority |
-|----------|------:|----------|
-| **HT-1 · Senior code review & merge sign-off** — review the +61-line `AP_L1_Control` seam and confirm the AAP §0.7.3 design fork (2 h); review facade/shim/ABI and the 8-symbol export surface (2 h); review PDF + generator provenance and the 18-file scope audit (1 h); PR administration, release note and untracked-artifact housekeeping (1 h). *Confidence: High* | 6 | High |
-| **HT-2 · Real AFSIM host integration** — bind the `.so` and resolve all 8 entry points (2 h); map platform state → `L1_SetStateNE` with datum selection (3 h); drive the frame delta → `L1_Execute` and validate against the 0.1 s cap / 1 s reinit semantics (1.5 h); consume roll and lateral-accel outputs (1.5 h); leg sequencing via `L1_SetLegNE` (2 h). *Confidence: Medium — depends on the host API* | 10 | High |
-| **HT-3 · Numerical-fidelity & integration testing** — reference harness vs in-vehicle/SITL L1 for on-track and cross-track legs (2.5 h); loiter and heading-hold paths under the injected timebase (1.5 h); datum stress: large NE offsets, sign conventions, wrap behavior (2 h). *Confidence: Medium* | 6 | Medium |
-| **HT-4 · Packaging & CI** — SOVERSION/semantic versioning, `install()` rules and a CMake package/pkg-config file (2 h); CI job running configure/build, `nm` export assertion, `ctest`, demo smoke and the PDF harness (2 h). *Confidence: High* | 4 | Low |
-| **Total Remaining** | **26** | High 16 · Medium 6 · Low 4 |
+|----------|-------|----------|
+| Stakeholder confirmation — `[severity/category]` axis interpretation | 2 | High |
+| Content & narrative sign-off — Executive Brief (D1) | 4 | High |
+| Transcription-fidelity spot audit — Full Findings (D2) | 6 | High |
+| Executive framing review — Executive Presentation (D3) | 3 | Medium |
+| Native Microsoft PowerPoint visual/typographic QA — both decks | 3 | Medium |
+| Distribution & viewing-environment decision | 3 | Medium |
+| Deck-regeneration / staleness policy | 2 | Low |
+| CSP `connect-src` sourcemap-noise decision | 1 | Low |
+| **Total Remaining** | **24** | |
 
-### 2.3 Total Project Hours Reconciliation
-
-| Bucket | Hours | Share |
-|--------|------:|------:|
-| Completed — AI (§2.1) | 123 | 82.6 % |
-| Completed — Manual | 0 | 0.0 % |
-| Remaining (§2.2) | 26 | 17.4 % |
-| **Total Project** | **149** | **100 %** |
-
-> **Integrity check:** §2.1 total (123) + §2.2 total (26) = **149** = Total Project Hours in §1.2 ✔ · Remaining (26) is identical in §1.2, §2.2 and §7 ✔ · §2.2 decomposes exactly as HT-1 (6) + HT-2 (10) + HT-3 (6) + HT-4 (4) = 26 ✔ · Priority split 16 + 6 + 4 = 26 ✔ · 123 ÷ 149 = 82.6 % everywhere ✔
+**Verification:** 216 (§2.1) + 24 (§2.2) = **240** = Total Project Hours in §1.2 ✓
 
 ---
 
 ## 3. Test Results
 
-All tests below were executed by **Blitzy's autonomous validation systems** on this branch and recorded in the agent validation logs. Rows marked **†** are configuration/coverage sweeps rather than assertion checks and are excluded from the aggregate to avoid double counting.
+All results below originate from Blitzy's own autonomous validation logs for this project. **No repository test suite appears here, and that is by design:** AAP prohibition P1 forbids running any repository software test (`pytest`, `./waf`, `ctest`, `Tools/autotest`) and P5 forbids executing the audit's integrity harness. The AAP therefore defines its **own** test suite — the ten acceptance gates G1–G10 plus the artifact-integrity validators — and those are what was executed. Running the repository's tests would itself have been an AAP violation.
 
-| Test Category | Framework / Tooling | Total Tests | Passed | Failed | Coverage % | Notes |
-|---------------|---------------------|------------:|-------:|-------:|-----------:|-------|
-| AfsimL1 unit suite | Self-contained C++ harness (`afsim_l1_tests`) | 111 | 111 | 0 | 100 % of facade, shim and all 8 ABI entry points | NULL/bogus/stale/double-destroy handle safety, E/N convention, `Location`-from-datum, `set_update_dt` validation, behavior preservation |
-| CTest registration | `ctest` | 2 | 2 | 0 | 100 % | `afsim_l1_unit_tests` + `afsim_l1_demo_smoke`; 100 % pass in 0.07 s |
-| Pure-C ABI host | `gcc`-compiled C client using `dlopen`/`dlsym` only | 38 | 38 | 0 | 8/8 entry points | Toolchain-agnostic load proven; 50 m cross-track → roll −34.85°, lat −6.83 m/s² |
-| C ABI symbol verification | `nm -D --defined-only` on every built variant | 9 | 9 | 0 | 8/8 exports | Exactly 8 `L1_*` exports, **0** mangled `_Z` symbols in every configuration |
-| In-tree waf example build | `./waf --targets examples/AfsimL1` on `--board linux` and `--board sitl` | 2 | 2 | 0 | Both boards | 0 in-scope diagnostics; output byte-identical to the CMake demo |
-| Demo self-check | `afsim_l1_demo` runtime assertion | 1 | 1 | 0 | State-flow path | Fails loudly on non-finite or trivially-zero roll |
-| PDF audit harness | Custom Python assertion harness (6 gates) | 1,193 | 1,193 | 0 | 100 % of 94 main rows / 282 evidence rows | 1,193 logical invariants via 1,663 predicate evaluations across 45 predicate sites; refuses to render on failure |
-| PDF integrity verification | `verify_pdf.py` (`pdfinfo`/`pdftotext`/`pdftoppm` + PIL) | 118 | 118 | 0 | All 43 pages | Page count, geometry, fonts, column header, per-page ink and dark bounds |
-| PDF generator mutation tests | `mutation_test.py` deliberate-fault injection | 52 | 52 | 0 | 6 verifier gates | Proves each gate actually fails when its invariant is broken |
-| PDF data-repair regression | `verify_repairs.py` | 59 | 59 | 0 | All repaired strings | Every corrected form present **and** every corrupt form absent in the rendered PDF |
-| Repository Python unit tests | `unittest` | 53 | 53 | 0 | 3 suites | `annotate_params` (24), `extract_param_defaults` (18), `param_check` (11) |
-| **Aggregate (in-scope assertion checks)** | — | **1,638** | **1,638** | **0** | — | **100 % pass rate; 0 failed, 0 skipped, 0 blocked** |
-| † Standalone compilation matrix | CMake × GCC 11.5.0 / 12.5.0 / 15.2.0 × Debug / Release / RelWithDebInfo | 9 configs | 9 | 0 | n/a | From-scratch each time; **0 diagnostics** under a 32-flag ArduPilot-equivalent posture (21 `-Werror=`); identical output and 8 exports in every cell |
-| † Seam safety vs real vehicle headers | `g++` syntax check against the real AHRS/SITL header graph + `./waf plane` link | 2 | 2 | 0 | n/a | `bin/arduplane` links at 3,473,811 B flash — the shared controller still builds into firmware |
-| † Behavior preservation A / B / C | Assertions inside the unit suite (subsumed in the 111) | 3 | 3 | 0 | n/a | A injected-`dt` determinism; B default-off `micros()` path; C `dt > 1 s` integrator reset; clamp block byte-identical to baseline |
-| † Memory safety | Valgrind full leak-check | 4 components | 4 | 0 | n/a | Demo, unit suite, `dlopen` host, in-tree binary — **0 errors, 0 leaks** |
-| † Pre-scrape oracle verification | `pdftotext -raw` diff vs the original PDF recovered from git history | 1,038 strings | 1,038 | 0 | 1,038 of 1,550 data strings | Verbatim match against the authoritative pre-scrape original; the 37 non-matches are fully explained (intentional flag-tag hoisting and 2 post-dating mapping strings) |
-| † Browser rendering verification | Headless Chrome + PDFium, 3 runs | 43 pages | 43 | 0 | All 43 pages | 0 blank / black / garbled / overflowing pages, 0 missing glyphs, 0 console or PDF-parse errors |
-| *Out-of-scope bonus: full ArduPilot gtest suite* | *`./waf check --alltests`* | *881 cases in 52 binaries* | *881* | *0* | *n/a* | *Not required by the AAP (§0.2.2 excludes the regression suite); run anyway via a zero-edit env recipe and green* |
+| Test Category | Framework | Total Tests | Passed | Failed | Coverage % | Notes |
+|---|---|---|---|---|---|---|
+| AAP Acceptance Gates (G1–G10) | Custom Python harness (`verify_deliverables.py`) | 118 | 118 | 0 | 100% of the AAP's 10 gates | G1 3 · G2 5 · G3 17 · G4 4 · G5 36 · G6 4 · G7 24 · G8 7 · G9 5 · G10 13 — **10/10 gates PASS** |
+| PPTX / OOXML Integrity | `python-pptx` 1.0.2 + `zipfile` + `lxml` | 32 | 32 | 0 | 100% of package parts (40 + 498) | All XML parts parse; all `.rels` resolve; zero external relationships; zero macro/OLE/embedded parts; stage 13.333 × 7.500 in |
+| Deck Content Integrity | Custom Python (`validate_deck_content.py`) | 16 | 16 | 0 | 100% of 249 slides | No empty slide, no empty cell of 4,014, zero placeholder/stub text, 0 of 1,185 shapes offstage, U+2713 count 82 == source 82 |
+| HTML / Rule 1 Contract | Custom Python + `node --check` (`validate_html_integrity.py`) | 150 | 150 | 0 | 100% of Rule 1 clauses | 11 categories: tags balance, 12–18 sections, non-text visuals, zero emoji, all `var(--x)` declared, single inline `<style>`, 5 pinned members, Reveal wiring, ≤4 bullets, exactly 4 Mermaid, KPI stated-value set |
+| Environment & Dependency | `pip check` + custom (`setup_env_check.py`) | 12 | 12 | 0 | 100% of declared requirements | `python-pptx` 1.0.2 + all 4 declared requirements resolve; "No broken requirements found"; CSP script-src hash matches the 46,359-byte inline block |
+| Pre-commit Hook Equivalence | `pre-commit` hook definitions, evaluated as git would | 9 | 9 | 0 | 100% of applicable hooks | 9 hooks evaluated, 0 failed; pure LF, no BOM, valid UTF-8, 0 tabs, 0 trailing whitespace |
+| **TOTAL** | | **337** | **337** | **0** | — | **Zero failures, zero skips, zero blocked tests** |
 
-**Independent re-verification performed during this assessment** (a subset re-executed from scratch to confirm the logs): out-of-tree CMake build → exit 0 with **0 warning/error lines**; `nm -D --defined-only libafsim_l1.so` → exactly 8 `T L1_*`, 0 `_Z`; `afsim_l1_demo` → `roll_deg = -38.639999, lat_accel = -7.840306`; `afsim_l1_tests` → **111 checks, 0 failures**; `ctest` → **2/2, 100 %**; an independently written 24-check pure-C `dlopen` host → 0 failures, reproducing roll −34.85° / lat −6.83 m/s²; `./waf build --targets examples/AfsimL1` → exit 0, 0 diagnostics, identical output; `./waf plane` → exit 0, 3,473,811 B; PDF regeneration → `HARNESS PASSED`, 43 pages, 237,310 B, byte-identical SHA256. **No discrepancy was found between the logs and re-measured reality.**
+**Coverage note.** Line coverage is not a meaningful metric for this project — the repository gained **zero lines of executable code**. The equivalent measure is *content coverage of the source audit*, which gate G5 establishes exhaustively:
+
+| Source Construct | Declared | Verified in Deck | Missing |
+|---|---|---|---|
+| Table 1 Core Positioning | 26 rows | 26 | **0** |
+| Table 2 Core Navigation | 28 rows | 28 | **0** |
+| Table 3 Core Timing | 9 rows | 9 | **0** |
+| Table 4 Indirect Positioning | 10 rows | 10 | **0** |
+| Table 5 Indirect Navigation | 10 rows | 10 | **0** |
+| Table 6 Indirect Timing | 11 rows | 11 | **0** |
+| **All main catalog rows** | **94** | **94** | **0** |
+| Layer 1 + Layer 2 sub-tables | 6 + 6 | 6 + 6 | **0** |
+| PNT Instance Audit mapping rows | 12 | 12 | **0** |
+| Audit-Discipline Flag kinds | 5 | 5 | **0** |
+| Coverage sub-registers / entries | 10 / 109 | 10 / 109 | **0** |
 
 ---
 
 ## 4. Runtime Validation & UI Verification
 
-**UI verification scope:** Not applicable in the conventional sense. Per AAP §0.3.4 the deliverable is a **headless** C/C++ shared library consumed programmatically plus a PDF documentation artifact — there is no graphical or textual end-user interface, no component library and no design system. Visual verification therefore targets the PDF deliverable, the project's only visual artifact; the library's runtime surface is verified directly through its C ABI.
+Every component was executed in a real viewer. Nothing in this section is inferred from static analysis.
 
-**Runtime health — library:**
+### Deliverable 3 — reveal.js Executive Presentation (headless Chrome 151)
 
-- ✅ **Operational** — Standalone CMake build produces `libafsim_l1.so` (175,648 B ELF), `afsim_l1_demo` (16,472 B) and `afsim_l1_tests` (217,984 B) with 0 diagnostics.
-- ✅ **Operational** — `afsim_l1_demo` runs end-to-end: `roll_deg = -38.639999, lat_accel = -7.840306`, exit 0. Identical from the build tree and from a foreign working directory (build-tree RPATH), and identical with the `LD_LIBRARY_PATH=.` fallback.
-- ✅ **Operational** — C ABI: all 8 entry points resolve via `dlsym`; `readelf -d` shows the library needs only `libstdc++`, `libm`, `libgcc_s` and `libc` — no ArduPilot runtime dependency.
-- ✅ **Operational** — Toolchain-agnostic consumption: a `gcc`-built pure-C client (never `g++`, no ArduPilot header) drives the `g++`-built library correctly.
-- ✅ **Operational** — Defensive behavior: NULL, bogus, stale (post-`L1_Destroy`) and double-destroyed handles are safe no-ops; getters return exactly `0.0`; NaN/Inf injected through `L1_SetStateNE`, `L1_SetLegNE` and `L1_Execute` leave both outputs finite.
-- ✅ **Operational** — Timing seam: injected `dt` overrides `AP_HAL::micros()`; the default-off path preserves stock behavior; clamp semantics intact.
-- ✅ **Operational** — In-tree waf example (`bld.ap_example(use='ap')`) builds on `--board linux` with 0 in-scope diagnostics and emits byte-identical guidance output; `--board sitl` builds with a documented zero-edit `CFLAGS` prefix for unrelated vendored code.
-- ✅ **Operational** — Vehicle regression guard: `./waf plane` links `bin/arduplane` (3,473,811 B flash), proving the additive seam does not disturb firmware consumers.
-- ✅ **Operational** — Memory safety: Valgrind full leak-check across 4 components reports 0 errors, 0 leaks.
+- ✅ **Deck initialises** — `Reveal.isReady() = true`, `getTotalSlides() = 16`, `VERSION = "5.1.0"`, 16 top-level sections with 0 nested verticals
+- ✅ **Slide-type census exact** — 1 title + 5 dividers + 9 content + 1 closing = 16, reconciling to `getTotalSlides()`
+- ✅ **Full traversal clean** — 15 of 15 advances succeeded; the 16th correctly refused (`availableRoutes.right = false`); **zero blank slides** (minimum 43 chars, 7 elements, all visible at 1536 × 864)
+- ✅ **All diagrams render** — 4 of 4 Mermaid containers produced SVG (127–165 nodes each, `data-processed="true"`, success role `flowchart-v2`); **no syntax error** by four independent probes
+- ✅ **All icons hydrate** — `[data-lucide] = 19` and `svg.lucide = 19` with **zero un-hydrated stubs**; every icon name resolved in the pinned bundle
+- ✅ **Deferred-render lifecycle proven in both directions** — a cold `#/10` deep link rendered its diagram immediately on `ready` (document-wide 1 of 4 SVGs, the other three awaiting `slidechanged`), versus 4 of 4 after full traversal
+- ✅ **Rendering is deterministic** — the deep-link screenshot is **byte-identical** (SHA-256 `79aac988…`) to the sequential-traversal capture of the same slide; two further SHA-256 matches confirm forward, backward, and deep-link paths agree pixel-for-pixel
+- ✅ **Zero page-originated console errors** across five channels (script error, resource error, `unhandledrejection`, `console.error`, `console.warn`), proven with listeners installed before any page script ran, and unchanged after four further slide changes
+- ✅ **Network fully healthy** — 11 of 11 requests HTTP 200; all three libraries at pinned versions; 3 woff2 files, one per mandated family; **5 of 5 SRI `sha384` hashes validated, not merely declared**
+- ✅ **Design system verified live** — all 21 mandated tokens resolve to their exact specified values; `document.fonts.status = "loaded"` with all three families confirmed
+- ✅ **No overflow or clipping** at 1600 × 900 *and* 1280 × 720 — 0 boundary breaches, 0 clipped elements, 0 ellipsis truncations, 0 px document overflow
+- ✅ **Density caps honoured** — worst content slide is 40 body words against Rule 1's cap of 40; all 9 content slides pass; zero emoji, zero fenced code blocks, zero text-only slides
+- ⚠ **3 DevTools console entries** — CSP blocks two `.map` sourcemap fetches (`reveal.js.map`, `lucide.min.js.map`) declared *inside the CDN bundles*. Proven **not** page errors: `.map` extension, `connect-src` directive, **empty `sourceCodeLocation`**, and total absence from the network log. A deliberate consequence of `default-src 'none'`; a reader without DevTools never sees them.
 
-**Runtime health — PDF deliverable pipeline:**
+### Deliverable 3 — Offline / CDN-blocked path
 
-- ✅ **Operational** — `generate.py` prints `harness: validating 94 main rows / 282 evidence rows`, then `HARNESS PASSED`, then `PDF written: <abspath>`; exit 0.
-- ✅ **Operational** — Deterministic: byte-identical regeneration (`cmp` clean, SHA256 `1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2` unchanged), and the git working tree stays clean afterwards.
-- ✅ **Operational** — Artifact: 43 pages, 237,310 B, A4 landscape (841.89 × 595.276 pt), ReportLab producer.
+- ✅ **Degrades exactly as documented** — with all three libraries genuinely `undefined`, **zero uncaught errors** from the page's own code; all nine defect signatures absent; 16 of 16 sections present and legible; fonts resolved through system fallback stacks
+- ✅ **Guards verified present** in source on all three libraries (`typeof mermaid`, `typeof lucide`, `typeof Reveal`) — navigation survives, only visuals degrade
 
-**Browser verification of the deliverable (headless Chrome + PDFium):** verdict **PASS**, zero defects.
+### Deliverables 1 & 2 — PPTX decks (LibreOffice 25.8.7.3 headless)
 
-| Assertion | Result | Evidence |
-|-----------|--------|----------|
-| Loads over HTTP and renders in Chrome's viewer | ✅ Operational | HTTP **200**, `content-type: application/pdf`, `content-length: 237310`; three-way SHA256 match (served ≡ on-disk ≡ expected) proves the rendered bytes are the exact deliverable |
-| Page count exactly 43 | ✅ Operational | Toolbar `1 / 43` → `43 / 43`; 43 thumbnails and no 44th; out-of-range page input clamps to 43; `pdfinfo` on the HTTP-fetched copy agrees |
-| Front-of-document Executive Summary | ✅ Operational | Page 1 renders the title *ArduPilot PNT (Positioning, Navigation, Timing) Reference Audit* and the `Executive Summary` heading with full body copy |
-| "New Service Location" mapping column (AAP Goal 3) | ✅ Operational | Confirmed on **page 16** as the rightmost of 8 headers, with verbatim cells such as `AfsimL1Behavior::set_leg_ne() -> AP_L1_Control::update_waypoint(prev, next); …` and `AfsimL1Behavior::get_roll_deg() = nav_roll_cd()/100 -> L1_GetRollDeg; get_lat_accel() -> L1_GetLatAccel`; unmapped rows correctly show an em-dash. Corroborated on pages 2, 12, 17 and by the dedicated mapping section on **page 38** |
-| Rendering quality across the document | ✅ Operational | 16 distinct pages inspected (37 %); quantitative pixel statistics on the page region: ink 3.48–20.68 %, mean luminance 207.5–247.4, std-dev 32.9–75.6 → no blank, black, torn or garbled page. Full non-ASCII glyph inventory (→ — · ✓ × ↔ ← ≥ ≤ ° … curly quotes) renders as true glyphs — **zero missing-glyph boxes** |
-| Console and network cleanliness | ✅ Operational | 0 JS exceptions, 0 PDF parse/render warnings; 17 of 18 requests `200`; the only 404 is the static server's absent `favicon.ico` and the only pending request is PDFium's own byte-stream channel for this document |
-| Scroll/paint behavior under motion | ✅ Operational | 106 s / 3,185-frame recording spanning ≥ 12 pages: no flash-of-blank, no placeholder tiles, no tearing; frame-difference and footer-hash analysis confirm genuine motion |
+- ✅ **Executive Brief** — `soffice` exit 0; **10 rendered pages == 10 slides**; 0 blank; 960 × 540 pt = ratio exactly 1.7778
+- ✅ **Full Findings** — `soffice` exit 0; **239 rendered pages == 239 slides**; 0 blank; identical exact 16:9 geometry
+- ✅ **No repair prompt, no corrupt part** on either deck
 
-**Captured evidence (absolute paths):**
+### Repository state
 
-- `blitzy/screenshots/pnt_audit_page1_executive_summary.png` — page 1 with the Executive Summary (583,525 B)
-- `blitzy/screenshots/pnt_audit_new_service_location_column.png` — page 16 with the mapping column (337,099 B)
-- `blitzy/screenshots/pnt_audit_page38_instance_audit_mapping_table.png` — the dedicated *Current Location → New Service Location* section
-- `blitzy/screenshots/pnt_audit_last_page.png` — page 43 fully rendered (677,669 B)
-- `blitzy/screenshots/pnt_audit_page_count_43_indicator_and_last_thumbnail.png` — page-count proof
-- `blitzy/screenshots/pnt_audit_sweep_page{02,03,05,08,12,18,25,30,33,36,40}.png` — 11-page sweep incl. the Unicode glyph test page
-- `blitzy/screen_recordings/pnt_audit_scroll_sweep.webm` — scroll sweep recording (43,346,338 B)
-
-(All under `/tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684/`.)
-
-**API integration outcomes:** the C ABI *is* the integration surface, and all 8 functions are verified operational from both C++ and pure C. The one integration outcome that cannot be produced in this environment is the real AFSIM host binding (HT-2) — AFSIM is not present in the container.
+- ✅ **Source audit byte-identical** — SHA-256 `1e9a5b01…a4baf2`, 237,310 B; blob identical at baseline, HEAD, and worktree
+- ✅ **Working tree clean** — `git status --porcelain --untracked-files=all` empty, including with `--ignore-submodules=none`
+- ✅ **Branch net effect** — exactly 3 `A` rows, zero `M`, zero `D`
 
 ---
 
 ## 5. Compliance & Quality Review
 
-AAP deliverables and constraints cross-mapped to Blitzy's quality and compliance benchmarks. "Verified here" marks items re-measured during this assessment.
+### AAP Requirement Register (R1–R10)
 
-| Benchmark / AAP Requirement | Status | Evidence / Notes |
-|-----------------------------|--------|------------------|
-| **Goal 1** — locate every PNT instance in the extraction target | ✅ Pass | AAP §0.6.1: 16 AHRS read sites → 6 accessor kinds, 2 clock couplings, 2 output paths; realized as a 94-row / 282-evidence-row catalog |
-| **Goal 2** — consolidate into ONE reusable service | ✅ Pass | Single module `libraries/AP_L1_Control/examples/AfsimL1/` = facade + adapter + ABI, 1,336 LOC of service code; no logic scattered elsewhere |
-| **Goal 3** — document current vs new locations **twice** | ✅ Pass | AAP §0.6.1 **and** the regenerated PDF; the "New Service Location" column and the dedicated mapping section were both confirmed in-browser (§4) |
-| Behavior preservation (L1 mathematics unchanged) | ✅ Pass | Seam default-off via in-class initializers; `dt`-clamp block **byte-identical** to baseline (verified here with `diff`); behavior-preservation Tests A/B/C green |
-| Public contracts preserved (`AP_Navigation`, existing `AP_L1_Control` signatures) | ✅ Pass | Only an **additive** `set_update_dt(float)`; no existing signature, override or interface changed; `AP_Navigation.h` untouched |
-| No vehicle firmware modified | ✅ Pass | Verified here: `git diff` restricted to all six vehicle trees returns **0 files**; `./waf plane` still links (3,473,811 B) |
-| "Make no other changes than specified" guardrail | ✅ Pass | Verified here: branch surface = **18 files** (14 A / 4 M), all in scope; **0** files in any AAP §0.2.2 excluded tree; **0** modified submodules |
-| Shared-library (`.so`) deliverable for an external host | ✅ Pass | `libafsim_l1.so` built by the standalone CMake path; needs only libstdc++/libm/libgcc/libc |
-| Exactly 8 C ABI exports with visibility control | ✅ Pass | Verified here: `nm -D --defined-only` → 8 `T L1_*`, **0** mangled; `-fvisibility=hidden` + generated version script |
-| Opaque handle — no C++ type crosses the boundary | ✅ Pass | `void*` / `L1_Handle` with `struct L1_Context` defined only in the ABI translation unit; only `double` scalars traverse the interface |
-| Injectable state and timing (dependency inversion) | ✅ Pass | `set_state_ne` → shim → the exact 6 accessors the controller reads; `set_update_dt` → injected `dt` and accumulated loiter timebase |
-| Facade / Adapter / ABI-boundary / DI / Strategy patterns applied | ✅ Pass | One file group per layer, matching AAP §0.3.3 |
-| AHRS decoupling option selected and guarded | ✅ Pass (Option B) | AAP §0.6.2 sanctions either option; Option B chosen (matching the user example's shim shape) with a hard `#error` guard, both build files setting `AFSIML1_L1_USES_SHIM_AHRS` automatically. Residual fidelity cross-validation is HT-3 |
-| Design decision to confirm (AAP §0.7.3) | ⚠ Awaiting human confirmation | The recommended additive, default-off seam was implemented; formal sign-off is HT-1a |
-| Timing seam default-off | ✅ Pass | `bool _dt_override = false;` in-class initializer (verified here); vehicles keep the `micros()`/`millis()` paths |
-| Input validation at the trust boundary (CWE-20) | ✅ Pass | `std::isfinite` on every ABI scalar; `set_update_dt` rejects non-finite and negative `dt`; verified here — NaN/Inf inputs leave outputs finite |
-| Handle-lifetime safety | ✅ Pass | Magic cookie + mutex-guarded live-handle registry checked before every dereference; verified here — NULL, bogus, stale and double-destroy are safe |
-| Zero-placeholder policy | ✅ Pass | No stubs, no `TODO`/`FIXME` in code; the only "placeholder" strings are prose describing the PDF's named format placeholders and its em-dash "no mapping" cell |
-| Code quality / diagnostics | ✅ Pass | 0 diagnostics under a 32-flag / 21-`-Werror` posture across 9 compiler × build-type configurations, and 0 in-scope diagnostics under waf's own 55-flag posture; `flake8` on the Python pipeline → 0 violations (verified here) |
-| Dependency policy — no new third-party dependency | ✅ Pass | Verified here: in-tree ArduPilot sources + pre-existing toolchain only; reportlab/poppler were already present for the PDF |
-| Test coverage for the service | ✅ Pass | 111-check unit suite + 2 CTest cases + 38-check pure-C ABI host + demo self-check; Valgrind-clean |
-| Both documented build paths operational | ✅ Pass | Standalone CMake and in-tree waf both build clean and produce identical output (verified here) |
-| Deliverable determinism and provenance | ✅ Pass | Byte-identical PDF regeneration, stable SHA256, harness gate, clean git tree (verified here) |
-| Commit hygiene and authorship | ✅ Pass | 16 implementation commits plus this documentation commit — every one authored **and** committed as `Blitzy Agent <agent@blitzy.com>`; staged by explicit path so no build or validation artifact was committed |
-| Library packaging / versioning | ⚠ Outstanding | SONAME is unversioned and there are **0** `install()` rules (verified here) → HT-4 |
-| CI coverage for the new service | ⚠ Outstanding | **0 of 27** existing workflows reference the service (verified here) → HT-4 |
-| Real host integration | ⚠ Outstanding | AFSIM unavailable in this environment → HT-2 |
+| ID | Requirement | Status | Evidence |
+|----|-------------|--------|----------|
+| R1 | PPTX ≤ 10 slides conveying conclusions at theme level | ✅ PASS | `slides = 10` exactly; G3 17/17; LibreOffice renders 10 pages |
+| R2 | Short deck grounded in the audit's own Executive Summary | ✅ PASS | G3 confirms slide 2 purpose/scope and slide 10 carrying the audit's Expected Impact |
+| R3 | Group 1 themes from cross-table patterns (Tables 1–3/1a–3a) | ✅ PASS | Slides 3–5, one per PNT pillar; **0 tables in the whole deck** |
+| R4 | Group 2 themes from cross-table patterns (Tables 4–6/4a–6a) | ✅ PASS | Slides 6–8 covering permission-gating, duplication, divergence & chain depth |
+| R5 | Exactly one recommendations slide, highest-priority only | ✅ PASS | Slide 9 "HIGHEST-PRIORITY ITEMS ONLY" |
+| R6 | Long deck covers every finding and recommendation | ✅ PASS | G5 36/36, `missing = 0` on every axis including all 109 register entries |
+| R7 | Organised by severity **and** category using the audit's own taxonomies | ✅ PASS | Both axes independently confirmed — severity block across 17 slides with per-flag coverage for all 5 kinds; category axis across Group 1/2 × 3 pillars |
+| R8 | Every finding preserved exactly as scored and worded | ✅ PASS | G7 24/24 — all 7 aggregates in both decks, zero rogue KPIs, all 5 flag counts as printed |
+| R9 | Single-file reveal.js deck, 12–18 sections, non-technical | ✅ PASS | G6 4/4 — 16 sections, every one with a non-text visual, zero emoji, zero fenced code |
+| R10 | Repository's existing content untouched | ✅ PASS | G2 5/5 — `modes=['A']`, 3 paths, exactly 3 files in the target directory |
 
-**Fixes applied during autonomous validation** (all in-scope, all closed): in-tree waf build failing at the seam guard (rewritten `wscript` with a seam-tree writer and define injection); absence of a dedicated unit suite (866-LOC / 111-check suite added and wired to CTest); generator data contaminated by `pdftotext -layout` scrape artifacts (two-pass, oracle-verified repair of 166 rules / 236 replacements); a stale PDF page-count claim reconciled to the correct 43; overstated documentation claims corrected across 5 files; the standalone CMake build hardened from zero warning flags to an ArduPilot-equivalent posture.
+### Prohibition Compliance (P1–P12)
 
-**Out-of-scope issues encountered, documented and *not* modified** (each lives in an AAP §0.2.2 excluded tree, each has a proven zero-edit workaround in Appendix E): vendored GoogleTest 1.8.0 vs `-Werror=suggest-override`; an unused local in `modules/littlefs/bd/lfs_filebd.c`; an upstream-authored `GTEST_SKIP()` in `AP_GSOF`. Ten residual build warnings live in two pre-existing out-of-scope files (`AP_Baro_BMP388.cpp` and a generated MAVLink header) and are warnings only.
+| ID | Prohibition | Status | Evidence |
+|----|-------------|--------|----------|
+| P1 | No software tests run | ✅ PASS | G10 — no `build`, `.pytest_cache`, `logs`, or `Tools/autotest/buildlogs` produced |
+| P2 | No production-readiness / timeline / effort content **on slides** | ✅ PASS | 12 dedicated checks, all `hits=[]` (hours, percent complete, man-days, story points, sprints, go-live, production-ready, roadmap, milestones, deadlines, effort estimate, completion %) |
+| P3 | No application code, repo structure, or CI/CD scaffolding | ✅ PASS | Only 3 presentation files committed; no workflow created or edited |
+| P4 | No dependency installed into the project | ✅ PASS | G8 7/7 — writer library in **no** manifest, installer, or workflow; all 6 protected manifests at 0 commits |
+| P5 | Audit harness never re-run | ✅ PASS | G10 — `generate` and `pnt_render` never imported (283 modules loaded, neither present); `count_flags()` / `reconcile()` exist but were never called |
+| P6 | No finding altered, re-scored, or reinterpreted | ✅ PASS | G7 24/24; U+2713 preserved at the source's own count of 82 rather than stripped |
+| P7 | No `path:line` reference touched or re-derived | ✅ PASS | G4 — none in the short deck; the audit's line-number-basis note reproduced verbatim on a dedicated slide |
+| P8 | No new ArduPilot codebase analysis | ✅ PASS | Content traces to the audit and its committed catalog data only |
+| P9 | No per-row enumeration in the short deck | ✅ PASS | G4 4/4 — `path:line found=[]`, row snippets `matches=0`, row identifiers `matches=0`, 6,201 chars |
+| P10 | Short deck must not exceed 10 slides | ✅ PASS | `slides = 10`, assertion-enforced at build time |
+| P11 | No deliverable other than the presentations | ✅ PASS | Target directory holds exactly 3 files; `blitzy-deck/` deliberately **not** created |
+| P12 | No existing file modified | ✅ PASS | `modes=['A']`; PDF blob identical at baseline/HEAD/worktree (`8e701089956b`) |
+
+### Rule 1 "Executive Presentation" Compliance
+
+| Clause | Status | Evidence |
+|--------|--------|----------|
+| Single self-contained HTML file, no build step, no local assets | ✅ PASS | One 125,304-byte file; theme inline |
+| 12–18 sections (target 16) | ✅ PASS | 16 sections |
+| Four slide types with prescribed treatments | ✅ PASS | 1 title + 5 dividers + 9 content + 1 closing, verified live in Chrome |
+| Five mandated content areas covered | ✅ PASS | What was done, why, what changed architecturally, risks & mitigations, onboarding & continuity — each assigned to named sections behind its divider |
+| ≤ 4 bullets and ≤ 40 body words per content slide | ✅ PASS | Worst content slide 40 words against the cap of 40; violations = NONE |
+| ≥ 1 non-text visual per slide, no text-only slides | ✅ PASS | G6 `without=[]`; 4 Mermaid + KPI grids + tables + icon rows |
+| Zero emoji; no fenced code blocks | ✅ PASS | G6 `found=[]`; 0 fenced blocks |
+| 21 mandated design tokens transcribed exactly | ✅ PASS | All 21 resolve to specified values in-browser; 130 total tokens including derived scales |
+| Zero hardcoded values | ✅ PASS | 0 undeclared `var(--x)`; 0 hardcoded hex/rgb/rem/em/vw/vh/z-index outside `:root` |
+| Pinned library versions from CDN | ✅ PASS | reveal.js 5.1.0, Mermaid 11.4.0, Lucide 0.460.0 — all HTTP 200 at exact AAP byte counts |
+| Runtime configuration (hash nav, 1920 × 1080) | ✅ PASS | `hash: true`, `width: 1920`, `height: 1080`, `transition: "slide"` confirmed via `getConfig()` |
+| Mermaid theme variables + deferred lifecycle | ✅ PASS | 5 theme variables mapped; deferred start with re-run on `ready` and `slidechanged`, proven both directions |
+
+### Design-System Gaps (AAP §0.5.4) — all resolved
+
+| Gap | Resolution | Status |
+|-----|-----------|--------|
+| Gap 1 — canonical theme stylesheet absent from disk | Theme authored inline from Rule 1's self-sufficient specification; the file deliberately **not** created, since creating it would violate P11 | ✅ Resolved; G9 verifies `blitzy-deck/` absent |
+| Gap 2 — no framing layout helper in reveal.js 5.1.0 | Composed from `.r-stack` plus border/surface tokens; no hardcoded value introduced | ✅ Resolved |
+| Gap 3 — Rule 1 specifies no spacing/radius/shadow/z scale | Derived named scales (`--sp-1..8`, `--radius-sm/md/lg`, `--shadow-card/raised`, `--z-base/raised/skip-link`) so the zero-hardcoded rule stays enforceable | ✅ Resolved |
+| Gap 4 — design system has no PowerPoint counterpart | Tokens re-expressed natively; stage verified at 13.333 × 7.500 in on both decks | ✅ Resolved |
+
+### Fixes applied during autonomous validation
+
+| Fix | Detail |
+|-----|--------|
+| **1 genuine defect** | Executive Presentation section 6 carried 41 body words against Rule 1's 40-word cap. Trimmed to 38 words with every audit figure preserved verbatim (43, 94, 282, 109, 63, 31, 18, 27, HEAD `5b67e27b0a`). Committed `9249276cbe`, re-verified in-browser |
+| **7 validator false positives** | Each traced to ground truth and the checker made **more** precise, never relaxed. Most notable: U+2713 was flagged as an emoji, but the source audit contains it exactly 82× as its own "Catalogued ✓" notation and it is `Emoji=No` in Unicode — removing it would have violated P6, so the check was upgraded into a fidelity assertion (deck 82 == source 82) |
+| **3 hygiene incidents** | A tool path prefix created `./tmp/` inside the checkout (removed); browser-automation artifacts landed in `blitzy/screenshots` and `blitzy/screen_recordings` (relocated outside the tree, gates re-run); `/etc/hosts` modified for offline testing (restored) |
+
+### Outstanding compliance items
+
+Three deliberate non-changes, each with recorded reasoning rather than an unaddressed finding:
+
+- **2 DevTools CSP sourcemap entries** — silencing them requires adding `connect-src https://cdn.jsdelivr.net`, weakening the CSP for debugging convenience only. Recommendation: accept.
+- **One `640px` literal outside `:root`** — it sits in an `@media` condition, where CSS custom properties are invalid *by specification*. The query body only redefines `:root` tokens.
+- **239 slides versus the AAP's planned 57** — compliant under §0.6.1's binding rule that a part may grow and no finding may be dropped to hit a slide number; G5 proves nothing was dropped.
 
 ---
 
 ## 6. Risk Assessment
 
 | Risk | Category | Severity | Probability | Mitigation | Status |
-|------|----------|----------|-------------|-----------|--------|
-| **T1** · The timing seam edits `AP_L1_Control`, a controller shared by every fixed-wing and VTOL vehicle | Technical | Medium | Low | Additive only; default-off via in-class initializer; `dt`-clamp block byte-identical to baseline; behavior-preservation Tests A/B/C; `./waf plane` links at 3,473,811 B | Mitigated — pending review (HT-1) |
-| **T2** · The Option-B compile-time shim seam (`AFSIML1_L1_USES_SHIM_AHRS`) could be misconfigured by a downstream consumer | Technical | Low | Low | Hard `#error` guard fires immediately with a self-explaining message (reproduced during this assessment); both shipped build files define the macro automatically; README documents it | Mitigated |
-| **T3** · The shim synthesizes `Location` from a fixed datum — very large N/E offsets or lat/lon wrap could diverge from full `AP_AHRS` geodesy | Technical | Medium | Low–Medium | Conventions documented in the README; datum-stress and fidelity cross-validation scheduled as HT-3 | Open — largest technical unknown |
-| **T4** · Option B (service-local shim) was chosen over the AAP-recommended Option A (real `AP_AHRS` in external mode) | Technical | Low | Medium | Both options are AAP-sanctioned (§0.6.2); the shim mirrors the controller's exact 6-accessor read surface; residual numerical confirmation is HT-3 | Documented design choice |
-| **S1** · The C ABI could dereference a bogus or stale non-NULL `void*` handle | Security | Medium | Low | Two independent guards before any dereference — `L1_CONTEXT_MAGIC` cookie zeroed on destroy, plus membership lookup in a mutex-guarded live-handle registry that `L1_Destroy` atomically retires. Re-verified in this assessment with an independent pure-C host | Mitigated |
-| **S2** · Host-supplied NaN/Inf scalars could poison the guidance arithmetic (CWE-20) | Security | Low–Medium | Low | `std::isfinite` validation with safe substitution and range clamping on every state, leg and `dt` scalar; non-finite/negative `dt` rejected before latching. Re-verified: NaN/Inf input leaves both outputs finite | Mitigated |
-| **S3** · Minimal export surface reduces attack surface | Security | — (positive control) | — | `-fvisibility=hidden` + generated version script → exactly 8 exports, 0 mangled symbols | Implemented |
-| **S4** · Supply-chain exposure from new dependencies | Security | — (positive control) | — | No new third-party dependency; `readelf -d` shows only libstdc++/libm/libgcc/libc | Accepted by design |
-| **O1** · `libafsim_l1.so` carries an unversioned SONAME and has no `install()` rules → ABI-drift and deployment ambiguity for the host | Operational | Medium | Medium | Add SOVERSION, semantic versioning, install/package files (HT-4) | Open |
-| **O2** · None of the repository's 27 CI workflows builds or tests the service → a regression could land unnoticed | Operational | Medium | Medium | Add a CI job invoking the existing `afsim_l1_tests` / `ctest` / `generate.py` targets (HT-4) | Open |
-| **O3** · No in-service logging or telemetry | Operational | Low | — | Appropriate for a headless deterministic compute library; the host owns observability, and the demo/self-check provides a CI signal | Accepted by design |
-| **O4** · 1,061 MB of untracked validation artifacts (388 files under `blitzy/screenshots` and `blitzy/screen_recordings`) are not covered by `.gitignore` | Operational | Low | Medium | Stage by explicit path (as every agent commit did) or delete/ignore them before committing — folded into HT-1d | Open — housekeeping only |
-| **I1** · Real AFSIM host integration is untested; the shipped `main.cpp` is a demonstration driver | Integration | Medium–High | Medium | HT-2 (integration) then HT-3 (fidelity); the C ABI is already proven from an independent pure-C client | Open — primary remaining risk |
-| **I2** · The host must map units and frames correctly (position N/E metres, velocity ordered E then N, yaw in centidegrees, pitch in radians, roll returned in degrees, lateral accel in m/s²) | Integration | Medium | Medium | README "Units and conventions"; unit-suite assertions pin the N/E↔E/N ordering; confirm during HT-2 | Documented |
-| **I3** · Legs and state must share one datum origin | Integration | Low–Medium | Low | Documented in the README; verified as part of HT-3 datum stress | Open |
-| **I4** · Three pre-existing issues in AAP-excluded trees (vendored gtest 1.8.0, `modules/littlefs`, `AP_GSOF` `GTEST_SKIP`) | Integration | Low | — | Diagnosed with proven zero-edit environment recipes (Appendix E); none affects any in-scope gate; fixing them would require editing excluded files | Documented, not modified |
+|------|----------|----------|-------------|------------|--------|
+| Content becomes stale if the audit is regenerated beyond audited HEAD `5b67e27b0a` | Technical | Medium | Medium | Provenance printed on the face of every artifact; automated coupling deliberately excluded because a committed generator would violate P3/P11 | Mitigated by design |
+| Binary PPTX files produce no readable git diff | Technical | Low | High (certain) | The 337-check integrity and gate suite substitutes for diff review; LibreOffice render-proof of all 249 pages | Mitigated |
+| No committed regeneration path — the generator lives only under `/tmp` | Technical | Medium | Medium | Deliberate AAP constraint; every printed fact traceable to the audit plus `pnt_data.py` | Accepted by design |
+| 239 slides versus the planned 57 may read as scope drift | Technical | Low | Low | §0.6.1 explicitly authorises part growth; G5 proves nothing dropped; reconciliation slides make coverage auditable | Resolved |
+| Third-party CDN script inclusion in the HTML deck | Security | Medium | Low | Exact version pinning; 5 SRI `sha384` digests verified against the live CDN **and** validated at runtime; hardened CSP | Mitigated |
+| Macro / OLE / embedded-object surface in PPTX | Security | Low | Low | Verified **zero** macro, OLE, embedded, and external-data parts and zero external relationships in both decks | Eliminated |
+| Inline-script allowance required by a single-file deck | Security | Low | Low | Allowlisted by SHA-256 hash rather than `'unsafe-inline'`; validator confirms the hash matches the 46,359-byte block | Mitigated |
+| Credential or secret leakage into deliverables | Security | Low | Low | Content is audit findings only — no endpoint, token, or private identifier | Verified clean |
+| CDN-unreachable viewing degrades HTML deck visuals | Operational | Low | Medium | `typeof` guards on all three libraries plus font fallback stacks; offline path runtime-tested with all three `undefined` → zero uncaught errors, 16/16 sections legible | Mitigated and tested |
+| Native Microsoft PowerPoint rendering unverified | Operational | Medium | Medium | Standard OOXML only, no macros or embedded objects, exact 13.333 × 7.5 stage | **Open** — human task M2 (3 h) |
+| Artifact distribution and hosting undecided | Operational | Low | Medium | Both paths viable; deck degrades gracefully offline | **Open** — human task M3 (3 h) |
+| 239-slide deck navigability for human readers | Operational | Low | Low | Divider-slide navigational spine plus coverage-reconciliation slides so omissions are detectable | Mitigated |
+| Pinned CDN versions could be withdrawn over time | Integration | Low | Low | All 6 assets verified HTTP 200 at exact byte counts; SRI causes a substituted payload to be **rejected** rather than silently executed | Mitigated |
+| Web-font availability | Integration | Low | Low | System fallback stacks on all three families; `document.fonts.status = "loaded"` online, legible offline | Mitigated |
+| No repository pipeline builds or validates the decks | Integration | Low | Low | Intentional — P3/P12 forbid adding one; the 337-check suite runs out-of-tree | Accepted by design |
+| Severity axis rests on an interpretation flagged for confirmation | Integration | Medium | Low | Blast radius bounded to the severity-axis block per the AAP's own statement | **Open** — human task H1 (2 h) |
+
+**Posture: zero HIGH-severity risks.** Of 16 identified risks, 3 remain open and each maps to a queued human task; the rest are mitigated, eliminated, resolved, or accepted by design.
 
 ---
 
 ## 7. Visual Project Status
 
-**Completed vs remaining hours** — Completed = Dark Blue `#5B39F3`, Remaining = White `#FFFFFF`:
+### Overall hours
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieOuterStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'16px'}}}%%
-pie showData title Project Hours Breakdown (Total 149h)
-    "Completed Work" : 123
-    "Remaining Work" : 26
+%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#D9D9D9','pieOuterStrokeColor':'#B23AF2','pieSectionTextColor':'#FFFFFF','pieTitleTextColor':'#B23AF2','pieLegendTextColor':'#333333'}}}%%
+pie title Project Hours Breakdown — 90.0% Complete
+    "Completed Work" : 216
+    "Remaining Work" : 24
 ```
 
-**Remaining hours by task** (total 26 h):
+<span style="color:#5B39F3">**Completed Work = 216 h**</span> (`#5B39F3`) · **Remaining Work = 24 h** (`#FFFFFF`)
+
+### Remaining hours by priority
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'xyChartBarColor':'#5B39F3','backgroundColor':'#FFFFFF'}}}%%
-xychart-beta
-    title "Remaining Hours by Task (Total 26h)"
-    x-axis ["HT-1 Review", "HT-2 AFSIM", "HT-3 Fidelity", "HT-4 Pkg/CI"]
-    y-axis "Hours" 0 --> 12
-    bar [6, 10, 6, 4]
+%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#B23AF2','pie3':'#A8FDD9','pieSectionTextColor':'#FFFFFF','pieTitleTextColor':'#B23AF2','pieLegendTextColor':'#333333'}}}%%
+pie title Remaining 24 h by Priority
+    "High" : 12
+    "Medium" : 9
+    "Low" : 3
 ```
 
-**Remaining hours by priority** (total 26 h):
+### Remaining hours by category
 
-```mermaid
-%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#B23AF2','pie3':'#A8FDD9','pieStrokeColor':'#333333','pieStrokeWidth':'1px','pieTitleTextSize':'15px'}}}%%
-pie showData title Remaining Hours by Priority (26h)
-    "High (HT-1, HT-2)" : 16
-    "Medium (HT-3)" : 6
-    "Low (HT-4)" : 4
-```
+| Category | Hours | Bar |
+|---|---|---|
+| Transcription-fidelity spot audit (D2) | 6 | ██████ |
+| Content & narrative sign-off (D1) | 4 | ████ |
+| Executive framing review (D3) | 3 | ███ |
+| Native PowerPoint visual QA | 3 | ███ |
+| Distribution & viewing decision | 3 | ███ |
+| `[severity/category]` confirmation | 2 | ██ |
+| Deck-regeneration policy | 2 | ██ |
+| CSP sourcemap decision | 1 | █ |
+| **Total** | **24** | |
 
-> **Integrity:** the pie's "Remaining Work" (26) equals §1.2 Remaining Hours (26) and the §2.2 Hours total (26); "Completed Work" (123) equals §1.2 Completed Hours (123); 123 + 26 = 149 = §1.2 Total. The task bar chart sums to 6 + 10 + 6 + 4 = 26 and the priority pie to 16 + 6 + 4 = 26. ✔
+### Deliverable status
+
+| Deliverable | Built | Integrity | Runtime | Gates |
+|---|---|---|---|---|
+| Executive Brief (10 slides) | ✅ | ✅ | ✅ LibreOffice 10/10 pages | ✅ G3, G4, G7 |
+| Full Findings (239 slides) | ✅ | ✅ | ✅ LibreOffice 239/239 pages | ✅ G5, G7 |
+| Executive Presentation (16 sections) | ✅ | ✅ | ✅ Chrome, online + offline | ✅ G6 |
 
 ---
 
 ## 8. Summary & Recommendations
 
-**Achievements.** The refactor delivered exactly what the Agent Action Plan scoped, and nothing else. ArduPilot's L1 lateral-navigation guidance is now consumable as a standalone service: a 514-LOC facade exposes the six-method task API from the user's example, a 327-LOC adapter satisfies the controller's `AP_AHRS` read contract from host-injected state, and a 495-LOC `extern "C"` boundary presents eight functions over an opaque handle — verified to export exactly 8 symbols with zero C++ mangling and to be drivable from a pure-C client compiled by a different compiler front-end. The only change to existing library code is an additive, default-off `set_update_dt()` seam whose `dt`-clamp block is byte-identical to baseline, so every existing vehicle consumer is numerically unaffected and `bin/arduplane` still links. Both shipped build paths produce identical guidance output. The audit obligation was met twice, in the AAP and in a deterministic 43-page PDF whose mapping column was confirmed page-by-page in a real browser.
+### Achievements
 
-**Remaining gaps.** All 26 remaining hours are path-to-production, not missing features. Three of the four items are inherently human- or environment-gated: a flight-controls reviewer must sign off on a seam in shared guidance code (HT-1), the AFSIM host does not exist in this container so the first real binding must happen on the host side (HT-2), and the shim-vs-live-AHRS fidelity envelope needs measurement rather than construction-based assertion (HT-3). Only packaging and CI (HT-4) is purely mechanical.
+The project is **90.0% complete** — 216 of 240 hours. All three presentation artifacts are authored, committed, structurally validated, and confirmed working in real viewers. Every requirement in the Agent Action Plan's register (R1–R10) is satisfied, all twelve prohibitions (P1–P12) are honoured with direct evidence, every clause of the binding Rule 1 specification is met, and all four documented design-system gaps are resolved. The automated evidence base is 337 checks with zero failures and all ten AAP acceptance gates passing — figures independently re-run three times during this review rather than accepted from a prior log.
 
-**Critical path to production.** HT-1 → HT-2 → HT-3 → HT-4. Review must precede integration because integration will harden against whatever the reviewer changes; fidelity testing needs a working host to drive; packaging is best done once the ABI is confirmed stable in a real consumer. The realistic sequence is one reviewer-day, then roughly two engineer-days of host integration and fidelity work, then a half-day of packaging.
+The strongest quality signal is that exhaustiveness was *proven* rather than claimed: gate G5 verifies all 94 main catalog rows, all twelve dependency sub-tables, all twelve instance-mapping rows, all five flag kinds, and all 109 coverage-register entries as present with `missing = 0`. Equally, fidelity was enforced mechanically — every figure printed on a slide must appear in the audit's own stated-value set, so no recomputed total could silently alter a finding.
 
-**Success metrics for the remaining work.**
+### Remaining gaps
 
-| Metric | Target | Current |
-|--------|--------|---------|
-| In-scope test pass rate | 100 % | **100 %** (1,638 / 1,638) |
-| Exported ABI symbols / mangled symbols | 8 / 0 | **8 / 0** |
-| In-scope compiler diagnostics | 0 | **0** (9-config matrix + waf) |
-| Vehicle firmware regressions | 0 | **0** (`arduplane` links) |
-| Deliverable determinism | Byte-identical regeneration | **Byte-identical** |
-| AFSIM platform flying a service-driven route | Multi-leg route, stable outputs | Not started (HT-2) |
-| Documented fidelity envelope vs in-vehicle L1 | Published agreement bounds | Not started (HT-3) |
-| Versioned, installable artifact under CI | SOVERSION + green CI job | Not started (HT-4) |
+The outstanding 24 hours contain **no engineering work**. Every item is human judgement that an agent cannot legitimately discharge: confirming the one interpretive decision the AAP itself flagged, rendering a comprehension verdict on the client-facing brief, spot-auditing transcription fidelity, reviewing executive framing, verifying rendering in the actual target viewer, and deciding distribution. The absence of remaining engineering work is why the completion figure sits high; the presence of irreducible human sign-off is why it is not higher.
 
-**Production readiness assessment.** The project is **82.6 % complete** (123 of 149 hours). The library itself is production-quality *as a component*: it compiles clean under a strict diagnostics posture across three compiler generations, passes 1,638 in-scope checks with zero failures, is Valgrind-clean, validates its trust boundary, and cannot destabilise existing firmware. It is **not yet production-*deployed***, because a shared-library component only becomes production-ready when a real host drives it, its numerical envelope is measured, and it is versioned under CI. Recommendation: **approve for merge after HT-1**, then treat HT-2/HT-3 as the gate for declaring the service flight-representative, and HT-4 as the gate for external distribution.
+### Critical path to production
+
+1. Confirm the `[severity/category]` axis interpretation (2 h) — unblocks final acceptance of the Full Findings deck
+2. Content sign-off on the Executive Brief (4 h) — the user's own success criterion is a comprehension test only a human can run
+3. Transcription-fidelity spot audit on the Full Findings deck (6 h)
+4. Executive framing review, native PowerPoint QA, and the distribution decision (9 h) in parallel
+5. Policy decisions on regeneration and CSP noise (3 h) — non-blocking
+
+### Success metrics
+
+| Metric | Target | Actual | Status |
+|--------|--------|--------|--------|
+| AAP acceptance gates passing | 10 / 10 | **10 / 10** | ✅ |
+| Automated checks passing | 100% | **337 / 337 (100%)** | ✅ |
+| Main catalog rows covered | 94 | **94 (`missing = 0`)** | ✅ |
+| Coverage-register entries covered | 109 | **109 (`missing = 0`)** | ✅ |
+| Executive Brief slide count | ≤ 10 | **10** | ✅ |
+| HTML section count | 12–18 | **16** | ✅ |
+| Source audit modified | No | **Byte-identical** | ✅ |
+| Files modified in repository | 0 | **0** (`modes=['A']`) | ✅ |
+| Dependencies added to project | 0 | **0** | ✅ |
+| Open HIGH-severity risks | 0 | **0** | ✅ |
+
+### Production readiness assessment
+
+**Ready for stakeholder review; not yet released to a client.** The engineering work is complete and evidenced. What separates this from client-ready is content acceptance, not code quality: three human sign-offs and one interpretive confirmation. There is no defect to fix, no failing check to chase, and no compilation or dependency risk — the repository gained zero executable lines and zero dependencies.
+
+Two properties make the change unusually safe to accept. First, it is trivially reversible: deleting one directory restores the baseline exactly, because nothing existing was touched. Second, review does not depend on reading a diff — two of three artifacts are binary, and the 337-check suite plus real-viewer render-proofs stand in for diff inspection. Reviewers should be aware of one perception risk: the Full Findings deck is 239 slides rather than the 57 the plan sketched, which is explicitly authorised by the plan's own rule that exhaustiveness outranks slide arithmetic.
 
 ---
 
 ## 9. Development Guide
 
-Every command below was executed in this environment during the assessment; the shown output is verbatim. Commands are copy-pasteable and the working directory is stated for each block.
+Every command below was executed during this review on the actual host. Paths are relative to the repository root unless stated otherwise.
 
 ### 9.1 System Prerequisites
 
-| Requirement | Verified version | Notes |
-|-------------|------------------|-------|
-| OS | Ubuntu 25.10 (x86-64, 4 vCPU) | Any modern Linux with a C++11 toolchain works |
-| C++ compiler | GCC 15.2.0 (also verified with 11.5.0 and 12.5.0) | `-std=gnu++11`, matching ArduPilot |
-| CMake | 3.31.6 | Build declares `cmake_minimum_required(VERSION 3.5)` |
-| Binutils | `nm`, `readelf` | ABI verification |
-| Python | 3.13.7 | Only for the PDF pipeline and waf |
-| reportlab | 4.5.1 | PDF rendering (already installed; also present in the repo `.venv`) |
-| poppler-utils | 25.03.0 | `pdfinfo` / `pdftotext` / `pdftoppm` for PDF verification |
-| DejaVu fonts | system TTF (22 entries) | Unicode glyph fallback in the PDF |
-| Optional | Valgrind, flake8, Docker | Memory checking, Python lint |
+| Component | Verified Version | Purpose |
+|-----------|------------------|---------|
+| Python | **3.13.7** | Runs the validator suite (`python-pptx` requires ≥ 3.8) |
+| Node.js | **v22.23.2** | `node --check` syntax validation of the HTML deck's inline script |
+| Google Chrome | **151.0.7922.71** | Viewing and runtime-validating the reveal.js deck |
+| LibreOffice | **25.8.7.3** | Headless render-proofing the two PPTX decks |
+| git | **2.51.0** | Repository state and gate verification |
+| Microsoft PowerPoint | *(any modern version)* | Target viewer for the two decks — **not yet verified**, see task M2 |
 
-No package installation is required in this environment — every prerequisite above was already present.
+**Hardware:** no special requirements. **OS:** Linux, macOS, or Windows; commands shown for bash. **Network:** required only at *view time* for the HTML deck, and only to reach `cdn.jsdelivr.net` and `fonts.googleapis.com`.
+
+> **This project has no build step, no backend, no database, and no container.** The deliverables are documents. Nothing is compiled, and nothing is deployed.
 
 ### 9.2 Environment Setup
 
 ```bash
-# From the repository root
-cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
+# Navigate to the repository root
+cd /tmp/blitzy/ardupilot-blitzy/blitzy-7d3ca24e-3ca8-49f4-886e-937e380805c4_967f24
 
-# Confirm the toolchain (each line must print a version)
-g++ --version | head -1        # g++ (Ubuntu 15.2.0-4ubuntu4) 15.2.0
-cmake --version | head -1      # cmake version 3.31.6
-python3 --version              # Python 3.13.7
-python3 -c "import reportlab; print(reportlab.Version)"   # 4.5.1
-pdfinfo -v 2>&1 | head -1      # pdfinfo version 25.03.0
+# REQUIRED: keep Python from writing bytecode into the checkout.
+# Without this, __pycache__ directories appear in the tree and gate G9 fails.
+export PYTHONDONTWRITEBYTECODE=1
+
+# Point the isolated interpreter at a shell variable for brevity
+export V=/tmp/blitzy/deckgen/.venv/bin/python
+
+# REQUIRED before any LibreOffice command: keep its profile out of the checkout
+export HOME=/tmp/blitzy/deckgen/lohome
 ```
 
-There are **no** environment variables to configure for the library. The PDF pipeline uses one optional variable, `PNT_REPO_ROOT` (see §9.6 and Appendix E). No database, cache, message queue or network service is involved — the deliverable is a headless compute library.
-
-### 9.3 Dependency Installation
+**Dependency posture — read before installing anything.** The project deliberately adds **zero** dependencies. The PowerPoint writer used to author the decks lives in a throwaway virtual environment **outside** the checkout and is declared in no manifest. The host's system interpreter is PEP 668 externally managed and will refuse a direct install:
 
 ```bash
-# Nothing to install: the service links only in-tree ArduPilot sources and the
-# system C++ runtime. Verify that claim on the built artifact:
-readelf -d libafsim_l1.so | grep NEEDED
-#   -> libstdc++.so.6, libm.so.6, libgcc_s.so.1, libc.so.6   (no ArduPilot runtime dep)
+# Verify the isolated environment is intact (expected: "No broken requirements found.")
+/tmp/blitzy/deckgen/.venv/bin/pip check
 
-# Optional, only if reportlab/poppler are ever missing on a fresh machine:
-python3 -m pip install --break-system-packages 'reportlab==4.5.1'
-sudo apt-get install -y --no-install-recommends poppler-utils fonts-dejavu-core
+# Confirm the writer library and its four declared requirements
+/tmp/blitzy/deckgen/.venv/bin/pip list | grep -iE 'pptx|pillow|lxml|xlsxwriter|typing'
+# python-pptx 1.0.2 · pillow 12.3.0 · lxml 6.1.1 · xlsxwriter 3.2.9 · typing_extensions 4.16.0
 ```
 
-### 9.4 Build — Primary Artifact (standalone shared library)
+If the environment is missing, recreate it **outside** the repository — never inside:
 
 ```bash
-cd libraries/AP_L1_Control/examples/AfsimL1
-mkdir -p build && cd build
-cmake ..
-make -j"$(nproc)"
+python3 -m venv /tmp/blitzy/deckgen/.venv
+/tmp/blitzy/deckgen/.venv/bin/pip install --quiet python-pptx==1.0.2 pypdf pymupdf
 ```
 
-Expected: both commands exit 0 with **zero** `warning:`/`error:` lines, producing
+> **Never run `pip install` against the project or edit any manifest.** That violates prohibition P4. If you see `error: externally-managed-environment`, you are using the system interpreter — switch to `$V`.
 
-```
-libafsim_l1.so    ~175,648 B    the deliverable shared library
-afsim_l1_demo     ~16,472 B     "initialize a simple leg" demo driver
-afsim_l1_tests    ~217,984 B    111-check unit suite
-```
+### 9.3 Viewing the Deliverables
 
-### 9.5 Verification Steps
+**The two PowerPoint decks** — open directly, no setup required:
 
 ```bash
-# still in .../AfsimL1/build
-
-# 1. The C ABI must export EXACTLY 8 symbols and no mangled C++ symbols
-nm -D --defined-only libafsim_l1.so
-#   -> 8 lines: L1_Create L1_Destroy L1_Execute L1_GetLatAccel
-#               L1_GetRollDeg L1_Init L1_SetLegNE L1_SetStateNE
-nm -D --defined-only libafsim_l1.so | grep -c _Z
-#   -> 0
-
-# 2. Run the demo (locates the .so through the build-tree RPATH)
-./afsim_l1_demo
-#   -> roll_deg = -38.639999, lat_accel = -7.840306      (exit 0)
-
-# 3. Run the dedicated unit suite
-./afsim_l1_tests
-#   -> === AfsimL1 unit tests: 111 checks, 0 failures === (exit 0)
-
-# 4. Or run both registered cases through CTest
-ctest --output-on-failure
-#   -> 100% tests passed, 0 tests failed out of 2
-
-# 5. Optional: memory check
-valgrind --leak-check=full --error-exitcode=1 ./afsim_l1_tests
-#   -> 0 errors, 0 leaks
+ls -1 blitzy/presentations/
+# ArduPilot_PNT_Reference_Audit_Executive_Brief.pptx        (10 slides)
+# ArduPilot_PNT_Reference_Audit_Executive_Presentation.html (16 sections)
+# ArduPilot_PNT_Reference_Audit_Full_Findings.pptx          (239 slides)
 ```
 
-```bash
-# 6. In-tree waf example build (strict ArduPilot diagnostics posture)
-cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
-./waf configure --board linux
-./waf build --targets examples/AfsimL1
-./build/linux/examples/AfsimL1
-#   -> roll_deg = -38.639999, lat_accel = -7.840306   (byte-identical to the CMake demo)
+**The HTML executive presentation** — must be served over HTTP:
 
-# 7. Prove the additive seam does not disturb vehicle firmware
-./waf plane
-#   -> 'plane' finished successfully; bin/arduplane, Total Flash Used 3,473,811 B
+```bash
+cd blitzy/presentations
+$V -m http.server 8811 &
+# then open:
+#   http://localhost:8811/ArduPilot_PNT_Reference_Audit_Executive_Presentation.html
+# deep-link to any slide with #/N  (e.g. #/10 shows slide 11)
+```
+
+Verify it is serving (expected `HTTP 200  bytes=125304`):
+
+```bash
+curl -s -o /dev/null -w "HTTP %{http_code}  bytes=%{size_download}\n" \
+  http://localhost:8811/ArduPilot_PNT_Reference_Audit_Executive_Presentation.html
+```
+
+Stop the server when finished — target the exact process, never a broad `pkill`:
+
+```bash
+for p in /proc/[0-9]*; do pid=${p#/proc/}
+  cl=$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null)
+  case "$cl" in *http.server*8811*) kill "$pid";; esac
+done
+```
+
+> **Do not open the HTML deck via `file://`.** It carries a Content-Security-Policy meta tag and Subresource-Integrity attributes that evaluate differently under the file protocol. Always use `http://`.
+
+### 9.4 Verification Steps
+
+Run the suite in this order. Expected total: **337 checks, 337 passing, 0 failing.**
+
+```bash
+export PYTHONDONTWRITEBYTECODE=1
+export V=/tmp/blitzy/deckgen/.venv/bin/python
+cd /tmp/blitzy/ardupilot-blitzy/blitzy-7d3ca24e-3ca8-49f4-886e-937e380805c4_967f24
+
+# [1] Gate G1 — source audit must be byte-identical
+sha256sum ArduPilot_PNT_Reference_Audit.pdf
+# expected: 1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2
+
+# [2] Environment and dependency check          -> 12/12 pass
+$V /tmp/blitzy/deckgen/setup_env_check.py
+
+# [3] PPTX / OOXML package integrity            -> 32/32 pass
+$V /tmp/blitzy/deckgen/validate_pptx_integrity.py
+
+# [4] Deck content integrity                    -> 16/16 pass
+$V /tmp/blitzy/deckgen/validate_deck_content.py
+
+# [5] HTML / Rule 1 contract                    -> 150/150 pass
+$V /tmp/blitzy/deckgen/validate_html_integrity.py
+
+# [6] Pre-commit hook equivalence               -> 9 hooks, 0 failed
+$V /tmp/blitzy/deckgen/precommit_equiv.py
+
+# [7] AAP acceptance gates G1-G10               -> 118/118, GATES 10/10
+$V /tmp/blitzy/deckgen/verify_deliverables.py
+```
+
+Confirm the repository is untouched:
+
+```bash
+git status --porcelain --untracked-files=all     # expect: no output
+git diff --name-status 94f95a85a0...HEAD         # expect: exactly 3 lines, all starting with A
+git diff --name-status 94f95a85a0...HEAD | cut -f1 | sort -u   # expect: A
+```
+
+Render-proof the PowerPoint decks (expected 10 and 239 pages, 0 blank):
+
+```bash
+export HOME=/tmp/blitzy/deckgen/lohome
+mkdir -p /tmp/deck-render
+soffice --headless --norestore --convert-to pdf --outdir /tmp/deck-render \
+  blitzy/presentations/ArduPilot_PNT_Reference_Audit_Executive_Brief.pptx
+$V -c "import pypdf,glob; f=glob.glob('/tmp/deck-render/*Brief*.pdf')[0]; print(len(pypdf.PdfReader(f).pages),'pages')"
+```
+
+Check the view-time CDN assets resolve at their pinned versions:
+
+```bash
+for u in \
+  https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css \
+  https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css \
+  https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js \
+  https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js \
+  https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js ; do
+  curl -s -o /dev/null -w "%{http_code}  %{size_download} bytes  $u\n" --max-time 25 "$u"
+done
+# expected byte counts: 52279 · 7112 · 107670 · 2571838 · 355975
+```
+
+### 9.5 Commands You Must NEVER Run
+
+These are prohibited by the Agent Action Plan and are unnecessary — no repository code changed.
+
+```bash
+# ./waf configure && ./waf                    # P1: no build
+# make; ctest; pytest; Tools/autotest/*       # P1: no software tests
+# python libraries/AP_L1_Control/examples/AfsimL1/generate.py     # P5: regenerates the source PDF
+# pnt_render.run_all_verifications(...)                            # P5: the integrity-assertion harness
+# pnt_data.count_flags() / pnt_data.reconcile()                    # P5: read constants directly instead
+# pip install <anything> at project level; editing any manifest    # P4: no project dependency
 ```
 
 ### 9.6 Example Usage
 
-**Path A — through the C ABI (what an external host does).** Save as `host.c` and build with a C compiler; no ArduPilot header is needed:
-
-```c
-#include <dlfcn.h>
-#include <stdio.h>
-
-int main(void) {
-    void *lib = dlopen("./libafsim_l1.so", RTLD_NOW);
-    void*  (*create)(void)                                              = dlsym(lib, "L1_Create");
-    void   (*init)(void*)                                               = dlsym(lib, "L1_Init");
-    void   (*set_leg)(void*, double,double,double,double)               = dlsym(lib, "L1_SetLegNE");
-    void   (*set_state)(void*, double,double,double,double,double,double)= dlsym(lib, "L1_SetStateNE");
-    void   (*execute)(void*, double)                                    = dlsym(lib, "L1_Execute");
-    double (*get_roll)(void*)                                           = dlsym(lib, "L1_GetRollDeg");
-    double (*get_lat)(void*)                                            = dlsym(lib, "L1_GetLatAccel");
-    void   (*destroy)(void*)                                            = dlsym(lib, "L1_Destroy");
-
-    void *h = create();
-    init(h);
-    set_leg(h, 0.0, 0.0, 1000.0, 0.0);            /* prevN, prevE, nextN, nextE (m)      */
-    set_state(h, 0.0, 50.0, 0.0, 25.0, 0.0, 0.0); /* n, e, velE, velN, yaw_cd, pitch_rad */
-    execute(h, 0.02);                             /* host drives timing: dt = 20 ms      */
-    printf("roll=%.2f deg  lat=%.2f m/s^2\n", get_roll(h), get_lat(h));
-    destroy(h);
-    dlclose(lib);
-    return 0;
-}
-```
+**Inspect the Executive Brief's structure** (expected: 10 slides, and notably **0 tables** — the short deck carries no table-level detail by design):
 
 ```bash
-gcc -std=c11 -Wall -Wextra -Werror -o host host.c -ldl -lm && ./host
-#   -> roll=-34.85 deg  lat=-6.83 m/s^2      (50 m cross-track on a 1 km northerly leg)
+$V -c "
+from pptx import Presentation
+p = Presentation('blitzy/presentations/ArduPilot_PNT_Reference_Audit_Executive_Brief.pptx')
+print('slides:', len(p.slides))
+for i, s in enumerate(p.slides, 1):
+    for sh in s.shapes:
+        if sh.has_text_frame and sh.text_frame.text.strip():
+            print(f'{i:3d}: {sh.text_frame.text.strip().splitlines()[0][:70]}'); break
+"
 ```
 
-**Path B — the C++ facade directly** (`#include "AfsimL1Behavior.h"`, requires the seam define; see §9.7): construct `AfsimL1Behavior`, call `init()`, then per step `set_state_ne(...)`, optionally `set_leg_ne(...)`, `execute(dt)`, and read `get_roll_deg()` / `get_lat_accel()`.
-
-**Regenerating the PDF deliverable:**
+**Confirm the HTML deck's section census:**
 
 ```bash
-cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
-PNT_REPO_ROOT="$(pwd)" python3 libraries/AP_L1_Control/examples/AfsimL1/generate.py
-#   -> harness: validating 94 main rows / 282 evidence rows against <repo root>
-#   -> HARNESS PASSED
-#   -> PDF written: <repo root>/ArduPilot_PNT_Reference_Audit.pdf
+F=blitzy/presentations/ArduPilot_PNT_Reference_Audit_Executive_Presentation.html
+grep -c '<section' $F                          # 16
+grep -oP 'class="slide-\w+' $F | sort | uniq -c # 1 title, 5 divider, 1 closing (+ content)
+grep -oP '(reveal\.js|mermaid|lucide)@[0-9.]+' $F | sort -u
+```
 
-pdfinfo ArduPilot_PNT_Reference_Audit.pdf | grep -E '^Pages|^Page size'
-#   -> Pages: 43   |   Page size: 841.89 x 595.276 pts (A4)
-sha256sum ArduPilot_PNT_Reference_Audit.pdf
-#   -> 1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2
-git status --porcelain ArduPilot_PNT_Reference_Audit.pdf | wc -l
-#   -> 0    (regeneration is deterministic: the tree stays clean)
+**Verify a live browser session** (with the server from §9.3 running), evaluating in the DevTools console:
+
+```javascript
+Reveal.isReady()            // true
+Reveal.getTotalSlides()     // 16
+Reveal.VERSION              // "5.1.0"
+// after traversing the whole deck:
+document.querySelectorAll('.mermaid svg').length   // 4
+document.querySelectorAll('svg.lucide').length     // 19
 ```
 
 ### 9.7 Troubleshooting
 
 | Symptom | Cause | Resolution |
-|---------|-------|------------|
-| `error: #error "AfsimL1Behavior requires the AP_AHRS -> AfsimL1_AHRS_Shim compile-time include seam: define AFSIML1_L1_USES_SHIM_AHRS…"` at `AfsimL1Behavior.h:81` | You are compiling the facade outside the shipped build files, so the Option-B seam is absent. This guard is deliberate: it refuses to build a facade whose controller would read never-written state | Build through the provided `CMakeLists.txt` or `wscript` (both set the define and the seam include directory automatically) rather than hand-invoking the compiler |
-| `./afsim_l1_demo: error while loading shared libraries: libafsim_l1.so` | The demo was moved away from its build tree, losing the RPATH | `LD_LIBRARY_PATH=. ./afsim_l1_demo`, or run it from the build directory (running it by absolute path from another cwd works as-is) |
-| `./waf configure --board sitl` fails at `modules/littlefs/bd/lfs_filebd.c:137` (`unused variable 'bd'`) | Pre-existing issue in a vendored, AAP-excluded module | Zero-edit prefix: `CFLAGS='-Wno-error=unused-variable' ./waf configure --board sitl` (then the same prefix on `./waf build`). `--board linux` needs no workaround and is the documented default |
-| `./waf check --alltests` fails across all 52 gtest binaries with `-Werror=suggest-override` | Vendored GoogleTest 1.8.0 predates the flag; `modules/**` is out of scope | Zero-edit prefix: `CXXFLAGS='-Wno-error=suggest-override -include stdint.h "-DGTEST_SKIP()=return GTEST_SUCCEED()"' ./waf configure --board linux && ./waf check --alltests` → 52/52, 881 cases. Delete the `test.xml` and `harmonicnotch_test*.csv` it drops at the repo root |
-| PDF generator exits before writing | A harness invariant failed — by design the pipeline refuses to render inconsistent data | Read the failing gate name in stdout; fix the offending row in `pnt_data.py`; re-run. `HARNESS PASSED` must appear before `PDF written` |
-| `generate.py` cannot find repository sources | It resolves evidence paths relative to the repository root | Run it with `PNT_REPO_ROOT="$(pwd)"` from the repository root |
-| Guidance output is `0.0` for every call | The handle was destroyed, or a NULL/bogus handle is being used — the ABI degrades safely instead of crashing | Re-create the handle with `L1_Create()`; never reuse a handle after `L1_Destroy()` |
-| Roll/lat-accel look mirrored or transposed | Argument-order mistake in `L1_SetStateNE`: position is **n, e** but velocity is **velE, velN** | Follow the README "Units and conventions"; the unit suite pins this ordering |
-| Repository suddenly shows ~1 GB of new files | `blitzy/screenshots` and `blitzy/screen_recordings` (388 files, 1,061 MB) are untracked and **not** covered by `.gitignore` | Stage by explicit path, never `git add -A`; delete or ignore those directories first |
+|---------|-------|-----------|
+| Diagrams blank / icons missing in the HTML deck | CDN unreachable | **Expected and non-fatal.** Guarded initialisation keeps navigation working and all 16 sections legible. Confirm with `curl -I https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js` |
+| HTML deck behaves oddly, styles or scripts blocked | Opened via `file://` | Serve over `http://` as in §9.3 — CSP and SRI evaluate differently under `file://` |
+| `error: externally-managed-environment` | PEP 668 on the system interpreter | Never override. Use `$V` (`/tmp/blitzy/deckgen/.venv/bin/python`) |
+| `__pycache__` appears in the checkout, gate G9 fails | `PYTHONDONTWRITEBYTECODE` unset | `find . -name __pycache__ -not -path './.git/*' -exec rm -rf {} +` then re-export the variable |
+| 3 DevTools console entries about `.map` files | Sourcemap fetches blocked by the strict `default-src 'none'` CSP | **Not page errors.** They have an empty source location and never reach the network. Silencing them means weakening the CSP — see task L2 |
+| PowerPoint shows a repair prompt | Should not occur | Both decks verified with zero external relationships and zero macro/OLE parts. Re-run `validate_pptx_integrity.py`; if it passes, the file is intact |
+| LibreOffice writes files into the checkout | `HOME` points inside the repo | `export HOME=/tmp/blitzy/deckgen/lohome` before running `soffice` |
+| Browser-automation tooling adds untracked files under `blitzy/` | Some tools resolve their artifact directory relative to the repo root | Move artifacts to `/tmp`, delete the in-checkout directories, then re-run `verify_deliverables.py` to confirm G2 and G9 |
+| Gate G2 reports `rows` greater than 0 | Untracked files present | `git status --porcelain --untracked-files=all` to identify, relocate outside the checkout, re-run |
 
 ---
 
@@ -513,114 +615,119 @@ git status --porcelain ArduPilot_PNT_Reference_Audit.pdf | wc -l
 
 ### Appendix A — Command Reference
 
-| Purpose | Command (from the stated directory) |
-|---------|-------------------------------------|
-| Build the shared library | `cd libraries/AP_L1_Control/examples/AfsimL1 && mkdir -p build && cd build && cmake .. && make -j"$(nproc)"` |
-| Verify the exported ABI | `nm -D --defined-only libafsim_l1.so` (expect 8 lines) · `nm -D --defined-only libafsim_l1.so \| grep -c _Z` (expect 0) |
-| Inspect runtime dependencies / SONAME | `readelf -d libafsim_l1.so \| grep -E 'NEEDED\|SONAME'` |
-| Run the demo | `./afsim_l1_demo` (or `LD_LIBRARY_PATH=. ./afsim_l1_demo`) |
-| Run the unit suite | `./afsim_l1_tests` |
-| Run registered tests | `ctest --output-on-failure` |
-| Memory check | `valgrind --leak-check=full --error-exitcode=1 ./afsim_l1_tests` |
-| In-tree example build | `./waf configure --board linux && ./waf build --targets examples/AfsimL1` (repo root) |
-| Run the in-tree example | `./build/linux/examples/AfsimL1` (repo root) |
-| Vehicle regression guard | `./waf plane` (repo root) |
-| Regenerate the PDF | `PNT_REPO_ROOT="$(pwd)" python3 libraries/AP_L1_Control/examples/AfsimL1/generate.py` (repo root) |
-| Inspect the PDF | `pdfinfo ArduPilot_PNT_Reference_Audit.pdf` · `pdftotext -layout ArduPilot_PNT_Reference_Audit.pdf -` |
-| Lint the Python pipeline | `python3 -m flake8 libraries/AP_L1_Control/examples/AfsimL1/*.py` |
-| Review the seam diff | `git diff 6148c3d422..HEAD -- libraries/AP_L1_Control/AP_L1_Control.h libraries/AP_L1_Control/AP_L1_Control.cpp` |
-| Audit branch scope | `git diff --name-status 6148c3d422..HEAD` (expect 18 files, all in scope) |
+| Purpose | Command |
+|---------|---------|
+| Set up shell | `export PYTHONDONTWRITEBYTECODE=1; export V=/tmp/blitzy/deckgen/.venv/bin/python` |
+| Gate G1 — source hash | `sha256sum ArduPilot_PNT_Reference_Audit.pdf` |
+| Environment check (12) | `$V /tmp/blitzy/deckgen/setup_env_check.py` |
+| PPTX integrity (32) | `$V /tmp/blitzy/deckgen/validate_pptx_integrity.py` |
+| Deck content (16) | `$V /tmp/blitzy/deckgen/validate_deck_content.py` |
+| HTML / Rule 1 (150) | `$V /tmp/blitzy/deckgen/validate_html_integrity.py` |
+| Pre-commit equivalence (9) | `$V /tmp/blitzy/deckgen/precommit_equiv.py` |
+| Acceptance gates (118, 10/10) | `$V /tmp/blitzy/deckgen/verify_deliverables.py` |
+| Dependency health | `/tmp/blitzy/deckgen/.venv/bin/pip check` |
+| Serve the HTML deck | `cd blitzy/presentations && $V -m http.server 8811 &` |
+| Render-proof a deck | `soffice --headless --norestore --convert-to pdf --outdir <out> <deck>.pptx` |
+| Clean-tree check | `git status --porcelain --untracked-files=all` |
+| Branch net effect | `git diff --name-status 94f95a85a0...HEAD` |
+| Confirm no dependency leaked | `grep -rIl -E 'python[-_]pptx' pyproject.toml .pre-commit-config.yaml .flake8 .gitmodules wscript Makefile Tools/environment_install/ .github/workflows/` |
 
 ### Appendix B — Port Reference
 
 | Port | Service | Notes |
 |------|---------|-------|
-| — | none | The deliverable is a headless shared library and a PDF; it opens no socket and binds no port. Nothing needs to be running to build, test or use it. |
-| 8099 (assessment only) | `python3 -m http.server` | Used transiently during this assessment to serve the PDF to a browser for visual verification, then stopped. Not part of the product. |
+| **8811** | Local static HTTP server for the executive presentation | The **only** port this project uses. No backend, database, cache, or message queue exists. Any free port works; 8811 is the convention used throughout this guide |
 
 ### Appendix C — Key File Locations
 
+**In repository — the three deliverables**
+
+| Path | Size | Detail |
+|------|------|--------|
+| `blitzy/presentations/ArduPilot_PNT_Reference_Audit_Executive_Brief.pptx` | 32,372 B | 10 slides · 131 shapes · **0 tables** · 138 runs |
+| `blitzy/presentations/ArduPilot_PNT_Reference_Audit_Full_Findings.pptx` | 547,390 B | 239 slides · 1,054 shapes · 216 tables · 4,014 cells |
+| `blitzy/presentations/ArduPilot_PNT_Reference_Audit_Executive_Presentation.html` | 125,304 B | 2,791 lines · 16 sections · 130 tokens · 4 Mermaid diagrams |
+
+**In repository — read-only references (never modified)**
+
 | Path | Role |
 |------|------|
-| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1Behavior.h` / `.cpp` | Service facade — the task API (203 + 311 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1_AHRS_Shim.h` / `.cpp` | AHRS adapter — 6 read accessors + 4 injection setters (158 + 169 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/l1_c_api.h` / `.cpp` | `extern "C"` boundary — 8 exports, opaque `L1_Context` (168 + 327 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/CMakeLists.txt` | Standalone shared-library build, demo + tests targets, 2 CTest cases (556 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/wscript` | In-tree waf `ap_example` build with the Option-B seam (187 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/main.cpp` | "Initialize a simple leg" demo driver (212 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/README.md` | Integration and usage documentation (322 LOC, 14 sections) |
-| `libraries/AP_L1_Control/examples/AfsimL1/tests/test_afsim_l1.cpp` | 111-check unit suite (866 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/pnt_data.py` | Audit data model — 94 main rows / 282 evidence rows (1,344 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/pnt_render.py` | ReportLab renderer + verifier gates (1,444 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/generate.py` | Harness + render entry point (294 LOC) |
-| `libraries/AP_L1_Control/AP_L1_Control.h` / `.cpp` | Wrapped controller — **only** additive change is `set_update_dt` (+17 / +44 lines) |
-| `ArduPilot_PNT_Reference_Audit.pdf` | Final deliverable PDF at the repository root (43 pages, 237,310 B) |
-| `blitzy/documentation/Project Guide.md` | Blitzy project documentation |
-| `blitzy/screenshots/`, `blitzy/screen_recordings/` | Validation artifacts (untracked, 1,061 MB — do not commit) |
+| `ArduPilot_PNT_Reference_Audit.pdf` | Source of record — 43 pages, 237,310 B, SHA-256 `1e9a5b01…a4baf2`, hash-gated |
+| `libraries/AP_L1_Control/examples/AfsimL1/pnt_data.py` | The audit's committed catalog constants; read for exact identifier strings |
+| `libraries/AP_L1_Control/examples/AfsimL1/README.md` | §Architecture only, for diagram accuracy |
+| `blitzy/documentation/Project Guide.md` | **A prior engagement's guide** (AfsimL1 refactor) — appendices consulted for convention only; its metrics do not apply to this project |
+
+**Outside repository — ephemeral toolchain (uncommitted by design, preserving gate G9)**
+
+| Path | Role |
+|------|------|
+| `/tmp/blitzy/deckgen/.venv/` | Isolated environment holding `python-pptx` 1.0.2 |
+| `/tmp/blitzy/deckgen/*.py` | 12 validator and utility scripts |
+| `/tmp/blitzy/deckgen/evidence_runtime/` | Runtime evidence — screenshots and recordings from Chrome validation |
 
 ### Appendix D — Technology Versions
 
-| Component | Version | Source |
-|-----------|---------|--------|
-| OS | Ubuntu 25.10 | `/etc/os-release` |
-| GCC / G++ (default) | 15.2.0 | `g++ --version` |
-| GCC / G++ (matrix) | 11.5.0, 12.5.0 | `g++-11`, `g++-12` |
-| C++ standard | `gnu++11` | ArduPilot board config |
-| CMake | 3.31.6 | `cmake --version` (build requires ≥ 3.5) |
-| waf | bundled Python 3 build system | `./waf` |
-| Python | 3.13.7 | `python3 --version` |
-| reportlab | 4.5.1 | system + repo `.venv` |
-| poppler-utils | 25.03.0 | `pdfinfo -v` |
-| DejaVu fonts | system TTF (22 fontconfig entries) | `fc-list` |
-| Git | with Git LFS | repository tooling |
-| New third-party dependencies added | **none** | AAP §0.5.2 |
+| Technology | Version | Role |
+|-----------|---------|------|
+| Python | 3.13.7 | Validator runtime |
+| `python-pptx` | **1.0.2** | PPTX authoring — ephemeral, in no manifest |
+| Pillow | 12.3.0 | Declared requirement of `python-pptx` |
+| lxml | 6.1.1 | Declared requirement of `python-pptx` |
+| XlsxWriter | 3.2.9 | Declared requirement of `python-pptx` |
+| typing-extensions | 4.16.0 | Declared requirement of `python-pptx` |
+| PyMuPDF | 1.28.0 | Read-only PDF text extraction |
+| pypdf | 6.14.2 | Read-only PDF structural inspection |
+| Node.js | v22.23.2 | `node --check` on the inline script |
+| Google Chrome | 151.0.7922.71 | Runtime validation |
+| LibreOffice | 25.8.7.3 | Deck render-proofing |
+| git | 2.51.0 | State verification |
+| reveal.js | **5.1.0** | View-time only, pinned CDN, SRI-protected |
+| Mermaid | **11.4.0** | View-time only, pinned CDN, SRI-protected |
+| Lucide | **0.460.0** | View-time only, pinned CDN, SRI-protected |
+| Inter / Space Grotesk / Fira Code | — | Google Fonts, view-time only, with system fallbacks |
+
+> **The repository's own dependency manifests are unchanged.** None of the above is declared in `pyproject.toml`, `.pre-commit-config.yaml`, `.gitmodules`, `wscript`, `Makefile`, or any workflow.
 
 ### Appendix E — Environment Variable Reference
 
-| Variable | Scope | Purpose | Example |
-|----------|-------|---------|---------|
-| `PNT_REPO_ROOT` | PDF pipeline | Repository root used to resolve audited source paths | `PNT_REPO_ROOT="$(pwd)" python3 .../generate.py` |
-| `LD_LIBRARY_PATH` | Runtime (optional) | Locate `libafsim_l1.so` when the RPATH does not apply | `LD_LIBRARY_PATH=. ./afsim_l1_demo` |
-| `CFLAGS` | waf configure/build (optional) | Zero-edit workaround for the vendored `modules/littlefs` unused variable on `--board sitl` | `CFLAGS='-Wno-error=unused-variable' ./waf configure --board sitl` |
-| `CXXFLAGS` | waf configure/check (optional) | Zero-edit workaround for vendored GoogleTest 1.8.0 when running the out-of-scope gtest suite | `CXXFLAGS='-Wno-error=suggest-override -include stdint.h "-DGTEST_SKIP()=return GTEST_SUCCEED()"' ./waf configure --board linux` |
-| `AFSIML1_L1_USES_SHIM_AHRS` | Compile-time define (set automatically) | Selects the Option-B AHRS include seam; both shipped build files define it — do not hand-manage it | set by `CMakeLists.txt` / `wscript` |
+| Variable | Value | Why it matters |
+|----------|-------|----------------|
+| `PYTHONDONTWRITEBYTECODE` | `1` | **Required.** Prevents `__pycache__` inside the checkout, which would break gate G9 and the clean-tree guarantee |
+| `HOME` | `/tmp/blitzy/deckgen/lohome` | **Required before `soffice`.** Keeps the LibreOffice profile out of the repository |
+| `V` | `/tmp/blitzy/deckgen/.venv/bin/python` | Convenience handle for the isolated interpreter; avoids accidentally using the PEP 668 system Python |
 
-The library itself requires **no** environment variable at runtime.
+The deliverables themselves require **no** environment variables, secrets, API keys, or configuration files. They are documents.
 
 ### Appendix F — Developer Tools Guide
 
-| Tool | Use in this project |
-|------|---------------------|
-| `cmake` + `make` | Primary build path for `libafsim_l1.so`, the demo and the unit suite |
-| `./waf` | In-tree ArduPilot build: the `examples/AfsimL1` target, `plane` regression guard, `check --alltests` |
-| `nm` | Assert the exported ABI (8 `L1_*`, 0 mangled) — the single most valuable review check |
-| `readelf` | Inspect SONAME and runtime `NEEDED` dependencies |
-| `ctest` | Run the two registered cases (unit suite + demo smoke) |
-| `valgrind` | Full leak-check on the demo, unit suite, `dlopen` host and in-tree binary |
-| `gcc` (C, not C++) | Compile a pure-C host to prove the ABI is toolchain-agnostic |
-| `pdfinfo` / `pdftotext` / `pdftoppm` | Verify the deliverable's page count, geometry and text content |
-| `flake8` | Lint the PDF generator (currently 0 violations) |
-| Headless Chrome / PDFium | Visual verification of the rendered deliverable |
-| `git diff --name-status <baseline>..HEAD` | Scope audit — confirm the 18-file surface and zero out-of-scope edits |
+| Tool | Use |
+|------|-----|
+| **Chrome DevTools** | Validate the reveal.js deck. Console: `Reveal.getTotalSlides()`, `document.querySelectorAll('.mermaid svg').length`. Network tab: confirm 11 requests at HTTP 200 and SRI success. Expect exactly 3 benign `.map` CSP entries |
+| **`python-pptx`** | Inspect deck structure programmatically — slide, shape, table, and cell counts (see §9.6) |
+| **`soffice --headless`** | Render-proof PPTX to PDF and count pages; catches corruption a structural check might miss |
+| **`node --check`** | Syntax-validate the HTML deck's inline script without executing it |
+| **`git diff --name-status <base>...HEAD`** | The fastest AAP-compliance check — must print exactly three `A` rows |
+| **`sha256sum`** | Gate G1; also used to prove screenshot determinism across navigation paths |
 
 ### Appendix G — Glossary
 
 | Term | Meaning |
 |------|---------|
-| **PNT** | Position, Navigation and Timing — the behavior family this refactor consolidates |
-| **L1 guidance** | ArduPilot's L1 lateral-navigation control law (`AP_L1_Control`) producing roll and lateral-acceleration demands for a waypoint leg |
-| **AFSIM** | The external simulation host in the user's example; the intended consumer of `libafsim_l1.so` |
-| **AAP** | Agent Action Plan — the authoritative specification for this refactor |
-| **Facade** | `AfsimL1Behavior` — the small task-oriented API over the richer controller interface |
-| **Adapter / shim** | `AfsimL1_AHRS_Shim` — supplies the controller's `AP_AHRS` read contract from injected state |
-| **C ABI boundary** | The `extern "C"` layer that keeps C++ types (name mangling, vtables, RTTI, exceptions) from crossing to the host |
-| **Opaque handle** | `void*` / `L1_Handle` wrapping `struct L1_Context`; the host never sees a C++ type |
-| **Option A / Option B** | AAP §0.6.2 AHRS-decoupling alternatives — link the real `AP_AHRS` in external mode (A) vs a service-local shim behind a compile-time include seam (B, implemented) |
-| **Timing seam** | The additive, default-off `set_update_dt()` path letting the host own the timebase instead of `AP_HAL::micros()`/`millis()` |
-| **`dt` clamp** | The preserved rule that `dt > 1 s` reinitialises the cross-track integrator and `dt` is capped at 0.1 s |
-| **Default-off** | The seam is inert unless `set_update_dt()` is called, guaranteeing existing vehicle callers are unaffected |
-| **Oracle (PDF)** | The pre-scrape original PDF recovered from commit `5b67e27b0a` used as ground truth for the data-fidelity repair |
-| **Harness gate** | The generator's assertion layer (1,193 invariants) that refuses to render the PDF if any invariant fails |
-| **N/E, E/N** | North/East position ordering vs East/North velocity ordering — a deliberate convention of the injection API |
-| **Centidegrees (`cd`)** | Hundredths of a degree, ArduPilot's integer angle unit (`nav_roll_cd`, `yaw_cd`) |
-| **SOVERSION** | Shared-library ABI version encoded in the SONAME; currently absent (HT-4) |
+| **AAP** | Agent Action Plan — the binding specification for this engagement |
+| **PNT** | Position, Navigation, and Timing — the audit's subject domain |
+| **Group 1 / Group 2** | The audit's own split between core PNT references (63) and indirect/relational ones (31) |
+| **Pillar** | One of Positioning, Navigation, or Timing — the audit's category sub-axis |
+| **Layer 1 / Layer 2** | Direct dependency edges versus multi-hop dependency chains in the paired sub-tables |
+| **Chain Depth** | The audit's convention for counting arrow hops in a Layer 2 chain |
+| **Audit-Discipline Flags** | The audit's five-kind taxonomy — `[CIRCULAR]` 8, `[SHARED-STRUCT]` 19, `[DUPLICATED]` 36, `[MULTI-CATEGORY]` 7, `[ABSENT]` 30 — used here as the severity axis |
+| **Coverage & Explicit-Absence Register** | The audit's 10 sub-registers, 109 entries, 27 checked absences, recording what was searched for and *not* found |
+| **G1–G10** | The AAP's ten acceptance gates — this project's test suite, since repository tests are prohibited |
+| **P1–P12** | The AAP's twelve prohibitions |
+| **R1–R10** | The AAP's requirement register |
+| **Quote-never-recompute** | The fidelity discipline: only figures the audit states may be printed, because its totals are themselves findings |
+| **SRI** | Subresource Integrity — cryptographic hashes on CDN assets so a substituted payload is rejected rather than executed |
+| **CSP** | Content-Security-Policy — here `default-src 'none'` with the inline script allowlisted by SHA-256 hash |
+| **PEP 668** | The Python standard marking a system interpreter "externally managed", which is why the writer library lives in an isolated venv |
+| **Ephemeral toolchain** | The generator and validators under `/tmp`, deliberately never committed |
+| **OOXML** | Office Open XML — the ZIP-packaged format of a `.pptx` file |
+| **Audited HEAD `5b67e27b0a`** | The commit the source audit describes; printed on every artifact's face as provenance |
