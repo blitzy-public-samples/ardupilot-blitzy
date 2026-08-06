@@ -1,0 +1,2791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!--
+  Delivery policy, declared before the first thing it governs. Only the three
+  hosts behind the coordinates below may be reached at all, and the one measured
+  inline block is the only script of this deck's own that may run.
+
+  Three allowances are not self-evident. Inline styles are permitted because the
+  presentation runtime sizes its stage by writing measurements onto the page and
+  the drawing library themes itself by adding a stylesheet to the document; both
+  are those libraries' normal operation. The library host is named as a font
+  origin because the runtime's base theme declares faces of a family this deck
+  never uses, and a browser checks the addresses a face declares when it builds
+  its list of available faces rather than when it first draws with one — naming
+  the host silences those refusals while fetching nothing. And no outward network
+  allowance is granted, so the two source maps that are advertised — one by the
+  presentation runtime and one by the icon set, the drawing library advertising
+  none — are refused; that costs a developer two messages, only ever with a
+  debugger attached, and withholds from the page any means of sending data out.
+
+  A policy delivered in the document cannot restrict who embeds the deck and
+  cannot impose a sandbox — a browser ignores both when they arrive this way.
+  Embedding is therefore governed by the start-up block, which shuts off the
+  cross-window control channel the runtime would otherwise leave open.
+
+  MAINTENANCE: the digest below is of the start-up block's exact bytes. Edit that
+  block and the digest must be recomputed, or the deck will load its libraries
+  and then run none of its own code.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-xd6po8ivK5u/lQ4pktnpoyfLkaO+idsLpHiMBTNJRoM=' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+
+<!-- Declared before anything is fetched, so it governs every request this file
+     makes: a remote host has no need of the asking document's address, so it is
+     not sent one, and none of them is.
+
+     Three of the requests a reader's browser makes are not this file's to govern,
+     and saying so is more useful than implying otherwise. The web-font stylesheet
+     fetches the font files it names itself, and a stylesheet's own fetches take
+     their referrer from the stylesheet rather than from the page that asked for
+     it — so the referrer those three send is the font service's own address. That
+     address holds no part of this document's: not its host, not its path, not its
+     name, and this document is opened at no query or fragment for it to hold.
+     Nothing declarable here changes it. Separately, and not a referrer: a font is
+     always fetched under cross-origin rules, so those requests state this page's
+     scheme, host and port as their origin — the header a browser is required to
+     send for such a fetch, carrying no path, no name and no address beyond that. -->
+<meta name="referrer" content="no-referrer">
+
+<meta name="description" content="Executive presentation for the ArduPilot PNT Reference Audit briefing pack: scope, business value, content architecture, content-fidelity risks and continuity.">
+<meta name="author" content="Blitzy">
+<title>ArduPilot PNT Reference Audit — Executive Presentation</title>
+
+<!-- Inline data URI keeps the deck to a single file: no favicon request. -->
+<link rel="icon" href="data:,">
+
+<!--
+  Load order is deliberate: web fonts, then the reveal.js core stylesheet, then
+  the neutral white base theme, then the inline Blitzy theme LAST so it wins the
+  cascade over both framework stylesheets.
+
+  Each immutable package member states the digest of the exact bytes it is
+  expected to return and is fetched under anonymous cross-origin rules so the
+  browser can check it: a host answering with anything else is refused rather
+  than applied. The web-font stylesheet is deliberately left without a digest,
+  because it is generated per request from the asking browser's capabilities and
+  so has no fixed byte sequence to pin; its failure mode is benign, since every
+  font declaration here ends in a system fallback.
+
+  What a reader's browser actually fetches is eleven things from four hosts, not
+  the six named in this file: this document, the five package members below and
+  further down, the web-font stylesheet, the three font files it names, and one
+  stylesheet the runtime's own base theme imports. That import is worth naming
+  because it is the one member of the set that cannot be digest-checked — a digest
+  attaches to a tag, and a stylesheet reached from inside another stylesheet has
+  no tag of its own. Three things bound it instead: its address is written inside
+  the parent stylesheet, whose bytes ARE digest-checked, so the address cannot be
+  substituted without failing that check; it sits on the same immutable versioned
+  path as the parent; and it was read — it declares four faces of one family, by
+  relative address, with no script and no further import, and this deck names that
+  family nowhere, so not one of those font files is ever fetched.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Fira+Code:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css"
+  integrity="sha384-YgvgKeZJykuztG+iQPoZHNZENTFZvOcOJ/uRzmJTje6GHYN9zAw+y5rx/L8MQKA/"
+  crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css"
+  integrity="sha384-/TZMdZeq0ZGi4iePTHhOMXOkyv2f72ZcwmhAtOmSZlPkx+5qCOfyc/U1kjd5Su6S"
+  crossorigin="anonymous">
+
+<style>
+/* The first 21 properties are the mandated Blitzy presentation tokens,
+   transcribed character-for-character. The specification is silent on geometry
+   and depth, so a named scale is derived for each of those below — purely
+   additive, altering none of the mandated values — which is what lets every
+   value in this stylesheet resolve through a token. */
+:root {
+  --blitzy-primary: #5B39F3;
+  --blitzy-primary-dark: #2D1C77;
+  --blitzy-primary-navy: #1A105F;
+  --blitzy-primary-light: #7A6DEC;
+  --blitzy-primary-deep: #4101DB;
+  --blitzy-accent-teal: #94FAD5;
+  --blitzy-surface-0: #FFFFFF;
+  --blitzy-surface-1: #F4EFF6;
+  --blitzy-surface-2: #F2F0FE;
+  --blitzy-surface-3: #F5F5F5;
+  --blitzy-border: #D9D9D9;
+  --blitzy-border-soft: rgba(91, 57, 243, 0.18);
+  --blitzy-text: #333333;
+  /* Declared because the specification mandates the full token set, but
+     deliberately NOT applied to text a reader has to read: against the two
+     surfaces this deck paints on it reaches only 2.85:1 and 2.53:1, short of the
+     4.5:1 normal-size copy needs. Labels, captions and fine print take
+     --blitzy-text instead and earn their lower emphasis from size, weight and
+     tracking. Two further mandated tokens, --blitzy-primary-light and
+     --blitzy-primary-deep, are likewise declared without a separate reference
+     because the specification already fixes them literally inside
+     --gradient-hero. */
+  --blitzy-text-muted: #999999;
+  --blitzy-text-invert: #FFFFFF;
+
+  --ff-body: 'Inter', system-ui, sans-serif;
+  --ff-display: 'Space Grotesk', 'Inter', sans-serif;
+  --ff-mono: 'Fira Code', 'Courier New', monospace;
+
+  --gradient-hero: linear-gradient(68deg, #7A6DEC 15.56%, #5B39F3 62.74%, #4101DB 84.44%);
+  --gradient-divider: linear-gradient(135deg, #2D1C77 0%, #5B39F3 100%);
+  --gradient-accent-bar: linear-gradient(90deg, #5B39F3 0%, #94FAD5 100%);
+
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+  /* One step beyond the rest of the scale, and it exists for one job: the stage's
+     inline frame at phone width. The runtime never scales the stage below a fifth,
+     so on a viewport narrower than a fifth of the stage the stage is wider than the
+     window and hangs off both edges — sixty stage units on each side at the
+     narrowest width in common use. A frame of this step clears that overhang, so
+     the text sits inside the window even where the field it sits on does not. */
+  --sp-8: 4rem;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+
+  --bw-hair: 1px;
+  --bw-thin: 2px;
+  --bw-thick: 4px;
+
+  --shadow-card: 0 2px 10px rgba(26, 16, 95, 0.08);
+  --shadow-raised: 0 6px 24px rgba(26, 16, 95, 0.14);
+
+  --z-base: 0;
+  --z-raised: 1;
+  --z-skip-link: 100;
+
+  /* Sized in em so the whole scale tracks the runtime's slide font size, and
+     calibrated for the mandated 1920x1080 stage.
+
+     The eyebrow's value is not free. Its colour and its typeface are both fixed
+     by the design system, and on the gradient field that pairing sits close to
+     the lightest stop of the gradient, where it separates from its background by
+     a little over three to one. That is the ratio required of text at large
+     scale, and short of it for text below that threshold, so the size is what
+     decides whether the mandated pairing reads or not. Sized to land above the
+     large-scale threshold on the stage this deck is authored for, the pairing is
+     kept exactly as the system specifies and the separation it already has
+     becomes sufficient rather than short. The gradient itself, the accent, and
+     the typeface are untouchable; the size was the one lever left, and it is the
+     one that was moved.
+
+     The rest of the scale moves with it, in smaller steps. The smallest roles
+     were the smallest text in the deck by a wide margin, and lifting them costs
+     nothing on the field they sit on -- body text on a light surface separates by
+     better than twelve to one -- while it buys back legibility everywhere the
+     stage is scaled down. */
+  --fs-eyebrow: 0.64em;
+  --fs-hero-title: 1.75em;
+  --fs-hero-lede: 0.72em;
+  /* The provenance line under the title. It carries the same weight of claim as
+     the eyebrow above it and sits on the same gradient, so it is sized to the
+     same threshold; unlike the eyebrow its colour is not mandated, so it takes
+     the invert token the design system assigns to text on this field. */
+  --fs-hero-meta: 0.64em;
+  --fs-divider-title: 1.9em;
+  --fs-divider-lede: 0.62em;
+  --fs-title: 1.28em;
+  --fs-lede: 0.66em;
+  --fs-bullet: 0.68em;
+  --fs-kpi-value: 1.6em;
+  --fs-kpi-label: 0.46em;
+  --fs-table: 0.56em;
+  --fs-caption: 0.5em;
+  --fs-lockup: 0.66em;
+  --fs-diagram: 0.56em;
+  /* A table caption is a child of the table, so an em value here would compound
+     against the table's own em and collapse the caption to a fraction of its
+     intended size. Sized in rem instead, it is measured against the document
+     root and therefore cannot compound, while still scaling with the stage. */
+  --fs-table-caption: 1.3rem;
+  /* The runtime sizes its navigation buttons as a multiple of the control
+     cluster's own text size, and positions them in the same unit — so this one
+     value sets how large the buttons are AND keeps their spacing proportional.
+     The framework's own value leaves each button below the smallest comfortable
+     pointer target; this one carries them past it. Stated in root units because
+     the cluster sits outside the scaled stage, where a stage-relative unit would
+     resolve against the wrong basis. */
+  --fs-control: 0.8rem;
+  /* The skip link lives on the document, outside the scaled stage, so it is sized
+     in root units for the same reason as the control cluster: a stage-relative
+     unit would resolve against the document's text size instead and collapse. */
+  --fs-skip-link: 1rem;
+
+  --lh-tight: 1.1;
+  --lh-snug: 1.3;
+  --lh-body: 1.5;
+  /* The framework's base theme tracks headings through its own custom property,
+     so a heading here has to restate the neutral value to stay under this
+     stylesheet's control; naming it keeps that restatement a token reference
+     rather than a bare literal. */
+  --tracking-normal: normal;
+  --tracking-eyebrow: 0.14em;
+  --tracking-lockup: 0.06em;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --icon-hero: 4rem;
+  --icon-divider: 3.5rem;
+  --icon-closing: 3rem;
+  --icon-kpi: 1.6rem;
+  --icon-row: 2.25rem;
+
+  /* Floor for anything a reader points at or taps. Stated in root units because
+     every such element in this deck sits outside the scaled stage. */
+  --target-min: 2.75rem;
+
+  --accent-bar-height: 0.375rem;
+  --accent-bar-width: 38%;
+  --measure-full: 100%;
+  --measure-lede: 46rem;
+  /* One reading measure for running copy. The fine print under a diagram or a
+     table takes the same measure as the lede rather than the full column: at the
+     fine print's size the column holds over two hundred characters, and a line
+     that long loses the reader's eye on its way back to the next one. Declared
+     under its own name so the two roles stay distinguishable in the rules below,
+     and resolved to the lede's value so the deck has one measure rather than two
+     that happen to agree. The small-viewport branch is where the two part company,
+     and for the reason stated there: at phone scale the fine print is the text most
+     at risk of becoming a paragraph, so it is given the whole column instead. */
+  --measure-meta: var(--measure-lede);
+  --slide-pad-block: var(--sp-6);
+  --slide-pad-inline: var(--sp-7);
+  --kpi-columns: repeat(4, minmax(0, 1fr));
+  --icon-row-columns: repeat(4, minmax(0, 1fr));
+  /* A diagram fills the width it is given and keeps its aspect ratio, so tall
+     diagrams need a ceiling: without one a narrow, deep diagram would grow past
+     the bottom of the slide. At this ceiling the drawing scales down and centres
+     inside its frame instead of overflowing. */
+  --diagram-max-height: 46rem;
+  /* Every drawing is laid out at its own authored size multiplied by this one
+     figure, so a label is the same size whichever diagram a reader is looking at.
+     Left to fill the width it is given, each drawing instead takes a scale set by
+     its own proportions: the widest drawing in this deck ends up at three fifths
+     the scale of the shallowest, and the same label reads a third smaller on one
+     slide than on another. The figure is the largest that keeps the widest
+     drawing in the deck inside the frame it is given, which is what makes one
+     scale safe to apply to all of them; the ceiling above and the frame's own
+     width remain in force should a drawing ever be authored larger. */
+  --diagram-scale: 1.55;
+
+  --motion-fast: 180ms;
+  --motion-ease: ease-out;
+  /* Named so that the reduced-motion branch can collapse a duration by reference
+     rather than by writing a bare zero into a rule. */
+  --motion-none: 0s;
+
+  --offscreen-inset: -20000px;
+
+  /*
+    The runtime's own chrome — its navigation chevrons and its progress bar —
+    takes its colour from the base theme's custom properties rather than from any
+    rule this stylesheet can outrank. Overriding the base theme's ELEMENT rules is
+    therefore not enough: while its properties stand undeclared here they keep
+    their own values, and the chevrons and the progress fill paint in a blue that
+    belongs to no token in this file. Restating each of them as a reference to a
+    Blitzy token is what closes that route, so every painted surface in the
+    document — content and chrome alike — resolves through this block.
+
+    Two of the base theme's properties are deliberately left alone. Its slide font
+    size is load-bearing: the whole em scale above is calibrated against it, so
+    redeclaring it would rescale every slide. And its overlay pair holds bare
+    colour components rather than colours, because the framework composes them
+    inside a translucent colour function; a token would not parse there.
+  */
+  --r-link-color: var(--blitzy-primary);
+  --r-link-color-dark: var(--blitzy-primary-deep);
+  --r-link-color-hover: var(--blitzy-primary-light);
+  --r-main-font: var(--ff-body);
+  --r-heading-font: var(--ff-display);
+  --r-code-font: var(--ff-mono);
+  --r-main-color: var(--blitzy-text);
+  --r-heading-color: var(--blitzy-text);
+  --r-heading-text-transform: none;
+  --r-heading-letter-spacing: var(--tracking-normal);
+  --r-background-color: var(--blitzy-surface-0);
+  --r-selection-background-color: var(--blitzy-surface-2);
+  --r-selection-color: var(--blitzy-text);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/*
+  The runtime sizes itself with a percentage height, which can only resolve
+  against an ancestor that has a definite height of its own. This semantic
+  wrapper is that ancestor, so it is given one explicitly: without it the
+  runtime's box collapses to nothing and — because the runtime also clips its
+  overflow — the entire deck paints blank while still being present in the
+  document. The wrapper is load-bearing, not decorative.
+*/
+.deck {
+  height: var(--measure-full);
+}
+
+.reveal {
+  font-family: var(--ff-body);
+  font-weight: var(--fw-regular);
+  color: var(--blitzy-text);
+}
+
+.reveal .slides {
+  text-align: start;
+}
+
+.reveal .slides section {
+  padding-block: var(--slide-pad-block);
+  padding-inline: var(--slide-pad-inline);
+  height: var(--measure-full);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/*
+  The runtime writes an inline display value onto each slide as it moves that
+  slide in and out of its working set, and an inline declaration outranks an
+  ordinary rule — so a slide the runtime is showing needs its box type claimed
+  with an importance flag, the sole use of importance in this file. The guard
+  excludes any slide the runtime has taken out of that set, so the claim DEFERS
+  to the working set rather than overriding it: a hidden slide stays hidden and
+  contributes no box, no layout and no paint. The rule is confined to screen
+  media, so both of the framework's print declarations keep their precedence.
+*/
+@media screen {
+  html:not(.reveal-print) .reveal .slides section:not([style*="display: none"]) {
+    display: flex !important;
+  }
+}
+
+/*
+  The export layout, which is how a reader turns this deck into a document to
+  circulate, is laid out by the framework rather than by this stylesheet: it sizes
+  a page, insets each slide inside it, and — the part that matters here — removes
+  the slide's own padding with an importance flag. With the padding gone every
+  full-width element on the slide runs to the very edge of the printed slide, so
+  the fine print reaches the trim and a framed diagram loses the border on its
+  right side. Restating the two padding properties for that mode, with the same
+  importance the framework used, gives the exported pages the same inset the
+  screen has and keeps every element inside the page it is printed on.
+
+  Only the padding is restated. The framework's display and position declarations
+  are what stack the slides into one document, so they are deliberately left in
+  force; this rule changes where the content sits on each page, not how the pages
+  are made.
+*/
+html.reveal-print .reveal .slides section {
+  padding-block: var(--slide-pad-block) !important;
+  padding-inline: var(--slide-pad-inline) !important;
+}
+
+/*
+  The runtime can reach the reader and still fail to start — its configuration is
+  partly taken from the address, and an address naming a setting it expects to be
+  a list makes it throw — and by then its stylesheet has lifted every slide out
+  of normal flow and stacked them at a single spot. This marker, set on exactly
+  one path (the start-up failure handler), hands the page back to normal flow, so
+  a runtime that cannot start costs the reader the presentation rather than the
+  content.
+*/
+html.runtime-unstarted,
+html.runtime-unstarted body,
+html.runtime-unstarted .deck,
+html.runtime-unstarted .reveal,
+html.runtime-unstarted .reveal .slides,
+html.runtime-unstarted .reveal .slides section {
+  position: static;
+  height: auto;
+  overflow: visible;
+}
+
+/*
+  Returning the slides to normal flow is necessary but not sufficient. The
+  runtime measures and scales its stage from a window load listener that fires
+  whether or not start-up succeeded, leaving a width, a height, an offset and a
+  scale written onto the element itself, where only an importance flag can reach
+  them. Left alone they cost real content: the offset now measures against the
+  page rather than the stage, pulling the stack half its width left of the page
+  origin and half its height above it, and a page cannot scroll left of its own
+  origin. The stylesheet also makes the container transparent to the pointer for
+  controls that no longer exist, which would leave a reader unable to select or
+  copy anything.
+*/
+html.runtime-unstarted .reveal .slides {
+  inset: auto !important;
+  width: auto !important;
+  height: auto !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+
+/*
+  The same withdrawal one level down: the framework withholds the pointer from
+  every slide except the one it marks present, and marking is the runtime's job,
+  so with the runtime absent no slide ever answers the pointer. Reaching the
+  container alone is enough to sweep a selection across the page, but it leaves
+  the pointer landing on the container rather than on the words, so anything
+  resolved per element — cursor shape, hover, a link — would still be lost.
+*/
+html.runtime-unstarted .reveal .slides > section {
+  pointer-events: auto !important;
+}
+
+.reveal .slides section > :last-child {
+  margin-block-end: 0;
+}
+
+.reveal h1,
+.reveal h2,
+.reveal h3 {
+  font-family: var(--ff-display);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--blitzy-text);
+  text-transform: none;
+  letter-spacing: var(--tracking-normal);
+  margin-block: 0 var(--sp-4);
+}
+
+.reveal h1 {
+  font-size: var(--fs-hero-title);
+}
+
+.reveal h2 {
+  font-size: var(--fs-title);
+}
+
+.reveal p {
+  line-height: var(--lh-body);
+  margin-block: 0 var(--sp-4);
+}
+
+.reveal strong {
+  font-weight: var(--fw-semibold);
+  color: var(--blitzy-primary);
+}
+
+.reveal a {
+  color: var(--blitzy-primary);
+}
+
+.reveal code {
+  font-family: var(--ff-mono);
+  font-weight: var(--fw-medium);
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.reveal :focus-visible {
+  outline: var(--bw-thin) solid var(--blitzy-primary);
+  outline-offset: var(--sp-1);
+}
+
+/*
+  The runtime's navigation buttons need their focus ring stated separately, and
+  the reason is specificity rather than styling. The framework clears the outline
+  on those buttons with a rule naming both a class chain and the element type; the
+  general rule above names one class fewer and one type fewer, so it loses on every
+  count and the ring never painted — while the offset, which the outline shorthand
+  does not reset, survived and left the buttons reporting an outline four pixels
+  from an outline that was zero wide. Naming the same chain plus the focus state
+  outranks it.
+
+  Two additions beyond the ring. The button is lifted to full strength, because the
+  framework rests the backwards arrow at a third of its opacity and a ring on a
+  barely-visible control is barely a ring. And a shadow is drawn as well as an
+  outline: a shadow is the one indicator an outline reset cannot suppress, so the
+  focus state survives even if the framework's rule ever reaches further.
+
+  On the dark fields the ring changes to the teal accent. The brand violet is a
+  near neighbour of those fields and would be hard to make out against them; the
+  teal separates from all three by a wide margin, and from the white surface the
+  violet separates likewise.
+*/
+.reveal .controls button:focus-visible {
+  outline: var(--bw-thin) solid var(--blitzy-primary);
+  outline-offset: var(--sp-1);
+  box-shadow: 0 0 0 var(--bw-thin) var(--blitzy-surface-0);
+}
+
+/*
+  Full strength while focused, stated separately because it has a different rule to
+  outrank. The framework rests the backwards arrow at a third of its strength, and
+  it says so through a longer chain than the one that clears the outline — long
+  enough that the rule above loses this one declaration while winning the others.
+  Transparency applies to everything an element paints, its ring included, so
+  losing it would have left the ring on that arm drawn through a third of an alpha:
+  declared, measurable, and not perceivable. This chain names the framework's own
+  and adds the focus state, which is what carries it.
+
+  Only the focused state is claimed. The resting fade is the framework's own way of
+  saying which way a reader has already come, and it is left exactly as it is.
+*/
+.reveal:not(.rtl) .controls[data-controls-back-arrows] button.enabled:focus-visible {
+  opacity: 1;
+}
+
+.reveal.has-dark-background .controls button:focus-visible {
+  outline-color: var(--blitzy-accent-teal);
+  box-shadow: 0 0 0 var(--bw-thin) var(--blitzy-primary-navy);
+}
+
+/*
+  The skip link sits on the document rather than inside the stage, so its size is
+  measured against the document's own text size and not the stage's. A relative
+  size authored for the stage therefore collapsed here to a few pixels — the link
+  was the smallest text in the deck and the smallest target in it, which is the
+  wrong way round for the first thing a keyboard reader meets. It takes an absolute
+  size of its own, and a floor on its height that carries it past the smallest
+  comfortable pointer target; the content is centred so the floor adds room rather
+  than shifting the label.
+*/
+.skip-link {
+  position: fixed;
+  inset-block-start: var(--sp-2);
+  inset-inline-start: var(--offscreen-inset);
+  z-index: var(--z-skip-link);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding-block: var(--sp-2);
+  padding-inline: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--blitzy-primary);
+  color: var(--blitzy-text-invert);
+  font-family: var(--ff-body);
+  font-size: var(--fs-skip-link);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  inset-inline-start: var(--sp-2);
+}
+
+/*
+  The skip link's own ring is white and hugs the pill rather than standing off it.
+  Drawn in the brand violet it was the same colour as the pill it surrounded and a
+  near neighbour of the gradient behind it, so it read as part of the pill instead
+  of as a state. White separates strongly from the pill on one side and from every
+  field this deck paints on the other, so the ring is identifiable whatever is
+  underneath. A violet shadow outside the white keeps the pair legible where the
+  field itself is light.
+*/
+.skip-link:focus-visible {
+  outline: var(--bw-thin) solid var(--blitzy-text-invert);
+  outline-offset: 0;
+  box-shadow: 0 0 0 var(--bw-thick) var(--blitzy-primary);
+}
+
+
+/*
+  Where a slide-type field is painted, and why it is painted on exactly one
+  surface.
+
+  The runtime builds a full-page backdrop element per slide and copies that
+  slide's class list onto it, so a rule written for a slide type matches TWICE —
+  once on the backdrop, which fills the window, and once on the slide box, which
+  is the fixed stage inset by its margin. A gradient resolved over two boxes of
+  different shape traverses its stops at two different rates, and the boundary
+  between them reads as a rectangle nobody drew. It hides at 16:9, because the two
+  boxes then differ only by a uniform scale about a shared centre; it is plainly
+  visible the moment the window's aspect ratio departs from the stage's.
+
+  The field therefore belongs to the backdrop alone: one box, one traversal, no
+  boundary, and the window is covered edge to edge at every aspect ratio. The slide
+  box keeps only its layout.
+
+  The flat colour underneath the gradient is not decoration and is not visible —
+  the gradient is opaque and covers it. It is there to be MEASURED. The runtime
+  decides whether a slide is dark by reading the backdrop's resolved background
+  COLOUR and requires it to be opaque; a gradient is an image, leaving the colour
+  transparent, so without this declaration a dark slide is never recognised as one
+  and the runtime's own contrast adaptation never fires on it — which is what left
+  the chevrons rendering in a light accent over these dark fields. Each value is
+  the gradient's own darkest stop, so the measurement describes what is painted.
+
+  The backdrop selector deliberately does NOT name the container the backdrop
+  normally sits in. That container is emptied in two of the runtime's own modes —
+  printing moves each backdrop into the page it belongs to, and the scrolling
+  reading mode moves each one into its scroll page — and in both the element keeps
+  rendering at full size. A field that required the container would stop painting
+  in both, which on these slides means inverted copy on nothing: white on white.
+  Naming the backdrop wherever it lives covers every mode in which the runtime
+  provides one, and still paints exactly one surface.
+
+  The second selector is the remaining case: the runtime never started, so there
+  is no backdrop at all and the slide box is the only surface there is. Nothing is
+  double-painted, because the two selectors describe mutually exclusive states.
+*/
+.reveal .slide-background.slide-title,
+html.runtime-unstarted .reveal .slides section.slide-title {
+  background-color: var(--blitzy-primary-deep);
+  background-image: var(--gradient-hero);
+}
+
+.reveal .slide-background.slide-divider,
+html.runtime-unstarted .reveal .slides section.slide-divider {
+  background-color: var(--blitzy-primary-dark);
+  background-image: var(--gradient-divider);
+}
+
+.reveal .slide-title {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.reveal .slide-title h1,
+.reveal .slide-title p {
+  color: var(--blitzy-text-invert);
+}
+
+.reveal .slide-title .lede {
+  font-size: var(--fs-hero-lede);
+  max-width: var(--measure-lede);
+}
+
+/*
+  The provenance line under the title used to borrow the accent, which the design
+  system reserves for the eyebrow, the terminal stop of the accent bar, the brand
+  signature and the metric icons -- not for running copy. The system's own assignment for text on
+  the title, divider and closing fields is the invert token, and taking it here is
+  both the more faithful reading and the better-separated one: on the lightest
+  stop of the gradient the accent gives a little over three to one and the invert
+  gives four, and the line is sized above the large-scale threshold so either
+  would qualify. It takes the invert by inheriting it, so there is one place in
+  this stylesheet that decides what colour text on this field is.
+*/
+.reveal .slide-title .slide-meta {
+  font-size: var(--fs-hero-meta);
+}
+
+.reveal .slide-divider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.reveal .slide-divider h2 {
+  font-size: var(--fs-divider-title);
+  color: var(--blitzy-text-invert);
+  margin-block: var(--sp-5) var(--sp-3);
+}
+
+.reveal .slide-divider p {
+  font-size: var(--fs-divider-lede);
+  color: var(--blitzy-accent-teal);
+  margin-block: 0;
+  margin-inline: auto;
+  max-width: var(--measure-lede);
+}
+
+/*
+  Each icon is written as an empty element that the icon library later swaps for a
+  drawing. An empty element of that kind holds no box, so until the library
+  arrives every icon in the deck occupies nothing and its neighbours sit where
+  they would sit if it were not there — then the drawing lands, the box appears,
+  and everything below it moves. The movement is small and it happens once, but it
+  happens on the reader's first look at every slide, which is the worst moment for
+  anything to move.
+
+  The remedy is to give the placeholder the box the drawing will have, so that the
+  swap changes what is in the space rather than how much space there is. The
+  placeholder is admitted to each of the rules below beside the drawing it stands
+  in for, which is what keeps the two sizes the same size: they are one
+  declaration, reading one token, not two that have to be remembered together.
+
+  Only the display mode is stated separately, because a drawing already holds a
+  box of its own and an empty element has to be told it may. It is told in the
+  mode that keeps a placeholder aligned exactly as the drawing is: both are then
+  inline-level boxes sitting on the text baseline where they sit inside a line, and
+  both are laid out as blocks where their parent arranges its children, so the
+  space measures the same either way.
+
+  Nothing here survives the swap. Once the library has run there are no
+  placeholders left for these rules to reach, so the finished slide is laid out by
+  the drawing rules alone, exactly as it was before.
+*/
+i[data-lucide] {
+  display: inline-block;
+}
+
+.reveal .slide-divider svg,
+.reveal .slide-divider i[data-lucide] {
+  width: var(--icon-divider);
+  height: var(--icon-divider);
+  stroke: var(--blitzy-accent-teal);
+  stroke-width: var(--bw-thin);
+}
+
+.reveal .slide-closing {
+  background: var(--blitzy-primary-navy);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.reveal .slide-closing h2,
+.reveal .slide-closing li {
+  color: var(--blitzy-text-invert);
+}
+
+.reveal .slide-closing h2 {
+  font-size: var(--fs-divider-title);
+}
+
+.reveal .slide-closing svg,
+.reveal .slide-closing i[data-lucide] {
+  width: var(--icon-closing);
+  height: var(--icon-closing);
+  stroke: var(--blitzy-accent-teal);
+  stroke-width: var(--bw-thin);
+}
+
+.reveal .slides section:not(.slide-title):not(.slide-divider):not(.slide-closing) {
+  background: var(--blitzy-surface-0);
+}
+
+
+/*
+  The navigation buttons are the deck's only pointer affordance, and the framework
+  sizes them from this one text size — button extent and inter-button spacing are
+  both stated as multiples of it — so raising it enlarges the targets without
+  disturbing their arrangement. The chevron drawn inside is likewise proportional,
+  so the glyph grows with the target rather than sitting in a larger empty box.
+*/
+.reveal .controls {
+  font-size: var(--fs-control);
+}
+
+/*
+  The progress bar. Restating the base theme's properties above already brings its
+  fill inside the palette, but the fill takes ONE colour for the whole deck while
+  the deck alternates between a white surface and two dark fields, and the runtime's
+  own dark-field adaptation reaches its chevrons and not this bar. Naming the two
+  cases is what keeps the fill distinguishable from whatever is behind it: the brand
+  violet reads on the white surface, the teal accent reads on the gradient and navy
+  fields. The bar draws its fill from the element's own text colour, so setting that
+  colour is how the fill is set.
+*/
+.reveal .progress {
+  background: var(--blitzy-border-soft);
+  color: var(--blitzy-primary);
+}
+
+.reveal.has-dark-background .progress {
+  color: var(--blitzy-accent-teal);
+}
+
+/*
+  The button that ends the blanked-screen state the runtime enters on a key press.
+  It is the framework's own markup, not this deck's, and the framework draws it
+  ten pixels short of the smallest comfortable target — while making it a genuine
+  keyboard stop, so a reader who blanks the deck and then reaches for the control
+  is reaching for something below the floor every other control in this deck is
+  held to. Only the height is named: the button is already far wider than the
+  floor, and its own padding decides how the label sits inside it, so raising the
+  floor here changes the target and nothing else. The value is the same token the
+  skip link and the navigation cluster resolve to, so the deck has one floor.
+*/
+.reveal .pause-overlay .resume-button {
+  min-height: var(--target-min);
+}
+
+
+.eyebrow {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--blitzy-primary);
+  margin-block: 0 var(--sp-3);
+}
+
+/* On the gradient and dark fields the eyebrow takes the teal accent. The
+   `.reveal` prefix is load-bearing: the title slide paints its copy white
+   through `.reveal .slide-title p`, whose specificity (0,2,1) outranks a bare
+   `.slide-title .eyebrow` (0,2,0) and would leave the eyebrow white. */
+.reveal .slide-title .eyebrow,
+.reveal .slide-closing .eyebrow {
+  color: var(--blitzy-accent-teal);
+}
+
+.hero-icon {
+  margin-block: 0 var(--sp-5);
+  line-height: var(--lh-tight);
+}
+
+.hero-icon svg,
+.hero-icon i[data-lucide] {
+  width: var(--icon-hero);
+  height: var(--icon-hero);
+  stroke: var(--blitzy-accent-teal);
+  stroke-width: var(--bw-thin);
+}
+
+.accent-bar {
+  height: var(--accent-bar-height);
+  width: var(--accent-bar-width);
+  background: var(--gradient-accent-bar);
+  border-radius: var(--radius-sm);
+  margin-block: var(--sp-5) 0;
+}
+
+/*
+  The signature takes the accent rather than the invert, which is the treatment
+  the two companion decks in this pack give it. It is a mark, not copy: it sits
+  beside the gradient rule whose terminal stop is this same accent, so mark and
+  rule read as one lockup instead of a white word next to a coloured line. On the
+  navy field the accent gives well over thirteen to one, so nothing is traded for
+  the match.
+*/
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--ff-display);
+  font-size: var(--fs-lockup);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-lockup);
+  color: var(--blitzy-accent-teal);
+  margin-block: var(--sp-6) 0;
+}
+
+.brand-lockup .lockup-rule {
+  height: var(--accent-bar-height);
+  width: var(--icon-closing);
+  background: var(--gradient-accent-bar);
+  border-radius: var(--radius-sm);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: var(--kpi-columns);
+  gap: var(--sp-4);
+  margin-block: var(--sp-5) var(--sp-4);
+}
+
+.kpi-card {
+  background: var(--blitzy-surface-2);
+  border: var(--bw-hair) solid var(--blitzy-border-soft);
+  border-inline-start: var(--bw-thick) solid var(--blitzy-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding-block: var(--sp-4);
+  padding-inline: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.kpi-icon {
+  line-height: var(--lh-tight);
+}
+
+.kpi-icon svg,
+.kpi-icon i[data-lucide] {
+  width: var(--icon-kpi);
+  height: var(--icon-kpi);
+  stroke: var(--blitzy-primary);
+  stroke-width: var(--bw-thin);
+}
+
+/*
+  The metric takes the brand primary, which is the colour the two companion decks
+  in this pack give the same figure. Three artifacts describing one audit should
+  not disagree about what a headline number looks like, and the primary is also
+  the colour already carrying the card's left rule and its icon — so the card is
+  now one colour statement rather than two. Against the card's own fill this
+  clears the threshold for normal-size copy by a wide margin, and the figure is
+  set far above the large-scale threshold in any case.
+*/
+.kpi-value {
+  font-family: var(--ff-display);
+  font-size: var(--fs-kpi-value);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  color: var(--blitzy-primary);
+}
+
+/* De-emphasised by size, weight and tracking rather than by a lighter
+   colour, which would not clear the contrast threshold against the card's
+   own fill. */
+.kpi-label {
+  font-family: var(--ff-body);
+  font-size: var(--fs-kpi-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-snug);
+  color: var(--blitzy-text);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-lockup);
+}
+
+.icon-row {
+  display: grid;
+  grid-template-columns: var(--icon-row-columns);
+  gap: var(--sp-4);
+  margin-block: var(--sp-4);
+  padding-block: var(--sp-4);
+  border-block: var(--bw-hair) solid var(--blitzy-border-soft);
+}
+
+.icon-row > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: center;
+}
+
+.icon-row svg,
+.icon-row i[data-lucide] {
+  width: var(--icon-row);
+  height: var(--icon-row);
+  stroke: var(--blitzy-primary);
+  stroke-width: var(--bw-thin);
+}
+
+.icon-row span {
+  font-size: var(--fs-kpi-label);
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-lockup);
+  color: var(--blitzy-text);
+}
+
+
+.lede {
+  font-size: var(--fs-lede);
+  line-height: var(--lh-body);
+  max-width: var(--measure-lede);
+  color: var(--blitzy-text);
+}
+
+.reveal ul {
+  list-style: none;
+  margin-block: 0 var(--sp-4);
+  margin-inline: 0;
+  padding-inline-start: 0;
+  max-width: var(--measure-lede);
+}
+
+.reveal ul li {
+  position: relative;
+  font-size: var(--fs-bullet);
+  line-height: var(--lh-snug);
+  padding-inline-start: var(--sp-5);
+  margin-block: 0 var(--sp-3);
+}
+
+.reveal ul li::before {
+  content: "";
+  position: absolute;
+  inset-block-start: var(--sp-3);
+  inset-inline-start: 0;
+  width: var(--sp-4);
+  height: var(--bw-thin);
+  border-radius: var(--radius-sm);
+  background: var(--blitzy-primary);
+}
+
+.reveal .slide-closing ul li::before {
+  background: var(--blitzy-accent-teal);
+}
+
+/* Fine print, not decoration: it carries the provenance line, the
+   pack-versus-audit qualifications and the description each diagram is
+   announced with, so it takes the body text colour and is held back by size
+   alone. */
+.slide-meta {
+  font-size: var(--fs-caption);
+  line-height: var(--lh-snug);
+  color: var(--blitzy-text);
+  margin-block: var(--sp-4) 0;
+  max-width: var(--measure-meta);
+}
+
+/*
+  Every rule below names the stage, not the deck, and the reason is that the
+  framework builds a table of its own outside the stage. The help overlay a reader
+  opens with `?` is appended beside the stage rather than inside it, and it colours
+  its keyboard-shortcut rows by inheritance from a near-white overlay. A colour
+  stated directly on a cell beats an inherited one whatever the specificity, so a
+  rule naming only `.reveal table td` reached that overlay and repainted its rows in
+  body text colour on a near-black scrim — while the every-other-row fill reached
+  only half of them, because the framework's header row counts as the first child of
+  the same row group and shifts the alternation by one. Naming the stage holds these
+  rules to the three authored tables and leaves the framework's own chrome to the
+  framework, which states its contrast there and states it well. The chrome that IS
+  deliberately themed elsewhere in this file — the progress bar, the navigation
+  controls, the focus rings — is untouched by this, and each of those improves on
+  what it replaces rather than degrading it.
+*/
+.reveal .slides table {
+  width: var(--measure-full);
+  border-collapse: collapse;
+  font-size: var(--fs-table);
+  margin-block: var(--sp-4);
+  border: var(--bw-hair) solid var(--blitzy-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.reveal .slides table caption {
+  caption-side: top;
+  font-family: var(--ff-mono);
+  font-size: var(--fs-table-caption);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  text-align: start;
+  color: var(--blitzy-primary);
+  padding-block: 0 var(--sp-3);
+  /* Held to the same reading measure as the rest of the running copy. Set in
+     tracked, upper-case monospace, this label runs wider per character than any
+     other text in the deck, so the full column is where it goes furthest past a
+     comfortable line. */
+  max-width: var(--measure-meta);
+}
+
+.reveal .slides table th {
+  background: var(--blitzy-surface-1);
+  font-family: var(--ff-body);
+  font-weight: var(--fw-semibold);
+  color: var(--blitzy-primary-dark);
+  text-align: start;
+  text-transform: none;
+  padding-block: var(--sp-3);
+  padding-inline: var(--sp-4);
+  border-block-end: var(--bw-thin) solid var(--blitzy-primary);
+  vertical-align: middle;
+}
+
+.reveal .slides table td {
+  color: var(--blitzy-text);
+  text-align: start;
+  padding-block: var(--sp-3);
+  padding-inline: var(--sp-4);
+  border-block-end: var(--bw-hair) solid var(--blitzy-border);
+  vertical-align: top;
+  line-height: var(--lh-snug);
+  overflow-wrap: break-word;
+}
+
+.reveal .slides table tbody tr:nth-child(even) td {
+  background: var(--blitzy-surface-3);
+}
+
+.reveal .slides table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.reveal .slides table tbody th[scope="row"] {
+  background: var(--blitzy-surface-0);
+  font-weight: var(--fw-semibold);
+  color: var(--blitzy-primary-dark);
+  border-block-end: var(--bw-hair) solid var(--blitzy-border);
+  border-inline-start: var(--bw-thick) solid var(--blitzy-primary);
+}
+
+.reveal .slides table tbody tr:nth-child(even) th[scope="row"] {
+  background: var(--blitzy-surface-3);
+}
+
+.reveal .slides table tbody tr:last-child th[scope="row"] {
+  border-block-end: 0;
+}
+
+/* The framework supplies no framing helper, so the frame is composed from a
+   stacking context plus the border and surface tokens. No literal is
+   introduced. */
+.diagram-frame {
+  border: var(--bw-hair) solid var(--blitzy-border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--blitzy-surface-0);
+  box-shadow: var(--shadow-card);
+  padding-block: var(--sp-4);
+  padding-inline: var(--sp-4);
+  margin-block: var(--sp-4) 0;
+  z-index: var(--z-base);
+  /* The frame is drawn around the drawing, not around the column. Once every
+     drawing is laid out at one shared scale the drawings no longer all fill the
+     column, and a frame held to the full width would put a ruled border and a
+     shadow around a band of empty surface beside the shallower ones. Shrinking
+     to the drawing and centring keeps the border meaningful; the ceiling is the
+     column, so a drawing as wide as the column still gets a full-width frame. */
+  width: fit-content;
+  max-width: var(--measure-full);
+  margin-inline: auto;
+}
+
+pre.mermaid {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
+  width: var(--measure-full);
+  margin: 0;
+  padding: 0;
+  font-family: var(--ff-body);
+  font-size: var(--fs-diagram);
+  line-height: var(--lh-snug);
+  text-align: center;
+  overflow: visible;
+  /* Until the drawing replaces it, this element holds the diagram's authored
+     definition. Preserving its line breaks while still wrapping over-long lines
+     is what lets that definition stay readable when the diagram library cannot
+     be reached, rather than collapsing into a single run-on line. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/*
+  The authored definition is a FALLBACK, and the rule above would otherwise paint
+  it on a healthy load too: the library is fetched asynchronously and its bundle is
+  the largest thing this deck asks for, so between first paint and the library
+  landing there is a window -- a fraction of a second on a fast connection, several
+  seconds on a slow one -- in which a reader looking at a diagram slide is shown
+  the diagram's source text instead of the diagram. That window is what this rule
+  closes: while the marker below is on the document, a block that has not yet been
+  drawn is laid out exactly as before but not painted.
+
+  Every path that ends the wait removes the marker, so the fallback keeps working:
+  a library that fails its request, a library that arrives and finishes its first
+  pass, a settings call that could not be made safe, and a cap that bounds the wait
+  when a request neither succeeds nor fails. The three marks named here are the
+  three states in which a block is holding text it is MEANT to show -- drawn,
+  judged unfit to draw, or stopped before drawing -- and each stays painted whether
+  the marker is present or not.
+
+  Opacity rather than visibility, so the block keeps its box and its announced role
+  throughout: the layout is identical before and after, which is what keeps the
+  arrival of a drawing from shifting anything on the slide.
+*/
+html.diagrams-awaited pre.mermaid:not([data-processed]):not([data-diagram-refused]):not([data-diagram-sealed]) {
+  opacity: 0;
+}
+
+/*
+  The width here is the fallback, not the intended layout: the start-up block
+  gives each drawing an explicit width of its own authored size times the shared
+  drawing scale, and does so on the drawing itself, where it outranks this rule.
+  Filling the column is what a drawing should do if that never happens — a
+  library that loaded but whose sizing pass did not run still produces a legible
+  diagram at the deck's previous behaviour rather than a miniature one.
+
+  Only the width is ever written. A drawing carries its own aspect ratio, so an
+  automatic height follows from the width and no explicit height can contradict
+  it; the two ceilings then remain real safety nets, reducing a drawing that
+  would otherwise leave its frame instead of distorting it.
+*/
+pre.mermaid svg {
+  width: var(--measure-full);
+  height: auto;
+  max-width: var(--measure-full);
+  max-height: var(--diagram-max-height);
+}
+
+/*
+  The drawing library scopes its theme by injecting a stylesheet as a child of
+  the drawing it generates. That stylesheet is markup, so it is invisible on the
+  slide but not to the runtime's spoken-status region: that region is assembled
+  by walking the slide's text nodes, and the walk descends into any element that
+  is neither marked hidden from assistive technology nor laid out as absent — so
+  a diagram's authored announcement would be followed by the whole stylesheet
+  read out as prose. Declaring it absent from layout keeps it out of the walk;
+  its rules still apply, because a stylesheet applies by being in the document,
+  never by occupying space.
+*/
+pre.mermaid svg > style {
+  display: none;
+}
+
+/*
+  Diagram labels are drawn as glyphs in the drawing's own coordinate space, so
+  their metrics are immune to the runtime's scaling transform; the start-up block
+  turns HTML labels off for that reason. Should the library still fall back to an
+  HTML label for a shape it cannot draw as glyphs, these rules make the fallback
+  non-destructive. The clip has to be lifted on the foreign-object element
+  itself, because that is where the user-agent stylesheet applies it. Wrapping is
+  deliberately NOT re-enabled: the library sizes the box for a single line, so a
+  second line would push the label's remaining words behind that clip and lose
+  them outright, which is far worse than a few pixels of overhang.
+*/
+pre.mermaid foreignObject {
+  overflow: visible;
+}
+
+pre.mermaid foreignObject div,
+pre.mermaid foreignObject span,
+pre.mermaid foreignObject p {
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skip-link {
+    transition: inset-inline-start var(--motion-fast) var(--motion-ease);
+  }
+
+  .kpi-card {
+    transition: box-shadow var(--motion-fast) var(--motion-ease);
+  }
+}
+
+@media (hover: hover) {
+  /* Raised above its neighbours so the deeper shadow is not painted underneath
+     the adjacent card. */
+  .kpi-card:hover {
+    box-shadow: var(--shadow-raised);
+    position: relative;
+    z-index: var(--z-raised);
+  }
+}
+
+/*
+  Moving from one slide to the next slides the whole stage sideways, which is the
+  transition the specification asks for and the one this deck keeps. Some readers
+  ask their system not to be shown movement of that kind, and for them the
+  movement is not a flourish but a symptom trigger.
+
+  The request is honoured here rather than in the configuration, and the difference
+  matters: the configured transition stays exactly as specified, so the deck is
+  still the deck the specification describes, and what changes is only how long the
+  specified movement is allowed to take. Collapsing the duration leaves every other
+  part of the transition intact -- which property moves, how it eases, the order
+  things happen in -- so slides still arrive and depart, they simply arrive already
+  there.
+
+  Both layers have to be named because the stage and the field behind it are moved
+  independently, and a stage that stops while its background still slides is worse
+  than either moving alone. The interface flourishes elsewhere in this stylesheet
+  need no mention: they are declared only under the opposite preference, so a
+  reader who asks for less movement never receives them in the first place.
+
+  The three that follow are the framework's, not this deck's, and they are the
+  reason naming only the two layers above was not enough: the progress bar slides
+  its fill across on every slide change, each navigation button eases its own
+  appearance, and the blanked-screen panel fades in over a full second. All three
+  are movement a reader who asked for none would still be shown, so all three are
+  collapsed to nothing here. As above, only the duration is touched -- what moves
+  and how it eases are left exactly as the framework wrote them, so the interface
+  keeps its behaviour and loses only the travel.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .reveal .slides > section {
+    transition-duration: var(--motion-none);
+  }
+
+  .reveal .backgrounds .slide-background {
+    transition-duration: var(--motion-none);
+  }
+
+  .reveal .progress span {
+    transition-duration: var(--motion-none);
+  }
+
+  .reveal .controls .navigate-left,
+  .reveal .controls .navigate-right,
+  .reveal .controls .navigate-up,
+  .reveal .controls .navigate-down {
+    transition-duration: var(--motion-none);
+  }
+
+  .reveal .pause-overlay {
+    transition-duration: var(--motion-none);
+  }
+}
+
+/*
+  A phone holds the stage at a fifth of the size it was authored for, and every
+  size in this deck is stated against that stage, so a fifth is what a phone
+  reader gets. The stage cannot change: its dimensions are fixed by the
+  specification, and the runtime derives its scale from them. The only room left
+  is inside it, and this block uses all three parts of it -- the type scale comes
+  up, the copy is allowed more of the stage's width so that taller lines do not
+  simply become more lines, and the two grids that run four across drop to two so
+  each cell holds its label on fewer rows.
+
+  Not one word of content is touched. Every declaration here is a size, a column
+  count or a measure, which is what keeps the deck's text identical at every
+  width: a reader who is sent a slide at one size and opens it at another is
+  reading the same slide, character for character.
+
+  This does not make a phone the equal of a projector, and it is not offered as
+  if it did. At a fifth scale the arithmetic is what it is, and the fixed stage is
+  a requirement rather than an oversight. What the block does is carry every text
+  role in the deck past the size at which glyphs stop resolving into letters,
+  which is the difference between small and unreadable.
+
+  The sizes below are chosen against the size a reader actually receives, not the
+  size written down. A phone holds the stage at a fifth, so a role reaches the
+  reader at a fifth of the figure stated here -- and the threshold every role has
+  to clear is twelve pixels, the size below which the same measurement tools that
+  judge a page stop calling its text legible. Sixty pixels on the stage is what
+  clears it, so every role that carries a sentence, a label, a cell or a caption
+  is stated at or above that, and the display roles that were already past it are
+  left where they were. The two paddings come down at the same time: the space
+  taken back from the frame is what pays for the larger type, so a slide holds the
+  same words in the same shape rather than growing past the stage it is drawn in.
+*/
+@media (max-width: 640px) {
+  :root {
+    --fs-eyebrow: 1.45em;
+    --fs-hero-title: 2.2em;
+    --fs-hero-lede: 1.5em;
+    --fs-hero-meta: 1.45em;
+    --fs-divider-title: 2.3em;
+    --fs-divider-lede: 1.5em;
+    --fs-title: 1.7em;
+    --fs-lede: 1.5em;
+    --fs-bullet: 1.5em;
+    --fs-kpi-value: 2em;
+    --fs-kpi-label: 1.45em;
+    --fs-table: 1.45em;
+    --fs-caption: 1.45em;
+    --fs-lockup: 1.45em;
+    --fs-diagram: 1.45em;
+    /* Measured against the document root rather than the stage, so it needs a
+       larger step than the em-based roles to arrive at the same rendered size. */
+    --fs-table-caption: 3.8rem;
+    /* The frame, the rhythm and the measures give space back to the type, because
+       the type is what a reader cannot do without. Larger text costs vertical room
+       three times over -- each line is taller, each block is pushed further down,
+       and copy held to a narrow measure turns into more lines -- so all three are
+       answered here.
+
+       The paddings and the three larger steps of the spacing scale come down, which
+       tightens every gap in the deck at once rather than slide by slide. The two
+       line heights come in to the tightest values that still leave a comfortable
+       gap between lines at this size. And the fine print is released from the
+       reading measure to the full column: at phone scale it is the text most likely
+       to run to four or five lines, and the column is nearly twice the measure, so
+       the same words occupy roughly half as many lines. Nothing is hidden, nothing
+       is shortened, and no word changes -- only the room the same words are given.
+
+       The inline frame is the exception that goes the other way, and it is not about
+       type at all. Held at a fifth, the stage is 384 units wide on screen, so on the
+       narrowest phones in common use -- 360 -- it is wider than the window and hangs
+       twelve units off each edge. The frame is therefore WIDENED to the step that
+       clears that overhang: the field a slide is painted on is still cut at those
+       widths, which nobody can see on a flat colour, but no letter is. */
+    --slide-pad-block: var(--sp-4);
+    --slide-pad-inline: var(--sp-8);
+    --sp-5: 1rem;
+    --sp-6: 1.25rem;
+    --sp-7: 1.5rem;
+    --lh-body: 1.35;
+    --lh-snug: 1.2;
+    --measure-meta: var(--measure-full);
+    --icon-row: 1.75rem;
+    /* The stage keeps its authored width at every viewport, and the reading
+       measure was holding copy to about two-fifths of it. Widening the measure is
+       what pays for the larger type: the same words occupy fewer lines, so the
+       slide grows in size without growing in height. */
+    --measure-lede: 76rem;
+    --kpi-columns: repeat(2, minmax(0, 1fr));
+    --icon-row-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#deck">Skip to presentation</a>
+
+<!--
+  The region the skip link targets is given a programmatic focus point. A fragment
+  target only receives focus if it can hold focus, and a landmark cannot by default
+  — so activating the link moved the reading position without moving focus itself,
+  which keyboard readers recover from silently and screen-reader users do not.
+  Negative one keeps it out of the tab sequence: it is a destination, not a stop.
+-->
+<main id="deck" class="deck" tabindex="-1">
+<div class="reveal">
+<div class="slides">
+
+  <section class="slide-title">
+    <div class="hero-icon"><i data-lucide="presentation" aria-hidden="true"></i></div>
+    <p class="eyebrow">Executive presentation &middot; For leadership</p>
+    <h1>The audit, made presentable</h1>
+    <p class="lede">One read-only reference document on ArduPilot positioning, navigation and
+      timing, turned into three briefing artifacts &mdash; each matched to an audience that has
+      to act.</p>
+    <!-- The pack's one provenance line. The same four clauses, in the same order
+         and the same words, are the running footer of both slide decks, so a
+         reader who is handed any one of the three artifacts is told where it comes
+         from in identical terms. -->
+    <p class="slide-meta">Source: ArduPilot_PNT_Reference_Audit.pdf &middot; audited HEAD
+      <code>5b67e27b0a</code> &middot; read-only static-analysis catalog &middot; every audit
+      figure as stated</p>
+    <div class="accent-bar"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">What was delivered</p>
+    <h2>Three artifacts, one unchanged source</h2>
+    <p class="lede">The audit was already finished and scored. This engagement built the
+      communication layer over it &mdash; nothing was re-analysed.</p>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="layers" aria-hidden="true"></i></div>
+        <div class="kpi-value">3</div>
+        <div class="kpi-label">Briefing artifacts</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="users" aria-hidden="true"></i></div>
+        <div class="kpi-value">3</div>
+        <div class="kpi-label">Audiences served</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="file-check" aria-hidden="true"></i></div>
+        <div class="kpi-value">1</div>
+        <div class="kpi-label">Read-only source</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="shield-check" aria-hidden="true"></i></div>
+        <div class="kpi-value">0</div>
+        <div class="kpi-label">Findings altered</div>
+      </div>
+    </div>
+
+    <p class="slide-meta">These four figures describe the pack, not the audit.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">Content architecture</p>
+    <h2>One source, two axes, three artifacts</h2>
+
+    <div class="diagram-frame r-stack">
+      <pre class="mermaid" role="img" aria-describedby="note-architecture"
+        aria-label="Content architecture. The audit of record and its catalogued data both feed
+          a single transcription layer. That layer feeds a severity axis and a category axis, and
+          those two axes together feed the executive brief and the full findings deck. The layer
+          also feeds this presentation directly.">
+flowchart LR
+  accTitle: Content architecture of the briefing pack
+  accDescr: One transcription layer sits between the audited source and the three briefing artifacts.
+  SRC["Audit of record"] --> TL["Transcription layer"]
+  DAT["Catalogued data"] --> TL
+  TL --> SEV["Severity axis"]
+  TL --> CAT["Category axis"]
+  SEV --> BRF["Executive brief"]
+  CAT --> BRF
+  SEV --> FUL["Full findings"]
+  CAT --> FUL
+  TL --> EXP["This presentation"]
+      </pre>
+    </div>
+
+    <p class="slide-meta" id="note-architecture">A single transcription layer feeds all three
+      artifacts, so a figure is defined once and read three times &mdash; the control that keeps
+      the pack consistent.</p>
+  </section>
+
+  <section class="slide-divider">
+    <i data-lucide="clipboard-check" aria-hidden="true"></i>
+    <h2>What Was Done</h2>
+    <p>Scope of work and deliverables</p>
+    <div class="accent-bar"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Scope of work</p>
+    <h2>Each artifact answers to one audience</h2>
+
+    <table>
+      <caption>Deliverables, audiences and organising principles &mdash; the sizes describe the
+        pack, not the audit</caption>
+      <thead>
+        <tr>
+          <th scope="col">Artifact</th>
+          <th scope="col">Audience</th>
+          <th scope="col">Size</th>
+          <th scope="col">Organising principle</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Executive brief</th>
+          <td>Client readership</td>
+          <td>10 slides</td>
+          <td>Themes and patterns, never individual rows</td>
+        </tr>
+        <tr>
+          <th scope="row">Full findings</th>
+          <td>Technical reviewers</td>
+          <td>239 slides</td>
+          <td>Exhaustive: severity first, then category</td>
+        </tr>
+        <tr>
+          <th scope="row">This presentation</th>
+          <td>Non-technical leadership</td>
+          <td>16 slides</td>
+          <td>Business outcomes, no code literacy assumed</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <p class="eyebrow">The source of record</p>
+    <h2>What the pack is built on</h2>
+    <p class="lede">A finished, integrity-verified catalog. Read-only, left byte-identical
+      by this engagement.</p>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="file-search" aria-hidden="true"></i></div>
+        <div class="kpi-value">43</div>
+        <div class="kpi-label">Pages of catalog</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="crosshair" aria-hidden="true"></i></div>
+        <div class="kpi-value">94</div>
+        <div class="kpi-label">Catalogued touch-points</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="list-checks" aria-hidden="true"></i></div>
+        <div class="kpi-value">282</div>
+        <div class="kpi-label">Evidence rows</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon"><i data-lucide="book-open-check" aria-hidden="true"></i></div>
+        <div class="kpi-value">109</div>
+        <div class="kpi-label">Coverage entries</div>
+      </div>
+    </div>
+
+    <p class="slide-meta">63 core and 31 indirect references; 18 catalogued data objects;
+      27 coverage entries are checked absences &mdash; evidence of an exhaustive
+      sweep. Audited HEAD <code>5b67e27b0a</code>.</p>
+  </section>
+
+  <section class="slide-divider">
+    <i data-lucide="target" aria-hidden="true"></i>
+    <h2>Why It Was Done</h2>
+    <p>The business value unlocked</p>
+    <div class="accent-bar"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Business value unlocked</p>
+    <h2>Every audience gets to a decision</h2>
+
+    <div class="diagram-frame r-stack">
+      <pre class="mermaid" role="img" aria-describedby="note-value"
+        aria-label="Business value. Four pairings, each an audience and the decision the pack
+          lets it reach. Integration engineers wire to a named contract. Flight-controls reviewers
+          sign off the seam. Firmware maintainers see coupling before changing it. Leadership
+          judges scope and risk without reading code.">
+flowchart LR
+  accTitle: Each audience and the decision it reaches
+  accDescr: Four audiences, each paired with the one decision the briefing pack lets it make.
+  ENG["Integration engineers"] --> ENGD["Wire to a named contract"]
+  REV["Flight-controls reviewers"] --> REVD["Sign off the seam"]
+  MNT["Firmware maintainers"] --> MNTD["See coupling before changing it"]
+  LED["Leadership"] --> LEDD["Judge scope and risk without code"]
+      </pre>
+    </div>
+
+    <p class="slide-meta" id="note-value">The catalog holds the complete evidence at one technical
+      depth. The pack adds an entry route per audience, so each reader starts at the depth their
+      decision needs.</p>
+  </section>
+
+  <section class="slide-divider">
+    <i data-lucide="git-compare" aria-hidden="true"></i>
+    <h2>What Changed</h2>
+    <p>The content architecture, before and after</p>
+    <div class="accent-bar"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Before and after</p>
+    <h2>From one document to three</h2>
+
+    <div class="diagram-frame r-stack">
+      <pre class="mermaid" role="img" aria-describedby="note-beforeafter"
+        aria-label="Before and after. Before, one dense catalog held the complete evidence at a
+          single technical depth. After, that same evidence is reached by three routes: themes for
+          a client, every row for a reviewer, and outcomes for a leader.">
+flowchart LR
+  accTitle: From one dense catalog to three routes in
+  accDescr: The same complete evidence, previously at one technical depth, now reached three ways.
+  B1["Before: one dense catalog"] --> B2["Complete evidence, one technical depth"]
+  B2 --> AFT["After: three routes in"]
+  AFT --> A1["Themes, for a client"]
+  AFT --> A2["Every row, for a reviewer"]
+  AFT --> A3["Outcomes, for a leader"]
+      </pre>
+    </div>
+
+    <p class="slide-meta" id="note-beforeafter">Nothing was removed from the record. The catalog
+      remains the authoritative source; the pack adds routes into it.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">How the findings are organised</p>
+    <h2>Two axes the audit already owns</h2>
+
+    <div class="diagram-frame r-stack">
+      <pre class="mermaid" role="img" aria-describedby="note-axes"
+        aria-label="Organising axes. Two axes meet at a catalogued row. The category axis is the
+          source table the row sits in. The severity axis is the set of risk markers the audit
+          records, of which a row may carry none, one or several. From the row, the three pillars
+          follow: positioning, navigation and timing.">
+flowchart TB
+  accTitle: The two organising axes the audit already owns
+  accDescr: A category axis and a severity axis meet at a catalogued row; the risk markers are optional.
+  CAT["Category: the source table a row sits in"] --> ROW["A catalogued row"]
+  SEV["Severity: risk markers, none, one or several"] --> ROW
+  ROW --> P["Positioning"]
+  ROW --> N["Navigation"]
+  ROW --> T["Timing"]
+      </pre>
+    </div>
+
+    <p class="slide-meta" id="note-axes">The audit defines no numeric severity scale, so none was
+      invented. A row may carry several risk markers or none, and a touch-point spanning pillars
+      is listed under each. Both axes belong to the audit.</p>
+  </section>
+
+  <section class="slide-divider">
+    <i data-lucide="shield-alert" aria-hidden="true"></i>
+    <h2>Risks and Mitigations</h2>
+    <p>What could go wrong with the pack, and what prevents it</p>
+    <div class="accent-bar"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Risks and controls</p>
+    <h2>Fidelity is enforced, not trusted</h2>
+
+    <table>
+      <caption>Each content-fidelity risk and the control that closes it</caption>
+      <thead>
+        <tr>
+          <th scope="col">Risk to the pack</th>
+          <th scope="col">Control in place</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">A figure gets recomputed and differs</th>
+          <td>Quote, never recompute &mdash; audit figures print exactly as stated, and figures
+            about the pack are labelled as such</td>
+        </tr>
+        <tr>
+          <th scope="row">A copied reference gets mangled</th>
+          <td>Identifiers taken from the catalogued data, not from extracted text</td>
+        </tr>
+        <tr>
+          <th scope="row">A finding gets dropped</th>
+          <td>A completeness check gates the exhaustive deck and prints its own reconciliation</td>
+        </tr>
+        <tr>
+          <th scope="row">The brief outgrows its cap</th>
+          <td>A slide-count check refuses to save the brief above ten slides</td>
+        </tr>
+        <tr>
+          <th scope="row">The source gets altered</th>
+          <td>The source document is fingerprinted before and after, and left unchanged</td>
+        </tr>
+        <tr>
+          <th scope="row">Visuals fail without a network</th>
+          <td>Guarded start-up and system font fallbacks keep this deck readable offline</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="slide-divider">
+    <i data-lucide="route" aria-hidden="true"></i>
+    <h2>Onboarding and Continuity</h2>
+    <p>How to use the pack, and how to extend it</p>
+    <div class="accent-bar"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Using and extending the pack</p>
+    <h2>Pick the artifact, then extend in place</h2>
+
+    <div class="icon-row">
+      <div><i data-lucide="users" aria-hidden="true"></i><span>Brief a client</span></div>
+      <div><i data-lucide="table-2" aria-hidden="true"></i><span>Check a finding</span></div>
+      <div><i data-lucide="presentation" aria-hidden="true"></i><span>Update leadership</span></div>
+      <div><i data-lucide="git-compare" aria-hidden="true"></i><span>Refresh the pack</span></div>
+    </div>
+
+    <table>
+      <caption>Which artifact to open, and where it grows</caption>
+      <thead>
+        <tr>
+          <th scope="col">Need</th>
+          <th scope="col">Start here</th>
+          <th scope="col">Where it extends</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Brief a client</th>
+          <td>Executive brief</td>
+          <td>Add a theme, keeping inside the ten-slide cap</td>
+        </tr>
+        <tr>
+          <th scope="row">Check a finding</th>
+          <td>Full findings</td>
+          <td>Extend the matching category block</td>
+        </tr>
+        <tr>
+          <th scope="row">Update leadership</th>
+          <td>This presentation</td>
+          <td>Add a content slide behind an existing divider</td>
+        </tr>
+        <tr>
+          <th scope="row">Refresh the pack</th>
+          <td>The reissued catalog</td>
+          <td>Rebuild all three artifacts from the new source</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="slide-meta">If the catalog is ever reissued, the pack is refreshed from the new
+      source rather than edited in place &mdash; each artifact states the audited baseline it
+      describes on its own face.</p>
+  </section>
+
+  <section class="slide-closing">
+    <i data-lucide="circle-check" aria-hidden="true"></i>
+    <p class="eyebrow">Key takeaway</p>
+    <h2>One audit, three audiences served</h2>
+    <ul>
+      <li>The catalog is unchanged and remains the authoritative record.</li>
+      <li>Every audience now has an artifact pitched at its own decision.</li>
+      <li>Next: choose an artifact, brief its audience, and extend it in place.</li>
+    </ul>
+    <div class="brand-lockup">
+      <span class="lockup-rule" aria-hidden="true"></span>
+      <span>Blitzy</span>
+    </div>
+    <div class="accent-bar"></div>
+  </section>
+
+</div>
+</div>
+</main>
+
+<!--
+  Pinned library versions, fetched from a content-delivery network at view time;
+  nothing is installed, vendored, bundled or committed alongside this file.
+
+  Only the first is required to read the deck, so it is fetched the ordinary
+  blocking way and the start-up block runs the moment it has executed. The other
+  two are enhancement, and together much the larger download, so they are fetched
+  asynchronously and cannot delay the deck becoming navigable; each carries a
+  marker attribute so the start-up block can watch for its arrival or its failure
+  by name. All three state the digest of the bytes they expect, so a host that
+  answers with different bytes has its answer discarded before a single statement
+  of it runs — which reads to the watcher as a failed request, the same path an
+  unreachable network takes.
+
+  ADVISORY STANDING OF THE PINNED DRAWING LIBRARY — recorded here, on the artifact
+  itself, because this deck is the only place it can be recorded: the briefing pack
+  is three presentations and no fourth document.
+
+  Six published advisories apply to the drawing library at the version pinned
+  above: GHSA-8gwm-58g9-j8pw (CVE-2025-54880) and GHSA-7rqq-prvp-x9jh
+  (CVE-2025-54881), first fixed in 11.10.0; and GHSA-xcj9-5m2h-648r
+  (CVE-2026-41148), GHSA-ghcm-xqfw-q4vr (CVE-2026-41149), GHSA-6m6c-36f7-fhxh
+  (CVE-2026-41150) and GHSA-87f9-hvmw-gh4p (CVE-2026-41159), first fixed in
+  11.15.0. A further nineteen apply to the markup sanitiser the bundle carries
+  inside it at 3.1.6 — fifteen moderate and four low — whose highest first-fixed
+  version is 3.4.12, which no release of the drawing library yet carries. Every one
+  of the twenty-five is graded moderate or low; none is high or critical.
+
+  Two of those facts are worth stating plainly. The sanitiser is not a request of
+  its own and appears in no list of this deck's dependencies — it was found by
+  reading the bundle's bytes — so a review that reads only the tags below will
+  under-count the surface. And because no release carries a sanitiser new enough,
+  moving the pin forward would not close the sanitiser's nineteen; only declining
+  to use the library at all would, and this deck's specification requires it.
+
+  The pin is not this deck's to move: the specification that governs this artifact
+  fixes these three versions and states they are not upgraded even though newer
+  releases exist. The version therefore stands, and the exposure is carried by
+  construction rather than by version:
+
+    - Only a definition written entirely in the four line forms of this deck's own
+      grammar is drawn, and every one of the six advisory grammars is unwritable in
+      it — the sequence, architecture, state and gantt diagram types need their own
+      keyword in place of the flow header; a style override needs a brace and a
+      colour literal; a configuration directive needs %% and braces; a formula
+      needs dollars and a backslash.
+    - Labels are drawn as glyphs rather than as markup, at both settings that
+      decide it, which removes the construction path the label-injection advisories
+      need; and the only markup the bundled sanitiser is ever handed is markup the
+      library itself produced from one of the four accepted definitions, never
+      anything a reader or a payload supplied.
+    - The protected-key list below refuses any later change to the settings that
+      carry style, so the advisory that injects style through a setting is refused
+      by the library's own mechanism as well as by the grammar.
+    - Nothing a reader supplies ever reaches the library: the deck is a static file
+      holding four author-written definitions, and there is no input of any kind.
+    - The delivery policy at the top of this file grants no outward allowance and
+      no script of its own beyond one measured block, so a payload that somehow
+      drew could still neither run nor send anything.
+
+  What remains, and is owned rather than argued away: a digest proves the bytes are
+  the bytes that were published, not that what was published is sound, so a
+  maliciously published release upstream is not detectable from here. That is
+  inherent to using a library one does not build.
+-->
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"
+  integrity="sha384-M/JtqCVlLcK9lwVnBnMXP0V577CBULkjodKsR/PITOe4MSKNbbwqCemEyluOw0+5"
+  crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js" async data-optional-library="mermaid"
+  integrity="sha384-Wm9qzEgq4j1jEnuFK2FxKTlwuhbV2QqtGhcchvjDoKxeJ7WWAW7fysBq+1s6myfX"
+  crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js" async data-optional-library="lucide"
+  integrity="sha384-ieG+IKD0d/ZPXyCBTMVAbqsQdns8QGJR/e26WMw7M4fkaI/rHcS/YIoi+ah9WGge"
+  crossorigin="anonymous"></script>
+
+<script>
+  /* The order below is deliberate and fixed: the presentation runtime is started
+     first, the diagram library's theming is defined second, the hydration routine
+     third, and the runtime's lifecycle events wired last.
+
+     The runtime is started first and the two enhancement libraries are fetched
+     asynchronously, so neither can stand between the reader and a navigable deck;
+     whichever arrives is picked up by the watcher near the end of this block.
+     Calls into them are guarded twice, by an existence check and a try/catch, so
+     an unreachable content-delivery network costs the visuals but never the
+     ability to navigate. Starting the runtime is treated differently, because a
+     runtime that cannot start is a real failure rather than a missing
+     embellishment: the failure is RE-RAISED on its own task so the browser
+     reports it, while the reader is still left a readable document.
+
+     The address the deck is opened at is an INPUT, not decoration: the runtime
+     reads parameters out of it as configuration and gives them precedence over
+     the settings it is handed. Two controls follow from that, both below — the
+     address is filtered before the runtime can read it, and the two settings that
+     decide whether another window may drive this one are re-asserted after the
+     runtime has finished merging the address. */
+  (function () {
+    'use strict';
+
+    var hasRuntime = typeof Reveal !== 'undefined';
+
+    /* Whether it went on to start. Arriving and starting are different
+       questions — an address can be crafted to make the start-up call itself
+       fail — and every branch downstream has to follow the same answer. */
+    var runtimeStarted = false;
+
+    /* The wait for the diagram library, declared on the document so the
+       stylesheet can keep an undrawn diagram's source text out of paint for
+       exactly as long as a drawing is still expected.
+
+       It is added HERE, from script, rather than written into the markup: a
+       document whose script never runs is a document where nothing will ever be
+       drawn, and it must fall back to showing the definitions rather than hiding
+       them. Adding the marker from the same block that removes it makes that the
+       default — no script, no marker, no hiding.
+
+       The cap is the last of the four release paths and the only one that does not
+       depend on the library reporting anything. A request that neither succeeds
+       nor fails leaves the other three waiting forever, so the wait is bounded and
+       the fallback appears; the figure is well past this deck's own cold-load cost
+       on a slow connection, so it cannot pre-empt a library that is merely late. */
+    var DIAGRAM_WAIT_CAP_MS = 12000;
+    var diagramWaitReleased = false;
+
+    function releaseDiagramWait() {
+      if (diagramWaitReleased) { return; }
+      diagramWaitReleased = true;
+      try {
+        document.documentElement.classList.remove('diagrams-awaited');
+      } catch (e) { }
+    }
+
+    try {
+      document.documentElement.classList.add('diagrams-awaited');
+      window.setTimeout(releaseDiagramWait, DIAGRAM_WAIT_CAP_MS);
+    } catch (e) {
+      /* A browser that cannot hold the marker never hid anything, so there is
+         nothing to release and the deck behaves as it did before the marker
+         existed: the definition is painted until a drawing replaces it. */
+      diagramWaitReleased = true;
+    }
+
+    /* The only parameter this deck honours in its own address: the runtime's
+       print flag, which carries no value and so is not configuration at all.
+       Every other parameter is removed before the runtime reads the address,
+       because the runtime treats a parameter as a setting and lets it outrank
+       the settings below. */
+    var ADDRESS_PARAMETERS_KEPT = ['print-pdf'];
+
+    function filterAddressConfiguration() {
+      var search = window.location.search;
+      if (!search || search === '?') { return; }
+
+      var kept = search.slice(1).split('&').filter(function (parameter) {
+        return parameter !== '' &&
+          ADDRESS_PARAMETERS_KEPT.indexOf(parameter.split('=')[0]) !== -1;
+      });
+      var filtered = kept.length ? '?' + kept.join('&') : '';
+      if (filtered === search) { return; }
+
+      try {
+        window.history.replaceState(null, '',
+          window.location.pathname + filtered + window.location.hash);
+      } catch (error) {
+        /* Some browsers refuse to rewrite the address of a local file. Nothing
+           is forced here: the address is left as it was and the two controls
+           that do not depend on it — the re-assertion below and the failure
+           handler around it — carry the weight instead. */
+      }
+    }
+
+    if (hasRuntime) {
+      filterAddressConfiguration();
+
+      try {
+        Reveal.initialize({
+          hash: true,
+          transition: 'slide',
+          controlsTutorial: false,
+          width: 1920,
+          height: 1080,
+
+          /* The runtime dims a usable back arrow by default, on the reasoning
+             that forward is the direction a deck is read in. Dimmed, it holds
+             three tenths of its opacity, which leaves the glyph separated from a
+             light slide by less than two to one -- below the ratio a control a
+             reader is meant to find has to meet, and the deck restores full
+             opacity only once the arrow is focused, which a reader has to find it
+             to do. Asked to stay visible, the arrow is drawn at full strength
+             whenever it can actually be used, and the runtime still hides it
+             outright on the first slide, where there is nothing behind to go to. */
+          controlsBackArrows: 'visible',
+
+          /* Declining the runtime's narrow-window reading mode, which it would
+             otherwise switch itself into below a width of its own choosing.
+
+             That mode is a different presentation: it replaces the staged deck
+             with a scrolling page per slide, and in doing so it stops writing the
+             address, hides the on-screen controls and the progress bar, replaces
+             the slide transitions with scroll snapping, and leaves its own
+             go-to-slide call unable to find a slide to go to. Every one of those
+             is a property this deck is specified to have at any width — a slide
+             has to remain shareable as a link, and the fixed stage is what makes
+             one file legible from a phone to a projector. A width of zero can
+             never be reached, so the mode never activates and the specified
+             behaviour is the only behaviour.
+
+             It is set here rather than after start-up because the runtime decides
+             on the mode while it lays out, which happens inside this call. The
+             address cannot reintroduce it: every parameter but the print flag is
+             stripped before the runtime reads it. */
+          scrollActivationWidth: 0
+        });
+
+        /* Two settings the runtime defaults to values a published deck must
+           not ship with, turned off here rather than added to the seven above.
+
+           Left alone, the runtime answers instructions sent from any other
+           window that can reach this one, and one of the instructions it accepts
+           is its own start-up call, which takes a list of further scripts to
+           fetch and run. Both directions of the channel are closed; the deck
+           needs neither, because it is opened directly and driven by the reader.
+
+           The placement is the control, not a stylistic choice. Named among the
+           seven settings above, these would be overridden by anyone who put the
+           same names in the address, since the runtime gives the address the last
+           word. Asserted HERE — synchronously, the instant the start-up call
+           returns — they land after that merge, and before the runtime reaches
+           the deferred task on which it would create the cross-window listener. */
+        Reveal.configure({ postMessage: false, postMessageEvents: false });
+
+        runtimeStarted = true;
+      } catch (error) {
+        /* Reached when the runtime is present but throws while starting, which a
+           crafted address can provoke by naming a setting it expects to be a
+           list. Recording that it did not start is left to the check that follows
+           this block, because a runtime that never arrived needs the same
+           treatment and never reaches a catch.
+
+           What belongs here is the failure itself, re-raised on its own task
+           rather than swallowed, so the browser reports it as an uncaught
+           start-up failure and a genuine defect stays visible instead of hiding
+           behind a page that merely looks plain. Execution continues to the
+           no-runtime branch at the end of this block, which hydrates what it can
+           so the readable page keeps its drawings and icons. */
+        runtimeStarted = false;
+        window.setTimeout(function () { throw error; }, 0);
+      }
+    }
+
+    /* Marked on every path where the runtime is not in charge, not only where it
+       threw. The runtime arrives as two separate members of its package, a
+       stylesheet and a script, each fetched and checked on its own, so the
+       stylesheet can apply while the script does not — and in that case the
+       stylesheet has taken every slide out of normal flow and stacked them at a
+       single spot with nothing left running to page through them. Nothing throws
+       on that path, so keying the marker on the failure handler alone would leave
+       exactly that case unmarked. Where neither member arrives the marker costs
+       nothing, since the slides were never moved out of flow. */
+    if (!runtimeStarted) {
+      document.documentElement.classList.add('runtime-unstarted');
+    }
+
+    function tokenValue(name) {
+      try {
+        return getComputedStyle(document.documentElement)
+          .getPropertyValue(name).trim();
+      } catch (e) {
+        return '';
+      }
+    }
+
+    /* Diagram theming. Automatic start is DISABLED: the library measures live
+       geometry, and a diagram measured on an unlaid-out slide collapses, so
+       nothing may render before the deck has been laid out. The five theme
+       variables are the mandated ones.
+
+       HTML labels are turned off, and at BOTH the top level and under the
+       flowchart key. With them on, the library measures each label with a
+       viewport-relative call that returns lengths already multiplied by the
+       runtime's slide scale, then writes those numbers back as unscaled
+       coordinates — so every label box comes out a few percent too narrow and
+       clips its text. The routine that draws a node reads the TOP-LEVEL setting,
+       which carries no default, so setting only the flowchart key looks correct
+       and silently does nothing. The width cap is off for a related reason: it
+       pins the drawing to the pixel width it was measured at, roughly half the
+       width available on this stage.
+
+       Theming lives in a routine rather than running inline because the library
+       is fetched asynchronously and may land after this block has finished; the
+       watcher calls it the instant the library is there, and before anything is
+       drawn, so the deck's own theme is always the one in force.
+
+       Two of these settings are the reason drawing is safe at all — the strict
+       security level, and labels drawn as glyphs rather than as markup, the
+       library's own default for flowchart labels being MARKUP. A settings call
+       that throws part-way through would therefore leave the deck building labels
+       as markup and passing them through the library's bundled sanitiser, which
+       is exactly the machinery this deck declines to depend on. The latch below
+       records whether the settings landed, and nothing is drawn unless they did.
+
+       The protected-key list is the library's own mechanism for refusing later
+       changes to named settings, and naming the list replaces the library's own,
+       so its first six entries are that default restated rather than silently
+       dropped. Seven are additions. Two keep the label mode and the sanitiser
+       options from being relaxed afterwards. The other five are every setting that
+       carries style — the two font families, the raw stylesheet hook, the theme and
+       its variables — which is the route one of the published advisories against
+       this pinned version takes; naming them has the library refuse that route at
+       its own gate rather than leaving the grammar check below to carry it alone.
+       Listing a setting costs this deck nothing: the list governs changes made
+       after the settings call, not the call itself.
+
+       Three settings the list has always named are now also given values. The two
+       size bounds close the one exposure a grammar can never close: a chain of
+       plain arrows is written in the accepted grammar however long it runs, so a
+       definition of a hundred thousand nodes would satisfy the check and then cost
+       a reader's browser everything it has. Both bounds are the deck's own, applied
+       by the check itself before the library is called and restated here so the
+       library holds the same two numbers as a second line; both sit an order of
+       magnitude above this deck's largest drawing, so neither can reach a
+       legitimate one. Restating them matters for a reason worth writing down: over
+       the character bound the library does not decline to draw, it swaps the
+       definition for a small drawing of its own that says the bound was passed —
+       which is why the bound has to be applied before it, where a definition that
+       fails one is simply not drawn. The third setting turns off the library's
+       error drawing, so a definition it rejects for any other reason keeps its
+       authored text rather than being replaced by a graphic. */
+    var diagramsConfigured = false;
+
+    /* The bounds named above. One definition of each number, read both by the check
+       that admits a definition and by the settings handed to the library, so the two
+       cannot drift apart. This deck's largest drawing is four hundred and forty-one
+       characters and nine arrows. */
+    var MAX_DIAGRAM_DEFINITION_CHARS = 4000;
+    var MAX_DIAGRAM_ARROWS = 64;
+
+    /* Stop the library starting itself, as a step of its own that runs before any
+       other setting is touched.
+
+       The library registers a page-load handler when it executes, and that
+       handler draws every diagram in the document on its own terms unless
+       automatic start has been turned off by then — with the very label mode the
+       note above explains this deck must not use, replacing each authored
+       definition with its own drawing in the process. Carrying the setting inside
+       the main settings call below is not enough: should that call be rejected,
+       the setting never lands and the handler still runs.
+
+       Its handler tests two things and needs both, a property on the library
+       object and the same-named setting in its resolved configuration, so both
+       are turned off in order of how little can go wrong: the property first, as
+       a plain assignment with no settings machinery in it to reject, then the
+       setting in an attempt of its own. The result is read back rather than
+       assumed; where neither reads as off, the diagram elements are sealed. */
+    function autoStartHalted() {
+      try {
+        if (mermaid.startOnLoad === false) { return true; }
+        if (mermaid.mermaidAPI && typeof mermaid.mermaidAPI.getConfig === 'function') {
+          return mermaid.mermaidAPI.getConfig().startOnLoad === false;
+        }
+      } catch (e) { }
+      return false;
+    }
+
+    function haltDiagramAutoStart() {
+      try { mermaid.startOnLoad = false; } catch (e) { }
+      try { mermaid.initialize({ startOnLoad: false }); } catch (e) { }
+      return autoStartHalted();
+    }
+
+    /* Last resort, for the case where automatic start could not be confirmed off:
+       mark every diagram element as already drawn. The library's drawing loop
+       skips an element carrying that mark, and this deck's own selection excludes
+       the same mark, so both routes are closed at once. The second mark records
+       why, for anyone reading the page afterwards. */
+    function sealDiagramsFromLibrary() {
+      try {
+        var sealed = document.querySelectorAll('pre.mermaid');
+        for (var i = 0; i < sealed.length; i += 1) {
+          sealed[i].setAttribute('data-processed', 'true');
+          sealed[i].setAttribute('data-diagram-sealed', '');
+        }
+      } catch (e) { }
+    }
+
+    function reportDiagramFailure(error) {
+      try {
+        if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+          console.warn('Diagrams disabled: the safe drawing settings could not be applied.', error);
+        }
+      } catch (e) { }
+    }
+
+    function configureDiagrams() {
+      diagramsConfigured = false;
+      if (typeof mermaid === 'undefined' || typeof mermaid.initialize !== 'function') { return; }
+      if (!haltDiagramAutoStart()) {
+        sealDiagramsFromLibrary();
+        reportDiagramFailure(new Error('Automatic diagram rendering could not be turned off.'));
+        /* Nothing will be drawn from here on, so the wait for a drawing is over
+           and the definitions are the content again. */
+        releaseDiagramWait();
+        return;
+      }
+      try {
+        var diagramFont = tokenValue('--ff-body');
+        /*
+          The drawing library is configured in script rather than in style, so its
+          five colours cannot be written as token references the way every colour
+          in the stylesheet is -- they have to be handed over as strings. Reading
+          them back off the document first is what keeps them tokens anyway: each
+          of the five is the value the design system already declares for the role
+          the library uses it in, so the palette has exactly one definition and the
+          drawings inherit it instead of restating it.
+
+          One of the five matters beyond tidiness. The muted grey is the token the
+          system assigns to its quietest material, and the drawings' connecting
+          lines are the only place in this deck where quiet is the right amount of
+          emphasis: on running text that same grey would fall short of the contrast
+          text has to meet, and it is deliberately not used there. A line is not
+          text, so it is the one surface where the token can be both applied and
+          appropriate -- which is where it now comes from.
+
+          The literals stay as fallbacks, and they are not duplicates of the tokens
+          so much as the specification's own values written out: should a reader's
+          browser not report custom properties back, the drawings are still drawn
+          in the specified palette rather than in the library's defaults.
+        */
+        var diagramNodeFill = tokenValue('--blitzy-surface-2') || '#F2F0FE';
+        var diagramNodeText = tokenValue('--blitzy-text') || '#333333';
+        var diagramNodeEdge = tokenValue('--blitzy-primary') || '#5B39F3';
+        var diagramLine = tokenValue('--blitzy-text-muted') || '#999999';
+        var diagramNodeAlt = tokenValue('--blitzy-surface-1') || '#F4EFF6';
+        var mermaidConfig = {
+          startOnLoad: false,
+          theme: 'base',
+          securityLevel: 'strict',
+          htmlLabels: false,
+          maxTextSize: MAX_DIAGRAM_DEFINITION_CHARS,
+          maxEdges: MAX_DIAGRAM_ARROWS,
+          suppressErrorRendering: true,
+          flowchart: { htmlLabels: false, useMaxWidth: false },
+          secure: [
+            'secure', 'securityLevel', 'startOnLoad', 'maxTextSize',
+            'suppressErrorRendering', 'maxEdges', 'htmlLabels', 'dompurifyConfig',
+            'fontFamily', 'altFontFamily', 'themeCSS', 'theme', 'themeVariables'
+          ],
+          themeVariables: {
+            primaryColor: diagramNodeFill,
+            primaryTextColor: diagramNodeText,
+            primaryBorderColor: diagramNodeEdge,
+            lineColor: diagramLine,
+            secondaryColor: diagramNodeAlt
+          }
+        };
+        if (diagramFont) {
+          mermaidConfig.fontFamily = diagramFont;
+        }
+        mermaid.initialize(mermaidConfig);
+        diagramsConfigured = true;
+      } catch (e) {
+        /* Left unset deliberately. Per the note above, a library holding its own
+           defaults would build labels as markup, so the deck draws nothing at all
+           rather than drawing them that way. Sealing the elements records that
+           settled state in the page itself, where it can be read back. */
+        sealDiagramsFromLibrary();
+        reportDiagramFailure(e);
+        releaseDiagramWait();
+      }
+    }
+
+    /* Whether the runtime is showing the whole deck at once rather than one slide.
+
+       Two of its modes do that, and both of them are reachable without the deck
+       ever changing slide: the export layout, which stacks every slide into one
+       long document so a reader can print it, and the overview, which zooms out
+       to a grid of thumbnails. The slide-change event is what drives rendering
+       slide by slide, and in these two modes it does not arrive — the export
+       layout never fires one, and a reader who presses the overview key on the
+       title slide has not moved off it. A pass scoped to one slide therefore
+       leaves every diagram elsewhere in the deck holding its authored text, in a
+       mode where the reader can see all of them at once.
+
+       The runtime is asked first, because it knows its own mode. The class it
+       writes on the document for the export layout is read as a fallback so the
+       answer still holds if that call is ever absent. */
+    function printViewShown() {
+      try {
+        if (typeof Reveal !== 'undefined' && typeof Reveal.isPrintView === 'function') {
+          return Reveal.isPrintView();
+        }
+      } catch (e) { }
+      try {
+        return document.documentElement.classList.contains('print-pdf');
+      } catch (e) { }
+      return false;
+    }
+
+    function overviewShown() {
+      try {
+        if (typeof Reveal !== 'undefined' && typeof Reveal.isOverview === 'function') {
+          return Reveal.isOverview();
+        }
+      } catch (e) { }
+      return false;
+    }
+
+    function wholeDeckShown() {
+      return printViewShown() || overviewShown();
+    }
+
+    /* Where a pass looks for work: the whole document in the two modes above, one
+       slide otherwise. One slide is the right answer in ordinary reading because
+       the runtime keeps the others out of layout, and a diagram measured where
+       there is no box to measure in comes back the size of nothing. */
+    function currentScope() {
+      if (wholeDeckShown()) { return document; }
+      if (typeof Reveal !== 'undefined' && typeof Reveal.getCurrentSlide === 'function') {
+        return Reveal.getCurrentSlide() || document;
+      }
+      return document;
+    }
+
+    /* Put the slide a block sits on into layout before a document-wide pass.
+
+       In the overview the runtime keeps slides beyond a window around the current
+       one out of layout entirely, so a diagram on one of those has no box and
+       would come back collapsed. Loading is the runtime's own published way of
+       giving a slide its box — it is what the runtime does itself when a reader
+       arrives at one — so the pass borrows it rather than reaching past the
+       runtime to move slides around. A block whose slide cannot be resolved, or a
+       runtime without the call, is left to the recovery path below. */
+    function ensureLaidOut(block) {
+      try {
+        if (typeof Reveal === 'undefined' || typeof Reveal.loadSlide !== 'function') { return; }
+        var slide = typeof block.closest === 'function' ? block.closest('section') : null;
+        if (slide) { Reveal.loadSlide(slide); }
+      } catch (e) { }
+    }
+
+    function pendingDiagrams(scope) {
+      return Array.prototype.slice.call(
+        scope.querySelectorAll('pre.mermaid:not([data-processed]):not([data-diagram-refused])')
+      );
+    }
+
+    /* The authored definition is stashed before rendering, because rendering
+       replaces the element's own text with the finished drawing. */
+    function stashSource(block) {
+      if (!block.hasAttribute('data-mermaid-source')) {
+        block.setAttribute('data-mermaid-source', block.textContent.trim());
+      }
+    }
+
+    /*
+      The four diagrams in this deck are fixed, authored text. They are not
+      supplied by a reader, fetched from anywhere, or assembled at run time, so
+      their shape is knowable in advance — and a definition whose shape is
+      knowable in advance does not need to be handed to a general-purpose parser
+      on trust.
+
+      Each definition is therefore checked line by line against the small grammar
+      the four of them are written in, and only a definition made entirely of
+      those line forms, and no larger than the two bounds declared above, is drawn.
+      Four forms are accepted and nothing else: a blank line; the flow-direction
+      header, which a definition must contain to be accepted at all; an accessible
+      title or description; and a chain of plain node references, each optionally
+      carrying a quoted label, joined by plain arrows.
+
+      The label and caption character class is deliberately narrow, admitting none
+      of < > & % { } $ # = / \ ` | ! ? * + [ ] and no bare quote. A configuration
+      directive needs %% and braces; a clickable link needs the click keyword; a
+      markup label needs angle brackets; front matter needs three dashes; a
+      formula needs dollars and a backslash; a style override needs a brace and a
+      colour literal; any other diagram type needs its own keyword in place of the
+      header. Every one of those is unwritable in this grammar, so the parser
+      paths that read them — including the markup-sanitising, front-matter and
+      formula paths the library carries bundled dependencies for — are unreachable
+      from this deck's content by construction.
+
+      A refused definition is not drawn and not repaired. Its own text stays on
+      the slide, because authored diagram text still says what the diagram says.
+    */
+    var AUTHORED_DIAGRAM_LINE_FORMS = [
+      /^[ \t]*$/,
+      /^[ \t]*flowchart[ \t]+(?:LR|RL|TB|TD|BT)[ \t]*$/,
+      /^[ \t]*acc(?:Title|Descr):[ \t]*[A-Za-z0-9 ,.:;'()-]+$/,
+      /^[ \t]*[A-Za-z][A-Za-z0-9]*(?:\["[A-Za-z0-9 ,.:;'()-]+"\])?(?:[ \t]*-->[ \t]*[A-Za-z][A-Za-z0-9]*(?:\["[A-Za-z0-9 ,.:;'()-]+"\])?)*[ \t]*$/
+    ];
+
+    /* Index of the flow-direction header within the table above. A definition
+       without it declares no diagram type and is therefore not one of ours. */
+    var DIAGRAM_HEADER_FORM = 1;
+
+    function isAuthoredDiagramForm(definition) {
+      if (typeof definition !== 'string' || !definition) { return false; }
+      /* Size first, because the line forms below say nothing about how many times
+         they may repeat: a chain of plain arrows is written in this grammar however
+         long it runs. Both bounds are the ones the library is handed as well, and
+         both are checked here so a definition over either is never drawn at all. */
+      if (definition.length > MAX_DIAGRAM_DEFINITION_CHARS) { return false; }
+      if (definition.split('-->').length - 1 > MAX_DIAGRAM_ARROWS) { return false; }
+      var lines = definition.split(/\r?\n/);
+      var declaresDiagram = false;
+      for (var i = 0; i < lines.length; i += 1) {
+        var matched = -1;
+        for (var form = 0; form < AUTHORED_DIAGRAM_LINE_FORMS.length; form += 1) {
+          if (AUTHORED_DIAGRAM_LINE_FORMS[form].test(lines[i])) { matched = form; break; }
+        }
+        if (matched < 0) { return false; }
+        if (matched === DIAGRAM_HEADER_FORM) { declaresDiagram = true; }
+      }
+      return declaresDiagram;
+    }
+
+    function acceptedDiagrams(blocks) {
+      return blocks.filter(function (block) {
+        if (isAuthoredDiagramForm(block.getAttribute('data-mermaid-source'))) { return true; }
+        block.setAttribute('data-diagram-refused', '');
+        return false;
+      });
+    }
+
+    /*
+      A drawing laid out with no box to lay it out in comes back the size of
+      nothing. The library still produces an element, still gives it a view box,
+      and still marks the block done — the element is simply a couple of dozen
+      units across instead of several hundred. Nothing about it announces the
+      failure, so asking whether a drawing exists is the wrong question; the
+      question is how big it is.
+
+      The floor sits far below every drawing this deck holds — the smallest is over
+      five hundred units wide and over two hundred and sixty tall — and far above a
+      collapsed one, so the two cannot be mistaken for each other. Both extents
+      have to fall under it before a drawing is called collapsed, which is what
+      keeps a legitimately small drawing safe, and a drawing carrying no view box
+      at all is left alone: a missing measurement is not evidence of a small one. A
+      view box that measures zero or less is the exception, because zero is not an
+      ambiguous size.
+    */
+    var MIN_DRAWING_EXTENT_PX = 32;
+
+    function drawingCollapsed(drawing) {
+      if (!drawing || typeof drawing.getAttribute !== 'function') { return false; }
+      var box = drawing.getAttribute('viewBox');
+      if (!box) { return false; }
+      var extents = box.split(/[\s,]+/).filter(function (part) { return part !== ''; });
+      if (extents.length < 4) { return false; }
+      var width = parseFloat(extents[2]);
+      var height = parseFloat(extents[3]);
+      if (!isFinite(width) || !isFinite(height)) { return false; }
+      if (width <= 0 || height <= 0) { return true; }
+      return width < MIN_DRAWING_EXTENT_PX && height < MIN_DRAWING_EXTENT_PX;
+    }
+
+    /*
+      A drawing made while the overview is open is measured at thumbnail scale. The
+      runtime shrinks the whole deck to fit a grid of tiles, and the library records
+      each label's advance from a measurement taken in viewport terms, so inside the
+      grid the advances it writes down are reduced by that scale. On the tile this
+      is invisible and in fact correct — the tile really is that size — but the
+      drawing outlives the grid: on the full-size slide the label boxes are full
+      size while the advances stay reduced, which reads as compressed, mis-set text.
+
+      Such a drawing is therefore marked provisional as it is made, and the mark is
+      honoured the moment the grid closes: the block is returned to its authored
+      definition and drawn again at full size. Redrawing costs nothing, because the
+      definition is stashed before the first attempt, and it is what puts a
+      correctly set diagram on the slide the reader arrives at. The print layout is
+      deliberately not marked: it lays every slide out at its authored size, so a
+      drawing made there is already measured at the size it will be read at.
+    */
+    var PROVISIONAL_DRAWING = 'data-diagram-thumbnail';
+
+    function markProvisionalDrawings(blocks) {
+      blocks.forEach(function (block) {
+        try { block.setAttribute(PROVISIONAL_DRAWING, ''); } catch (e) { }
+      });
+    }
+
+    /* Put the authored text back and clear the done mark, which is what returns a
+       block to the pending set. The provisional mark goes with them: a block in the
+       pending set holds no drawing, provisional or otherwise. Reports whether it
+       could: a block whose source was never stashed has nothing to be restored to,
+       and is left as it is. */
+    function restoreDiagram(block) {
+      var source = block.getAttribute('data-mermaid-source');
+      if (!source) { return false; }
+      block.removeAttribute('data-processed');
+      block.removeAttribute(PROVISIONAL_DRAWING);
+      block.textContent = source;
+      return true;
+    }
+
+    /* Called when the overview closes. Every provisional drawing is returned to the
+       pending set, then ALL of them are drawn again in one document-wide pass — not
+       just the one on the slide the reader lands on.
+
+       Redrawing the whole set is what keeps the deck in a settled state: a block
+       left holding its authored definition would be a diagram-shaped piece of text
+       sitting in the document until the reader happened to arrive at its slide, and
+       the pass costs nothing on later closes because a diagram already drawn at
+       full size is never marked provisional and never re-entered into the pending
+       set. Off-screen slides are given their box by the same load call the
+       document-wide pass uses everywhere else, so each drawing is measured at the
+       size it will be read at. */
+    function redrawProvisionalDrawings() {
+      try {
+        var provisional = document.querySelectorAll('pre.mermaid[' + PROVISIONAL_DRAWING + ']');
+        for (var i = 0; i < provisional.length; i += 1) {
+          restoreDiagram(provisional[i]);
+        }
+      } catch (e) { }
+      hydrateScope(document);
+    }
+
+    /*
+      One scale for every drawing.
+
+      A drawing left to fill the width it is given takes whatever scale that width
+      implies for its own proportions, and a label's size on the slide is that
+      scale times the size the library drew it at — so a wide, shallow drawing and
+      a narrow, deep one end up setting the same label a third apart. Laying each
+      drawing out at its authored size times one shared figure removes that
+      coupling: the label size becomes a property of the deck rather than of the
+      diagram's shape.
+
+      The figure is read from the stylesheet rather than written here, so it lives
+      with the other design values and can be reasoned about alongside them. Only
+      the width is written, because a drawing carries its own aspect ratio and
+      takes its height from it — writing one dimension therefore cannot distort
+      it, and the stylesheet's ceilings still apply to anything that would leave
+      its frame. A drawing whose recorded extent cannot be read is left exactly as
+      the stylesheet laid it out.
+    */
+    function drawingScale() {
+      try {
+        var declared = getComputedStyle(document.documentElement)
+          .getPropertyValue('--diagram-scale');
+        var scale = parseFloat(declared);
+        if (isFinite(scale) && scale > 0) { return scale; }
+      } catch (e) { }
+      return 0;
+    }
+
+    function sizeDrawings(blocks) {
+      var scale = drawingScale();
+      if (!scale) { return; }
+      blocks.forEach(function (block) {
+        try {
+          var drawing = block.querySelector('svg');
+          if (!drawing) { return; }
+          var extents = (drawing.getAttribute('viewBox') || '')
+            .split(/[\s,]+/).filter(function (part) { return part !== ''; });
+          if (extents.length < 4) { return; }
+          var width = parseFloat(extents[2]);
+          if (!isFinite(width) || width <= 0) { return; }
+          drawing.style.width = (width * scale) + 'px';
+        } catch (e) { }
+      });
+    }
+
+    /*
+      Called on the drawings this pass just attempted. A block holding no drawing,
+      or holding one that came back collapsed, is restored and unmarked — which
+      returns it to the pending set, so it is drawn again by the next pass that
+      reaches it rather than being left as a collapsed drawing nothing revisits.
+      For a reader that next pass is the slide change that brings the block's slide
+      on screen; in the two whole-deck modes it is the next pass over the document.
+    */
+    function recoverFailedDiagrams(blocks) {
+      blocks.forEach(function (block) {
+        var drawing = block.querySelector('svg');
+        if (drawing && !drawingCollapsed(drawing)) { return; }
+        restoreDiagram(block);
+      });
+    }
+
+    /*
+      The pass above only sees the blocks it attempted, and it runs when the
+      attempt settles. A block can be left collapsed by an attempt whose settling
+      was overtaken — many slide changes arriving inside a single turn of the event
+      loop will do it — and from then on it is invisible to both routes: the done
+      mark keeps it out of the pending set, and no later attempt includes it, so it
+      stays collapsed for the rest of the session while reporting itself finished.
+      That is the one failure that does not heal on the next visit.
+
+      So before anything is selected, the slide's finished drawings are measured,
+      and any that came back collapsed are returned to the pending set — where the
+      selection immediately below picks them up and draws them again, now that the
+      slide has the box it was missing.
+
+      Two marks are honoured rather than measured. A refused block was judged, not
+      drawn, and a sealed one was stopped before drawing began; neither holds a
+      drawing to measure, and neither should be revived by a routine meant for
+      accidents. Requiring a drawing to be present before measuring it says the
+      same thing a second way, so the two guards do not depend on each other.
+    */
+    function reclaimCollapsedDiagrams(scope) {
+      var marked = scope.querySelectorAll(
+        'pre.mermaid[data-processed]:not([data-diagram-refused]):not([data-diagram-sealed])'
+      );
+      for (var i = 0; i < marked.length; i += 1) {
+        var drawing = marked[i].querySelector('svg');
+        if (drawing && drawingCollapsed(drawing)) { restoreDiagram(marked[i]); }
+      }
+    }
+
+    /* Render the pending diagrams within the given scope and hydrate the icons,
+       which are hydrated document-wide whatever the scope because the call that
+       does it takes no scope. */
+    function hydrateScope(scope) {
+      try {
+        if (diagramsConfigured && typeof mermaid !== 'undefined' && typeof mermaid.run === 'function') {
+          reclaimCollapsedDiagrams(scope);
+          var blocks = pendingDiagrams(scope);
+          if (blocks.length) {
+            blocks.forEach(stashSource);
+            if (scope === document) { blocks.forEach(ensureLaidOut); }
+            var drawable = acceptedDiagrams(blocks);
+            if (drawable.length) {
+              if (overviewShown()) { markProvisionalDrawings(drawable); }
+              /* Mandated entry point, scoped to the pending diagrams that have a
+                 slide laid out to be measured in, and to the definitions whose
+                 shape has been checked. */
+              var run = mermaid.run({ nodes: drawable, suppressErrors: true });
+              if (run && typeof run.then === 'function') {
+                run.then(function () {
+                  sizeDrawings(drawable);
+                  recoverFailedDiagrams(drawable);
+                  releaseDiagramWait();
+                }, function () {
+                  sizeDrawings(drawable);
+                  recoverFailedDiagrams(drawable);
+                  releaseDiagramWait();
+                });
+              } else {
+                /* A library that draws without reporting back leaves nothing to
+                   wait on, so the wait ends with the call. */
+                releaseDiagramWait();
+              }
+            }
+          }
+        }
+      } catch (e) {
+        /* Diagrams are enhancement; navigation must survive their failure. */
+      }
+
+      try {
+        if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+          lucide.createIcons();
+        }
+      } catch (e) {
+        /* Icons are enhancement; navigation must survive their failure. */
+      }
+    }
+
+    /* The pass the runtime's lifecycle events drive: whatever is on screen, which
+       is one slide while a reader is reading and the whole deck in the two modes
+       that show it all at once. Written to take no argument, because the runtime
+       hands its handlers an event object and the scope is never that. */
+    function hydrate() {
+      hydrateScope(currentScope());
+    }
+
+    var FONT_SETTLE_TIMEOUT_MS = 1500;
+
+    /* One latch for the whole of start-up, shared by every route that can reach
+       the first render — the fonts-settled callback, its rejection path, the cap
+       that bounds the wait for it, and the no-runtime branch at the end of this
+       block. Holding the latch here rather than inside any one of those routes is
+       what keeps the first render to exactly one, whichever gets there first. */
+    var initialHydrationStarted = false;
+
+    function beginInitialHydration() {
+      if (initialHydrationStarted) { return; }
+      initialHydrationStarted = true;
+      hydrate();
+    }
+
+    /* Label metrics depend on the web fonts having arrived, so where the browser
+       can report on them the first render waits, under a cap: a font load that
+       never settles delays the drawing briefly and then renders with whichever
+       family is available. A browser that cannot report on font loading offers
+       nothing to wait for, so it renders immediately instead. */
+    function hydrateWhenFontsReady() {
+      try {
+        if (document.fonts && document.fonts.ready &&
+            typeof document.fonts.ready.then === 'function') {
+          document.fonts.ready.then(beginInitialHydration, beginInitialHydration);
+          window.setTimeout(beginInitialHydration, FONT_SETTLE_TIMEOUT_MS);
+          return;
+        }
+      } catch (e) {
+      }
+
+      beginInitialHydration();
+    }
+
+    /* How each enhancement library's request ended. The first answer settles it:
+       whichever route reports first is recorded, and any later report for the
+       same library is ignored rather than driving a second theming pass or a
+       second render. */
+    var optionalLibraryState = { mermaid: 'pending', lucide: 'pending' };
+
+    /* One of the two enhancement libraries finished its request.
+
+       On arrival: theme the diagram library if it is the one that landed, then,
+       only if the first render has already happened, run the same hydration
+       routine again so the slide on screen picks the new library up — otherwise
+       the render already on its way will find it in place.
+
+       On failure: record it and stop. Every call into either library is guarded
+       by an existence check and a try/catch, so a library that never arrives
+       costs the deck its drawings or its icons and nothing else. */
+    function optionalLibraryResolved(name, arrived) {
+      if (optionalLibraryState[name] !== 'pending') { return; }
+      optionalLibraryState[name] = arrived ? 'ready' : 'unavailable';
+      if (!arrived) {
+        /* A diagram library that will not arrive is the case the authored
+           definitions exist for, so the wait ends here and they are shown. */
+        if (name === 'mermaid') { releaseDiagramWait(); }
+        return;
+      }
+      if (name === 'mermaid') { configureDiagrams(); }
+      if (initialHydrationStarted) { hydrate(); }
+    }
+
+    /* Because this pass is synchronous it cannot be interrupted, a request
+       cannot settle between the already-executed check and the listeners that
+       follow it, so no arrival and no failure is missed. The markers are read
+       from the markup so the library coordinates stay stated once, in the
+       element that fetches them. */
+    function watchOptionalLibraries() {
+      var tags = document.querySelectorAll('script[data-optional-library]');
+      Array.prototype.forEach.call(tags, function (tag) {
+        var name = tag.getAttribute('data-optional-library');
+        if (!Object.prototype.hasOwnProperty.call(optionalLibraryState, name)) {
+          return;
+        }
+        if (typeof window[name] !== 'undefined') {
+          optionalLibraryResolved(name, true);
+          return;
+        }
+        tag.addEventListener('load', function () {
+          optionalLibraryResolved(name, true);
+        });
+        tag.addEventListener('error', function () {
+          optionalLibraryResolved(name, false);
+        });
+      });
+    }
+
+    watchOptionalLibraries();
+
+    /* The condition is whether the runtime STARTED, not merely whether it
+       arrived: a runtime that threw on start-up never dispatches either event,
+       so handlers wired to it would strand the drawings and icons on a page the
+       reader can otherwise read. That case takes the branch below. */
+    if (runtimeStarted) {
+      Reveal.on('ready', hydrateWhenFontsReady);
+      Reveal.on('slidechanged', hydrate);
+
+      /* The two events that announce a mode showing the whole deck at once. Both
+         are needed because neither is preceded by a slide change: the export
+         layout is entered from the address the deck was opened at, and the
+         overview from a key press that leaves the current slide where it is.
+
+         The export event is the one the runtime fires after it has finished
+         paginating, which is the first moment every slide has the box its
+         diagram has to be measured in — earlier than that there is nothing
+         useful to measure. Both handlers share the routine the reader-driven
+         path uses, and a diagram already drawn is skipped by the same mark that
+         skips it on a revisit, so neither event can redraw anything twice. */
+      Reveal.on('pdf-ready', hydrate);
+      Reveal.on('overviewshown', hydrate);
+
+      /* The grid closing is the counterpart of the grid opening: it is where the
+         drawings made at tile size are redrawn at the size the reader now sees
+         them at. */
+      Reveal.on('overviewhidden', redrawProvisionalDrawings);
+    } else {
+      /* Hydrate anyway, so the document degrades into a readable page. This
+         route shares the latch used by the runtime-driven one, so the two
+         cannot double up. */
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hydrateWhenFontsReady);
+      } else {
+        hydrateWhenFontsReady();
+      }
+    }
+  }());
+</script>
+
+</body>
+</html>
