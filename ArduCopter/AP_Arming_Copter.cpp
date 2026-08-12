@@ -406,6 +406,25 @@ bool AP_Arming_Copter::gps_checks(bool display_failure)
     return true;
 }
 
+// check how long the GPS has gone without delivering a usable PNT
+// (position/navigation/timing) fix.  This measures data-delivery cadence,
+// not estimate quality: it answers "is the receiver still producing
+// fixes?", not "is the resulting position solution good?".  Estimate
+// quality is covered separately by mandatory_gps_checks() above and by the
+// EKF variance failsafe in ekf_check.cpp.
+bool AP_Arming_Copter::pnt_freshness_checks(bool display_failure)
+{
+    // a threshold of zero disables the gate, so a vehicle which has not
+    // opted in behaves exactly as it did without it
+    const int32_t threshold_ms = copter.g2.fs_pnt_fresh_ms.get();
+    if (threshold_ms <= 0) {
+        return true;
+    }
+
+    // call parent pnt freshness checks
+    return AP_Arming::pnt_freshness_checks(display_failure);
+}
+
 // check ekf attitude is acceptable
 bool AP_Arming_Copter::pre_arm_ekf_attitude_check()
 {

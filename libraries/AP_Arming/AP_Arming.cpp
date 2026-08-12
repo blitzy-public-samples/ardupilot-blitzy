@@ -720,8 +720,9 @@ bool AP_Arming::gps_checks(bool report)
 // (position/navigation/timing) fix.  This measures data-delivery cadence,
 // not estimate quality: it answers "is the receiver still producing
 // fixes?", not "is the resulting position solution good?".  The base
-// implementation always passes; vehicles which offer an operator-settable
-// freshness threshold override this.
+// implementation is deliberately a no-op which always passes, so that
+// vehicles without a freshness threshold are entirely unaffected; vehicles
+// which offer an operator-settable threshold override this.
 bool AP_Arming::pnt_freshness_checks(bool report)
 {
     return true;
@@ -1647,6 +1648,7 @@ bool AP_Arming::pre_arm_checks(bool report)
 #endif
 #if AP_GPS_ENABLED
         &  gps_checks(report)
+        &  pnt_freshness_checks(report)
 #endif
 #if AP_BATTERY_ENABLED
         &  battery_checks(report)

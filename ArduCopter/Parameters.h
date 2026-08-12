@@ -690,6 +690,9 @@ public:
 
     AP_Int8 att_enable;
     AP_Int8 att_decimation;
+
+    // PNT data-delivery freshness gate: pre-arm threshold on GPS fix-delivery gap in ms, 0 disables
+    AP_Int32 fs_pnt_fresh_ms;
 };
 
 extern const AP_Param::Info        var_info[];
