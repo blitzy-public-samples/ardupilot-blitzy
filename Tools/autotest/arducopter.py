@@ -12231,6 +12231,8 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
              self.AutoTune,
              self.AutoTuneYawD,
              self.NoRCOnBootPreArmFailure,
+             self.PNTHealthGatePreArm,
+             self.PNTHealthGateDisabledIsNoop,
         ])
         return ret
 
@@ -13562,6 +13564,142 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             "ARMING_NEED_LOC": 1,
         })
         self.assert_prearm_failure("Need Position Estimate", other_prearm_failures_fatal=False)
+        self.context_pop()
+        self.reboot_sitl()
+
+    def PNTHealthGatePreArm(self):
+        '''check the FS_PNT_FRESH_MS PNT-freshness gate blocks arming on stale PNT delivery'''
+        # logical identity: test_pnt_health_gate_prearm
+        #
+        # This is the correctness proof for the PNT freshness feature.  The
+        # gate measures the DELIVERY CADENCE of position/navigation/timing
+        # data - how long ago a usable solution last arrived - which is a
+        # different question from the one the EKF-backed "Need Position
+        # Estimate" and "GPS glitching" pre-arms ask about solution QUALITY.
+        # It is also distinct from AP_GPS's own fixed four-second driver
+        # timeout, which is neither configurable, nor an arming surface, nor
+        # telemetered.  The sampling loop below is what actually pins that
+        # distinction down; see the comment above it.
+        threshold_ms = 3000  # comfortably above the monitor's 1Hz resolution floor
+        healthy_ms = 2000  # "well under" the threshold, with two 1Hz ticks of slack
+        ceiling_ms = 8000  # twice AP_GPS's fixed GPS_TIMEOUT_MS of 4000ms
+        starve_time = 20  # sim seconds; staleness only grows once that 4s timeout expires
+
+        self.context_push()
+        self.set_parameters({
+            "FS_PNT_FRESH_MS": threshold_ms,
+        })
+
+        self.start_subtest("Healthy GPS publishes a GPSFresh well under the threshold")
+        self.wait_ready_to_arm()  # guarantees a genuine usable fix, so the latch is advancing
+        m = self.assert_receive_named_value_float("GPSFresh")
+        if m.value >= healthy_ms:
+            raise NotAchievedException(
+                "GPSFresh should be well under the threshold with a usable fix (got=%f want<%u)" %
+                (m.value, healthy_ms))
+        self.progress("Healthy baseline GPSFresh=%f" % m.value)
+        self.end_subtest("Healthy GPS publishes a GPSFresh well under the threshold")
+
+        self.start_subtest("Starved GPS makes GPSFresh grow monotonically without bound")
+        self.set_parameter('SIM_GPS1_ENABLE', 0)
+        # Sample the published freshness across five times the GPS driver's own
+        # four-second timeout.  Two properties are asserted, and both exist to
+        # catch a regression to the forbidden derivation of staleness from
+        # AP_GPS::last_message_time_ms(): the driver re-arms that very timer
+        # when its own timeout expires, so the resulting delta saw-tooths
+        # around 4000ms forever instead of growing, and a permanently dead
+        # receiver reads as intermittently healthy.  A status-latched
+        # implementation instead stops advancing its latch and grows without
+        # bound.  Equality between consecutive samples is permitted, because
+        # two samples can land inside a single 1Hz publication tick.
+        samples = []
+        tstart = self.get_sim_time_cached()
+        while self.get_sim_time_cached() - tstart < starve_time:
+            self.delay_sim_time(1)
+            m = self.assert_receive_named_value_float("GPSFresh")
+            if len(samples) > 0 and m.value < samples[-1]:
+                raise NotAchievedException(
+                    "GPSFresh decreased while GPS stayed starved (previous=%f current=%f).  That is the "
+                    "saw-tooth signature of staleness being derived from the GPS message timestamp, which "
+                    "the GPS driver re-arms when its own 4s timeout expires, instead of being latched on "
+                    "GPS status" % (samples[-1], m.value))
+            samples.append(m.value)
+        self.progress("GPSFresh series while starved: %s" % str(samples))
+        if len(samples) < 2:
+            raise NotAchievedException("Too few GPSFresh samples to prove monotonicity (got=%u)" % len(samples))
+        if samples[-1] <= ceiling_ms:
+            raise NotAchievedException(
+                "GPSFresh never exceeded %ums after %us of starvation (final=%f).  The value looks ceilinged "
+                "by AP_GPS's fixed 4s driver timeout rather than bounded by real elapsed time, which is what "
+                "deriving staleness from the GPS message timestamp would produce" %
+                (ceiling_ms, starve_time, samples[-1]))
+        self.end_subtest("Starved GPS makes GPSFresh grow monotonically without bound")
+
+        self.start_subtest("Stale PNT data blocks arming")
+        # Prefix-match only: the formatted "(>3000 ms)" suffix is an
+        # implementation detail.  Co-occurring GPS and EKF pre-arm failures are
+        # expected while the receiver is starved, hence the non-fatal option.
+        self.assert_prearm_failure("PNT data stale", timeout=30, other_prearm_failures_fatal=False)
+        self.end_subtest("Stale PNT data blocks arming")
+
+        self.start_subtest("Restored GPS re-advances the latch and clears the gate")
+        self.set_parameter('SIM_GPS1_ENABLE', 1)
+        self.wait_ekf_happy()
+        self.wait_ready_to_arm()
+        m = self.assert_receive_named_value_float("GPSFresh")
+        if m.value >= threshold_ms:
+            raise NotAchievedException(
+                "GPSFresh did not fall back below the threshold after GPS recovery (got=%f want<%u)" %
+                (m.value, threshold_ms))
+        self.progress("Recovered GPSFresh=%f" % m.value)
+        self.end_subtest("Restored GPS re-advances the latch and clears the gate")
+
+        self.context_pop()
+        self.reboot_sitl()
+
+    def PNTHealthGateDisabledIsNoop(self):
+        '''check FS_PNT_FRESH_MS=0 leaves the PNT-freshness gate completely inert'''
+        # logical identity: test_pnt_health_gate_disabled_is_noop
+        #
+        # Default-off regression guard.  At the shipped default of 0 neither of
+        # the feature's two artefacts - the pre-arm statustext and the GPSFresh
+        # named float - may appear, no matter how long PNT delivery has been
+        # dead.  Absence is proved from context collections rather than from an
+        # expected timeout, because the collecting message hook installed by
+        # context_push() keeps capturing throughout delay_sim_time().
+        #
+        # Note deliberately absent: any attempt to arm.  Pre-existing GPS and
+        # EKF pre-arms legitimately block arming while the receiver is starved,
+        # so asserting only on this feature's own two artefacts is what keeps
+        # this a clean default-off guard rather than a test of something else.
+        starve_time = 20  # sim seconds; well past AP_GPS's fixed 4s driver timeout
+
+        self.context_push()
+        # collect before anything could be emitted; context_push() is what
+        # installs the collecting hook, so the ordering here is load-bearing
+        self.context_collect('STATUSTEXT')
+        self.context_collect('NAMED_VALUE_FLOAT')
+
+        # verify the shipped default itself, and never write it
+        self.assert_parameter_value("FS_PNT_FRESH_MS", 0)
+
+        self.wait_ready_to_arm()
+        self.set_parameter('SIM_GPS1_ENABLE', 0)
+        self.delay_sim_time(starve_time, reason="starving GPS well past the driver timeout")
+
+        stale_text = self.statustext_in_collections('PNT data stale')
+        if stale_text is not None:
+            raise NotAchievedException(
+                "PNT freshness pre-arm emitted while disabled: %s" % stale_text.text)
+
+        for m in self.context_collection('NAMED_VALUE_FLOAT'):
+            if m.name == 'GPSFresh':
+                raise NotAchievedException(
+                    "GPSFresh telemetry published while disabled (value=%f)" % m.value)
+        self.progress("No PNT freshness pre-arm and no GPSFresh telemetry while disabled")
+
+        self.set_parameter('SIM_GPS1_ENABLE', 1)
+        self.wait_ekf_happy()
         self.context_pop()
         self.reboot_sitl()
 
