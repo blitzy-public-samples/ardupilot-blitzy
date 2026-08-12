@@ -202,6 +202,8 @@ protected:
 
     virtual bool gps_checks(bool report);
 
+    virtual bool pnt_freshness_checks(bool report);
+
     bool battery_checks(bool report);
 
     bool hardware_safety_check(bool report);

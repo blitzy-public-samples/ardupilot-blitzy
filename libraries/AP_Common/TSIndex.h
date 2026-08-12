@@ -13,6 +13,8 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cstdint>
+
 #define DECLARE_TYPESAFE_INDEX(NAME, TYPE) typedef typesafe_index<TYPE, class TAG_##NAME> NAME
 
 /// This template allows for indexing with compile time check and generating

@@ -715,6 +715,17 @@ bool AP_Arming::gps_checks(bool report)
 
     return true;
 }
+
+// check how long the GPS has gone without delivering a usable PNT
+// (position/navigation/timing) fix.  This measures data-delivery cadence,
+// not estimate quality: it answers "is the receiver still producing
+// fixes?", not "is the resulting position solution good?".  The base
+// implementation always passes; vehicles which offer an operator-settable
+// freshness threshold override this.
+bool AP_Arming::pnt_freshness_checks(bool report)
+{
+    return true;
+}
 #endif  // AP_GPS_ENABLED
 
 #if AP_BATTERY_ENABLED
