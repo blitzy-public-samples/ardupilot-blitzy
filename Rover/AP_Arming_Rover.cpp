@@ -247,7 +247,8 @@ bool AP_Arming_Rover::motor_checks(bool report)
 }
 
 // return the configured maximum tolerable age of the last usable PNT solution
-// in milliseconds; 0 disables the shared PNT freshness pre-arm check
+// in milliseconds, which the shared delivery-cadence gate compares against its
+// freshness latch; 0 disables that check entirely
 uint32_t AP_Arming_Rover::pnt_freshness_threshold_ms() const
 {
     return (uint32_t)rover.g2.fs_pnt_fresh_ms.get();
