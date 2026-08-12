@@ -245,3 +245,10 @@ bool AP_Arming_Rover::motor_checks(bool report)
 
     return ret;
 }
+
+// return the configured maximum tolerable age of the last usable PNT solution
+// in milliseconds; 0 disables the shared PNT freshness pre-arm check
+uint32_t AP_Arming_Rover::pnt_freshness_threshold_ms() const
+{
+    return (uint32_t)rover.g2.fs_pnt_fresh_ms.get();
+}

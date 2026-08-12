@@ -639,6 +639,15 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: mode_circle.cpp
     AP_SUBGROUPINFO(mode_circle, "CIRC", 57, ParametersG2, ModeCircle),
 
+    // @Param: FS_PNT_FRESH_MS
+    // @DisplayName: PNT data freshness threshold
+    // @Description: Maximum tolerable age of the last usable position/navigation/timing (PNT) solution before the PNT freshness pre-arm check refuses arming. This is a delivery-cadence gate: it measures how long ago a usable solution was last delivered, which is distinct from the EKF variance and position estimate pre-arm checks that instead measure the quality of the solution. Set to 0 to disable this check entirely. The monitor is driven at 1Hz, so thresholds below roughly 2000 milliseconds cannot be resolved meaningfully. While this parameter is non-zero the current age is accessible via NAMED_VALUE_FLOAT MAVLink message with name 'GPSFresh'.
+    // @Units: ms
+    // @Range: 0 60000
+    // @Increment: 100
+    // @User: Advanced
+    AP_GROUPINFO("FS_PNT_FRESH_MS", 58, ParametersG2, fs_pnt_fresh_ms, 0),
+
     AP_GROUPEND
 };
 

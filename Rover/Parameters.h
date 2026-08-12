@@ -428,6 +428,9 @@ public:
     AP_Float fs_gcs_timeout;
 
     class ModeCircle mode_circle;
+
+    // maximum tolerable age of the last usable PNT solution, in milliseconds (0 = disabled)
+    AP_Int32 fs_pnt_fresh_ms;
 };
 
 extern const AP_Param::Info var_info[];
