@@ -690,6 +690,9 @@ public:
 
     AP_Int8 att_enable;
     AP_Int8 att_decimation;
+
+    // maximum tolerable age of the last usable PNT solution, in milliseconds (0 = disabled)
+    AP_Int32 fs_pnt_fresh_ms;
 };
 
 extern const AP_Param::Info        var_info[];

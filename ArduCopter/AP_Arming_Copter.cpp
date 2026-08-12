@@ -200,6 +200,11 @@ bool AP_Arming_Copter::terrain_database_required() const
     return AP_Arming::terrain_database_required();
 }
 
+uint32_t AP_Arming_Copter::pnt_freshness_threshold_ms() const
+{
+    return (uint32_t)copter.g2.fs_pnt_fresh_ms.get();
+}
+
 bool AP_Arming_Copter::parameter_checks(bool display_failure)
 {
     // check various parameter values
