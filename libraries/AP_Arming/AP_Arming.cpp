@@ -223,6 +223,12 @@ AP_Arming::AP_Arming()
 // performs pre-arm checks. expects to be called at 1hz.
 void AP_Arming::update(void)
 {
+    // drive the PNT delivery-cadence freshness monitor first, so its latch is
+    // current before pre_arm_checks() reads it later in this same tick.  The
+    // threshold is supplied by the vehicle; the base returns 0, which disables
+    // the feature entirely.
+    _pnt_freshness.update(pnt_freshness_threshold_ms());
+
 #if AP_ARMING_CRASHDUMP_ACK_ENABLED
     // if we boot with no crashdump data present, reset the "ignore"
     // parameter so the user will need to acknowledge future crashes
@@ -1611,6 +1617,29 @@ bool AP_Arming::estop_checks(bool display_failure)
     return false;
 }
 
+//Check the PNT delivery cadence.  This gates on how long ago a usable PNT
+//solution was last delivered, which is distinct from the GPS/EKF checks that
+//gate on the quality of the solution itself.
+bool AP_Arming::pnt_freshness_checks(bool report)
+{
+    // is_stale() already folds in the enable test, so a zero threshold takes
+    // this benign early return no matter how large the staleness grows
+    if (!_pnt_freshness.is_stale()) {
+        return true;
+    }
+    check_failed(report, "PNT data stale (>%u ms)", (unsigned)_pnt_freshness.threshold_ms());
+    return false;
+}
+
+// base default for the vehicle-owned PNT freshness threshold.  Returning 0 is
+// what leaves vehicles which do not override this - Plane, Sub, Blimp and
+// AntennaTracker - permanently inert: the latch is never consulted, nothing is
+// published, and pnt_freshness_checks() always passes.
+uint32_t AP_Arming::pnt_freshness_threshold_ms() const
+{
+    return 0;
+}
+
 bool AP_Arming::pre_arm_checks(bool report)
 {
 #if !APM_BUILD_COPTER_OR_HELI
@@ -1696,7 +1725,11 @@ bool AP_Arming::pre_arm_checks(bool report)
         & crashdump_checks(report)
 #endif
         &  serial_protocol_checks(report)
-        &  estop_checks(report);
+        &  estop_checks(report)
+#if AP_GPS_ENABLED
+        &  pnt_freshness_checks(report)
+#endif
+        ;
 
     if (!checks_result && last_prearm_checks_result) { // check went from true to false
         report_immediately = true;

@@ -7,6 +7,7 @@
 #include <AP_BoardConfig/AP_BoardConfig_config.h>
 
 #include "AP_Arming_config.h"
+#include "AP_PNTFreshness.h"
 #include "AP_InertialSensor/AP_InertialSensor_config.h"
 #include "AP_Proximity/AP_Proximity_config.h"
 
@@ -187,6 +188,7 @@ protected:
     bool                    armed;
     uint32_t                last_accel_pass_ms;
     uint32_t                last_gyro_pass_ms;
+    AP_PNTFreshness         _pnt_freshness;         // PNT delivery-cadence freshness monitor; driven at 1Hz from update()
 
     virtual bool barometer_checks(bool report);
 
@@ -201,6 +203,9 @@ protected:
     bool compass_checks(bool report);
 
     virtual bool gps_checks(bool report);
+
+    // PNT delivery-cadence gate: fails when the last usable PNT solution is older than pnt_freshness_threshold_ms()
+    bool pnt_freshness_checks(bool report);
 
     bool battery_checks(bool report);
 
@@ -223,6 +228,14 @@ protected:
     // expected to return true if the terrain database is required to have
     // all data loaded
     virtual bool terrain_database_required() const;
+
+    // expected to return the maximum tolerable age of the last usable PNT
+    // solution, in milliseconds; 0 disables the check entirely.  The base
+    // returns 0, so vehicles which do not override it - Plane, Sub, Blimp and
+    // AntennaTracker - are permanently inert by design: the freshness latch is
+    // never consulted, no telemetry is published and pnt_freshness_checks()
+    // always passes.  Copter and Rover override it to return FS_PNT_FRESH_MS.
+    virtual uint32_t pnt_freshness_threshold_ms() const;
 
     bool rangefinder_checks(bool report);
 
