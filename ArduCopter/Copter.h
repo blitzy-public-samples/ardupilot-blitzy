@@ -344,6 +344,9 @@ private:
     // takeoff check
     uint32_t takeoff_check_warning_ms;  // system time user was last warned of takeoff check failure
 
+    // PNT (position/navigation/timing) data freshness monitor
+    uint32_t pnt_last_good_ms;  // system time of the most recent usable GPS fix; written only by the monitor
+
     // GCS selection
     GCS_Copter _gcs; // avoid using this; use gcs()
     GCS_Copter &gcs() { return _gcs; }
@@ -797,6 +800,10 @@ private:
     void failsafe_ekf_recheck();
     void check_ekf_reset();
     void check_vibration();
+
+    // pnt_health.cpp
+    void pnt_health_update();
+    uint32_t pnt_data_age_ms() const;
 
     // esc_calibration.cpp
     void esc_calibration_startup_check();

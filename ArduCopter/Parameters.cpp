@@ -1208,6 +1208,14 @@ const AP_Param::GroupInfo ParametersG2::var_info2[] = {
     AP_GROUPINFO("FSTRATE_DIV", 10, ParametersG2, att_decimation, 1),
 #endif
 
+    // @Param: FS_PNT_FRESH_MS
+    // @DisplayName: PNT data freshness pre-arm threshold
+    // @Description: Pre-arm threshold on how long the GPS has gone without delivering a usable 3D fix. Arming is refused when the elapsed time since the last usable fix exceeds this many milliseconds. This measures data delivery cadence, meaning whether the receiver is still producing fixes, rather than the quality of the resulting position estimate, so it does not replace the EKF failsafe or the position estimate pre-arm checks. Set to zero to disable this check.
+    // @Units: ms
+    // @Range: 0 60000
+    // @User: Advanced
+    AP_GROUPINFO("FS_PNT_FRESH_MS", 11, ParametersG2, fs_pnt_fresh_ms, 0),
+
     // ID 62 is reserved for the AP_SUBGROUPEXTENSION
 
     AP_GROUPEND
