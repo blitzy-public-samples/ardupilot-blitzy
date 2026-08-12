@@ -223,10 +223,8 @@ AP_Arming::AP_Arming()
 // performs pre-arm checks. expects to be called at 1hz.
 void AP_Arming::update(void)
 {
-    // drive the PNT delivery-cadence freshness monitor first, so its latch is
-    // current before pre_arm_checks() reads it later in this same tick.  The
-    // threshold is supplied by the vehicle; the base returns 0, which disables
-    // the feature entirely.
+    // drive the PNT delivery-cadence freshness monitor first, so its latch is current before
+    // pre_arm_checks() reads it below.  The threshold is vehicle-supplied; the base returns 0, which disables it.
     _pnt_freshness.update(pnt_freshness_threshold_ms());
 
 #if AP_ARMING_CRASHDUMP_ACK_ENABLED
@@ -1631,10 +1629,7 @@ bool AP_Arming::pnt_freshness_checks(bool report)
     return false;
 }
 
-// base default for the vehicle-owned PNT freshness threshold.  Returning 0 is
-// what leaves vehicles which do not override this - Plane, Sub, Blimp and
-// AntennaTracker - permanently inert: the latch is never consulted, nothing is
-// published, and pnt_freshness_checks() always passes.
+// base default: returning 0 keeps non-overriding vehicles - Plane, Sub, Blimp, AntennaTracker - permanently inert
 uint32_t AP_Arming::pnt_freshness_threshold_ms() const
 {
     return 0;
