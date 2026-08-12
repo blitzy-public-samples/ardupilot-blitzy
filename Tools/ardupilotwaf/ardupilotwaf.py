@@ -491,7 +491,13 @@ def ap_find_tests(bld, use=[], DOUBLE_PRECISION_SOURCES=[]):
             program_groups='tests',
             use_legacy_defines=False,
             vehicle_binary=False,
-            cxxflags=['-Wno-undef'],
+            # Each unit-test translation unit includes the vendored GoogleTest headers
+            # (modules/gtest, release-1.8.0), which predate the 'override' keyword and do not
+            # declare their internal helpers at file scope.  The test executables therefore
+            # inherit the -Werror=suggest-override / -Wmissing-declarations promotions from the
+            # standard board CXXFLAGS independently of the GTEST library itself, so the same
+            # suppressions applied in Tools/ardupilotwaf/gtest.py are needed here.
+            cxxflags=['-Wno-undef', '-Wno-suggest-override', '-Wno-missing-declarations'],
         )
         filename = os.path.basename(f.abspath())
         if filename in DOUBLE_PRECISION_SOURCES:
