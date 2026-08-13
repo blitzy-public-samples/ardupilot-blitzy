@@ -691,7 +691,7 @@ public:
     AP_Int8 att_enable;
     AP_Int8 att_decimation;
 
-    // maximum tolerable age of the last usable PNT solution, in milliseconds (0 = disabled)
+    // maximum age since primary GPS status last indicated a usable PNT fix, in milliseconds (0 = disabled)
     AP_Int32 fs_pnt_fresh_ms;
 };
 

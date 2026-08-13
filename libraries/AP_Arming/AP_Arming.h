@@ -188,7 +188,10 @@ protected:
     bool                    armed;
     uint32_t                last_accel_pass_ms;
     uint32_t                last_gyro_pass_ms;
-    AP_PNTFreshness         _pnt_freshness;         // PNT delivery-cadence freshness monitor; driven at 1Hz from update()
+    // GPS status-freshness monitor; held by value and written only by update(), on the main
+    // thread at 1Hz.  pnt_freshness_checks() only reads it, and may do so from the DDS or Lua
+    // thread; AP_PNTFreshness.h states the threading contract that makes that safe.
+    AP_PNTFreshness         _pnt_freshness;
 
     virtual bool barometer_checks(bool report);
 
@@ -204,7 +207,7 @@ protected:
 
     virtual bool gps_checks(bool report);
 
-    // PNT delivery-cadence gate: fails when the last usable PNT solution is older than pnt_freshness_threshold_ms()
+    // reads pnt_freshness_threshold_ms() once, on the calling thread, and stores nothing
     bool pnt_freshness_checks(bool report);
 
     bool battery_checks(bool report);
@@ -230,20 +233,15 @@ protected:
     virtual bool terrain_database_required() const;
 
     // the upper end of the documented range of the vehicles' FS_PNT_FRESH_MS
-    // parameter.  A vehicle's threshold accessor constrains the parameter into
-    // 0..PNT_FRESH_MS_MAX before widening it, so that neither a negative value
-    // nor an arbitrarily large one can yield a threshold the 32-bit age can
-    // never reach - which would leave the gate looking enabled while being
-    // impossible to trip.  It lives here so both vehicles share one ceiling.
+    // parameter.  A vehicle's threshold accessor clamps the signed parameter
+    // into 0..PNT_FRESH_MS_MAX before widening it, so negative writes cannot
+    // wrap and every value stays inside the documented range.  It lives here so
+    // both vehicles share one ceiling.
     static constexpr int32_t PNT_FRESH_MS_MAX = 60000;
 
-    // expected to return the maximum tolerable age of the last usable PNT
-    // solution, in milliseconds; 0 disables the check entirely.  The base
-    // returns 0, so vehicles which do not override it - Plane, Sub, Blimp and
-    // AntennaTracker - are permanently inert by design: the monitor keeps its
-    // own age up to date but nothing acts on it, no telemetry is published and
-    // pnt_freshness_checks() always passes.  Copter and Rover override it to
-    // return their constrained FS_PNT_FRESH_MS.
+    // expected to return the maximum age since primary GPS status last indicated
+    // a usable PNT fix, in milliseconds; 0 disables the check.  The base returns
+    // 0, so vehicles which do not override it are permanently inert.
     virtual uint32_t pnt_freshness_threshold_ms() const;
 
     bool rangefinder_checks(bool report);

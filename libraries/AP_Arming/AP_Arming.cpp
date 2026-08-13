@@ -223,8 +223,8 @@ AP_Arming::AP_Arming()
 // performs pre-arm checks. expects to be called at 1hz.
 void AP_Arming::update(void)
 {
-    // drive the PNT delivery-cadence freshness monitor first, so its latch is current before
-    // pre_arm_checks() reads it below.  The threshold is vehicle-supplied; the base returns 0, which disables it.
+    // update freshness before pre_arm_checks() below, so it uses this tick's latch; this is the
+    // monitor's only writer and it runs on the main thread, the checks only ever read it
     _pnt_freshness.update(pnt_freshness_threshold_ms());
 
 #if AP_ARMING_CRASHDUMP_ACK_ENABLED
@@ -1615,33 +1615,24 @@ bool AP_Arming::estop_checks(bool display_failure)
     return false;
 }
 
-//Check the PNT delivery cadence.  This gates on how long ago a usable PNT
-//solution was last delivered, which is distinct from the GPS/EKF checks that
-//gate on the quality of the solution itself.
+// check the PNT delivery cadence: age since GPS status last indicated a usable fix, not solution quality
 bool AP_Arming::pnt_freshness_checks(bool report)
 {
-    // Re-synchronise the operator's threshold before judging the age against
-    // it.  update() injects it once a second, but this function also runs on
-    // demand: arm() calls pre_arm_checks() directly, and so do the MAVLink
-    // "run prearm checks" command handler and the DDS prearm service.  A
-    // parameter write landing between two 1Hz ticks would otherwise be judged
-    // against the previous value - enabling the gate would not take effect
-    // until the next tick, and disabling it would keep blocking for one - so
-    // the threshold in force is read here rather than assumed.  Only the
-    // threshold is refreshed: the age keeps its 1Hz cadence and no telemetry is
-    // published from this path.
-    _pnt_freshness.set_threshold_ms(pnt_freshness_threshold_ms());
+    // arm() and the MAVLink, DDS and Lua prearm requests call this directly between the 1Hz
+    // updates, so read the threshold in force here rather than a cached one.  Keep it in a local:
+    // the last two of those callers run on their own threads, and a threshold stored in the
+    // monitor could be clobbered by the 1Hz update between this read and the comparison - reading
+    // back as 0, i.e. disabled, and passing a vehicle whose PNT is stale
+    const uint32_t threshold = pnt_freshness_threshold_ms();
 
-    // is_stale() already folds in the enable test, so a zero threshold takes
-    // this benign early return no matter how large the staleness grows
-    if (!_pnt_freshness.is_stale()) {
+    if (!_pnt_freshness.is_stale(threshold)) {
         return true;
     }
-    check_failed(report, "PNT data stale (>%u ms)", (unsigned)_pnt_freshness.threshold_ms());
+    check_failed(report, "PNT data stale (>%u ms)", (unsigned)threshold);
     return false;
 }
 
-// base default: returning 0 keeps non-overriding vehicles - Plane, Sub, Blimp, AntennaTracker - permanently inert
+// base default: keep vehicles without an override disabled
 uint32_t AP_Arming::pnt_freshness_threshold_ms() const
 {
     return 0;

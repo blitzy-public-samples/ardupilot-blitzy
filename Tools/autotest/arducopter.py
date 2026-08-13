@@ -13568,36 +13568,17 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.reboot_sitl()
 
     def PNTHealthGatePreArm(self):
-        '''check the FS_PNT_FRESH_MS PNT-freshness gate blocks arming on stale PNT delivery'''
-        # logical identity: test_pnt_health_gate_prearm
-        #
-        # This is the correctness proof for the PNT freshness feature.  The
-        # gate measures the DELIVERY CADENCE of position/navigation/timing
-        # data - how long ago a usable solution last arrived - which is a
-        # different question from the one the EKF-backed "Need Position
-        # Estimate" and "GPS glitching" pre-arms ask about solution QUALITY.
-        # It is also distinct from AP_GPS's own fixed four-second driver
-        # timeout, which is neither configurable, nor an arming surface, nor
-        # telemetered.  The sampling loop below is what actually pins that
-        # distinction down; see the comment above it.
+        '''test_pnt_health_gate_prearm: verify monotonic GPSFresh, stale-PNT arming rejection, and recovery'''
         threshold_ms = 3000  # comfortably above the monitor's 1Hz resolution floor
         healthy_ms = 2000  # "well under" the threshold, with two 1Hz ticks of slack
         ceiling_ms = 8000  # twice AP_GPS's fixed GPS_TIMEOUT_MS of 4000ms
         starve_time = 20  # sim seconds; staleness only grows once that 4s timeout expires
-        sample_slack_ms = 2000  # two 1Hz ticks: publication cadence plus link transport lag
+        sample_slack_ms = 2000  # two monitor periods of baseline and sampling margin
 
         def validate_gpsfresh(value, what):
-            # Every threshold comparison in this test is one-sided - it names a
-            # value the age must stay under, or one it must climb past - and a
-            # one-sided comparison cannot reject a reading that is not a number
-            # at all.  In Python every comparison against NaN is false, so a NaN
-            # GPSFresh would simultaneously satisfy "well under the threshold",
-            # "did not decrease", "exceeded the ceiling" and "fell back below the
-            # threshold", and the test would certify a broken telemetry contract
-            # as correct.  A delivery age is a finite, non-negative count of
-            # milliseconds; anything else means the published value is invalid
-            # rather than merely wrong, so both properties are established here
-            # before any comparison is made against the sample.
+            # every comparison below is one-sided, and no comparison against NaN
+            # is true, so a NaN would satisfy all of them: reject non-finite and
+            # negative ages before comparing
             if not math.isfinite(value):
                 raise NotAchievedException("GPSFresh is not a finite age %s (got=%s)" % (what, str(value)))
             if value < 0:
@@ -13621,44 +13602,18 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
         self.start_subtest("Starved GPS makes GPSFresh grow monotonically past the driver timeout")
         self.set_parameter('SIM_GPS1_ENABLE', 0)
-        # Sample the published freshness across five times the GPS driver's own
-        # four-second timeout.  Two of the three properties asserted below exist
-        # to catch a regression to the forbidden derivation of staleness from
-        # AP_GPS::last_message_time_ms(): the driver re-arms that very timer
-        # when its own timeout expires, so the resulting delta saw-tooths
-        # around 4000ms forever instead of growing, and a permanently dead
-        # receiver reads as intermittently healthy.  A status-latched
-        # implementation instead stops advancing its latch, so the reported age
-        # keeps growing for as long as starvation lasts and only ever falls when
-        # a usable fix returns (it saturates just below the 49.7-day uint32
-        # ceiling rather than folding back through zero).  Equality between
-        # consecutive samples is permitted, because two samples can land inside
-        # a single 1Hz publication tick.  The third property is the upper
-        # envelope on each sample; see the comment on it below.
+        # A status-latched age keeps growing while starvation lasts; an age
+        # derived from AP_GPS::last_message_time_ms() saw-tooths around 4000ms
+        # because the driver resets that timer on timeout.  Equality between
+        # consecutive samples is permitted: two can land inside one 1Hz tick.
         samples = []
         tstart = self.get_sim_time_cached()
         while self.get_sim_time_cached() - tstart < starve_time:
             self.delay_sim_time(1)
             m = self.assert_receive_named_value_float("GPSFresh")
             validate_gpsfresh(m.value, "while GPS was starved")
-            # THE UPPER ENVELOPE, applied to every sample and therefore to the
-            # final one the >ceiling_ms proof below rests on, which is what makes
-            # that proof two-sided.  An age cannot exceed the time delivery has
-            # actually been broken for, so this is what rejects a series that is
-            # over-scaled, in the wrong unit, or pegged at some huge constant -
-            # none of which the two growth assertions can see, because a series
-            # such as [0, 1e9, 1e9] never decreases and ends far above the
-            # ceiling after only starve_time seconds.
-            #
-            # The bound holds by construction rather than by luck, which is why
-            # this one clock read is a fresh blocking one rather than the cached
-            # value the loop condition uses: the sample was published before it
-            # was received and this read happens after that, while tstart was
-            # taken from a cached - therefore never-ahead - read made before
-            # starvation could stop the latch.  A genuine age is thus always
-            # within the elapsed interval, and the slack is pure insurance: it
-            # covers the one case where the latch legitimately froze slightly
-            # before tstart, bounded by the healthy sample asserted above.
+            # upper envelope: an age cannot exceed the time delivery has been
+            # broken, which is what rejects a wrong-unit or pegged series
             elapsed_ms = (self.get_sim_time() - tstart) * 1000
             if m.value > elapsed_ms + sample_slack_ms:
                 raise NotAchievedException(
@@ -13675,10 +13630,6 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.progress("GPSFresh series while starved: %s" % str(samples))
         if len(samples) < 2:
             raise NotAchievedException("Too few GPSFresh samples to prove monotonicity (got=%u)" % len(samples))
-        # The climb proof.  Its upper side was established sample by sample as the
-        # series arrived, so this final value is known to be both larger than
-        # twice the driver timeout and no larger than the time delivery has
-        # actually been broken - a real age, not a pegged or over-scaled one.
         if samples[-1] <= ceiling_ms:
             raise NotAchievedException(
                 "GPSFresh never exceeded %ums after %us of starvation (final=%f).  The value looks ceilinged "
@@ -13711,20 +13662,10 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.reboot_sitl()
 
     def PNTHealthGateDisabledIsNoop(self):
-        '''check FS_PNT_FRESH_MS=0 leaves the PNT-freshness gate completely inert'''
-        # logical identity: test_pnt_health_gate_disabled_is_noop
-        #
-        # Default-off regression guard.  At the shipped default of 0 neither of
-        # the feature's two artefacts - the pre-arm statustext and the GPSFresh
-        # named float - may appear, no matter how long PNT delivery has been
-        # dead.  Absence is proved from context collections rather than from an
-        # expected timeout, because the collecting message hook installed by
-        # context_push() keeps capturing throughout delay_sim_time().
-        #
-        # Note deliberately absent: any attempt to arm.  Pre-existing GPS and
-        # EKF pre-arms legitimately block arming while the receiver is starved,
-        # so asserting only on this feature's own two artefacts is what keeps
-        # this a clean default-off guard rather than a test of something else.
+        '''test_pnt_health_gate_disabled_is_noop: verify zero suppresses stale-PNT text and GPSFresh'''
+        # Absence is proved from the context collections, which keep capturing
+        # throughout delay_sim_time().  Arming is deliberately not attempted:
+        # pre-existing GPS and EKF pre-arms legitimately block it while starved.
         starve_time = 20  # sim seconds; well past AP_GPS's fixed 4s driver timeout
 
         self.context_push()
