@@ -35,6 +35,21 @@ TEST(AP_GSOF, packet1)
     // green result would be indistinguishable from an executed one.  GTEST_SUCCEED
     // is not used for the purpose: this googletest records its message but prints
     // nothing, so it would leave the log exactly as silent.
+    //
+    // Where the notice is and is not visible, so that this case is never mistaken
+    // for fixture-backed parser coverage: it reaches the terminal when the binary
+    // is run directly (./build/sitl/tests/test_gsof), and it reaches the aggregate
+    // output of ./waf check / check-all only under --check-verbose, because the
+    // harness prints a test's captured stdout for a passing test only when that
+    // option is given.  A default check run therefore shows this case as a plain
+    // pass with no notice at all.  AP_GSOF::parse is exercised here solely by
+    // AP_GSOF.incomplete_packet; nothing in this file parses gsof_gps.dat.
+    //
+    // The body is not made to run instead: the harness executes each test with the
+    // working directory set to the directory holding the binary, so the repository
+    // relative path below cannot resolve there.  That is the cross-platform
+    // data-file convention the message refers to, and establishing one is a
+    // separate piece of work.
     std::printf("[  SKIPPED ] AP_GSOF.packet1 body not executed: reading "
                 "libraries/AP_GSOF/tests/gsof_gps.dat needs a cross-platform data-file "
                 "convention AP does not have yet\n");
