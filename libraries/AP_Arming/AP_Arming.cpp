@@ -1615,7 +1615,9 @@ bool AP_Arming::estop_checks(bool display_failure)
     return false;
 }
 
-// check the PNT delivery cadence: age since GPS status last indicated a usable fix, not solution quality
+// check the PNT delivery cadence: age since GPS status last indicated a usable fix, not solution quality.
+// Defined unconditionally, unlike gps_checks(): the body reads no GPS symbol, only the monitor, so the
+// declaration needs no guard either and AP_GPS_ENABLED appears once, on the chain term in pre_arm_checks()
 bool AP_Arming::pnt_freshness_checks(bool report)
 {
     // arm() and the MAVLink, DDS and Lua prearm requests call this directly between the 1Hz

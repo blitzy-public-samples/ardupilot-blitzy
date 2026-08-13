@@ -200,9 +200,9 @@ bool AP_Arming_Copter::terrain_database_required() const
     return AP_Arming::terrain_database_required();
 }
 
-// returns the configured maximum age since primary GPS status last indicated a
-// usable PNT fix, which the shared delivery-cadence gate compares against its
-// freshness latch; 0 disables that check entirely.
+// returns the configured maximum tolerable age since primary GPS status last
+// indicated a usable PNT fix, which the shared delivery-cadence gate compares
+// against its freshness latch; 0 disables that check entirely.
 //
 // Clamp the signed parameter before widening so negative writes cannot wrap -
 // a bare cast would turn -1 into UINT32_MAX, which no 32-bit age can exceed -

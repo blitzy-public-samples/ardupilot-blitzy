@@ -429,7 +429,7 @@ public:
 
     class ModeCircle mode_circle;
 
-    // maximum age since primary GPS status last indicated a usable PNT fix, in milliseconds (0 = disabled)
+    // maximum tolerable age since primary GPS status last indicated a usable PNT fix, in milliseconds (0 = disabled)
     AP_Int32 fs_pnt_fresh_ms;
 };
 

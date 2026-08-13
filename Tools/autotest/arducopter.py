@@ -13681,6 +13681,24 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.set_parameter('SIM_GPS1_ENABLE', 0)
         self.delay_sim_time(starve_time, reason="starving GPS well past the driver timeout")
 
+        # Two things make the absence assertions below mean something.  First, a
+        # reporting pass of the pre-arm chain must happen inside this window: the
+        # 30-second GCS re-display cadence need not fall inside it, so run the
+        # checks on demand, which reports every failure and is exactly the path a
+        # stale-PNT text would travel.  Second, the collections must demonstrably
+        # be capturing - starving GPS makes the EKF report, so an empty STATUSTEXT
+        # collection would mean the hook captured nothing and the checks below
+        # would pass vacuously rather than proving anything.
+        self.send_mavlink_run_prearms_command()
+        self.delay_sim_time(2, reason="letting the forced pre-arm report arrive")
+        collected_statustexts = len(self.context_collection('STATUSTEXT'))
+        if collected_statustexts == 0:
+            raise NotAchievedException(
+                "No STATUSTEXT was collected at all, so the absence checks below would prove nothing; "
+                "the collection hook is not capturing")
+        self.progress("Collected %u STATUSTEXT and %u NAMED_VALUE_FLOAT while disabled" %
+                      (collected_statustexts, len(self.context_collection('NAMED_VALUE_FLOAT'))))
+
         stale_text = self.statustext_in_collections('PNT data stale')
         if stale_text is not None:
             raise NotAchievedException(

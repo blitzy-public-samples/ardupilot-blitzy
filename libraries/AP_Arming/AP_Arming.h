@@ -239,9 +239,9 @@ protected:
     // both vehicles share one ceiling.
     static constexpr int32_t PNT_FRESH_MS_MAX = 60000;
 
-    // expected to return the maximum age since primary GPS status last indicated
-    // a usable PNT fix, in milliseconds; 0 disables the check.  The base returns
-    // 0, so vehicles which do not override it are permanently inert.
+    // expected to return the maximum tolerable age since primary GPS status last
+    // indicated a usable PNT fix, in milliseconds; 0 disables the check.  The base
+    // returns 0, so vehicles which do not override it are permanently inert.
     virtual uint32_t pnt_freshness_threshold_ms() const;
 
     bool rangefinder_checks(bool report);

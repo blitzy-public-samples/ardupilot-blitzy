@@ -56,8 +56,8 @@ protected:
     // all data loaded
     bool terrain_database_required() const override;
 
-    // returns the configured maximum age since primary GPS status last indicated
-    // a usable PNT fix, in milliseconds; 0 disables the freshness pre-arm check
+    // returns the configured maximum tolerable age since primary GPS status last
+    // indicated a usable PNT fix, in milliseconds; 0 disables the freshness check
     uint32_t pnt_freshness_threshold_ms() const override;
 
 private:

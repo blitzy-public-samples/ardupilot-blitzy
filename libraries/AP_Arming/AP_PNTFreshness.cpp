@@ -21,6 +21,10 @@ void AP_PNTFreshness::update(uint32_t threshold_ms)
     // exact message-delivery age.  No hdop/num_sats/variance qualifier belongs
     // here - EKF checks own solution-quality criteria.  GPS_OK_FIX_2D is the
     // first usable value of AP_GPS::GPS_Status; NO_GPS and NO_FIX are below it.
+    // AP_PNTFreshness.h states this in full: what distinguishes this gate from
+    // AP_GPS's fixed driver timeout is that it is configurable, refuses arming
+    // and is telemetered, and what distinguishes it from the EKF variance and
+    // position-estimate pre-arms is that it measures cadence, not quality.
     bool pnt_delivered = false;
 #if AP_GPS_ENABLED
     if (AP::gps().status() >= AP_GPS::GPS_OK_FIX_2D) {
@@ -59,7 +63,13 @@ void AP_PNTFreshness::update(uint32_t threshold_ms)
     // logging is enabled, writes an NVF row.  Publishing only while enabled is
     // what keeps a default-configured vehicle unchanged in telemetry bandwidth
     // and log volume; the latch above keeps tracking either way.  Both the gate
-    // and the value come from this call, so the send reads no shared state
+    // and the value come from this call, so the send reads no shared state.
+    //
+    // HAL_GCS_ENABLED alone is the right guard here, matching every other
+    // named-float sender.  It is not paired with AP_GPS_ENABLED because a
+    // firmware that publishes this age without the arming term that consumes it
+    // is not a buildable configuration: AP_Arming.cpp reads AP::gps() outside
+    // any guard of its own, so AP_Arming does not compile with GPS support off
     if (enabled(threshold_ms)) {
         gcs().send_named_float("GPSFresh", (float)age_ms);
     }
