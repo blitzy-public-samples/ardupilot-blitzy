@@ -406,27 +406,35 @@ bool AP_Arming_Copter::gps_checks(bool display_failure)
     return true;
 }
 
-// check how long the GPS has gone without delivering a usable PNT
-// (position/navigation/timing) fix.  This measures data-delivery cadence,
-// not estimate quality: it answers "is the receiver still producing
-// fixes?", not "is the resulting position solution good?".  Estimate
-// quality is covered separately by mandatory_gps_checks() above and by the
-// EKF variance failsafe in ekf_check.cpp.
+// performs pre_arm PNT (position/navigation/timing) data-delivery freshness checks and returns true if passed
+//  refuses arming once the GPS has gone longer than FS_PNT_FRESH_MS without delivering a usable fix.
+//  this measures data-delivery cadence, not estimate quality: it answers "is the receiver still
+//  producing fixes?", not "is the resulting position solution good?".  estimate quality remains the
+//  job of mandatory_gps_checks() above and of the EKF variance failsafe in ekf_check.cpp, neither of
+//  which this duplicates or replaces.  the duration itself is measured by the monitor-owned latch in
+//  pnt_health.cpp, deliberately not by any AP_GPS timestamp, because the driver re-stamps its own on
+//  timeout and that derivation saw-tooths instead of growing.
 bool AP_Arming_Copter::pnt_freshness_checks(bool display_failure)
 {
-    // a threshold of zero disables the gate, so a vehicle which has not
-    // opted in behaves exactly as it did without it
-    const int32_t threshold_ms = copter.g2.fs_pnt_fresh_ms.get();
-    if (threshold_ms <= 0) {
+    // a threshold of zero disables the gate.  FS_PNT_FRESH_MS defaults to zero, so this
+    // early return is what makes a vehicle which has not opted in behave exactly as it
+    // did before the gate existed.  a negative value cannot be reached through the
+    // parameter's declared 0 to 60000 range, and is treated as disabled here rather than
+    // being reinterpreted as an unreachably large unsigned threshold
+    const int32_t threshold_param_ms = copter.g2.fs_pnt_fresh_ms.get();
+    if (threshold_param_ms <= 0) {
         return true;
     }
 
-    // refuse arming once the monitor-owned latch shows delivery has been
-    // absent for longer than the operator's threshold.  The same local is used
-    // for the comparison and the message so the reported number is always the
-    // one that was actually applied, and the cast keeps the strict comparison
-    // free of a sign mismatch against the unsigned age.
-    if (copter.pnt_data_age_ms() > (uint32_t)threshold_ms) {
+    // one unsigned local drives both the comparison below and the number the message
+    // quotes, so the operator is always shown exactly the threshold that was applied
+    const uint32_t threshold_ms = (uint32_t)threshold_param_ms;
+
+    // refuse arming once the latched age of the last usable fix exceeds the threshold.
+    // strictly greater-than, matching the ">" the message quotes.  this is a pure
+    // comparison with no side effects, which matters because the pre-arm chain is
+    // combined with bitwise & and so runs every check even after an earlier failure
+    if (copter.pnt_data_age_ms() > threshold_ms) {
         check_failed(display_failure, "PNT data stale (>%u ms)", (unsigned)threshold_ms);
         return false;
     }
