@@ -12078,29 +12078,21 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.reboot_sitl()
 
     def test_pnt_health_gate_prearm(self):
-        '''Ensure arming is refused after the configured PNT freshness threshold expires during simulated GPS starvation'''
+        '''Test GPSFresh telemetry, the veto above and pass below FS_PNT_FRESH_MS, recovery, and never-locked cold start'''
         # This gate measures data-delivery cadence, not estimate quality: it asks
         # "is the receiver still producing fixes?", not "is the resulting
-        # position solution good?".  Starving the GPS also trips the pre-existing
-        # GPS pre-arm checks, and may trip the position and EKF ones depending on
-        # estimator state; all of those answer that second question and are
-        # legitimate here.  Every assertion below is therefore scoped to the PNT
-        # gate's own distinctive message and to its own telemetry field, and any
-        # other pre-arm failure is tolerated rather than expected.
+        # position solution good?".  Starving the GPS also trips other pre-arm
+        # checks, and those failures are tolerated rather than asserted here:
+        # every assertion below is scoped to the PNT gate's own distinctive
+        # message and to its own telemetry field.
         self.context_push()
 
-        # The AP_GPS driver's own delivery timeout is 4000ms, and inside that
-        # timeout branch the driver re-stamps its own last-message timestamp.
-        # Nothing derived from that timestamp can therefore grow past this
-        # value: it either saw-tooths between zero and roughly 4000ms, or - as
-        # in this simulation, where a disabled receiver keeps talking while
-        # reporting no lock - never leaves zero at all.  Either way it can never
-        # stay latched or represent a long outage: a threshold above the timeout
-        # would never fire at all, and one below it would fire and then
-        # self-clear on every cycle.  Both thresholds used below sit above it
-        # deliberately, because a gate which is still effective with a threshold
-        # larger than the driver timeout can only be reading a monitor-owned
-        # latch.
+        # The AP_GPS driver's own delivery timeout.  Nothing derived from the
+        # driver's self-restamped timestamp can stay latched above this value:
+        # such a derivation either saw-tooths against the timeout or never leaves
+        # zero.  Both thresholds below sit above it deliberately, because a gate
+        # which is still effective with a threshold larger than the driver
+        # timeout can only be reading a monitor-owned latch.
         gps_driver_timeout_ms = 4000
         # the threshold whose veto is asserted, strictly above that timeout
         veto_threshold_ms = 5000
@@ -12113,10 +12105,10 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         # period bounds both the measurement quantisation and the spacing of
         # the telemetry
         task_period_ms = 100
-        # what a healthy receiver reads.  The monitor latches the instant each
-        # usable fix was delivered rather than the tick on which it noticed, so
-        # the value rests below one GPS reporting interval plus one task period
-        # - about 300ms at the simulator's default 5Hz GPS - instead of at zero.
+        # what a healthy receiver reads.  The monitor re-latches its own clock on
+        # every tick which sees a usable fix, so the measured age rests near zero;
+        # this ceiling sits well above that and well below the driver timeout, so it
+        # tells a receiver which is still delivering apart from a frozen latch.
         healthy_ceiling_ms = 300
 
         self.start_subtest("an enabled gate does not block a healthy receiver")
@@ -12124,12 +12116,10 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.set_parameter('FS_PNT_FRESH_MS', tolerant_threshold_ms)
         self.reboot_sitl()
 
-        # Positive control: the gate must not block a healthy vehicle.  The latch
-        # starts at zero and there is deliberately no "has ever had a fix" flag,
-        # so staleness equals uptime until the first usable fix and an enabled
-        # gate legitimately refuses arming during that pre-lock window.  Waiting
-        # here is how that intended cold-start behaviour is tolerated; it is
-        # asserted on its own terms in the never-locked subtest at the end.
+        # Positive control: the gate must not block a healthy vehicle.  Until the
+        # first usable fix the age is the uptime, so an enabled gate legitimately
+        # refuses arming during that window; waiting here tolerates that, and the
+        # never-locked subtest at the end asserts it on its own terms.
         self.wait_ready_to_arm()
 
         self.start_subtest("staleness grows in milliseconds at the monitor's task rate")
@@ -12152,25 +12142,25 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 raise NotAchievedException("Simulated GPS kept reporting a 3D fix after being starved")
         self.drain_mav()
 
-        # Let the last fix already in flight be consumed before sampling starts.
-        # The monitor latches the instant a usable fix was delivered, so a fix
-        # landing between two samples legitimately lowers the value; settling
-        # first, on top of the fix-type witness above, means the window below
-        # observes a latch which is already frozen.  One second is ample against
-        # the simulator's 5Hz GPS and 100ms lag, and it leaves the window
-        # spanning far more than two saw-tooth periods.
+        # Let the reported status settle before sampling starts.  The fix-type
+        # witness above reports the same status the monitor samples, so its verdict
+        # already means the latch has stopped advancing; settling drains whatever was
+        # still in flight and keeps the first samples clear of the tick on which the
+        # status changed, either of which would otherwise show up as a legitimately
+        # lower value early in the window.
         self.delay_sim_time(1)
 
         # Sample the published field densely rather than once a second.
-        # NAMED_VALUE_FLOAT is not stream-rate managed, so the monitor's task
-        # rate is also the on-wire rate, and every sample carries the vehicle's
-        # own time_boot_ms taken from the same millis() call which produced the
-        # value.  While the latch is frozen the value is that clock minus the
-        # latch, so the value must advance exactly as fast as time_boot_ms does:
-        # that is what pins the unit to milliseconds rather than to microseconds
-        # or seconds, and what neither a sparse nor a rescaled publisher can
-        # satisfy.  The window is longer than two of the driver's 4000ms timeout
-        # periods, so a saw-tooth cannot hide inside it.
+        # NAMED_VALUE_FLOAT is not stream-rate managed, so the monitor's task rate
+        # is also the on-wire rate.  A sample's value and its time_boot_ms are two
+        # near-contemporaneous reads of the same boot clock - the monitor computes
+        # the value, then the send helper stamps the packet - so while the latch is
+        # frozen the value must advance at the same rate as time_boot_ms, to within
+        # the two task periods tolerated below.  That is what pins the unit to
+        # milliseconds rather than to microseconds or seconds, and what neither a
+        # sparse nor a rescaled publisher can satisfy.  The window is longer than
+        # two of the driver's 4000ms timeout periods, so a saw-tooth cannot hide
+        # inside it.
         window_ms = 10000
         owed_samples = window_ms // task_period_ms
         samples = []
@@ -12178,19 +12168,23 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         while True:
             if time.time() > deadline:
                 raise NotAchievedException("Could not collect a %ums window of GPSFresh samples" % window_ms)
-            m = self.mav.recv_match(type='NAMED_VALUE_FLOAT', blocking=True, timeout=5)
-            if m is None:
-                raise NotAchievedException("Stopped receiving NAMED_VALUE_FLOAT while the GPS was starved")
-            if m.name != 'GPSFresh':
-                continue
+            # Every sample in the window is taken through the suite's own
+            # named-value helper, so each one carries that helper's message
+            # assertion, its sim-time timeout and its diagnostics rather than a
+            # bare receive.  Successive calls consume the one MAVLink stream in
+            # order, which is exactly what makes the sequence assembled here
+            # chronological and the monotonicity assertion below meaningful.
+            # assert_receive_named_value_float_value must never be used in its
+            # place: it calls itself, so it can only recurse or raise.
+            m = self.assert_receive_named_value_float("GPSFresh")
             if not math.isfinite(m.value):
                 raise NotAchievedException("GPSFresh must always be finite, got (%s)" % str(m.value))
             if m.value < 0:
                 raise NotAchievedException("GPSFresh must never be negative, got %f" % m.value)
             if len(samples) == 0 and m.value <= healthy_ceiling_ms:
-                # a receiver which is still delivering keeps advancing the latch,
-                # so its age rests under one reporting interval; the measured
-                # window has to start once the latch has frozen
+                # a receiver which is still delivering re-latches the monitor's
+                # clock on every tick, so its measured age rests at nearly zero;
+                # the measured window has to start once the latch has frozen
                 continue
             samples.append(m)
             if m.time_boot_ms - samples[0].time_boot_ms >= window_ms:
@@ -12203,7 +12197,8 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
         # A single collapse toward zero mid-window is the saw-tooth, and it must
         # fail here: the staleness has to come from a monitor-owned latch, never
-        # from an AP_GPS timestamp the driver re-stamps on its own timeout.
+        # from a timestamp AP_GPS owns - neither the one the driver re-stamps on
+        # its own timeout, nor the blended fix time it averages across receivers.
         for (before, after) in zip(samples, samples[1:]):
             if after.value < before.value:
                 raise NotAchievedException(
@@ -12260,8 +12255,8 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
         self.start_subtest("staleness past a threshold above the driver timeout vetoes arming")
         # Nothing about the vehicle changes here except the configured duration:
-        # the same starved receiver which was armable a moment ago must now be
-        # refused, which is what proves the veto follows the measured age against
+        # the same starved receiver which the gate did not veto a moment ago must
+        # now be refused, which proves the veto follows the measured age against
         # FS_PNT_FRESH_MS rather than the receiver's instantaneous status.  The
         # threshold stays above the 4000ms driver timeout - the case a gate
         # derived from the driver's own timestamp could never serve.
@@ -12285,11 +12280,11 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                                    timeout=30)
 
         self.start_subtest("restored delivery collapses the measurement and clears the gate")
-        # Restore delivery.  The latch takes the delivery instant of the very
-        # next usable fix, so within one task period of that fix the measurement
-        # collapses to at most one GPS reporting interval and the gate stops
-        # blocking.  The threshold is deliberately left enabled, so this also
-        # proves the veto clears rather than merely being switched off.
+        # Restore delivery.  The latch takes the monitor's own clock on the first
+        # tick which sees a usable fix again, so the measurement collapses within
+        # one task period of that tick and the gate stops blocking.  The
+        # threshold is deliberately left enabled, so this also proves the veto
+        # clears rather than merely being switched off.
         self.progress("Restoring the simulated GPS")
         self.set_parameter('SIM_GPS1_ENABLE', 1)
         nominal_ms = 500
@@ -12324,10 +12319,11 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 "Simulated GPS reported fix_type=%u after booting starved; this subtest requires a "
                 "receiver which never locks" % m.fix_type)
 
-        # The value a message carries and the time_boot_ms it is stamped with
-        # come from the same millis() call, and the latch is still zero, so the
-        # two must agree: that is the uptime semantics of the cold start, and an
-        # implementation which let a never-locked receiver pass could not show it.
+        # A sample's value and its time_boot_ms are near-contemporaneous reads of
+        # the same boot clock, and the latch is still zero, so the two must agree
+        # to within the tolerance below: that is the uptime semantics of the cold
+        # start, which an implementation letting a never-locked receiver pass
+        # could not show.
         first = self.assert_receive_named_value_float("GPSFresh")
         if not math.isfinite(first.value):
             raise NotAchievedException("GPSFresh must always be finite, got (%s)" % str(first.value))
@@ -12425,7 +12421,6 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                     "got (%s)" % str(m.value))
             self.delay_sim_time(1)
 
-        # The gate must have kept silent throughout.
         spoke = self.statustext_in_collections("PNT data stale")
         if spoke is not None:
             raise NotAchievedException(
@@ -12434,6 +12429,456 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.progress("Restoring the simulated GPS")
         self.set_parameter('SIM_GPS1_ENABLE', 1)
         self.wait_ekf_happy()
+
+        self.context_pop()
+        self.reboot_sitl()
+
+    def test_pnt_health_gate_blend_2d_sibling(self):
+        '''Ensure a 2D-only second receiver cannot refresh the PNT measurement while the blended GPS is primary'''
+        # The measurement is the time since the GPS was last seen reporting a
+        # USABLE - at least 3D - fix, latched from the monitor's own clock on every
+        # tick which sees that status.  With GPS_AUTO_SWITCH set to Blend the status
+        # the monitor reads is the virtual blended instance's, which is the HIGHEST
+        # status across the receivers, so a receiver which keeps delivering nothing
+        # better than 2D must never keep that latch advancing.  Nor may the age be
+        # sourced from AP_GPS's own delivery instant, which for the same virtual
+        # instance is a weight-averaged number over every receiver carrying blend
+        # weight - and horizontal weighting admits a receiver at 2D, so that stamp
+        # would be dragged forward by exactly the receiver whose fixes are not
+        # usable.
+        #
+        # This test builds that pair.  The first receiver is silenced while it still
+        # advertises a 3D fix, which AP_GPS lets it do until its own delivery
+        # timeout expires.  The second goes on delivering 2D fixes with a
+        # horizontal accuracy good enough to take almost all of the blend weight.
+        # Once the driver timeout has retired the silenced receiver's status, no
+        # receiver reports a usable fix, so the latch must freeze and the age must go
+        # on growing for as long as the outage lasts - although the vehicle is still
+        # receiving GPS deliveries throughout.  An implementation which let the 2D stream refresh
+        # the measurement, whether through a 2D floor or through that averaged
+        # stamp, reads younger, under-reports the staleness and postpones the veto.
+        #
+        # Starving a receiver also trips the pre-existing GPS and estimator
+        # pre-arms, and a receiver pinned at 2D trips them on its own account.
+        # All of those answer the estimate-quality question and are legitimate
+        # here, so every assertion below is scoped to this gate's own telemetry
+        # and its own distinctive message.
+        self.context_push()
+
+        # AP_GPS keeps a receiver's last reported fix status for this long after
+        # delivery stops, which is the window in which a silenced receiver still
+        # presents a 3D status to the blend.
+        gps_driver_timeout_ms = 4000
+        # above that timeout deliberately, as in the single-receiver case: a gate
+        # still effective with a threshold larger than the driver timeout can only
+        # be reading a monitor-owned latch.
+        veto_threshold_ms = 5000
+        # the monitor samples and publishes on the same 10Hz tick
+        task_period_ms = 100
+        # the simulator's default GPS reporting interval, 5Hz
+        gps_report_interval_ms = 200
+        # AP_GPS numbers the virtual blended solution just past the physical
+        # receivers and logs it under that number
+        blended_instance = 2
+        # LogEvent::GPS_PRIMARY_CHANGED, which AP_GPS logs whenever the instance it
+        # treats as the primary changes
+        gps_primary_changed_event = 67
+        # How often this test delivers to the receiver it feeds.  The blend gives up
+        # on a pair whose newest and oldest reports are more than twice the slower
+        # receiver's reporting interval apart, so delivering on the monitor's own
+        # tick keeps the pair comfortably inside that spread and the blend solidly
+        # in use before anything is taken away.  Delivering only as often as the
+        # simulated receiver reports leaves the pair close enough to that limit that
+        # the blend drops in and out, and a run in which it is out at the wrong
+        # moment measures nothing.
+        injection_interval_ms = task_period_ms
+        # Long enough for the blend's health counter to run down to zero - it moves
+        # by one per GPS update, at 50Hz - so that the blend is settled on the pair
+        # rather than freshly and marginally engaged when delivery stops.
+        blend_settle_ms = 5000
+        # How far NEWER than the silenced receiver's last usable delivery the latch
+        # implied by the telemetry may ever read.  Because the monitor samples a
+        # reported status rather than a delivery instant, and AP_GPS holds that
+        # status until its own timeout expires, the latch legitimately keeps
+        # advancing for up to one driver timeout after that delivery - plus one task
+        # period of sampling quantisation and one reporting interval of driver lag.
+        # It may never read newer than that: beyond this ceiling the only thing that
+        # can still be advancing the latch is the receiver which is delivering 2D
+        # fixes, which is the defect this scenario exists to catch.
+        latch_ceiling_ms = gps_driver_timeout_ms + task_period_ms + gps_report_interval_ms
+        # The published value and the time_boot_ms stamped beside it are
+        # near-contemporaneous reads of the same boot clock - the monitor computes
+        # the value, then the send helper stamps the packet - so an implied latch
+        # carries at most this much read skew.
+        latch_epsilon_ms = 50
+        # Far better than SIM_GPS1_ACC's 0.3m default, so the 2D receiver takes
+        # almost all of the horizontal blend weight: those weights go as the
+        # inverse square of the reported accuracy.
+        sibling_hacc_m = 0.02
+
+        self.set_parameters({
+            'FS_PNT_FRESH_MS': veto_threshold_ms,
+            # 2 is Blend, which makes the virtual blended instance the primary and
+            # is the whole point of this scenario
+            'GPS_AUTO_SWITCH': 2,
+            # weight on horizontal position accuracy alone.  That is the one blend
+            # metric computed over receivers at 2D and above, so it is what lets a
+            # 2D receiver carry weight, and using it alone concentrates the weight
+            # on the receiver which stays alive below
+            'GPS_BLEND_MASK': 1,
+            # Log while disarmed from this boot onwards, so that the dataflash
+            # witness taken at the end of this test covers the moment delivery
+            # stopped.
+            'LOG_DISARMED': 1,
+            # Set to their existing values purely so that the context restores them:
+            # both are changed further down through the direct parameter send, which
+            # does not register anything for restoration on its own.
+            'SIM_GPS1_TYPE': 1,
+            'GPS2_TYPE': 0,
+        })
+        self.reboot_sitl()
+
+        self.start_subtest("blend a receiver about to be silenced with one pinned at a 2D fix")
+        # The second receiver is deliberately introduced only once the vehicle is
+        # healthy on the first one alone.  That is the positive control, and it
+        # also matters for the estimator: nothing is taken away below until the
+        # EKF has already built its position solution from GPS.
+        self.wait_ready_to_arm()
+
+        # Feed the second receiver from the first receiver's own reported position,
+        # so the two are co-located and the blended solution does not jump when
+        # almost all of the weight moves onto the second one.
+        tstart = self.get_sim_time()
+        while True:
+            first_receiver = self.assert_receive_message('GPS_RAW_INT', timeout=10)
+            if (first_receiver.fix_type >= mavutil.mavlink.GPS_FIX_TYPE_3D_FIX and
+                    first_receiver.lat != 0):
+                break
+            if self.get_sim_time_cached() - tstart > 60:
+                raise NotAchievedException(
+                    "First receiver never reported a 3D fix, so this scenario cannot be set up")
+
+        # GPS_INPUT carries the receiver's own GPS time.  Deriving it from the
+        # vehicle's own clock keeps the injected receiver in the same week as the
+        # simulated one, which is what the blend expects of two receivers watching
+        # the same sky, and keeps the blended time of week sane.
+        gps_epoch_offset_ms = 315964800 * 1000
+        week_ms = 7 * 24 * 3600 * 1000
+        tstart = self.get_sim_time()
+        while True:
+            system_time = self.assert_receive_message('SYSTEM_TIME', timeout=10)
+            if system_time.time_unix_usec != 0:
+                break
+            if self.get_sim_time_cached() - tstart > 60:
+                raise NotAchievedException("Vehicle never reported a GPS-derived time of day")
+        base_unix_ms = system_time.time_unix_usec // 1000
+        base_boot_ms = system_time.time_boot_ms
+
+        def inject_2d_fix(now_ms):
+            '''deliver one 2D fix to the second receiver, which is configured as GPS_TYPE_MAV'''
+            since_gps_epoch_ms = base_unix_ms + (now_ms - base_boot_ms) - gps_epoch_offset_ms
+            self.mav.mav.gps_input_send(
+                0,                                    # time_usec, unused by the receiving driver
+                1,                                    # gps_id: the second receiver
+                0,                                    # ignore_flags: every field below is meant to be used
+                int(since_gps_epoch_ms % week_ms),    # time_week_ms
+                int(since_gps_epoch_ms // week_ms),   # time_week
+                # 2 is a 2D fix: delivered, and deliberately never usable.  The
+                # driver takes this straight through as the receiver's status.
+                2,
+                first_receiver.lat,
+                first_receiver.lon,
+                first_receiver.alt * 0.001,           # GPS_RAW_INT reports mm, GPS_INPUT wants metres
+                1.0,                                  # hdop
+                1.0,                                  # vdop
+                0.0, 0.0, 0.0,                        # vn, ve, vd: the vehicle is sitting still
+                0.4,                                  # speed_accuracy
+                sibling_hacc_m,                       # horiz_accuracy, which sets the blend weight
+                1.0,                                  # vert_accuracy
+                15)                                   # satellites_visible
+
+        # The second receiver exists only for as long as this test keeps
+        # delivering to it, and the blend abandons a receiver whose reports fall
+        # more than a couple of reporting intervals behind its sibling's, so every
+        # wait in this test has to go on injecting while it waits - at a cadence
+        # which does not depend on which message the wait happens to want.  This
+        # pump therefore reads whatever arrives, keeps the vehicle's own clock from
+        # the GPSFresh stamps, and injects off that clock.
+        clock = {'boot_ms': 0, 'injected_ms': 0}
+
+        def pump(until=None, for_ms=None, timeout_s=60, failure=None):
+            '''keep the second receiver fed; return the message satisfying until()'''
+            tstart = self.get_sim_time()
+            start_ms = None
+            while True:
+                m = self.mav.recv_match(blocking=True, timeout=5)
+                if m is None:
+                    raise NotAchievedException("Vehicle stopped talking to us")
+                if m.get_type() == 'NAMED_VALUE_FLOAT' and m.name == 'GPSFresh':
+                    clock['boot_ms'] = m.time_boot_ms
+                    if start_ms is None:
+                        start_ms = m.time_boot_ms
+                    if m.time_boot_ms - clock['injected_ms'] >= injection_interval_ms:
+                        clock['injected_ms'] = m.time_boot_ms
+                        inject_2d_fix(m.time_boot_ms)
+                if until is not None and until(m):
+                    return m
+                if for_ms is not None and start_ms is not None and clock['boot_ms'] - start_ms >= for_ms:
+                    return None
+                if self.get_sim_time_cached() - tstart > timeout_s:
+                    raise NotAchievedException(failure or "pump timed out")
+
+        def blend_primary_witness(instant_ms):
+            '''log evidence that the blended instance was the primary at instant_ms
+
+            Two records carry it between them.  Only AP_GPS_Blended::calc_state()
+            writes a GPS record for the virtual blended instance, it runs only while
+            the blended solution is in use, and that record's U field is set when the
+            instance it describes is the primary - so such a record dates a moment at
+            which the blended instance demonstrably was the primary.  AP_GPS then logs
+            a GPS_PRIMARY_CHANGED event on every change of primary, so the absence of
+            one between that record and instant_ms proves the primary had not changed
+            in between.  Returns the newest of each, at or before instant_ms.  The
+            in-tree GPS blending test reads the same pair of records.
+
+            Nothing is read until the measurement is over: reading the log costs
+            vehicle time in which this test cannot deliver, and a receiver which is
+            not being delivered to is one the blend drops.
+            '''
+            blended_ms = None
+            changed_ms = None
+            dfreader = self.dfreader_for_current_onboard_log()
+            while True:
+                m = dfreader.recv_match(type=['GPS', 'EV'])
+                if m is None:
+                    return (blended_ms, changed_ms)
+                logged_ms = m.TimeUS // 1000
+                if logged_ms > instant_ms:
+                    continue
+                if m.get_type() == 'EV':
+                    if m.Id == gps_primary_changed_event:
+                        changed_ms = logged_ms
+                elif m.I == blended_instance and m.U == 1:
+                    blended_ms = logged_ms
+
+        # 14 is GPS_TYPE_MAV, so the second receiver is fed by the GPS_INPUT
+        # messages this test sends.  No simulated receiver can be made to report a
+        # 2D fix - the simulated back ends report a 3D fix or none at all - so
+        # injection is the only way to present a receiver which keeps delivering
+        # while never delivering anything usable.
+        self.progress("Feeding a second receiver 2D fixes")
+        self.set_parameter('GPS2_TYPE', 14)
+        pump(until=lambda m: (m.get_type() == 'GPS2_RAW' and
+                              m.fix_type == mavutil.mavlink.GPS_FIX_TYPE_2D_FIX),
+             failure="Second receiver never reported the 2D fix this test feeds it")
+
+        # The estimator must still be aided when the first receiver is silenced, so
+        # that what follows measures the monitor rather than a vehicle which had
+        # already lost its position solution.
+        ekf_wanted = (mavutil.mavlink.ESTIMATOR_POS_HORIZ_ABS |
+                      mavutil.mavlink.ESTIMATOR_POS_HORIZ_REL)
+        pump(until=lambda m: (m.get_type() == 'EKF_STATUS_REPORT' and
+                              (m.flags & ekf_wanted) == ekf_wanted and
+                              not (m.flags & mavutil.mavlink.ESTIMATOR_CONST_POS_MODE)),
+             failure="Estimator lost its horizontal position solution once the second receiver joined")
+
+        # Give the blend time to take up the pair and settle on it.  Its health has
+        # to be established before delivery stops, because from that moment the pair
+        # only has as long as the blend's own tolerance for a receiver falling behind
+        # its sibling - and that interval is the whole subject of this test.
+        self.progress("Letting the blend settle on the pair")
+        pump(for_ms=blend_settle_ms,
+             failure="Vehicle stopped publishing while the blend settled on the pair")
+
+        self.start_subtest("a 2D receiver's deliveries must not refresh the measurement")
+        # Collect from before the silence, and without a gap: the interval which
+        # separates a correlated monitor from one reading the blended instant opens
+        # the moment delivery stops and closes again when the blend gives up on the
+        # silenced receiver.  The collecting hook is installed by context_push
+        # above, and it sees every message this test receives from here on, whoever
+        # asked for it.
+        self.context_collect('NAMED_VALUE_FLOAT')
+
+        # Silence the receiver rather than merely unlocking it.  A disabled
+        # simulated receiver keeps talking while reporting no lock, which drops its
+        # status immediately; removing its simulated back end stops the bytes, so
+        # the driver holds the last reported 3D status until its own timeout -
+        # which is precisely the receiver this scenario needs.
+        # Written directly rather than through the suite's parameter setter, which
+        # runs a receive loop of its own that delivers nothing.  Half a second of
+        # silence is enough for the blend to give up on the pair, and the interval
+        # this test measures begins at this very write, so this is precisely the
+        # moment delivery cannot stop.  The write needs no acknowledgement: if it
+        # were not applied the first receiver would go on delivering, and the
+        # witnesses immediately below - and every measurement after them - would
+        # fail.  The parameter is registered for restoration by the set_parameters()
+        # call above, which a direct send does not do for itself.
+        self.progress("Silencing the first receiver")
+        self.send_set_parameter_direct('SIM_GPS1_TYPE', 0)
+
+        # Witness the pair from the receivers' own telemetry rather than from the
+        # feature under test: one receiver still delivering nothing better than 2D,
+        # and one still advertising a 3D fix although its last delivery is already
+        # stale.  The second witness is taken last because staleness takes time to
+        # accrue, and it has to be found before the driver timeout retires that 3D
+        # status.
+        pump(until=lambda m: (m.get_type() == 'GPS2_RAW' and
+                              m.fix_type == mavutil.mavlink.GPS_FIX_TYPE_2D_FIX),
+             timeout_s=0.001 * gps_driver_timeout_ms,
+             failure="Second receiver stopped delivering 2D fixes when the first was silenced")
+        witness_stale_ms = task_period_ms + 2 * gps_report_interval_ms
+        stale_3d = pump(
+            until=lambda m: (m.get_type() == 'GPS_RAW_INT' and
+                             m.fix_type >= mavutil.mavlink.GPS_FIX_TYPE_3D_FIX and
+                             clock['boot_ms'] - m.time_usec // 1000 > witness_stale_ms),
+            timeout_s=0.001 * gps_driver_timeout_ms,
+            failure="The silenced receiver stopped advertising a 3D fix before this test could witness "
+                    "it stale alongside the 2D receiver, so the blend was never asked to combine the "
+                    "pair this test covers")
+        self.progress("First receiver still reports fix_type=%u %ums after its last delivery" %
+                      (stale_3d.fix_type, clock['boot_ms'] - stale_3d.time_usec // 1000))
+
+        # Run on for longer than two of the driver's timeout periods, so that a
+        # saw-tooth cannot hide inside the window and the threshold is passed.
+        window_ms = 12000
+        pump(for_ms=window_ms, timeout_s=120,
+             failure="Could not sample a %ums window while the first receiver was silent" % window_ms)
+
+        # The silenced receiver's own last delivery instant, read after the window
+        # so that it is certainly the last one it will ever report.  AP_GPS clears a
+        # timed-out receiver's state but keeps its delivery timing, so this stays
+        # readable afterwards, and reading it repeatedly proves it is frozen rather
+        # than merely sampled at a fortunate moment.
+        delivered_ms = None
+        for _ in range(5):
+            witness = self.assert_receive_message('GPS_RAW_INT', timeout=10)
+            stamp_ms = witness.time_usec // 1000
+            if delivered_ms is not None and stamp_ms != delivered_ms:
+                raise NotAchievedException(
+                    "The silenced receiver's delivery instant moved from %ums to %ums" %
+                    (delivered_ms, stamp_ms))
+            delivered_ms = stamp_ms
+        if not delivered_ms:
+            raise NotAchievedException(
+                "The first receiver reports no delivery instant at all, so there is nothing to "
+                "measure the published staleness against")
+
+        # Before measuring anything, establish that this run really did present the
+        # arrangement the scenario is about, with the virtual blended instance still
+        # the primary when the first receiver made its final delivery.  Without that
+        # the measurements below would be taken on a vehicle which had simply been
+        # reading one physical receiver all along, and would pass whatever the
+        # monitor did with a blended primary.
+        (blended_primary_ms, primary_changed_ms) = blend_primary_witness(delivered_ms)
+        if blended_primary_ms is None:
+            raise NotAchievedException(
+                "Nothing logged up to the first receiver's final delivery at %ums records the blended "
+                "instance as the primary, so the blended sourcing this test covers never came into "
+                "use" % delivered_ms)
+        if primary_changed_ms is not None and primary_changed_ms > blended_primary_ms:
+            raise NotAchievedException(
+                "The primary GPS changed at %ums, after the last record showing the blended instance "
+                "as the primary at %ums and before the first receiver's final delivery at %ums, so the "
+                "blend was not the primary when delivery stopped" %
+                (primary_changed_ms, blended_primary_ms, delivered_ms))
+        self.progress("The blended instance was the primary at %ums and the primary did not change "
+                      "again before the final delivery at %ums" % (blended_primary_ms, delivered_ms))
+
+        samples = [m for m in self.context_stop_collecting('NAMED_VALUE_FLOAT') if m.name == 'GPSFresh']
+        self.progress("Collected %u GPSFresh samples; the silenced receiver last delivered at %ums" %
+                      (len(samples), delivered_ms))
+        # Half of what 10Hz owes over the window, which tolerates lost messages
+        # without tolerating a window which was never really sampled.
+        owed_samples = window_ms // (2 * task_period_ms)
+        if len(samples) < owed_samples:
+            raise NotAchievedException(
+                "Only %u GPSFresh samples arrived across the window; about %u were owed" %
+                (len(samples), owed_samples))
+
+        # This is the assertion the scenario exists for.  Every sample implies the
+        # latch the monitor held when it published, because the value and the
+        # time_boot_ms stamped beside it are near-contemporaneous reads of the same
+        # boot clock.  That latch may never read newer than the silenced receiver's
+        # final delivery plus the ceiling above: the reported status it is sampled
+        # from can outlive that delivery by one driver timeout, and by nothing more.
+        # Anything newer means the receiver which is only delivering 2D fixes is
+        # keeping the measurement fresh.
+        for m in samples:
+            implied_latch_ms = m.time_boot_ms - m.value
+            if implied_latch_ms > delivered_ms + latch_ceiling_ms:
+                raise NotAchievedException(
+                    "GPSFresh implies a usable fix was seen at %.0fms, more than %ums after the only "
+                    "receiver reporting a usable fix last delivered one at %ums: a receiver delivering "
+                    "2D fixes must not refresh the measurement" %
+                    (implied_latch_ms, latch_ceiling_ms, delivered_ms))
+
+        # And the other half of it, so the measurement is pinned to a latch which has
+        # stopped rather than merely to something old enough: once the driver timeout
+        # has certainly expired, no receiver is reporting a usable fix any more, so
+        # the implied latch must be frozen for the rest of the window - although the
+        # second receiver goes on delivering throughout.
+        settled = [m for m in samples if m.time_boot_ms - delivered_ms >= latch_ceiling_ms]
+        if len(settled) == 0:
+            raise NotAchievedException(
+                "The sampled window did not outlast the %ums driver timeout" % gps_driver_timeout_ms)
+        settled_latches = [m.time_boot_ms - m.value for m in settled]
+        if max(settled_latches) - min(settled_latches) > 2 * task_period_ms:
+            raise NotAchievedException(
+                "The latch implied by GPSFresh moved between %.0fms and %.0fms while no receiver was "
+                "reporting a usable fix; it must be frozen" %
+                (min(settled_latches), max(settled_latches)))
+        if min(settled_latches) < delivered_ms - latch_epsilon_ms:
+            raise NotAchievedException(
+                "GPSFresh implies a latch at %.0fms, older than the silenced receiver's last delivery "
+                "at %ums, so the measurement is timed from the wrong instant" %
+                (min(settled_latches), delivered_ms))
+        self.progress("The implied latch froze at %.0fms, %.0fms after the final usable delivery at %ums" %
+                      (min(settled_latches), min(settled_latches) - delivered_ms, delivered_ms))
+
+        # The same properties the single-receiver case asserts must survive the
+        # blend: no collapse toward zero, and growth past the driver timeout.
+        # Finiteness is owed on every sample.  Monotonicity is owed once the latch
+        # has frozen, because until then it is still advancing on the status the
+        # silenced receiver goes on reporting and the published value therefore
+        # steps back toward zero on every tick, legitimately.
+        for m in samples:
+            if not math.isfinite(m.value) or m.value < 0:
+                raise NotAchievedException(
+                    "GPSFresh must always be finite and non-negative, got (%s)" % str(m.value))
+        starved = settled
+        for (before, after) in zip(starved, starved[1:]):
+            if after.value < before.value:
+                raise NotAchievedException(
+                    "GPSFresh went backwards (%f then %f) while no receiver was reporting a usable fix" %
+                    (before.value, after.value))
+
+        # The other side of the same invariant, which catches the fault this test
+        # exists for even if the sampling happens to miss the interval in which the
+        # measurement reads young.  A monitor-owned latch moves only forwards, so
+        # while it is frozen the published age must advance at exactly the rate the
+        # clock advances.  Growing faster than that means the latch moved backwards,
+        # which is what a latch sourced from the blend's averaged instant has to do
+        # the moment the blend stops being the primary and the silenced receiver's
+        # own older instant becomes the only one on offer.
+        for (before, after) in zip(starved, starved[1:]):
+            elapsed_ms = after.time_boot_ms - before.time_boot_ms
+            if after.value - before.value > elapsed_ms + latch_epsilon_ms:
+                raise NotAchievedException(
+                    "GPSFresh grew by %fms across %ums of uptime while no receiver was reporting a "
+                    "usable fix; an age timed from a latch which only ever advances can only grow as "
+                    "fast as the clock" % (after.value - before.value, elapsed_ms))
+        if samples[-1].value <= gps_driver_timeout_ms:
+            raise NotAchievedException(
+                "GPSFresh only reached %fms; with one receiver silent and the other pinned at 2D it "
+                "must pass the %ums driver timeout" % (samples[-1].value, gps_driver_timeout_ms))
+
+        self.start_subtest("the veto fires although the second receiver is still delivering")
+        # The vehicle went on receiving GPS deliveries throughout the window above -
+        # just never usable ones - so a gate which counted deliveries rather than
+        # usable deliveries would have stayed quiet here.
+        self.assert_prearm_failure("PNT data stale (>%u ms)" % veto_threshold_ms,
+                                   other_prearm_failures_fatal=False,
+                                   timeout=30)
 
         self.context_pop()
         self.reboot_sitl()
@@ -12594,6 +13039,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
              self.NoRCOnBootPreArmFailure,
              self.test_pnt_health_gate_prearm,
              self.test_pnt_health_gate_disabled_is_noop,
+             self.test_pnt_health_gate_blend_2d_sibling,
         ])
         return ret
 

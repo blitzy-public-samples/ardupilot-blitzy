@@ -345,7 +345,7 @@ private:
     uint32_t takeoff_check_warning_ms;  // system time user was last warned of takeoff check failure
 
     // PNT (position/navigation/timing) data-delivery freshness monitor
-    uint32_t pnt_last_good_ms;  // system time at which the GPS last delivered a usable fix, as recorded by AP_GPS; written only by the monitor
+    uint32_t pnt_last_good_ms;  // system time the monitor last saw the GPS reporting a usable fix; written only by pnt_health_update()
 
     // GCS selection
     GCS_Copter _gcs; // avoid using this; use gcs()

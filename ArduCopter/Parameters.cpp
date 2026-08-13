@@ -1210,7 +1210,7 @@ const AP_Param::GroupInfo ParametersG2::var_info2[] = {
 
     // @Param: FS_PNT_FRESH_MS
     // @DisplayName: PNT data freshness pre-arm threshold
-    // @Description: Pre-arm threshold on the time since the GPS last delivered a usable 3D fix, measured from the moment that fix was delivered. Whenever the standard arming checks run, arming is refused, quoting this threshold, if that time exceeds this many milliseconds. This is an ordinary pre-arm check rather than a mandatory one, so setting ARMING_CHECK to 0 bypasses it along with the other bypassable checks. It measures data delivery cadence, meaning whether the receiver is still producing fixes, rather than the quality of the resulting position estimate, so it does not replace the EKF failsafe or the position estimate pre-arm checks. The measured time is published continuously as the NAMED_VALUE_FLOAT GPSFresh. Set to zero to disable the check, which also holds GPSFresh at zero.
+    // @Description: Pre-arm threshold on the time since the GPS was last seen reporting a usable 3D fix: arming is refused once that time exceeds this many milliseconds. This measures data delivery cadence, whether the receiver is still producing fixes, not position estimate quality, and is published as the NAMED_VALUE_FLOAT GPSFresh. Zero disables the check and freezes GPSFresh at zero.
     // @Units: ms
     // @Range: 0 60000
     // @User: Advanced
