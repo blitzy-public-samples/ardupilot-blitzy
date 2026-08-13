@@ -1620,6 +1620,18 @@ bool AP_Arming::estop_checks(bool display_failure)
 //gate on the quality of the solution itself.
 bool AP_Arming::pnt_freshness_checks(bool report)
 {
+    // Re-synchronise the operator's threshold before judging the age against
+    // it.  update() injects it once a second, but this function also runs on
+    // demand: arm() calls pre_arm_checks() directly, and so do the MAVLink
+    // "run prearm checks" command handler and the DDS prearm service.  A
+    // parameter write landing between two 1Hz ticks would otherwise be judged
+    // against the previous value - enabling the gate would not take effect
+    // until the next tick, and disabling it would keep blocking for one - so
+    // the threshold in force is read here rather than assumed.  Only the
+    // threshold is refreshed: the age keeps its 1Hz cadence and no telemetry is
+    // published from this path.
+    _pnt_freshness.set_threshold_ms(pnt_freshness_threshold_ms());
+
     // is_stale() already folds in the enable test, so a zero threshold takes
     // this benign early return no matter how large the staleness grows
     if (!_pnt_freshness.is_stale()) {

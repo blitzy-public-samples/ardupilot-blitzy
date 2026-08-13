@@ -229,12 +229,21 @@ protected:
     // all data loaded
     virtual bool terrain_database_required() const;
 
+    // the upper end of the documented range of the vehicles' FS_PNT_FRESH_MS
+    // parameter.  A vehicle's threshold accessor constrains the parameter into
+    // 0..PNT_FRESH_MS_MAX before widening it, so that neither a negative value
+    // nor an arbitrarily large one can yield a threshold the 32-bit age can
+    // never reach - which would leave the gate looking enabled while being
+    // impossible to trip.  It lives here so both vehicles share one ceiling.
+    static constexpr int32_t PNT_FRESH_MS_MAX = 60000;
+
     // expected to return the maximum tolerable age of the last usable PNT
     // solution, in milliseconds; 0 disables the check entirely.  The base
     // returns 0, so vehicles which do not override it - Plane, Sub, Blimp and
-    // AntennaTracker - are permanently inert by design: the freshness latch is
-    // never consulted, no telemetry is published and pnt_freshness_checks()
-    // always passes.  Copter and Rover override it to return FS_PNT_FRESH_MS.
+    // AntennaTracker - are permanently inert by design: the monitor keeps its
+    // own age up to date but nothing acts on it, no telemetry is published and
+    // pnt_freshness_checks() always passes.  Copter and Rover override it to
+    // return their constrained FS_PNT_FRESH_MS.
     virtual uint32_t pnt_freshness_threshold_ms() const;
 
     bool rangefinder_checks(bool report);

@@ -13584,6 +13584,24 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         healthy_ms = 2000  # "well under" the threshold, with two 1Hz ticks of slack
         ceiling_ms = 8000  # twice AP_GPS's fixed GPS_TIMEOUT_MS of 4000ms
         starve_time = 20  # sim seconds; staleness only grows once that 4s timeout expires
+        sample_slack_ms = 2000  # two 1Hz ticks: publication cadence plus link transport lag
+
+        def validate_gpsfresh(value, what):
+            # Every threshold comparison in this test is one-sided - it names a
+            # value the age must stay under, or one it must climb past - and a
+            # one-sided comparison cannot reject a reading that is not a number
+            # at all.  In Python every comparison against NaN is false, so a NaN
+            # GPSFresh would simultaneously satisfy "well under the threshold",
+            # "did not decrease", "exceeded the ceiling" and "fell back below the
+            # threshold", and the test would certify a broken telemetry contract
+            # as correct.  A delivery age is a finite, non-negative count of
+            # milliseconds; anything else means the published value is invalid
+            # rather than merely wrong, so both properties are established here
+            # before any comparison is made against the sample.
+            if not math.isfinite(value):
+                raise NotAchievedException("GPSFresh is not a finite age %s (got=%s)" % (what, str(value)))
+            if value < 0:
+                raise NotAchievedException("GPSFresh is a negative age %s (got=%f)" % (what, value))
 
         self.context_push()
         self.set_parameters({
@@ -13593,6 +13611,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.start_subtest("Healthy GPS publishes a GPSFresh well under the threshold")
         self.wait_ready_to_arm()  # guarantees a genuine usable fix, so the latch is advancing
         m = self.assert_receive_named_value_float("GPSFresh")
+        validate_gpsfresh(m.value, "with a usable fix")
         if m.value >= healthy_ms:
             raise NotAchievedException(
                 "GPSFresh should be well under the threshold with a usable fix (got=%f want<%u)" %
@@ -13600,23 +13619,52 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.progress("Healthy baseline GPSFresh=%f" % m.value)
         self.end_subtest("Healthy GPS publishes a GPSFresh well under the threshold")
 
-        self.start_subtest("Starved GPS makes GPSFresh grow monotonically without bound")
+        self.start_subtest("Starved GPS makes GPSFresh grow monotonically past the driver timeout")
         self.set_parameter('SIM_GPS1_ENABLE', 0)
         # Sample the published freshness across five times the GPS driver's own
-        # four-second timeout.  Two properties are asserted, and both exist to
-        # catch a regression to the forbidden derivation of staleness from
+        # four-second timeout.  Two of the three properties asserted below exist
+        # to catch a regression to the forbidden derivation of staleness from
         # AP_GPS::last_message_time_ms(): the driver re-arms that very timer
         # when its own timeout expires, so the resulting delta saw-tooths
         # around 4000ms forever instead of growing, and a permanently dead
         # receiver reads as intermittently healthy.  A status-latched
-        # implementation instead stops advancing its latch and grows without
-        # bound.  Equality between consecutive samples is permitted, because
-        # two samples can land inside a single 1Hz publication tick.
+        # implementation instead stops advancing its latch, so the reported age
+        # keeps growing for as long as starvation lasts and only ever falls when
+        # a usable fix returns (it saturates just below the 49.7-day uint32
+        # ceiling rather than folding back through zero).  Equality between
+        # consecutive samples is permitted, because two samples can land inside
+        # a single 1Hz publication tick.  The third property is the upper
+        # envelope on each sample; see the comment on it below.
         samples = []
         tstart = self.get_sim_time_cached()
         while self.get_sim_time_cached() - tstart < starve_time:
             self.delay_sim_time(1)
             m = self.assert_receive_named_value_float("GPSFresh")
+            validate_gpsfresh(m.value, "while GPS was starved")
+            # THE UPPER ENVELOPE, applied to every sample and therefore to the
+            # final one the >ceiling_ms proof below rests on, which is what makes
+            # that proof two-sided.  An age cannot exceed the time delivery has
+            # actually been broken for, so this is what rejects a series that is
+            # over-scaled, in the wrong unit, or pegged at some huge constant -
+            # none of which the two growth assertions can see, because a series
+            # such as [0, 1e9, 1e9] never decreases and ends far above the
+            # ceiling after only starve_time seconds.
+            #
+            # The bound holds by construction rather than by luck, which is why
+            # this one clock read is a fresh blocking one rather than the cached
+            # value the loop condition uses: the sample was published before it
+            # was received and this read happens after that, while tstart was
+            # taken from a cached - therefore never-ahead - read made before
+            # starvation could stop the latch.  A genuine age is thus always
+            # within the elapsed interval, and the slack is pure insurance: it
+            # covers the one case where the latch legitimately froze slightly
+            # before tstart, bounded by the healthy sample asserted above.
+            elapsed_ms = (self.get_sim_time() - tstart) * 1000
+            if m.value > elapsed_ms + sample_slack_ms:
+                raise NotAchievedException(
+                    "GPSFresh exceeded the elapsed-time envelope while starved (got=%f want<=%f).  A delivery "
+                    "age cannot be larger than the %.1fs for which delivery has been broken, so the published "
+                    "value or its unit is wrong" % (m.value, elapsed_ms + sample_slack_ms, elapsed_ms * 1.0e-3))
             if len(samples) > 0 and m.value < samples[-1]:
                 raise NotAchievedException(
                     "GPSFresh decreased while GPS stayed starved (previous=%f current=%f).  That is the "
@@ -13627,13 +13675,17 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.progress("GPSFresh series while starved: %s" % str(samples))
         if len(samples) < 2:
             raise NotAchievedException("Too few GPSFresh samples to prove monotonicity (got=%u)" % len(samples))
+        # The climb proof.  Its upper side was established sample by sample as the
+        # series arrived, so this final value is known to be both larger than
+        # twice the driver timeout and no larger than the time delivery has
+        # actually been broken - a real age, not a pegged or over-scaled one.
         if samples[-1] <= ceiling_ms:
             raise NotAchievedException(
                 "GPSFresh never exceeded %ums after %us of starvation (final=%f).  The value looks ceilinged "
                 "by AP_GPS's fixed 4s driver timeout rather than bounded by real elapsed time, which is what "
                 "deriving staleness from the GPS message timestamp would produce" %
                 (ceiling_ms, starve_time, samples[-1]))
-        self.end_subtest("Starved GPS makes GPSFresh grow monotonically without bound")
+        self.end_subtest("Starved GPS makes GPSFresh grow monotonically past the driver timeout")
 
         self.start_subtest("Stale PNT data blocks arming")
         # Prefix-match only: the formatted "(>3000 ms)" suffix is an
@@ -13647,6 +13699,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.wait_ekf_happy()
         self.wait_ready_to_arm()
         m = self.assert_receive_named_value_float("GPSFresh")
+        validate_gpsfresh(m.value, "after GPS recovery")
         if m.value >= threshold_ms:
             raise NotAchievedException(
                 "GPSFresh did not fall back below the threshold after GPS recovery (got=%f want<%u)" %

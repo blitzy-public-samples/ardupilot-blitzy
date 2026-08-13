@@ -200,9 +200,22 @@ bool AP_Arming_Copter::terrain_database_required() const
     return AP_Arming::terrain_database_required();
 }
 
+// returns the configured maximum tolerable age of the last usable PNT solution
+// in milliseconds, which the shared delivery-cadence gate compares against its
+// freshness latch; 0 disables that check entirely.
+//
+// FS_PNT_FRESH_MS is a signed parameter and nothing stops a ground station from
+// writing a value outside its documented 0..60000ms range, so the value is
+// constrained before it is widened.  Both directions matter, and neither is
+// hypothetical: a bare cast would turn -1 into UINT32_MAX, which no 32-bit age
+// can ever exceed, and an arbitrarily large positive value would express a
+// tolerance of days.  Either way the gate would look enabled while being
+// impossible to trip.  Constraining leaves only outcomes the operator can
+// actually observe - the documented "0 disables" behaviour, or a threshold that
+// still fires - and Rover applies exactly the same conversion.
 uint32_t AP_Arming_Copter::pnt_freshness_threshold_ms() const
 {
-    return (uint32_t)copter.g2.fs_pnt_fresh_ms.get();
+    return (uint32_t)constrain_int32(copter.g2.fs_pnt_fresh_ms.get(), 0, PNT_FRESH_MS_MAX);
 }
 
 bool AP_Arming_Copter::parameter_checks(bool display_failure)
