@@ -12231,6 +12231,8 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
              self.AutoTune,
              self.AutoTuneYawD,
              self.NoRCOnBootPreArmFailure,
+             self.PNTHealthGatePreArm,
+             self.PNTHealthGateDisabledIsNoop,
         ])
         return ret
 
@@ -13562,6 +13564,154 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             "ARMING_NEED_LOC": 1,
         })
         self.assert_prearm_failure("Need Position Estimate", other_prearm_failures_fatal=False)
+        self.context_pop()
+        self.reboot_sitl()
+
+    def PNTHealthGatePreArm(self):
+        '''test_pnt_health_gate_prearm: verify monotonic GPSFresh, stale-PNT arming rejection, and recovery'''
+        threshold_ms = 3000  # comfortably above the monitor's 1Hz resolution floor
+        healthy_ms = 2000  # "well under" the threshold, with two 1Hz ticks of slack
+        ceiling_ms = 8000  # twice AP_GPS's fixed GPS_TIMEOUT_MS of 4000ms
+        starve_time = 20  # sim seconds; staleness only grows once that 4s timeout expires
+        sample_slack_ms = 2000  # two monitor periods of baseline and sampling margin
+
+        def validate_gpsfresh(value, what):
+            # every comparison below is one-sided, and no comparison against NaN
+            # is true, so a NaN would satisfy all of them: reject non-finite and
+            # negative ages before comparing
+            if not math.isfinite(value):
+                raise NotAchievedException("GPSFresh is not a finite age %s (got=%s)" % (what, str(value)))
+            if value < 0:
+                raise NotAchievedException("GPSFresh is a negative age %s (got=%f)" % (what, value))
+
+        self.context_push()
+        self.set_parameters({
+            "FS_PNT_FRESH_MS": threshold_ms,
+        })
+
+        self.start_subtest("Healthy GPS publishes a GPSFresh well under the threshold")
+        self.wait_ready_to_arm()  # guarantees a genuine usable fix, so the latch is advancing
+        m = self.assert_receive_named_value_float("GPSFresh")
+        validate_gpsfresh(m.value, "with a usable fix")
+        if m.value >= healthy_ms:
+            raise NotAchievedException(
+                "GPSFresh should be well under the threshold with a usable fix (got=%f want<%u)" %
+                (m.value, healthy_ms))
+        self.progress("Healthy baseline GPSFresh=%f" % m.value)
+        self.end_subtest("Healthy GPS publishes a GPSFresh well under the threshold")
+
+        self.start_subtest("Starved GPS makes GPSFresh grow monotonically past the driver timeout")
+        self.set_parameter('SIM_GPS1_ENABLE', 0)
+        # A status-latched age keeps growing while starvation lasts; an age
+        # derived from AP_GPS::last_message_time_ms() saw-tooths around 4000ms
+        # because the driver resets that timer on timeout.  Equality between
+        # consecutive samples is permitted: two can land inside one 1Hz tick.
+        samples = []
+        tstart = self.get_sim_time_cached()
+        while self.get_sim_time_cached() - tstart < starve_time:
+            self.delay_sim_time(1)
+            m = self.assert_receive_named_value_float("GPSFresh")
+            validate_gpsfresh(m.value, "while GPS was starved")
+            # upper envelope: an age cannot exceed the time delivery has been
+            # broken, which is what rejects a wrong-unit or pegged series
+            elapsed_ms = (self.get_sim_time() - tstart) * 1000
+            if m.value > elapsed_ms + sample_slack_ms:
+                raise NotAchievedException(
+                    "GPSFresh exceeded the elapsed-time envelope while starved (got=%f want<=%f).  A delivery "
+                    "age cannot be larger than the %.1fs for which delivery has been broken, so the published "
+                    "value or its unit is wrong" % (m.value, elapsed_ms + sample_slack_ms, elapsed_ms * 1.0e-3))
+            if len(samples) > 0 and m.value < samples[-1]:
+                raise NotAchievedException(
+                    "GPSFresh decreased while GPS stayed starved (previous=%f current=%f).  That is the "
+                    "saw-tooth signature of staleness being derived from the GPS message timestamp, which "
+                    "the GPS driver re-arms when its own 4s timeout expires, instead of being latched on "
+                    "GPS status" % (samples[-1], m.value))
+            samples.append(m.value)
+        self.progress("GPSFresh series while starved: %s" % str(samples))
+        if len(samples) < 2:
+            raise NotAchievedException("Too few GPSFresh samples to prove monotonicity (got=%u)" % len(samples))
+        if samples[-1] <= ceiling_ms:
+            raise NotAchievedException(
+                "GPSFresh never exceeded %ums after %us of starvation (final=%f).  The value looks ceilinged "
+                "by AP_GPS's fixed 4s driver timeout rather than bounded by real elapsed time, which is what "
+                "deriving staleness from the GPS message timestamp would produce" %
+                (ceiling_ms, starve_time, samples[-1]))
+        self.end_subtest("Starved GPS makes GPSFresh grow monotonically past the driver timeout")
+
+        self.start_subtest("Stale PNT data blocks arming")
+        # Prefix-match only: the formatted "(>3000 ms)" suffix is an
+        # implementation detail.  Co-occurring GPS and EKF pre-arm failures are
+        # expected while the receiver is starved, hence the non-fatal option.
+        self.assert_prearm_failure("PNT data stale", timeout=30, other_prearm_failures_fatal=False)
+        self.end_subtest("Stale PNT data blocks arming")
+
+        self.start_subtest("Restored GPS re-advances the latch and clears the gate")
+        self.set_parameter('SIM_GPS1_ENABLE', 1)
+        self.wait_ekf_happy()
+        self.wait_ready_to_arm()
+        m = self.assert_receive_named_value_float("GPSFresh")
+        validate_gpsfresh(m.value, "after GPS recovery")
+        if m.value >= threshold_ms:
+            raise NotAchievedException(
+                "GPSFresh did not fall back below the threshold after GPS recovery (got=%f want<%u)" %
+                (m.value, threshold_ms))
+        self.progress("Recovered GPSFresh=%f" % m.value)
+        self.end_subtest("Restored GPS re-advances the latch and clears the gate")
+
+        self.context_pop()
+        self.reboot_sitl()
+
+    def PNTHealthGateDisabledIsNoop(self):
+        '''test_pnt_health_gate_disabled_is_noop: verify zero suppresses stale-PNT text and GPSFresh'''
+        # Absence is proved from the context collections, which keep capturing
+        # throughout delay_sim_time().  Arming is deliberately not attempted:
+        # pre-existing GPS and EKF pre-arms legitimately block it while starved.
+        starve_time = 20  # sim seconds; well past AP_GPS's fixed 4s driver timeout
+
+        self.context_push()
+        # collect before anything could be emitted; context_push() is what
+        # installs the collecting hook, so the ordering here is load-bearing
+        self.context_collect('STATUSTEXT')
+        self.context_collect('NAMED_VALUE_FLOAT')
+
+        # verify the shipped default itself, and never write it
+        self.assert_parameter_value("FS_PNT_FRESH_MS", 0)
+
+        self.wait_ready_to_arm()
+        self.set_parameter('SIM_GPS1_ENABLE', 0)
+        self.delay_sim_time(starve_time, reason="starving GPS well past the driver timeout")
+
+        # Two things make the absence assertions below mean something.  First, a
+        # reporting pass of the pre-arm chain must happen inside this window: the
+        # 30-second GCS re-display cadence need not fall inside it, so run the
+        # checks on demand, which reports every failure and is exactly the path a
+        # stale-PNT text would travel.  Second, the collections must demonstrably
+        # be capturing - starving GPS makes the EKF report, so an empty STATUSTEXT
+        # collection would mean the hook captured nothing and the checks below
+        # would pass vacuously rather than proving anything.
+        self.send_mavlink_run_prearms_command()
+        self.delay_sim_time(2, reason="letting the forced pre-arm report arrive")
+        collected_statustexts = len(self.context_collection('STATUSTEXT'))
+        if collected_statustexts == 0:
+            raise NotAchievedException(
+                "No STATUSTEXT was collected at all, so the absence checks below would prove nothing; "
+                "the collection hook is not capturing")
+        self.progress("Collected %u STATUSTEXT and %u NAMED_VALUE_FLOAT while disabled" %
+                      (collected_statustexts, len(self.context_collection('NAMED_VALUE_FLOAT'))))
+
+        stale_text = self.statustext_in_collections('PNT data stale')
+        if stale_text is not None:
+            raise NotAchievedException(
+                "PNT freshness pre-arm emitted while disabled: %s" % stale_text.text)
+
+        for m in self.context_collection('NAMED_VALUE_FLOAT'):
+            if m.name == 'GPSFresh':
+                raise NotAchievedException(
+                    "GPSFresh telemetry published while disabled (value=%f)" % m.value)
+        self.progress("No PNT freshness pre-arm and no GPSFresh telemetry while disabled")
+
+        self.set_parameter('SIM_GPS1_ENABLE', 1)
+        self.wait_ekf_happy()
         self.context_pop()
         self.reboot_sitl()
 

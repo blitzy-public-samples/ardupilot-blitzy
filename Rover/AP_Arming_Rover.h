@@ -32,4 +32,8 @@ protected:
     bool mode_checks(bool report);
     bool motor_checks(bool report);
 
+    // returns the configured maximum tolerable age since primary GPS status last
+    // indicated a usable PNT fix, in milliseconds; 0 disables the freshness check
+    uint32_t pnt_freshness_threshold_ms() const override;
+
 };

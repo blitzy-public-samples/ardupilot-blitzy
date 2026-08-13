@@ -223,6 +223,10 @@ AP_Arming::AP_Arming()
 // performs pre-arm checks. expects to be called at 1hz.
 void AP_Arming::update(void)
 {
+    // update freshness before pre_arm_checks() below, so it uses this tick's latch; this is the
+    // monitor's only writer and it runs on the main thread, the checks only ever read it
+    _pnt_freshness.update(pnt_freshness_threshold_ms());
+
 #if AP_ARMING_CRASHDUMP_ACK_ENABLED
     // if we boot with no crashdump data present, reset the "ignore"
     // parameter so the user will need to acknowledge future crashes
@@ -1611,6 +1615,31 @@ bool AP_Arming::estop_checks(bool display_failure)
     return false;
 }
 
+// check the PNT delivery cadence: age since GPS status last indicated a usable fix, not solution quality.
+// Defined unconditionally, unlike gps_checks(): the body reads no GPS symbol, only the monitor, so the
+// declaration needs no guard either and AP_GPS_ENABLED appears once, on the chain term in pre_arm_checks()
+bool AP_Arming::pnt_freshness_checks(bool report)
+{
+    // arm() and the MAVLink, DDS and Lua prearm requests call this directly between the 1Hz
+    // updates, so read the threshold in force here rather than a cached one.  Keep it in a local:
+    // the last two of those callers run on their own threads, and a threshold stored in the
+    // monitor could be clobbered by the 1Hz update between this read and the comparison - reading
+    // back as 0, i.e. disabled, and passing a vehicle whose PNT is stale
+    const uint32_t threshold = pnt_freshness_threshold_ms();
+
+    if (!_pnt_freshness.is_stale(threshold)) {
+        return true;
+    }
+    check_failed(report, "PNT data stale (>%u ms)", (unsigned)threshold);
+    return false;
+}
+
+// base default: keep vehicles without an override disabled
+uint32_t AP_Arming::pnt_freshness_threshold_ms() const
+{
+    return 0;
+}
+
 bool AP_Arming::pre_arm_checks(bool report)
 {
 #if !APM_BUILD_COPTER_OR_HELI
@@ -1696,7 +1725,11 @@ bool AP_Arming::pre_arm_checks(bool report)
         & crashdump_checks(report)
 #endif
         &  serial_protocol_checks(report)
-        &  estop_checks(report);
+        &  estop_checks(report)
+#if AP_GPS_ENABLED
+        &  pnt_freshness_checks(report)
+#endif
+        ;
 
     if (!checks_result && last_prearm_checks_result) { // check went from true to false
         report_immediately = true;

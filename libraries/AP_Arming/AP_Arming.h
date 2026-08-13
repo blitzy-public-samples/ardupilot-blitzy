@@ -7,6 +7,7 @@
 #include <AP_BoardConfig/AP_BoardConfig_config.h>
 
 #include "AP_Arming_config.h"
+#include "AP_PNTFreshness.h"
 #include "AP_InertialSensor/AP_InertialSensor_config.h"
 #include "AP_Proximity/AP_Proximity_config.h"
 
@@ -187,6 +188,10 @@ protected:
     bool                    armed;
     uint32_t                last_accel_pass_ms;
     uint32_t                last_gyro_pass_ms;
+    // GPS status-freshness monitor; held by value and written only by update(), on the main
+    // thread at 1Hz.  pnt_freshness_checks() only reads it, and may do so from the DDS or Lua
+    // thread; AP_PNTFreshness.h states the threading contract that makes that safe.
+    AP_PNTFreshness         _pnt_freshness;
 
     virtual bool barometer_checks(bool report);
 
@@ -201,6 +206,9 @@ protected:
     bool compass_checks(bool report);
 
     virtual bool gps_checks(bool report);
+
+    // reads pnt_freshness_threshold_ms() once, on the calling thread, and stores nothing
+    bool pnt_freshness_checks(bool report);
 
     bool battery_checks(bool report);
 
@@ -223,6 +231,18 @@ protected:
     // expected to return true if the terrain database is required to have
     // all data loaded
     virtual bool terrain_database_required() const;
+
+    // the upper end of the documented range of the vehicles' FS_PNT_FRESH_MS
+    // parameter.  A vehicle's threshold accessor clamps the signed parameter
+    // into 0..PNT_FRESH_MS_MAX before widening it, so negative writes cannot
+    // wrap and every value stays inside the documented range.  It lives here so
+    // both vehicles share one ceiling.
+    static constexpr int32_t PNT_FRESH_MS_MAX = 60000;
+
+    // expected to return the maximum tolerable age since primary GPS status last
+    // indicated a usable PNT fix, in milliseconds; 0 disables the check.  The base
+    // returns 0, so vehicles which do not override it are permanently inert.
+    virtual uint32_t pnt_freshness_threshold_ms() const;
 
     bool rangefinder_checks(bool report);
 

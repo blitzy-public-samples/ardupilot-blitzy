@@ -639,6 +639,15 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: mode_circle.cpp
     AP_SUBGROUPINFO(mode_circle, "CIRC", 57, ParametersG2, ModeCircle),
 
+    // @Param: FS_PNT_FRESH_MS
+    // @DisplayName: PNT data freshness threshold
+    // @Description: Maximum tolerable age since primary GPS status last indicated a usable PNT fix before the freshness pre-arm check refuses arming. This delivery-cadence proxy is separate from EKF solution-quality checks, and AP_GPS may retain usable status until its fixed timeout expires. Set 0 to disable the check and GPSFresh publication. The monitor runs at 1Hz, so values below about 2000ms are not meaningful. Values are clamped to 0..60000ms, so a negative value disables the check and a value above 60000 is treated as 60000. While enabled, age is published in NAMED_VALUE_FLOAT 'GPSFresh'.
+    // @Units: ms
+    // @Range: 0 60000
+    // @Increment: 100
+    // @User: Advanced
+    AP_GROUPINFO("FS_PNT_FRESH_MS", 58, ParametersG2, fs_pnt_fresh_ms, 0),
+
     AP_GROUPEND
 };
 
