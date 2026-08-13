@@ -72,6 +72,19 @@
  * None of the three expresses how long delivery has been absent, and none is
  * operator-tunable.
  *
+ * Two limits of a cadence measurement are worth stating so that nothing is read
+ * into it which is not there.  It says nothing about whether the fixes being
+ * delivered are genuine: a fabricated or spoofed fix reporting at least 3D
+ * quality refreshes the latch exactly as a real one does, so this monitor stays
+ * silent through it.  Detecting that is a different problem, and so is judging
+ * the resulting solution, which is what the quality mechanisms named above are
+ * for.  And because the gate keys on the configured threshold rather than on the
+ * flight mode, an operator who opts in is refused arming in modes which do not
+ * themselves need GPS whenever the receiver is stale or has never locked - unlike
+ * AP_Arming_Copter::gps_checks(), which consults the mode first.  That follows
+ * from what the gate is for and is not a defect, but it is worth knowing before
+ * setting FS_PNT_FRESH_MS on a vehicle flown in Stabilize or Acro.
+ *
  */
 
 // pnt_health_update - latches the system time at which the GPS was last seen
@@ -106,18 +119,20 @@ void Copter::pnt_health_update()
     // the intended reading of a data-delivery gate - a receiver which has delivered
     // nothing must not satisfy it - and must not be "corrected".
 
-    // A threshold of exactly zero disables the veto and freezes the published value
-    // at a benign zero, while the latch above and pnt_data_age_ms() keep tracking
-    // as usual; the field therefore stays continuously present rather than becoming
-    // intermittent.  Zero and nothing else: the declared 0 to 60000 range is
-    // metadata rather than enforcement, so the parameter store can hold any
-    // int32_t, and publishing the live measurement for an out-of-range value keeps
-    // the misconfiguration visible instead of dressing it up as a legitimate
-    // disabled state.  Refusing to arm on such a value is the job of
-    // AP_Arming_Copter::pnt_freshness_checks(), which validates the same parameter
-    // and fails closed.
+    // A threshold of zero disables the veto and freezes the published value at a
+    // benign zero, while the latch above and pnt_data_age_ms() keep tracking as
+    // usual; the field therefore stays continuously present rather than becoming
+    // intermittent.  The threshold is tested the same way the gate itself tests it
+    // in AP_Arming_Copter::pnt_freshness_checks() - at or below zero means "not
+    // opted in", since the declared 0 to 60000 range is metadata rather than
+    // enforcement and a raw PARAM_SET can store a negative value the operator was
+    // never offered.  Sharing one rule between the two readers is what makes the
+    // frozen zero mean exactly "the gate is inert" and nothing else - which is
+    // also why the disabled reading cannot be told from a perfectly fresh one by
+    // looking at the field: on a vehicle which has not opted in, what GPSFresh
+    // reports is the state of the gate rather than the state of the receiver.
     const int32_t threshold_ms = g2.fs_pnt_fresh_ms.get();
-    const float published_ms = (threshold_ms == 0) ? 0.0f : (float)(now_ms - pnt_last_good_ms);
+    const float published_ms = (threshold_ms <= 0) ? 0.0f : (float)(now_ms - pnt_last_good_ms);
 
     // Published unconditionally on every invocation - the frozen zero of a disabled
     // gate included, so the field never becomes intermittent - in milliseconds so
@@ -130,13 +145,13 @@ void Copter::pnt_health_update()
     // everything above it being one clock sample, one status read, one parameter
     // read and one subtraction.  It packs the message once, hands it to the active
     // channels and writes one dataflash record - which is why this monitor carries
-    // no logging code of its own.  Every part of that is bounded at compile time
-    // and none of it loops on run-time data: the record's format is resolved by
-    // pointer against a list allocated once for the whole boot on the first of
-    // these calls, so the steady state allocates nothing, and the one short
-    // critical section taken to do so is the same one every other logging caller in
-    // the firmware takes.  Measure this call before raising the task's rate, since
-    // that rate is also the on-wire and on-disk rate.
+    // no logging code of its own.  Resolving that record's format walks the
+    // logger's list of Write() names, which is bounded by the fixed set of such
+    // names the firmware contains and is appended to only on the first call for
+    // each name in a boot, so the steady state allocates nothing; the short
+    // critical section that walk takes is the same one every other logging caller
+    // in the firmware takes.  Measure this call before raising the task's rate,
+    // since that rate is also the on-wire and on-disk rate.
     //
     // The name is eight characters against the message's ten byte field, checked at
     // compile time rather than trusted, because MAVLink truncates an over-long name

@@ -410,27 +410,27 @@ bool AP_Arming_Copter::gps_checks(bool display_failure)
 //  optional veto: refuses arming once the age measured by pnt_health.cpp - the time since that
 //  monitor last saw the GPS reporting a usable fix, taken from its own clock sample and from no
 //  AP_GPS timestamp - exceeds FS_PNT_FRESH_MS.  this is data-delivery cadence, not estimate
-//  quality, which stays the job of mandatory_gps_checks().  exactly zero disables the gate; any
-//  other value outside the parameter's declared 0 to 60000 range is a misconfiguration of a
-//  safety control and refuses arming here rather than being honoured
+//  quality, which stays the job of mandatory_gps_checks().  a threshold of zero disables the
+//  gate, which is its default, so a vehicle which has not opted in is unaffected.  unlike
+//  gps_checks() above this one does not consult the flight mode, so once an operator opts in
+//  it refuses arming in modes which do not themselves need GPS too
 bool AP_Arming_Copter::pnt_freshness_checks(bool display_failure)
 {
-    // exactly zero, and only exactly zero, disables the gate: FS_PNT_FRESH_MS defaults to
-    // zero, so a vehicle which has not opted in returns here without altering the verdict
+    // A threshold of zero disables the gate: FS_PNT_FRESH_MS defaults to zero, so a vehicle
+    // which has not opted in returns here without altering the verdict.  The parameter is
+    // read into a signed local and any value at or below zero is taken as "not opted in",
+    // following the way this vehicle already reads its other threshold parameters -
+    // compare "g.fs_ekf_thresh <= 0.0f" in ekf_check.cpp and "g2.failsafe_dr_enable <= 0" in
+    // events.cpp.  That is not defensive decoration: the declared 0 to 60000 range is
+    // metadata rather than enforcement, so a raw PARAM_SET can store a negative value the
+    // operator was never offered, and converting such a value to unsigned would yield a
+    // threshold of about 49 days which the measured age could never exceed - the one reading
+    // that would leave this veto silently switched off while the parameter still looked set.
+    // A value above the declared maximum needs no special case: it is honoured as the longer
+    // duration it asks for, so the gate stays effective and no bound is duplicated here.
     const int32_t threshold_param_ms = copter.g2.fs_pnt_fresh_ms.get();
-    if (threshold_param_ms == 0) {
+    if (threshold_param_ms <= 0) {
         return true;
-    }
-
-    // the declared 0 to 60000 range is metadata, not enforcement: any int32_t can reach the
-    // parameter store, so validate rather than trust and fail closed.  a negative value read
-    // as "disabled" would silently switch this safety veto off, and one above the maximum
-    // would postpone it past the longest gap the operator was offered.  the bound below must
-    // stay in step with the "@Range" annotation on FS_PNT_FRESH_MS in Parameters.cpp
-    const int32_t threshold_max_ms = 60000;
-    if (threshold_param_ms < 0 || threshold_param_ms > threshold_max_ms) {
-        check_failed(display_failure, "FS_PNT_FRESH_MS=%d out of range", (int)threshold_param_ms);
-        return false;
     }
 
     const uint32_t threshold_ms = (uint32_t)threshold_param_ms;

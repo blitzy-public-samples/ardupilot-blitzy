@@ -29,6 +29,15 @@ TEST(AP_GSOF, packet1)
     // early instead; a version which exposes the macro takes the branch above and
     // reports a genuine SKIPPED result.  There is not yet a convention for loading
     // in a data file in a cross-platform way in AP for unit tests.
+    //
+    // Returning is reported by this googletest as PASSED rather than SKIPPED, so
+    // say plainly in the log that the body below did not run.  Without this line a
+    // green result would be indistinguishable from an executed one.  GTEST_SUCCEED
+    // is not used for the purpose: this googletest records its message but prints
+    // nothing, so it would leave the log exactly as silent.
+    std::printf("[  SKIPPED ] AP_GSOF.packet1 body not executed: reading "
+                "libraries/AP_GSOF/tests/gsof_gps.dat needs a cross-platform data-file "
+                "convention AP does not have yet\n");
     return;
 #endif
     FILE* fp = std::fopen("libraries/AP_GSOF/tests/gsof_gps.dat", "rb");

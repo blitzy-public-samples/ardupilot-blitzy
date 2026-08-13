@@ -42,8 +42,14 @@ def configure(cfg):
 @conf
 def libgtest(bld, **kw):
     kw['cxxflags'] = Utils.to_list(kw.get('cxxflags', [])) + ['-Wno-undef', '-Wno-suggest-override', '-Wno-missing-declarations']
-    # gcc 15 flags the deliberately-uninitialised stack probe in the vendored gtest-death-test.cc
-    # at -O0; demote the promotion for this library so the diagnostic stays reported but non-fatal
+    # A third suppression beyond the two above, added because the toolchain requires it and not
+    # to widen the exemption: gcc 15 rejects the deliberately-uninitialised stack probe in the
+    # vendored gtest-death-test.cc at -O0 ("'dummy' may be used uninitialized"), which aborts
+    # the host test build that ./waf check-all needs. It is deliberately the weakest form that
+    # works - the diagnostic is demoted to a warning rather than silenced, it is applied only
+    # when the promotion is actually in the flag set, and like the two above it goes onto this
+    # single stlib's cxxflags and never onto bld.env. The vendored source cannot be edited and
+    # the submodule pin cannot be moved.
     if '-Werror=maybe-uninitialized' in bld.env.CXXFLAGS:
         kw['cxxflags'] += ['-Wno-error=maybe-uninitialized']
     kw.update(
