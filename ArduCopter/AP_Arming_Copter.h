@@ -38,6 +38,9 @@ protected:
     // NOTE! the following check functions *DO* call into AP_Arming:
     bool ins_checks(bool display_failure) override;
     bool gps_checks(bool display_failure) override;
+    // exception to the note above: this one deliberately does NOT call into AP_Arming,
+    // whose base implementation is a no-op that always passes.  It is grouped here
+    // beside gps_checks because both are GPS pre-arms reached from the same base chain
     bool pnt_freshness_checks(bool display_failure) override;
     bool barometer_checks(bool display_failure) override;
     bool board_voltage_checks(bool display_failure) override;

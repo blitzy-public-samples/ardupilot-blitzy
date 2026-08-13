@@ -41,22 +41,11 @@ def configure(cfg):
 
 @conf
 def libgtest(bld, **kw):
-    # The vendored GoogleTest (modules/gtest, release-1.8.0) predates the C++11 'override'
-    # keyword and does not declare its internal helpers at file scope, so it trips the
-    # -Werror=suggest-override / -Wmissing-declarations promotions that the standard board
-    # CXXFLAGS carry (see Tools/ardupilotwaf/boards.py).  The suppressions are scoped to the
-    # GoogleTest library only; modules/gtest itself is not modified.  This mirrors the existing
-    # in-tree precedent for gSOAP (Tools/ardupilotwaf/ap_library.py) and for the gbenchmark
-    # build (ap_find_benchmarks in Tools/ardupilotwaf/ardupilotwaf.py).
-    # -Wno-maybe-uninitialized is additionally required for --debug (-O0) builds, where GCC's
-    # analysis of testing::internal::StackGrowsDown() in gtest-death-test.cc flags the
-    # deliberately-uninitialised probe variable.
-    kw['cxxflags'] = Utils.to_list(kw.get('cxxflags', [])) + [
-        '-Wno-undef',
-        '-Wno-suggest-override',
-        '-Wno-missing-declarations',
-        '-Wno-maybe-uninitialized',
-    ]
+    kw['cxxflags'] = Utils.to_list(kw.get('cxxflags', [])) + ['-Wno-undef', '-Wno-suggest-override', '-Wno-missing-declarations']
+    # gcc 15 flags the deliberately-uninitialised stack probe in the vendored gtest-death-test.cc
+    # at -O0; demote the promotion for this library so the diagnostic stays reported but non-fatal
+    if '-Werror=maybe-uninitialized' in bld.env.CXXFLAGS:
+        kw['cxxflags'] += ['-Wno-error=maybe-uninitialized']
     kw.update(
         source='modules/gtest/googletest/src/gtest-all.cc',
         target='gtest/gtest',

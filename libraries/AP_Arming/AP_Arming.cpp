@@ -717,9 +717,11 @@ bool AP_Arming::gps_checks(bool report)
 }
 
 // check how long the GPS has gone without delivering a usable PNT
-// (position/navigation/timing) fix.  This measures data-delivery cadence,
-// not estimate quality: it answers "is the receiver still producing
-// fixes?", not "is the resulting position solution good?".  The base
+// (position/navigation/timing) fix, timed from the moment that fix was
+// delivered.  This measures data-delivery cadence, not estimate quality: it
+// answers "is the receiver still producing fixes?", not "is the resulting
+// position solution good?".  The measurement itself belongs to the vehicle,
+// which latches the delivery instant of the last usable fix; this base
 // implementation is deliberately a no-op which always passes, so that
 // vehicles without a freshness threshold are entirely unaffected; vehicles
 // which offer an operator-settable threshold override this.

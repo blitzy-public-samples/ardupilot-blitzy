@@ -691,7 +691,8 @@ public:
     AP_Int8 att_enable;
     AP_Int8 att_decimation;
 
-    // PNT data-delivery freshness gate: pre-arm threshold on GPS fix-delivery gap in ms, 0 disables
+    // PNT data-delivery freshness gate: pre-arm threshold in ms on the gap since the GPS
+    // last delivered a usable 3D fix; 0 disables the veto and holds GPSFresh at zero
     AP_Int32 fs_pnt_fresh_ms;
 };
 

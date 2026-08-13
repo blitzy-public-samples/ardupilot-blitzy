@@ -25,12 +25,13 @@ TEST(AP_GSOF, packet1)
 #if defined(GTEST_SKIP)
     GTEST_SKIP() << "There is not yet a convention for loading in a data file in a cross-platform way in AP for unit tests";
 #else
-    // The vendored googletest in modules/gtest (release-1.8.0) predates
-    // GTEST_SKIP, which was introduced in GoogleTest 1.10, so skip by
-    // returning early instead.  There is not yet a convention for loading in a
-    // data file in a cross-platform way in AP for unit tests.  The guarded form
-    // above is retained so that bumping the submodule past 1.10 restores a
-    // genuine SKIPPED report with no further change here.
+    // The vendored googletest in modules/gtest is pinned to the pre-1.8.0
+    // snapshot commit 13206d6f, which predates GTEST_SKIP; that macro arrived
+    // in GoogleTest 1.10.  Skip by returning early instead.  There is not yet a
+    // convention for loading in a data file in a cross-platform way in AP for
+    // unit tests.  The guarded form above is retained so that bumping the
+    // submodule to GoogleTest 1.10 or newer restores a genuine SKIPPED report
+    // with no further change here.
     return;
 #endif
     FILE* fp = std::fopen("libraries/AP_GSOF/tests/gsof_gps.dat", "rb");

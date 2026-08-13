@@ -12078,113 +12078,300 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.reboot_sitl()
 
     def test_pnt_health_gate_prearm(self):
-        '''Ensure the PNT data-delivery gate refuses arming once the GPS stops delivering usable fixes'''
+        '''Ensure arming is refused after the configured PNT freshness threshold expires during simulated GPS starvation'''
         # This gate measures data-delivery cadence, not estimate quality: it asks
         # "is the receiver still producing fixes?", not "is the resulting
-        # position solution good?".  Starving the GPS necessarily also trips the
-        # pre-existing GPS and EKF pre-arms, which answer that second question
-        # and are legitimate here, so every assertion below is scoped to the PNT
-        # gate's own distinctive message and to its own telemetry field.
+        # position solution good?".  Starving the GPS also trips the pre-existing
+        # GPS pre-arm checks, and may trip the position and EKF ones depending on
+        # estimator state; all of those answer that second question and are
+        # legitimate here.  Every assertion below is therefore scoped to the PNT
+        # gate's own distinctive message and to its own telemetry field, and any
+        # other pre-arm failure is tolerated rather than expected.
         self.context_push()
 
-        # A threshold of zero disables the gate, so opt in explicitly.  1000ms
-        # sits well above the monitor's own quantisation - it samples at 10Hz and
-        # relatches on every good sample, so a healthy receiver reads zero - and
-        # well below the staleness reached during the starvation window below.
-        threshold_ms = 1000
-        self.set_parameter('FS_PNT_FRESH_MS', threshold_ms)
+        # The AP_GPS driver's own delivery timeout is 4000ms, and inside that
+        # timeout branch the driver re-stamps its own last-message timestamp.
+        # Nothing derived from that timestamp can therefore grow past this
+        # value: it either saw-tooths between zero and roughly 4000ms, or - as
+        # in this simulation, where a disabled receiver keeps talking while
+        # reporting no lock - never leaves zero at all.  Either way it can never
+        # stay latched or represent a long outage: a threshold above the timeout
+        # would never fire at all, and one below it would fire and then
+        # self-clear on every cycle.  Both thresholds used below sit above it
+        # deliberately, because a gate which is still effective with a threshold
+        # larger than the driver timeout can only be reading a monitor-owned
+        # latch.
+        gps_driver_timeout_ms = 4000
+        # the threshold whose veto is asserted, strictly above that timeout
+        veto_threshold_ms = 5000
+        # the threshold used to prove the other side of the same gate: a
+        # receiver which is demonstrably stale, and stale for longer than the
+        # driver timeout, must still be armable while that staleness is below
+        # the configured duration.  This is the parameter's declared maximum.
+        tolerant_threshold_ms = 60000
+        # the monitor samples and publishes on the same 10Hz tick, so one task
+        # period bounds both the measurement quantisation and the spacing of
+        # the telemetry
+        task_period_ms = 100
+        # what a healthy receiver reads.  The monitor latches the instant each
+        # usable fix was delivered rather than the tick on which it noticed, so
+        # the value rests below one GPS reporting interval plus one task period
+        # - about 300ms at the simulator's default 5Hz GPS - instead of at zero.
+        healthy_ceiling_ms = 300
+
+        self.start_subtest("an enabled gate does not block a healthy receiver")
+        # A threshold of zero disables the gate, so opt in explicitly.
+        self.set_parameter('FS_PNT_FRESH_MS', tolerant_threshold_ms)
         self.reboot_sitl()
 
         # Positive control: the gate must not block a healthy vehicle.  The latch
         # starts at zero and there is deliberately no "has ever had a fix" flag,
         # so staleness equals uptime until the first usable fix and an enabled
         # gate legitimately refuses arming during that pre-lock window.  Waiting
-        # here is how that intended cold-start behaviour is tolerated.
+        # here is how that intended cold-start behaviour is tolerated; it is
+        # asserted on its own terms in the never-locked subtest at the end.
         self.wait_ready_to_arm()
 
+        self.start_subtest("staleness grows in milliseconds at the monitor's task rate")
         # Starve the receiver.  This is written explicitly rather than left to
         # its default because the simulated back end self-enables instance zero
         # whenever the parameter has never been configured.
         self.progress("Starving the simulated GPS")
         self.set_parameter('SIM_GPS1_ENABLE', 0)
+
+        # Prove the starvation took effect using evidence which does not come
+        # from the feature under test: the receiver's own reported fix type must
+        # fall below a 3D fix.
+        tstart = self.get_sim_time()
+        while True:
+            m = self.assert_receive_message('GPS_RAW_INT', timeout=10)
+            if m.fix_type < mavutil.mavlink.GPS_FIX_TYPE_3D_FIX:
+                self.progress("Receiver reports fix_type=%u; delivery has stopped" % m.fix_type)
+                break
+            if self.get_sim_time_cached() - tstart > 30:
+                raise NotAchievedException("Simulated GPS kept reporting a 3D fix after being starved")
         self.drain_mav()
 
-        # The AP_GPS driver's own delivery timeout is 4000ms, and inside that
-        # timeout branch the driver re-stamps its own last-message timestamp.
-        # Anything derived from that timestamp therefore saw-tooths between zero
-        # and roughly 4000ms forever rather than growing, so a gate built on it
-        # could never latch.  Sampling across a window longer than two saw-tooth
-        # periods and demanding a non-decreasing sequence which passes 4000ms is
-        # precisely what detects that mistake: a single collapse toward zero
-        # mid-window is the saw-tooth, and it must fail here.
-        gps_driver_timeout_ms = 4000
-        sample_window_s = 16
-        sample_interval_s = 1
-        previous_ms = None
-        peak_ms = 0
-        tstart = self.get_sim_time_cached()
-        while self.get_sim_time_cached() - tstart < sample_window_s:
-            m = self.assert_receive_named_value_float("GPSFresh")
-            value_ms = m.value
-            self.progress("GPSFresh=%f after %fs of starvation" %
-                          (value_ms, self.get_sim_time_cached() - tstart))
-            if previous_ms is not None and value_ms < previous_ms:
-                raise NotAchievedException(
-                    "GPSFresh went backwards (%f then %f); the staleness must "
-                    "come from a monitor-owned latch, never from an AP_GPS "
-                    "timestamp the driver re-stamps on its own timeout" %
-                    (previous_ms, value_ms))
-            previous_ms = value_ms
-            peak_ms = max(peak_ms, value_ms)
-            self.delay_sim_time(sample_interval_s)
-        if peak_ms <= gps_driver_timeout_ms:
-            raise NotAchievedException(
-                "GPSFresh only reached %f ms; it must pass the %u ms AP_GPS "
-                "driver timeout to show that the measurement grows without "
-                "bound while delivery is absent" %
-                (peak_ms, gps_driver_timeout_ms))
+        # Let the last fix already in flight be consumed before sampling starts.
+        # The monitor latches the instant a usable fix was delivered, so a fix
+        # landing between two samples legitimately lowers the value; settling
+        # first, on top of the fix-type witness above, means the window below
+        # observes a latch which is already frozen.  One second is ample against
+        # the simulator's 5Hz GPS and 100ms lag, and it leaves the window
+        # spanning far more than two saw-tooth periods.
+        self.delay_sim_time(1)
 
-        # The gate must now refuse arming, and say so quoting the threshold.
-        # other_prearm_failures_fatal is mandatory: the GPS and EKF pre-arms
-        # noted above do fire while the receiver is starved, and treating them
-        # as fatal would fail this test for correct behaviour.
-        self.assert_prearm_failure("PNT data stale",
+        # Sample the published field densely rather than once a second.
+        # NAMED_VALUE_FLOAT is not stream-rate managed, so the monitor's task
+        # rate is also the on-wire rate, and every sample carries the vehicle's
+        # own time_boot_ms taken from the same millis() call which produced the
+        # value.  While the latch is frozen the value is that clock minus the
+        # latch, so the value must advance exactly as fast as time_boot_ms does:
+        # that is what pins the unit to milliseconds rather than to microseconds
+        # or seconds, and what neither a sparse nor a rescaled publisher can
+        # satisfy.  The window is longer than two of the driver's 4000ms timeout
+        # periods, so a saw-tooth cannot hide inside it.
+        window_ms = 10000
+        owed_samples = window_ms // task_period_ms
+        samples = []
+        deadline = time.time() + 300
+        while True:
+            if time.time() > deadline:
+                raise NotAchievedException("Could not collect a %ums window of GPSFresh samples" % window_ms)
+            m = self.mav.recv_match(type='NAMED_VALUE_FLOAT', blocking=True, timeout=5)
+            if m is None:
+                raise NotAchievedException("Stopped receiving NAMED_VALUE_FLOAT while the GPS was starved")
+            if m.name != 'GPSFresh':
+                continue
+            if not math.isfinite(m.value):
+                raise NotAchievedException("GPSFresh must always be finite, got (%s)" % str(m.value))
+            if m.value < 0:
+                raise NotAchievedException("GPSFresh must never be negative, got %f" % m.value)
+            if len(samples) == 0 and m.value <= healthy_ceiling_ms:
+                # a receiver which is still delivering keeps advancing the latch,
+                # so its age rests under one reporting interval; the measured
+                # window has to start once the latch has frozen
+                continue
+            samples.append(m)
+            if m.time_boot_ms - samples[0].time_boot_ms >= window_ms:
+                break
+
+        span_ms = samples[-1].time_boot_ms - samples[0].time_boot_ms
+        growth_ms = samples[-1].value - samples[0].value
+        self.progress("Collected %u GPSFresh samples over %ums of vehicle time; the value grew %fms" %
+                      (len(samples), span_ms, growth_ms))
+
+        # A single collapse toward zero mid-window is the saw-tooth, and it must
+        # fail here: the staleness has to come from a monitor-owned latch, never
+        # from an AP_GPS timestamp the driver re-stamps on its own timeout.
+        for (before, after) in zip(samples, samples[1:]):
+            if after.value < before.value:
+                raise NotAchievedException(
+                    "GPSFresh went backwards (%f then %f) while the GPS was starved" %
+                    (before.value, after.value))
+            gap_ms = after.time_boot_ms - before.time_boot_ms
+            if gap_ms > 10 * task_period_ms:
+                raise NotAchievedException(
+                    "GPSFresh was not published for %ums; an enabled monitor owes a continuous "
+                    "10Hz stream" % gap_ms)
+
+        # Half of what 10Hz owes, which tolerates lost messages without
+        # tolerating a publisher which is not periodic at all.
+        if len(samples) < owed_samples // 2:
+            raise NotAchievedException(
+                "Only %u GPSFresh samples arrived in %ums; a 10Hz publisher owes about %u" %
+                (len(samples), span_ms, owed_samples))
+        if abs(growth_ms - span_ms) > 2 * task_period_ms:
+            raise NotAchievedException(
+                "GPSFresh grew %fms while the vehicle clock advanced %ums; the published value "
+                "must be the staleness itself, in milliseconds" % (growth_ms, span_ms))
+        if samples[-1].value <= gps_driver_timeout_ms:
+            raise NotAchievedException(
+                "GPSFresh only reached %fms; it must pass the %ums AP_GPS driver timeout to show "
+                "that the measurement grows without bound while delivery is absent" %
+                (samples[-1].value, gps_driver_timeout_ms))
+
+        self.start_subtest("staleness below the configured threshold does not veto arming")
+        # The vehicle is now demonstrably stale, and stale for longer than the
+        # driver's own timeout, while FS_PNT_FRESH_MS remains far above that
+        # staleness - so the gate owes no veto.  The checks are requested over
+        # the acknowledged command path, so a dropped command cannot make this
+        # pass vacuously.
+        self.context_collect('STATUSTEXT')
+        self.run_cmd(mavutil.mavlink.MAV_CMD_RUN_PREARM_CHECKS)
+        self.delay_sim_time(2)
+        m = self.assert_receive_named_value_float("GPSFresh")
+        if m.value <= gps_driver_timeout_ms:
+            raise NotAchievedException(
+                "GPSFresh fell back to %fms; this subtest is only meaningful while the receiver is "
+                "stale for longer than the driver timeout" % m.value)
+        # the staleness only ever grows while delivery is absent, so a value
+        # below the threshold now proves it was below it when the checks ran
+        if m.value >= tolerant_threshold_ms:
+            raise NotAchievedException(
+                "GPSFresh reached %fms, at or past the %ums threshold, before the pre-arm checks "
+                "completed" % (m.value, tolerant_threshold_ms))
+        spoke = self.statustext_in_collections("PNT data stale")
+        if spoke is not None:
+            raise NotAchievedException(
+                "PNT gate vetoed at %fms of staleness while FS_PNT_FRESH_MS was %ums: %s" %
+                (m.value, tolerant_threshold_ms, spoke.text))
+        self.context_stop_collecting('STATUSTEXT')
+
+        self.start_subtest("staleness past a threshold above the driver timeout vetoes arming")
+        # Nothing about the vehicle changes here except the configured duration:
+        # the same starved receiver which was armable a moment ago must now be
+        # refused, which is what proves the veto follows the measured age against
+        # FS_PNT_FRESH_MS rather than the receiver's instantaneous status.  The
+        # threshold stays above the 4000ms driver timeout - the case a gate
+        # derived from the driver's own timestamp could never serve.
+        m = self.assert_receive_named_value_float("GPSFresh")
+        if m.value <= veto_threshold_ms:
+            raise NotAchievedException(
+                "GPSFresh is only %fms; it must already exceed the %ums threshold for this subtest "
+                "to be deterministic" % (m.value, veto_threshold_ms))
+        self.set_parameter('FS_PNT_FRESH_MS', veto_threshold_ms)
+
+        # The gate must now refuse arming, and say so quoting the comparator,
+        # the threshold which was applied and its units - so the whole message
+        # is matched in full rather than as a generic prefix which a wrong
+        # threshold, a wrong comparator or a wrong unit would still satisfy.
+        # other_prearm_failures_fatal is mandatory: the other GPS and estimator
+        # pre-arms noted above do fire while the receiver is starved, and
+        # treating any of them as fatal would fail this test for correct
+        # behaviour.
+        self.assert_prearm_failure("PNT data stale (>%u ms)" % veto_threshold_ms,
                                    other_prearm_failures_fatal=False,
                                    timeout=30)
 
-        # Restore delivery.  The latch is written on the very next good sample,
-        # so the measurement collapses within one task period once fixes resume
-        # and the gate stops blocking.
+        self.start_subtest("restored delivery collapses the measurement and clears the gate")
+        # Restore delivery.  The latch takes the delivery instant of the very
+        # next usable fix, so within one task period of that fix the measurement
+        # collapses to at most one GPS reporting interval and the gate stops
+        # blocking.  The threshold is deliberately left enabled, so this also
+        # proves the veto clears rather than merely being switched off.
         self.progress("Restoring the simulated GPS")
         self.set_parameter('SIM_GPS1_ENABLE', 1)
-        self.wait_ekf_happy()
         nominal_ms = 500
         collapse_timeout_s = 30
-        tstart = self.get_sim_time_cached()
+        tstart = self.get_sim_time()
         while True:
             m = self.assert_receive_named_value_float("GPSFresh")
             if m.value <= nominal_ms:
-                self.progress("GPSFresh collapsed to %f ms" % m.value)
+                self.progress("GPSFresh collapsed to %fms" % m.value)
                 break
             if self.get_sim_time_cached() - tstart > collapse_timeout_s:
                 raise NotAchievedException(
-                    "GPSFresh stayed at %f ms; it must fall below %u ms once "
-                    "the receiver delivers usable fixes again" %
-                    (m.value, nominal_ms))
+                    "GPSFresh stayed at %fms; it must fall below %ums once the receiver delivers "
+                    "usable fixes again" % (m.value, nominal_ms))
         self.wait_ready_to_arm()
+
+        self.start_subtest("a receiver which has never delivered a fix is refused from boot")
+        # The latch is value-initialised to zero and there is deliberately no
+        # "has ever had a fix" flag, so before the first usable fix the measured
+        # age is the uptime and an enabled gate refuses arming.  That is the safe
+        # reading of a data-delivery gate - a receiver which has never delivered
+        # anything must not satisfy it - and it is asserted here so that a
+        # first-fix bypass cannot be introduced without this test noticing.
+        self.set_parameters({
+            'FS_PNT_FRESH_MS': veto_threshold_ms,
+            'SIM_GPS1_ENABLE': 0,
+        })
+        self.reboot_sitl()
+        m = self.assert_receive_message('GPS_RAW_INT', timeout=10)
+        if m.fix_type >= mavutil.mavlink.GPS_FIX_TYPE_3D_FIX:
+            raise NotAchievedException(
+                "Simulated GPS reported fix_type=%u after booting starved; this subtest requires a "
+                "receiver which never locks" % m.fix_type)
+
+        # The value a message carries and the time_boot_ms it is stamped with
+        # come from the same millis() call, and the latch is still zero, so the
+        # two must agree: that is the uptime semantics of the cold start, and an
+        # implementation which let a never-locked receiver pass could not show it.
+        first = self.assert_receive_named_value_float("GPSFresh")
+        if not math.isfinite(first.value):
+            raise NotAchievedException("GPSFresh must always be finite, got (%s)" % str(first.value))
+        if abs(first.value - first.time_boot_ms) > 2 * task_period_ms:
+            raise NotAchievedException(
+                "GPSFresh reads %fms at %ums of uptime; with no fix ever delivered the measured age "
+                "must be the uptime itself" % (first.value, first.time_boot_ms))
+
+        self.delay_sim_time(2)
+        second = self.assert_receive_named_value_float("GPSFresh")
+        if second.value <= first.value:
+            raise NotAchievedException(
+                "GPSFresh stayed at %fms; it must keep growing while no fix is ever delivered" %
+                second.value)
+        elapsed_ms = second.time_boot_ms - first.time_boot_ms
+        if abs((second.value - first.value) - elapsed_ms) > 2 * task_period_ms:
+            raise NotAchievedException(
+                "GPSFresh grew %fms while the vehicle clock advanced %ums with no fix ever delivered" %
+                (second.value - first.value, elapsed_ms))
+
+        tstart = self.get_sim_time()
+        while second.value <= veto_threshold_ms:
+            if self.get_sim_time_cached() - tstart > 30:
+                raise NotAchievedException(
+                    "GPSFresh never passed the %ums threshold on a receiver which never locked" %
+                    veto_threshold_ms)
+            second = self.assert_receive_named_value_float("GPSFresh")
+        self.assert_prearm_failure("PNT data stale (>%u ms)" % veto_threshold_ms,
+                                   other_prearm_failures_fatal=False,
+                                   timeout=30)
 
         self.context_pop()
         self.reboot_sitl()
 
     def test_pnt_health_gate_disabled_is_noop(self):
-        '''Ensure the PNT data-delivery gate is inert while FS_PNT_FRESH_MS is at its default of zero'''
+        '''Ensure no PNT pre-arm failure appears and GPSFresh stays zero while FS_PNT_FRESH_MS is at its default of zero'''
         # The regression guard for the default-off contract.  With the threshold
-        # at zero the gate must be entirely unobservable: no failure message of
-        # its own, and a telemetry field frozen at a benign zero rather than
-        # intermittently absent.  Only the absence of this feature's own message
-        # is asserted - the pre-existing GPS and EKF pre-arms legitimately do
-        # fire while the GPS is starved, so asserting their absence instead
-        # would fail for correct behaviour.
+        # at zero the veto must be silent - no failure message of its own - while
+        # the telemetry field remains present and frozen at a benign zero rather
+        # than becoming intermittent or absent.  Both halves are asserted below.
+        # Only the absence of this feature's own message is asserted: the other
+        # GPS and estimator pre-arms legitimately do fire while the GPS is
+        # starved, so asserting their absence instead would fail for correct
+        # behaviour.
         self.context_push()
 
         # Assert the default rather than assume it, so the contract is proven.
@@ -12202,20 +12389,40 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.progress("Starving the simulated GPS")
         self.set_parameter('SIM_GPS1_ENABLE', 0)
 
+        # Prove the starvation took effect before asserting that nothing
+        # happened, and prove it with evidence which does not come from the
+        # feature under test: GPSFresh is frozen by the very contract being
+        # asserted here, so it cannot be its own witness.  The receiver's own
+        # reported fix type must fall below a 3D fix - which is exactly the
+        # condition an enabled gate would eventually veto on.
+        tstart = self.get_sim_time()
+        while True:
+            m = self.assert_receive_message('GPS_RAW_INT', timeout=10)
+            if m.fix_type < mavutil.mavlink.GPS_FIX_TYPE_3D_FIX:
+                self.progress("Receiver reports fix_type=%u; delivery has stopped" % m.fix_type)
+                break
+            if self.get_sim_time_cached() - tstart > 30:
+                raise NotAchievedException("Simulated GPS kept reporting a 3D fix after being starved")
+
         # Run for longer than two of the driver's 4000ms timeout periods, asking
-        # for the pre-arm checks explicitly each second so that they demonstrably
-        # ran; that command reports unthrottled, so a gate which was wrongly
-        # live would have said so within this window.
+        # for the pre-arm checks each second over the acknowledged command path
+        # so that they demonstrably ran: an unacknowledged, fire-and-forget
+        # request could be dropped, and the silence asserted below would then
+        # prove nothing.  Those checks report unthrottled, so a gate which was
+        # wrongly live would have said so inside this window.
         window_s = 12
-        epsilon = 0.0001
-        tstart = self.get_sim_time_cached()
+        tstart = self.get_sim_time()
         while self.get_sim_time_cached() - tstart < window_s:
-            self.send_mavlink_run_prearms_command()
+            self.run_cmd(mavutil.mavlink.MAV_CMD_RUN_PREARM_CHECKS)
             m = self.assert_receive_named_value_float("GPSFresh")
-            if abs(m.value) > epsilon:
+            # Exactly zero, and finite.  The producer's disabled contract is the
+            # exactly representable constant 0.0f, so no tolerance is owed here
+            # - and a tolerance would additionally admit a NaN, because every
+            # comparison against a NaN is false.
+            if not math.isfinite(m.value) or m.value != 0.0:
                 raise NotAchievedException(
-                    "GPSFresh must stay frozen at zero while FS_PNT_FRESH_MS "
-                    "is zero, got %f" % (m.value,))
+                    "GPSFresh must stay frozen at exactly zero while FS_PNT_FRESH_MS is zero, "
+                    "got (%s)" % str(m.value))
             self.delay_sim_time(1)
 
         # The gate must have kept silent throughout.

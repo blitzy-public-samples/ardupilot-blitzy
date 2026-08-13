@@ -407,31 +407,50 @@ bool AP_Arming_Copter::gps_checks(bool display_failure)
 }
 
 // performs pre_arm PNT (position/navigation/timing) data-delivery freshness checks and returns true if passed
-//  refuses arming once the GPS has gone longer than FS_PNT_FRESH_MS without delivering a usable fix.
+//  refuses arming once the GPS has gone longer than FS_PNT_FRESH_MS without delivering a usable fix,
+//  timed from the moment that fix was delivered.
 //  this measures data-delivery cadence, not estimate quality: it answers "is the receiver still
 //  producing fixes?", not "is the resulting position solution good?".  estimate quality remains the
-//  job of mandatory_gps_checks() above and of the EKF variance failsafe in ekf_check.cpp, neither of
-//  which this duplicates or replaces.  the duration itself is measured by the monitor-owned latch in
-//  pnt_health.cpp, deliberately not by any AP_GPS timestamp, because the driver re-stamps its own on
-//  timeout and that derivation saw-tooths instead of growing.
+//  job of AP_Arming_Copter::mandatory_gps_checks() and of the EKF variance failsafe in
+//  ekf_check.cpp, neither of which this duplicates or replaces.  the duration itself comes from the
+//  monitor-owned latch in pnt_health.cpp, which records the delivery instant AP_GPS stamped for the
+//  last usable fix; it is deliberately not derived from AP_GPS::last_message_time_ms(), which the
+//  driver re-stamps on its own timeout so that the derivation saw-tooths instead of growing.
+//  exactly zero disables the gate; any other value outside the parameter's declared 0 to 60000 range
+//  is a misconfiguration of a safety control and refuses arming here rather than being honoured.
 bool AP_Arming_Copter::pnt_freshness_checks(bool display_failure)
 {
-    // a threshold of zero disables the gate.  FS_PNT_FRESH_MS defaults to zero, so this
-    // early return is what makes a vehicle which has not opted in behave exactly as it
-    // did before the gate existed.  a negative value cannot be reached through the
-    // parameter's declared 0 to 60000 range, and is treated as disabled here rather than
-    // being reinterpreted as an unreachably large unsigned threshold
+    // exactly zero, and only exactly zero, disables the gate.  FS_PNT_FRESH_MS defaults to
+    // zero, so this early return is what preserves, unchanged, the pre-arm verdict a vehicle
+    // which has not opted in returned before the gate existed
     const int32_t threshold_param_ms = copter.g2.fs_pnt_fresh_ms.get();
-    if (threshold_param_ms <= 0) {
+    if (threshold_param_ms == 0) {
         return true;
+    }
+
+    // the parameter's declared 0 to 60000 range is metadata, not enforcement: a ground
+    // station, a defaults file or a script writes straight into the parameter store, so any
+    // int32_t can arrive here.  validate it rather than trust it, and fail closed, because
+    // this is a safety veto: a negative value read as "disabled" would silently switch the
+    // veto off, and a value above the declared maximum would postpone it past the longest
+    // gap the operator was ever offered.  both are misconfigurations of a safety control
+    // and neither may be honoured.  the bound below is the upper end of the "@Range: 0
+    // 60000" annotation on FS_PNT_FRESH_MS in Parameters.cpp and must be kept in step with
+    // it.  the message names the parameter and quotes the rejected value so the operator can
+    // see what was actually stored, and its worst case is 40 characters, inside the
+    // statustext field once the "PreArm: " prefix is added
+    const int32_t threshold_max_ms = 60000;
+    if (threshold_param_ms < 0 || threshold_param_ms > threshold_max_ms) {
+        check_failed(display_failure, "FS_PNT_FRESH_MS=%d out of range", (int)threshold_param_ms);
+        return false;
     }
 
     // one unsigned local drives both the comparison below and the number the message
     // quotes, so the operator is always shown exactly the threshold that was applied
     const uint32_t threshold_ms = (uint32_t)threshold_param_ms;
 
-    // refuse arming once the latched age of the last usable fix exceeds the threshold.
-    // strictly greater-than, matching the ">" the message quotes.  this is a pure
+    // refuse arming once the time since the last delivered usable fix exceeds the
+    // threshold.  strictly greater-than, matching the ">" the message quotes.  this is a pure
     // comparison with no side effects, which matters because the pre-arm chain is
     // combined with bitwise & and so runs every check even after an earlier failure
     if (copter.pnt_data_age_ms() > threshold_ms) {
