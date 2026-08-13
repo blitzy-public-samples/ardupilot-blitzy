@@ -1,626 +1,527 @@
-# Blitzy Project Guide — AfsimL1 Reusable L1 Guidance Service
+# 1. Executive Summary
 
-> **Project:** Consolidate ArduPilot's Position / Navigation / Timing (PNT) behaviors embedded in the vehicle flight loop into one reusable, host-driven modular service (`AfsimL1`) behind a stable `extern "C"` ABI, plus a regenerated PNT Reference Audit PDF documenting current → new service locations.
-> **Repository:** ArduPilot (same-repo refactor) · **Branch:** `blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668`
-> **Implementation HEAD:** `1a3e238884` · **Documentation HEAD:** this guide's commit · **Non-agent baseline:** `6148c3d422`
-> **Brand legend:** <span style="color:#5B39F3">■</span> Completed / AI Work `#5B39F3` · ▢ Remaining `#FFFFFF` · <span style="color:#B23AF2">■</span> Headings / Accents `#B23AF2` · <span style="color:#A8FDD9">■</span> Highlight `#A8FDD9`
+## 1.1 Project Overview
 
----
+This project makes position/navigation/timing (PNT) data-delivery consistency a configurable, observable property of an ArduPilot vehicle. A new parameter, `FS_PNT_FRESH_MS`, sets the maximum tolerable age of the last usable PNT fix. An allocation-free monitor tracks that age from GPS fix *status*, a new pre-arm check refuses arming once it exceeds the threshold, and the age is published as a `GPSFresh` MAVLink named-value float any ground station can watch. The feature ships disabled: at the default of `0`, behaviour is unchanged. Copter and Rover participate; other airframes link the code and stay inert.
 
-## 1. Executive Summary
-
-### 1.1 Project Overview
-
-**AfsimL1** extracts ArduPilot's L1 lateral-navigation guidance (`AP_L1_Control`) from the vehicle flight loop into a single reusable service that an external simulator — the AFSIM host in the user's example — drives directly. A facade (`AfsimL1Behavior`) composes the unmodified guidance controller, an AHRS adapter shim supplies host-injected position/velocity/attitude, and a host-supplied `dt` replaces the hardware clock. Everything is reachable through eight `extern "C"` entry points on an opaque handle, shipped as `libafsim_l1.so`. The refactor is behavior-preserving: the L1 mathematics are untouched and no vehicle firmware changed. A companion 43-page PNT Reference Audit PDF records where every PNT behavior lives today and which service member it maps to.
-
-### 1.2 Completion Status
+## 1.2 Completion Status
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieOuterStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'17px','pieLegendTextSize':'13px'}}}%%
-pie showData title Project Completion — 82.6% Complete
-    "Completed Work (AI)" : 123
-    "Remaining Work" : 26
+pie title AAP-Scoped Completion — 72.7% Complete
+    "Completed Work (120 h)" : 120
+    "Remaining Work (45 h)" : 45
 ```
 
-| Metric | Hours |
-|--------|------:|
-| **Total Project Hours** | **149** |
-| Completed Hours (AI + Manual) | **123** (123 AI + 0 Manual) |
-| Remaining Hours | **26** |
-| **Percent Complete** | **82.6 %** |
+Colours: **Completed = Dark Blue `#5B39F3`** · **Remaining = White `#FFFFFF`**
 
-> **Calculation (PA1, AAP-scoped only):** Completion % = Completed ÷ (Completed + Remaining) = 123 ÷ (123 + 26) = 123 ÷ 149 = **82.6 %**.
-> All **20** AAP-specified requirements are complete and independently re-verified (§5). The remaining **26 h** is exclusively **path-to-production** work — human review/merge sign-off, real AFSIM host integration, numerical-fidelity testing and library packaging/CI. No AAP deliverable is outstanding.
+| Metric | Value |
+|---|---|
+| Total Hours | **165 h** |
+| Completed Hours (AI + Manual) | **120 h** (120 h autonomous, 0 h manual) |
+| Remaining Hours | **45 h** |
+| Percent Complete | **72.7%** |
 
-### 1.3 Key Accomplishments
+`120 / (120 + 45) × 100 = 72.7%`, over the AAP's requirements and acceptance gates plus the path-to-production work to release them.
 
-- ✅ **One reusable service delivered** — facade (`AfsimL1Behavior`, 514 LOC) + AHRS adapter shim (327 LOC) + `extern "C"` boundary (495 LOC), composing `AP_L1_Control` without changing its guidance mathematics.
-- ✅ **Stable C ABI proven** — `libafsim_l1.so` exports **exactly 8** symbols (`L1_Create/Destroy/Init/Execute/SetLegNE/SetStateNE/GetRollDeg/GetLatAccel`) and **zero** mangled C++ symbols, enforced by `-fvisibility=hidden` plus a generated version script.
-- ✅ **Toolchain-agnostic consumption demonstrated twice** — Blitzy's 38-check pure-C `dlopen` host, and an independent 24-check host written from scratch during this assessment (`gcc -std=c11 -Werror`, no ArduPilot header) driving the `g++`-built library.
-- ✅ **Behavior-preserving timing seam** — additive, **default-off** `set_update_dt()` on `AP_L1_Control`; the `dt > 1 s` clamp/cap block is **byte-identical** to baseline; non-finite and negative `dt` rejected (CWE-20).
-- ✅ **Both shipped build paths work and agree numerically** — standalone CMake `.so` and in-tree waf `ap_example` each build with **0 diagnostics** and emit identical output (`roll_deg = -38.639999, lat_accel = -7.840306`).
-- ✅ **Vehicle consumers unaffected** — `./waf plane` links `bin/arduplane` at 3,473,811 B flash; **0 files** touched in any AAP-excluded tree (all vehicles, `modules/**`, all other PNT libraries).
-- ✅ **Dedicated unit suite** — `tests/test_afsim_l1.cpp` (866 LOC, no external framework, no new dependency): **111 checks, 0 failures**, plus 2 CTest cases; covers shim accessors, N/E↔E/N convention, every facade method, all 8 ABI entry points, NULL/stale-handle safety and behavior preservation.
-- ✅ **PNT audit delivered twice (Goal 3)** — mapping in the Agent Action Plan §0.6.1 **and** in the regenerated `ArduPilot_PNT_Reference_Audit.pdf`: 43 pages, 237,310 B, deterministic (`SHA256 1e9a5b01…4baf2` stable across regenerations), guarded by a 1,193-invariant harness that refuses to render on failure.
-- ✅ **PDF data fidelity restored and oracle-verified** — scrape artifacts in the generator's data module repaired in two passes against the pre-scrape original recovered from git history; 1,038 data strings now match verbatim, every artifact scanner reports zero.
-- ✅ **Deliverable verified in a real browser** — headless Chrome/PDFium sweep of 16 pages: page count exactly 43, "New Service Location" column confirmed on page 16, dedicated mapping section on page 38, zero blank/black/garbled pages, zero missing glyphs, zero console errors attributable to the PDF.
+## 1.3 Key Accomplishments
 
-### 1.4 Critical Unresolved Issues
+- `FS_PNT_FRESH_MS` live on Copter and Rover: default `0`, persists, reaches generated operator documentation for those two vehicles only.
+- The monitored age grows monotonically through a total GPS outage, then collapses to zero one second after recovery.
+- The gate refuses arming with `PreArm: PNT data stale (>N ms)` alongside — never instead of — existing checks.
+- `GPSFresh` publishes at exactly 1 Hz armed and disarmed, on every active link, with a matching dataflash row.
+- At the default: no message, no telemetry, no log row — checked against a pre-feature build.
+- Plane, Sub, Blimp and AntennaTracker expose no parameter and stay silent, by construction.
+- Three append-only simulation tests prove the gate, the anti-saw-tooth property and the default-off contract.
+
+## 1.4 Critical Unresolved Issues
 
 | Issue | Impact | Owner | ETA |
-|-------|--------|-------|-----|
-| **No blocking issue exists in the delivered scope** | None — every in-scope build, test, ABI and runtime gate passes (independently re-verified during this assessment) | — | — |
-| Behavior-critical `AP_L1_Control` seam awaits human sign-off | The seam edits a controller shared by all fixed-wing/VTOL vehicles; default-off and byte-identical clamp mitigate risk, but merge requires flight-controls review | Flight-controls reviewer | HT-1 · 6 h |
-| Real AFSIM host integration not yet performed | The service cannot be exercised inside AFSIM until the host binds the ABI to its platform state and timebase; AFSIM is unavailable in this environment | Host / integration engineer | HT-2 · 10 h |
-| Shim-vs-live-AHRS numerical fidelity not cross-validated | Option B (service-local shim) is AAP-sanctioned, but agreement with the live EKF/DCM `AP_AHRS` and the synthesized-`Location` datum limits are asserted by construction rather than measured | Guidance/QA engineer | HT-3 · 6 h |
-| `libafsim_l1.so` has no SOVERSION, install rules or CI job | Consumers cannot pin an ABI version and regressions would not be caught (0 of the repo's 27 workflows build the service) | Build/release engineer | HT-4 · 4 h |
+|---|---|---|---|
+| An unrepresentable integer parameter write (e.g. `2147483647`) terminates a simulated vehicle inside the shared float-to-integer conversion used by every integer parameter | Robustness. For this parameter the exposure is bounded — the vehicle clamp yields `0`, so no unbounded threshold can result — and flight hardware installs no floating-point trap | Parameter-subsystem owner | 6 h |
+| The one-command host unit-test gate exits non-zero on this compiler generation | A CI job running that command literally comes out red, at this commit and equally without the feature. The corpus itself passes 52/52 binaries and 878 cases | Toolchain owner | 4 h |
+| The Rover regression shard needs the vendored-warning demotion exported, and the test that needs it leaves the build tree reconfigured | One shard failure out of the box, plus a stale configure for the next run | Autotest owner | 3 h |
+| No committed test drives the pre-arm chain from a non-main thread, so nothing in CI guards the monitor's single-writer invariant | A future edit reintroducing shared mutable state on the check path would not be caught | Tech lead | 6 h |
+| Out-of-range threshold values have no committed regression test | The clamp behaviour is verified but unguarded against regression | Autotest owner | 4 h |
+| The feature has never run on hardware | Validation is simulation-only by plan; a real receiver has not driven the latch | Flight-test engineer | 8 h |
 
-### 1.5 Access Issues
+## 1.5 Access Issues
 
-| System / Resource | Type of Access | Issue Description | Resolution Status | Owner |
-|-------------------|----------------|-------------------|-------------------|-------|
-| ArduPilot repository | Git write / merge | Branch is complete and committed; merge to mainline needs human approval. No permission blocker encountered — all 16 commits landed as `Blitzy Agent <agent@blitzy.com>` | Pending review | Maintainer |
-| AFSIM simulation environment | Runtime / integration | The external host is not present in this container, so real host-driven integration could not be executed. Validated by proxy: pure-C `dlopen` host + demo driver | Deferred — out of environment | Integration team |
-| Vendored submodules (`modules/gtest`, `modules/littlefs`) | Source write | Two pre-existing `-Werror` incompatibilities live in AAP-excluded trees, so they could not be fixed by edit. Cleared with proven **zero-edit** environment-variable recipes (Appendix E) | Worked around, not blocking | ArduPilot upstream |
-| Build toolchain, Python, CMake, poppler, fonts | Local execution | No access issue. GCC 11.5/12.5/15.2, CMake 3.31.6, Python 3.13.7, reportlab 4.5.1, poppler 25.03.0 and DejaVu fonts were all present; no installation was required | Verified available | — |
+No access issues identified. The repository, its vendored submodules, the toolchain, the simulator and every delivery gate were reachable and exercised locally; the feature needs no credential.
 
-> **No credential, API-key or permission blocker prevented autonomous build validation.** Compilation, ABI verification, the unit suite, CTest, the demo, both build paths, the vehicle firmware link and PDF regeneration all executed successfully in this environment.
+## 1.6 Recommended Next Steps
 
-### 1.6 Recommended Next Steps
+1. **[High]** Raise the upstream pull request with the differentiation text supplied here, noting that helicopter builds also receive the parameter.
+2. **[High]** Restore the one-command unit-test gate and the out-of-the-box Rover shard so CI is green without local flags.
+3. **[High]** Bound the shared parameter float-to-integer conversion upstream, with a regression case per integer branch.
+4. **[Medium]** Add the two missing guards: out-of-range thresholds, and a threaded caller driving the pre-arm chain.
+5. **[Medium]** Validate on a GPS-equipped airframe, then publish release notes covering the resolution floor and clamp semantics.
 
-1. **[High]** Senior code review and merge sign-off of the `AP_L1_Control` timing seam and the three service layers; formally record the AAP §0.7.3 design decision (additive default-off seam) — *HT-1, 6 h*.
-2. **[High]** Complete the real AFSIM host integration: bind `libafsim_l1.so`, map platform state → `L1_SetStateNE`, drive the frame delta → `L1_Execute`, consume `L1_GetRollDeg` / `L1_GetLatAccel`, and add leg sequencing via `L1_SetLegNE` — *HT-2, 10 h*.
-3. **[Medium]** Cross-validate numerical fidelity against in-vehicle/SITL L1 for on-track, cross-track and loiter legs, and document the synthesized-`Location` datum envelope — *HT-3, 6 h*.
-4. **[Low]** Package the library: SOVERSION/semantic versioning, `install()` rules, and a CI job invoking the existing `afsim_l1_tests` / `ctest` / `generate.py` targets — *HT-4, 4 h*.
-5. **[Low]** Housekeeping before any bulk staging: remove or ignore the 1,061 MB of untracked validation artifacts under `blitzy/screenshots` and `blitzy/screen_recordings` (folded into HT-1d; `.gitignore` does not cover them).
+# 2. Project Hours Breakdown
 
----
-
-## 2. Project Hours Breakdown
-
-### 2.1 Completed Work Detail
-
-All completed work was performed autonomously by Blitzy agents (123 AI hours, 0 manual). Every row traces to a specific AAP requirement, and every claim below was re-verified during this assessment.
+## 2.1 Completed Work Detail
 
 | Component | Hours | Description |
-|-----------|------:|-------------|
-| Service facade layer (`AfsimL1Behavior.h/.cpp`) | 12 | 514 LOC task-API facade — `init` / `execute(dt)` / `set_leg_ne` / `set_state_ne` / `get_roll_deg` / `get_lat_accel`, matching the user example's shape exactly; owns the shim, the `AP_L1_Control` instance and the `prev`/`next` legs; delegates only to `set_update_dt` → `update_waypoint` → `nav_roll_cd()/100` / `lateral_acceleration()`; seeds vehicle-matching gains (`set_default_period(17.0f)` + the controller's own `AP_Param::setup_object_defaults`); hard `#error` seam guard. **AAP R1/R2** |
-| AHRS adapter shim (`AfsimL1_AHRS_Shim.h/.cpp`) | 8 | 327 LOC adapter mirroring the exact read surface the controller consumes — `get_location`, `groundspeed_vector`, `get_yaw_rad`, `get_pitch_rad`, `get_EAS2TAS`, plus the public `yaw_sensor` member — fed by `set_location_NE` / `set_velocity_EN` / `set_yaw_cd` / `set_pitch_rad`; `Location` synthesized from a datum; N/E↔E/N convention handled. **AAP R3** |
-| C ABI boundary (`l1_c_api.h/.cpp`) | 8 | 495 LOC `extern "C"` layer — opaque `L1_Context` (magic cookie `0xAF510C71` + mutex-guarded live-handle registry checked before every dereference), 8 `visibility("default")` exports, `std::isfinite` validation on every scalar, NULL/stale-handle safety, ABI-stability documentation. **AAP R4/R5** |
-| `AP_L1_Control` timing seam (behavior-critical) | 6 | Additive `set_update_dt(float)` (+61 lines across header and source) into the shared flight-guidance controller: injected `dt` for `update_waypoint`, accumulated `_override_time_ms` timebase for `update_loiter`, non-finite/negative rejection, default-off via in-class initializers, `dt`-clamp block preserved byte-for-byte. **AAP R10/R11/R17** |
-| Standalone shared-library build (`CMakeLists.txt`) | 8 | 556 LOC CMake 3.5-compatible build producing `libafsim_l1.so` + `afsim_l1_demo` + `afsim_l1_tests` + 2 CTest registrations; generated Option-B seam tree; `-fvisibility=hidden` + version script pinning the 8 exports; ArduPilot-equivalent diagnostics posture (32 flags, 21 promoted to errors); cross-compiler support. **AAP R6** |
-| In-tree waf build path (`wscript`) | 3 | 187 LOC `bld.ap_example(use='ap')` build that writes the seam tree, injects `AFSIML1_L1_USES_SHIM_AHRS`, orders the include path and compiles the wrapped controller in place — closing the blocker that previously made the in-tree path fail at the seam guard. **AAP R7** |
-| Demo driver + self-check (`main.cpp`) | 4 | 212 LOC "initialize a simple leg" driver: create → init → `set_leg_ne` → `set_state_ne` → `execute(dt)` → read outputs → self-check (fails loudly on non-finite or trivially-zero roll) → destroy. **AAP R8** |
-| README integration documentation | 4 | 322 LOC / 14 sections: architecture, AHRS decoupling options, C ABI, dependency-injection model, units and conventions, both build paths, symbol verification, unit tests, C and C++ usage paths, behavior preservation. **AAP R9** |
-| PNT instance audit analysis (Goal 1) | 6 | Line-by-line sweep locating every PNT touch-point in the extraction target — 16 AHRS read sites resolving to 6 accessor kinds, 2 internal clock couplings, 2 output paths — expressed as the authoritative current→new mapping table (AAP §0.6.1) and realized as a 94-main-row / 282-evidence-row catalog. **AAP R12/R13** |
-| PDF generator pipeline + deliverable (Goal 3) | 24 | 3,082 LOC ReportLab pipeline (`pnt_data.py` 1,344 + `pnt_render.py` 1,444 + `generate.py` 294) rendering the 43-page A4-landscape audit with the required "New Service Location" column and a front-of-document Executive Summary; assertion harness of 1,193 logical invariants across 6 gates that refuses to render on any failure; deterministic byte-identical output. **AAP R14/R15** |
-| PDF data-fidelity repair (oracle-verified) | 8 | Two-pass repair of `pdftotext -layout` scrape artifacts baked into the generator's data module (166 rules / 236 replacements), using the pre-scrape original PDF recovered from commit `5b67e27b0a` as an authoritative oracle; corrected two first-pass mistakes and rejoined 100 mid-identifier snippet breaks; backed by `verify_repairs.py` (59 checks) and `mutation_test.py` (52 checks). **AAP R14/R15 fidelity** |
-| C-ABI stability web research | 2 | Best-practice research on ABI-stable shared libraries — opaque handles, C-only boundary types, symbol visibility, versioning — recorded in AAP §0.3.2 and reflected in the implementation. **AAP R16** |
-| Dedicated unit suite (`tests/test_afsim_l1.cpp`) | 6 | 866 LOC self-contained suite (no GoogleTest, therefore no new dependency) asserting **111 checks**: shim accessors and setters, E/N velocity ordering, `Location`-from-datum, every facade method, all 8 C-ABI entry points including NULL, bogus, stale and double-destroy handles, `set_update_dt` input validation, and behavior preservation (injected-`dt` determinism, default-off `micros()` path, `dt > 1 s` integrator reset). Wired as `afsim_l1_tests` with 2 CTest cases. **AAP R19** |
-| Autonomous validation campaign | 16 | 9-configuration compile matrix (GCC 11.5/12.5/15.2 × Debug/Release/RelWithDebInfo) from scratch with `nm` ABI assertion per variant; pure-C `dlopen` host (38 checks); behavior-preservation Tests A/B/C; Valgrind full leak-check on 4 components; PDF harness, `verify_pdf.py` (118), mutation (52) and repair-regression (59) suites; 3 headless-browser runs over all 43 PDF pages; `./waf plane` regression link; plus zero-edit environment recipes that unblocked two vendored out-of-scope `-Werror` failures. **AAP R17/R18 verification** |
-| Iterative QA / code-review fix cycles | 8 | Resolution of checkpoint findings CP1, CP2 and CP5 (G1–G7), export-surface pinning to exactly 8 symbols, and correction of overstated documentation claims across 5 files (harness size, per-verifier counts, an unusable board name, two risk entries) — evidenced across the 16 implementation commits. **AAP R17/R18 quality** |
-| **Total Completed** | **123** | Sum of the rows above; equals Completed Hours in §1.2 |
+|---|---|---|
+| Freshness monitor — `libraries/AP_Arming/AP_PNTFreshness.{h,cpp}` | 20 | Status-latched age with wrap-safe unsigned arithmetic and max-hold saturation, published as one relaxed atomic store per tick; 8-byte allocation-free object, no singleton; threading contract and the mandated differentiation block written into the header |
+| Shared arming integration — `libraries/AP_Arming/{AP_Arming.h,AP_Arming.cpp}` | 12 | `pnt_freshness_checks()`, the protected virtual threshold accessor with its zero base default, the shared range ceiling, by-value ownership of the monitor, its drive as the first statement of the 1 Hz `update()`, and one appended term in the non-short-circuit pre-arm chain |
+| Copter parameter surface — `ArduCopter/Parameters.{h,cpp}` | 8 | `AP_Int32 fs_pnt_fresh_ms` plus the annotated `AP_GROUPINFO` entry at extension-table index 11, chosen after resolving the whole six-bit index space (the originally proposed index is occupied by the weathervane group), with the full metadata block that generates the operator documentation |
+| Rover parity — `Rover/Parameters.{h,cpp}`, `Rover/AP_Arming_Rover.{h,cpp}` | 6 | The same parameter at `var_info` index 58 (Rover has no extension table) and the Rover threshold override, with metadata text kept character-identical to Copter's so the two tracks cannot drift |
+| Copter threshold seam — `ArduCopter/AP_Arming_Copter.{h,cpp}` | 4 | The override that injects the vehicle-owned parameter into the shared base, clamping the signed value into the documented range before widening |
+| `GPSFresh` telemetry channel | 4 | Publication through the existing GCS broadcast helper, guarded on the build configuration and on the enable condition, with its dataflash consequence analysed and confirmed to appear only when an operator opts in |
+| Copter simulation proof — `Tools/autotest/arducopter.py` | 12 | Two append-only methods: the anti-saw-tooth gate test with a finite/non-negative validator and a per-sample elapsed-time envelope, and the default-off test with a forced pre-arm pass and a non-empty-collection precondition so silence cannot pass vacuously |
+| Rover simulation proof — `Tools/autotest/rover.py` | 4 | The append-only twin, registered at the file's own indentation, carrying the bypass-parameter invariant its future editors need |
+| Compile-guard matrix and cross-vehicle inertness | 6 | The monitor compiled clean in five feature-macro permutations, and Plane, Sub, Blimp and AntennaTracker verified to link the code, expose no parameter and emit nothing |
+| Acceptance gate execution | 16 | Both vehicle builds, the host unit corpus, both simulation shards, the parameter-metadata gate, the Python cleanliness gate, the pre-commit hook set, the style-surface check, and the append-only diff discipline |
+| Deep runtime and static verification | 28 | Functional matrix across the parameter, monitor, gate and bypass paths; telemetry cadence and dataflash correlation; performance, CPU and memory profiling against a purpose-built pre-feature build; robustness matrix over the parameter's whole input domain; concurrency analysis of the check path; and a file-by-file review of all fourteen paths against the plan's requirement, constraint and convention matrices |
+| **Total** | **120** | |
 
-### 2.2 Remaining Work Detail
-
-Every category is **path-to-production**; no AAP-specified deliverable remains outstanding. Confidence is stated because hours scale with unknowns.
+## 2.2 Remaining Work Detail
 
 | Category | Hours | Priority |
-|----------|------:|----------|
-| **HT-1 · Senior code review & merge sign-off** — review the +61-line `AP_L1_Control` seam and confirm the AAP §0.7.3 design fork (2 h); review facade/shim/ABI and the 8-symbol export surface (2 h); review PDF + generator provenance and the 18-file scope audit (1 h); PR administration, release note and untracked-artifact housekeeping (1 h). *Confidence: High* | 6 | High |
-| **HT-2 · Real AFSIM host integration** — bind the `.so` and resolve all 8 entry points (2 h); map platform state → `L1_SetStateNE` with datum selection (3 h); drive the frame delta → `L1_Execute` and validate against the 0.1 s cap / 1 s reinit semantics (1.5 h); consume roll and lateral-accel outputs (1.5 h); leg sequencing via `L1_SetLegNE` (2 h). *Confidence: Medium — depends on the host API* | 10 | High |
-| **HT-3 · Numerical-fidelity & integration testing** — reference harness vs in-vehicle/SITL L1 for on-track and cross-track legs (2.5 h); loiter and heading-hold paths under the injected timebase (1.5 h); datum stress: large NE offsets, sign conventions, wrap behavior (2 h). *Confidence: Medium* | 6 | Medium |
-| **HT-4 · Packaging & CI** — SOVERSION/semantic versioning, `install()` rules and a CMake package/pkg-config file (2 h); CI job running configure/build, `nm` export assertion, `ctest`, demo smoke and the PDF harness (2 h). *Confidence: High* | 4 | Low |
-| **Total Remaining** | **26** | High 16 · Medium 6 · Low 4 |
+|---|---|---|
+| Raise the upstream pull request, carrying the differentiation text and the helicopter note | 1 | High |
+| Restore the one-command host unit-test gate (vendored gtest against this compiler, plus a missing standard include) | 4 | High |
+| Make the Rover regression shard green out of the box and restore the configure it replaces | 3 | High |
+| Bound the shared parameter float-to-integer conversion upstream, with a regression case per integer branch | 6 | High |
+| Commit regression coverage for out-of-range threshold values | 4 | Medium |
+| Add a CI guard for the monitor's single-writer invariant (scope decision, then a scripting- or DDS-driven harness) | 6 | Medium |
+| Hardware-in-the-loop validation on a GPS-equipped airframe | 8 | Medium |
+| Operator release documentation: helicopter recipients, resolution floor, clamp semantics, ground-station rendering variance | 3 | Medium |
+| Upstream contribution cycle: rebase, maintainer review, parameter-name sign-off | 6 | Medium |
+| Repository hygiene policy for the un-ignored simulation and metadata artefacts | 2 | Low |
+| Sign off the two deliberate design departures (monitor interface, seam clamp) | 2 | Low |
+| **Total** | **45** | |
 
-### 2.3 Total Project Hours Reconciliation
+## 2.3 Hours Reconciliation
 
-| Bucket | Hours | Share |
-|--------|------:|------:|
-| Completed — AI (§2.1) | 123 | 82.6 % |
-| Completed — Manual | 0 | 0.0 % |
-| Remaining (§2.2) | 26 | 17.4 % |
-| **Total Project** | **149** | **100 %** |
+| Check | Result |
+|---|---|
+| Section 2.1 total | 120 h |
+| Section 2.2 total | 45 h |
+| 2.1 + 2.2 | 165 h — equals Total Hours in Section 1.2 |
+| Completion | 120 ÷ 165 = **72.7%** — the figure used in Sections 1.2, 7 and 8 |
+| Section 7 pie values | Completed 120, Remaining 45 — identical to this table |
 
-> **Integrity check:** §2.1 total (123) + §2.2 total (26) = **149** = Total Project Hours in §1.2 ✔ · Remaining (26) is identical in §1.2, §2.2 and §7 ✔ · §2.2 decomposes exactly as HT-1 (6) + HT-2 (10) + HT-3 (6) + HT-4 (4) = 26 ✔ · Priority split 16 + 6 + 4 = 26 ✔ · 123 ÷ 149 = 82.6 % everywhere ✔
+# 3. Test Results
 
----
+Every figure below was produced by executing the suite on this branch and reading the result. Counts are test cases, not test files.
 
-## 3. Test Results
+| Area / Category | Framework | Tests | Passed | Failed | Coverage | What This Proves |
+|---|---|---|---|---|---|---|
+| PNT freshness gate — Copter | ArduPilot autotest (SITL, JUnit) | 1 | 1 | 0 | Gate, telemetry and recovery paths | The published age climbs monotonically through a total outage, past the driver's own four-second timeout to 22,000 ms, arming is refused with the configured threshold in the message, and the age returns to zero one second after the receiver comes back |
+| PNT default-off contract — Copter | ArduPilot autotest (SITL, JUnit) | 1 | 1 | 0 | Enable-gating of both artefacts | With the parameter at its shipped `0` and GPS starved, a forced pre-arm pass produces ten real status messages and not one of them is the stale-PNT text, and zero named-value floats of any name arrive — so silence is the feature being off, not a dead collector |
+| PNT freshness gate — Rover | ArduPilot autotest (SITL, JUnit) | 1 | 1 | 0 | Rover parity of the same contract | The second vehicle reaches the same result through its own parameter index and threshold override: series to 22,001 ms, identical failure text, recovery to zero |
+| Copter regression shard | ArduPilot autotest (SITL, JUnit) | 30 | 30 | 0 | The whole first Copter shard, including arming, parameters and logging | Twenty-eight pre-existing Copter behaviours are unchanged with the feature present at its default, and both new tests run inside the shard with no retry budget |
+| Rover regression shard | ArduPilot autotest (SITL, JUnit) | 104 | 103 | 1 | The full Rover suite | Every Rover behaviour except one pre-existing networking test is unchanged; that test rebuilds the firmware mid-run and fails for build-environment reasons independent of this work |
+| Host unit corpus | gtest via waf | 878 | 878 | 0 | 52 host test binaries across the library tree | The wider library tree is untouched by this change — no case was added, lost or broken |
+| Parameter metadata generation | Repository metadata pipeline | 7 targets | 7 | 0 | All vehicle parameter documentation | The new parameter is emitted for Copter and Rover only, with correct units, range, increment and user level, and the operator-facing description the ground station will render |
+| Static and style gates | flake8 / pre-commit / astyle | 4 gates | 4 | 0 | 73 Python files, all 14 touched paths | Both test suites are lint-clean at the project's column limit, all nine repository hooks pass with the tree byte-unchanged, and the style checker's scope was not widened to take in the new C++ files |
 
-All tests below were executed by **Blitzy's autonomous validation systems** on this branch and recorded in the agent validation logs. Rows marked **†** are configuration/coverage sweeps rather than assertion checks and are excluded from the aggregate to avoid double counting.
+**Not Covered** — delivered behaviour that no test exercises. Each needs a human decision before release:
 
-| Test Category | Framework / Tooling | Total Tests | Passed | Failed | Coverage % | Notes |
-|---------------|---------------------|------------:|-------:|-------:|-----------:|-------|
-| AfsimL1 unit suite | Self-contained C++ harness (`afsim_l1_tests`) | 111 | 111 | 0 | 100 % of facade, shim and all 8 ABI entry points | NULL/bogus/stale/double-destroy handle safety, E/N convention, `Location`-from-datum, `set_update_dt` validation, behavior preservation |
-| CTest registration | `ctest` | 2 | 2 | 0 | 100 % | `afsim_l1_unit_tests` + `afsim_l1_demo_smoke`; 100 % pass in 0.07 s |
-| Pure-C ABI host | `gcc`-compiled C client using `dlopen`/`dlsym` only | 38 | 38 | 0 | 8/8 entry points | Toolchain-agnostic load proven; 50 m cross-track → roll −34.85°, lat −6.83 m/s² |
-| C ABI symbol verification | `nm -D --defined-only` on every built variant | 9 | 9 | 0 | 8/8 exports | Exactly 8 `L1_*` exports, **0** mangled `_Z` symbols in every configuration |
-| In-tree waf example build | `./waf --targets examples/AfsimL1` on `--board linux` and `--board sitl` | 2 | 2 | 0 | Both boards | 0 in-scope diagnostics; output byte-identical to the CMake demo |
-| Demo self-check | `afsim_l1_demo` runtime assertion | 1 | 1 | 0 | State-flow path | Fails loudly on non-finite or trivially-zero roll |
-| PDF audit harness | Custom Python assertion harness (6 gates) | 1,193 | 1,193 | 0 | 100 % of 94 main rows / 282 evidence rows | 1,193 logical invariants via 1,663 predicate evaluations across 45 predicate sites; refuses to render on failure |
-| PDF integrity verification | `verify_pdf.py` (`pdfinfo`/`pdftotext`/`pdftoppm` + PIL) | 118 | 118 | 0 | All 43 pages | Page count, geometry, fonts, column header, per-page ink and dark bounds |
-| PDF generator mutation tests | `mutation_test.py` deliberate-fault injection | 52 | 52 | 0 | 6 verifier gates | Proves each gate actually fails when its invariant is broken |
-| PDF data-repair regression | `verify_repairs.py` | 59 | 59 | 0 | All repaired strings | Every corrected form present **and** every corrupt form absent in the rendered PDF |
-| Repository Python unit tests | `unittest` | 53 | 53 | 0 | 3 suites | `annotate_params` (24), `extract_param_defaults` (18), `param_check` (11) |
-| **Aggregate (in-scope assertion checks)** | — | **1,638** | **1,638** | **0** | — | **100 % pass rate; 0 failed, 0 skipped, 0 blocked** |
-| † Standalone compilation matrix | CMake × GCC 11.5.0 / 12.5.0 / 15.2.0 × Debug / Release / RelWithDebInfo | 9 configs | 9 | 0 | n/a | From-scratch each time; **0 diagnostics** under a 32-flag ArduPilot-equivalent posture (21 `-Werror=`); identical output and 8 exports in every cell |
-| † Seam safety vs real vehicle headers | `g++` syntax check against the real AHRS/SITL header graph + `./waf plane` link | 2 | 2 | 0 | n/a | `bin/arduplane` links at 3,473,811 B flash — the shared controller still builds into firmware |
-| † Behavior preservation A / B / C | Assertions inside the unit suite (subsumed in the 111) | 3 | 3 | 0 | n/a | A injected-`dt` determinism; B default-off `micros()` path; C `dt > 1 s` integrator reset; clamp block byte-identical to baseline |
-| † Memory safety | Valgrind full leak-check | 4 components | 4 | 0 | n/a | Demo, unit suite, `dlopen` host, in-tree binary — **0 errors, 0 leaks** |
-| † Pre-scrape oracle verification | `pdftotext -raw` diff vs the original PDF recovered from git history | 1,038 strings | 1,038 | 0 | 1,038 of 1,550 data strings | Verbatim match against the authoritative pre-scrape original; the 37 non-matches are fully explained (intentional flag-tag hoisting and 2 post-dating mapping strings) |
-| † Browser rendering verification | Headless Chrome + PDFium, 3 runs | 43 pages | 43 | 0 | All 43 pages | 0 blank / black / garbled / overflowing pages, 0 missing glyphs, 0 console or PDF-parse errors |
-| *Out-of-scope bonus: full ArduPilot gtest suite* | *`./waf check --alltests`* | *881 cases in 52 binaries* | *881* | *0* | *n/a* | *Not required by the AAP (§0.2.2 excludes the regression suite); run anyway via a zero-edit env recipe and green* |
+- **Out-of-range threshold values.** A negative value must leave the gate disabled and silent, and a value above the ceiling must gate at the ceiling and still fire. Both behaviours are implemented and were confirmed by direct observation, but no committed test guards them. Add coverage for a negative value and an above-ceiling value on both vehicles.
+- **The pre-arm chain called from a non-main thread.** The monitor's correctness under the DDS and scripting entry points rests on a single-writer discipline that no committed test exercises. Add a scripting-driven or DDS-enabled job that hammers the chain while the threshold toggles under starvation.
+- **The rollover saturation branch.** Reaching it needs 49.7 days without a usable fix, which no bounded simulation can produce. Its arithmetic is documented in place; treat it as reviewed rather than tested.
+- **Builds with GPS or ground-station support compiled out.** These configurations were compile-verified in every permutation but never run, and no shippable firmware links the arming library with GPS support off.
+- **Inertness on Plane, Sub, Blimp and AntennaTracker.** Confirmed by inspection and by driving each vehicle directly, but no committed test covers those airframes.
+- **Behaviour on real hardware.** Validation is simulation-only. No test in this suite drives a physical receiver.
 
-**Independent re-verification performed during this assessment** (a subset re-executed from scratch to confirm the logs): out-of-tree CMake build → exit 0 with **0 warning/error lines**; `nm -D --defined-only libafsim_l1.so` → exactly 8 `T L1_*`, 0 `_Z`; `afsim_l1_demo` → `roll_deg = -38.639999, lat_accel = -7.840306`; `afsim_l1_tests` → **111 checks, 0 failures**; `ctest` → **2/2, 100 %**; an independently written 24-check pure-C `dlopen` host → 0 failures, reproducing roll −34.85° / lat −6.83 m/s²; `./waf build --targets examples/AfsimL1` → exit 0, 0 diagnostics, identical output; `./waf plane` → exit 0, 3,473,811 B; PDF regeneration → `HARNESS PASSED`, 43 pages, 237,310 B, byte-identical SHA256. **No discrepancy was found between the logs and re-measured reality.**
+# 4. Runtime Validation & UI Verification
 
----
+This project is flight-control firmware plus simulation test code. There is no web layer, no HTTP API and no screen inventory, so there is nothing to verify visually; runtime evidence is simulator transcripts, MAVLink captures, dataflash rows and JUnit results instead. Every line below reflects a flow that was actually driven.
 
-## 4. Runtime Validation & UI Verification
+- ✅ **Operational — Firmware start-up on both vehicles.** Copter and Rover boot from a wiped parameter store with the new parameter present at `0`, with no duplicate-group-index abort and no start-up warning.
+- ✅ **Operational — Parameter read, write and persistence.** The parameter reads back as a 32-bit integer, accepts values across the documented range, survives a process restart, and can be enabled and disabled live with no reboot.
+- ✅ **Operational — Healthy-fix baseline.** With a usable fix the published age sits at zero and arming is permitted with the gate enabled, so the check produces no false refusals.
+- ✅ **Operational — Sustained outage.** With the simulated receiver disabled the age rises in one-second steps straight through the driver's four-second timeout and on past 22,000 ms in the committed tests, and past 71,000 ms in longer runs, never resetting.
+- ✅ **Operational — Arming refusal.** The gate emits `PreArm: PNT data stale (>3000 ms)` at critical severity, a real arm command is rejected, and the vehicle stays disarmed.
+- ✅ **Operational — Coexistence with existing checks.** The new failure is reported alongside the pre-existing GPS, EKF and battery failures rather than replacing any of them, and after the pre-existing ones, so chain order is intact.
+- ✅ **Operational — Recovery.** Restoring the receiver collapses the age to zero on the next publication and clears the failure without a reboot.
+- ✅ **Operational — `GPSFresh` telemetry and logging.** Published at 1 Hz both disarmed and armed, with no gap at the arm/disarm boundary, delivered to a late-joining second link with no burst, and matched one-for-one by dataflash rows.
+- ✅ **Operational — Default-off across the fleet.** At the shipped default, a starved vehicle produces no stale message, no named-value float and no log row, checked against a purpose-built pre-feature build; Plane, Sub, Blimp and AntennaTracker have no parameter and stay silent while their ordinary GPS and EKF reporting continues.
+- ⚠ **Partial — Documented bypass paths.** With arming checks disabled, and on Rover with arming not required, the gate is bypassed exactly as every other non-mandatory check is; telemetry continues throughout and restoring either parameter restores the refusal. Behaviour confirmed, but operators relying on this gate specifically must know it.
 
-**UI verification scope:** Not applicable in the conventional sense. Per AAP §0.3.4 the deliverable is a **headless** C/C++ shared library consumed programmatically plus a PDF documentation artifact — there is no graphical or textual end-user interface, no component library and no design system. Visual verification therefore targets the PDF deliverable, the project's only visual artifact; the library's runtime surface is verified directly through its C ABI.
+**Never exercised at runtime.** The rollover saturation branch, builds with GPS or ground-station support compiled out, and behaviour on physical hardware. The first two are compile-verified and reasoned in place; the third is scheduled in the remaining work.
 
-**Runtime health — library:**
+# 5. Compliance & Quality Review
 
-- ✅ **Operational** — Standalone CMake build produces `libafsim_l1.so` (175,648 B ELF), `afsim_l1_demo` (16,472 B) and `afsim_l1_tests` (217,984 B) with 0 diagnostics.
-- ✅ **Operational** — `afsim_l1_demo` runs end-to-end: `roll_deg = -38.639999, lat_accel = -7.840306`, exit 0. Identical from the build tree and from a foreign working directory (build-tree RPATH), and identical with the `LD_LIBRARY_PATH=.` fallback.
-- ✅ **Operational** — C ABI: all 8 entry points resolve via `dlsym`; `readelf -d` shows the library needs only `libstdc++`, `libm`, `libgcc_s` and `libc` — no ArduPilot runtime dependency.
-- ✅ **Operational** — Toolchain-agnostic consumption: a `gcc`-built pure-C client (never `g++`, no ArduPilot header) drives the `g++`-built library correctly.
-- ✅ **Operational** — Defensive behavior: NULL, bogus, stale (post-`L1_Destroy`) and double-destroyed handles are safe no-ops; getters return exactly `0.0`; NaN/Inf injected through `L1_SetStateNE`, `L1_SetLegNE` and `L1_Execute` leave both outputs finite.
-- ✅ **Operational** — Timing seam: injected `dt` overrides `AP_HAL::micros()`; the default-off path preserves stock behavior; clamp semantics intact.
-- ✅ **Operational** — In-tree waf example (`bld.ap_example(use='ap')`) builds on `--board linux` with 0 in-scope diagnostics and emits byte-identical guidance output; `--board sitl` builds with a documented zero-edit `CFLAGS` prefix for unrelated vendored code.
-- ✅ **Operational** — Vehicle regression guard: `./waf plane` links `bin/arduplane` (3,473,811 B flash), proving the additive seam does not disturb firmware consumers.
-- ✅ **Operational** — Memory safety: Valgrind full leak-check across 4 components reports 0 errors, 0 leaks.
+## 5.1 Compliance Matrix
 
-**Runtime health — PDF deliverable pipeline:**
+Each row states where the deliverable stands now, against the Agent Action Plan's requirements and the repository's own quality benchmarks.
 
-- ✅ **Operational** — `generate.py` prints `harness: validating 94 main rows / 282 evidence rows`, then `HARNESS PASSED`, then `PDF written: <abspath>`; exit 0.
-- ✅ **Operational** — Deterministic: byte-identical regeneration (`cmp` clean, SHA256 `1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2` unchanged), and the git working tree stays clean afterwards.
-- ✅ **Operational** — Artifact: 43 pages, 237,310 B, A4 landscape (841.89 × 595.276 pt), ReportLab producer.
+| # | Deliverable / Benchmark | Status | Verified State |
+|---|---|---|---|
+| 1 | Gating parameter `FS_PNT_FRESH_MS` on both vehicles | ✅ Pass | Copter extension-table index 11, Rover `var_info` index 58, both defaulting to `0`; emitted in generated documentation for exactly these two vehicles |
+| 2 | Freshness monitor, allocation-free with a single latch | ✅ Pass | Two state words in an 8-byte object, no allocation, no singleton, one clock read and one status read per tick |
+| 3 | Staleness derived from fix status, never from the message timestamp | ✅ Pass | The prohibited accessor appears nowhere in the arming library except inside the comments forbidding it; the age climbs past the driver timeout instead of saw-toothing at it |
+| 4 | Monitor independent of the vehicle position predicates | ✅ Pass | No reference to either predicate; the vehicle header carrying them is not in the change set at all |
+| 5 | Pre-arm check appended to the shared chain | ✅ Pass | One guarded term added after the final existing term; the only removed line in the whole change set is the semicolon that moved to make room, exactly as planned |
+| 6 | Per-vehicle threshold injection through a protected virtual seam | ✅ Pass | Base returns `0`; Copter and Rover override it; the four non-participating vehicles are inert by construction |
+| 7 | `GPSFresh` published through the existing broadcast helper | ✅ Pass | Eight-character name inside the ten-character wire limit, message id 251 only, no file under the telemetry library modified |
+| 8 | Default-off contract — zero observable change at `0` | ✅ Pass | No message, no telemetry, no log row, no measurable CPU or memory cost, checked against a pre-feature build |
+| 9 | Simulation proof, append-only in both suites | ✅ Pass | Two Copter methods and one Rover twin, each with a docstring and a unique name, no retry budget, zero removed lines |
+| 10 | Differentiation from the driver timeout and from solution-quality checks, in code and in the delivery description | ✅ Pass | Present in both new source files, in the shared check's own header comment and in both parameter descriptions; the delivery half accompanies this submission |
+| 11 | No build-manifest, style-gate or submodule change | ✅ Pass | The arming library was already linked and its sources glob-collected; the style checker's lists are untouched; all fifteen submodule pointers unmoved |
+| 12 | Acceptance gates | ⚠ 9 of 11 green as written | Build, simulation, monotonic-age, default-off, append-only, metadata, cleanliness, hook-set and style gates all green. The host unit-corpus and Rover-shard gates are green in substance but need local flags or a toolchain repair to pass as single commands — see 5.2 |
 
-**Browser verification of the deliverable (headless Chrome + PDFium):** verdict **PASS**, zero defects.
+## 5.2 AAP & Rule Divergences and Gaps
 
-| Assertion | Result | Evidence |
-|-----------|--------|----------|
-| Loads over HTTP and renders in Chrome's viewer | ✅ Operational | HTTP **200**, `content-type: application/pdf`, `content-length: 237310`; three-way SHA256 match (served ≡ on-disk ≡ expected) proves the rendered bytes are the exact deliverable |
-| Page count exactly 43 | ✅ Operational | Toolbar `1 / 43` → `43 / 43`; 43 thumbnails and no 44th; out-of-range page input clamps to 43; `pdfinfo` on the HTTP-fetched copy agrees |
-| Front-of-document Executive Summary | ✅ Operational | Page 1 renders the title *ArduPilot PNT (Positioning, Navigation, Timing) Reference Audit* and the `Executive Summary` heading with full body copy |
-| "New Service Location" mapping column (AAP Goal 3) | ✅ Operational | Confirmed on **page 16** as the rightmost of 8 headers, with verbatim cells such as `AfsimL1Behavior::set_leg_ne() -> AP_L1_Control::update_waypoint(prev, next); …` and `AfsimL1Behavior::get_roll_deg() = nav_roll_cd()/100 -> L1_GetRollDeg; get_lat_accel() -> L1_GetLatAccel`; unmapped rows correctly show an em-dash. Corroborated on pages 2, 12, 17 and by the dedicated mapping section on **page 38** |
-| Rendering quality across the document | ✅ Operational | 16 distinct pages inspected (37 %); quantitative pixel statistics on the page region: ink 3.48–20.68 %, mean luminance 207.5–247.4, std-dev 32.9–75.6 → no blank, black, torn or garbled page. Full non-ASCII glyph inventory (→ — · ✓ × ↔ ← ≥ ≤ ° … curly quotes) renders as true glyphs — **zero missing-glyph boxes** |
-| Console and network cleanliness | ✅ Operational | 0 JS exceptions, 0 PDF parse/render warnings; 17 of 18 requests `200`; the only 404 is the static server's absent `favicon.ico` and the only pending request is PDFium's own byte-stream channel for this document |
-| Scroll/paint behavior under motion | ✅ Operational | 106 s / 3,185-frame recording spanning ≥ 12 pages: no flash-of-blank, no placeholder tiles, no tearing; frame-difference and footer-hash analysis confirm genuine motion |
+No user-specified rules exist for this project, so no rule divergence is possible: the rules document was read in full and contains none, and the plan's own rules section records the same. The eight divergences below are all from the Agent Action Plan.
 
-**Captured evidence (absolute paths):**
+| # | What the AAP/Rule Required | What Was Delivered Instead | Why It Diverged | Impact | Remediation |
+|---|---|---|---|---|---|
+| 1 | A monitor of "three words of state and five accessors", with a no-argument stale predicate and stored-threshold accessors | Two state words, the age published as an atomic, and threshold-parameterised `enabled()`/`is_stale()`; no stored threshold and no setter | The pre-arm chain is reachable from worker threads, so a stored threshold is written by two of them | Strengthens the guarantee; no planned behaviour lost | Accept, or ask for the literal shape and accept a lock |
+| 2 | The age as the single expression `now_ms - _last_good_ms` | The same subtraction wrapped in a max-hold that only adopts a growing age | The bare form folds back through zero at the 32-bit boundary and would reopen the gate | Identical below 49.7 days; saturates instead of folding | None required |
+| 3 | Both vehicle seams as pure parameter forwarders | Each seam clamps into `0..60000` before widening, against a shared ceiling declared in the arming header | The parameter store does not enforce the documented range, and a bare cast turns `-1` into the largest unsigned value | Out-of-range values now behave as documented rather than neutralising the gate | Confirm the clamp policy is wanted |
+| 4 | Host unit corpus green via one command | The corpus run through a debug configure and a keep-going build, then each binary executed | That command aborts on a vendored test framework this compiler rejects | The gate is red as a single command, here and without the feature | Repair the toolchain (4 h) |
+| 5 | Rover shard green | 104 cases with one pre-existing failure unless a warning demotion is exported | A pre-existing test rebuilds the firmware mid-run without that demotion | Shard red out of the box; the new test unaffected | Fix that test's reconfigure (3 h) |
+| 6 | Specific baseline flash sizes and 881 unit cases | 4,491,565 B and 4,126,749 B; 878 cases | A different compiler generation than the plan's baseline | Informational; the size comparison is advisory | None |
+| 7 | An impact analysis naming the affected vehicles | Traditional-helicopter builds also receive and honour the parameter | Helicopters share the Copter parameter table | An audience the plan did not name | Cover them in release notes (part of 3 h) |
+| 8 | A fixed inventory of two Copter tests and one Rover test | Exactly that inventory | Holding the inventory left out-of-range threshold behaviour uncovered | A verified behaviour with no regression guard | Add the coverage (4 h) |
 
-- `blitzy/screenshots/pnt_audit_page1_executive_summary.png` — page 1 with the Executive Summary (583,525 B)
-- `blitzy/screenshots/pnt_audit_new_service_location_column.png` — page 16 with the mapping column (337,099 B)
-- `blitzy/screenshots/pnt_audit_page38_instance_audit_mapping_table.png` — the dedicated *Current Location → New Service Location* section
-- `blitzy/screenshots/pnt_audit_last_page.png` — page 43 fully rendered (677,669 B)
-- `blitzy/screenshots/pnt_audit_page_count_43_indicator_and_last_thumbnail.png` — page-count proof
-- `blitzy/screenshots/pnt_audit_sweep_page{02,03,05,08,12,18,25,30,33,36,40}.png` — 11-page sweep incl. the Unicode glyph test page
-- `blitzy/screen_recordings/pnt_audit_scroll_sweep.webm` — scroll sweep recording (43,346,338 B)
+**1 — Monitor interface narrowed.** The plan sketched three plain words with a stored threshold and a no-argument stale predicate. The delivered class holds `_last_good_ms`, owned outright by `update()`, and publishes the age as a `std::atomic<uint32_t>` written once per tick; the threshold arrives as an argument (`libraries/AP_Arming/AP_PNTFreshness.h:43-55`). The reason is concrete: `pre_arm_checks()` runs from the DDS worker thread and the scripting `arming:pre_arm_checks()` binding, so a stored threshold would be written by two threads and could read back as `0` — disabled — passing a vehicle whose PNT had stopped. Every plan-visible property survives: zero disables gate and publication, the latch is status-only, the emission text is verbatim. Accept the narrowed interface, or restate the sketch and accept a lock.
 
-(All under `/tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684/`.)
+**2 — Age arithmetic max-held.** The plan gives the age as one unsigned subtraction. `libraries/AP_Arming/AP_PNTFreshness.cpp:45-55` performs exactly that subtraction, then retains the previously published value if the new one is smaller. Without this, a vehicle that had gone 49.7 days without a usable fix would see the modular difference fold back to nearly nothing, `is_stale()` would return false, and the gate would open on a vehicle with no PNT at all — the opposite of the requirement that the value grow monotonically. For every interval shorter than that period the two forms are arithmetically identical, which the committed series demonstrates. Nothing is required of the reader beyond knowing that the age saturates rather than wrapping.
 
-**API integration outcomes:** the C ABI *is* the integration surface, and all 8 functions are verified operational from both C++ and pure C. The one integration outcome that cannot be produced in this environment is the real AFSIM host binding (HT-2) — AFSIM is not present in the container.
+**3 — Vehicle seams clamp the parameter.** The plan specified each override as a bare cast of the vehicle parameter. Both seams instead clamp into `0..60000` first (`ArduCopter/AP_Arming_Copter.cpp`, `Rover/AP_Arming_Rover.cpp`, against `PNT_FRESH_MS_MAX` in `libraries/AP_Arming/AP_Arming.h`). The parameter store does not enforce the range its own metadata publishes, so a stored `-1` would widen to the largest unsigned value: the feature would look enabled and keep publishing while being impossible to trip. The clamp closes that, at one operator-visible cost — a stored `100000` gates at `60000` while the parameter still reads back as `100000`. Both parameter descriptions state this. Confirm the policy, or have out-of-range positives honoured verbatim instead.
 
----
+**4 — Host unit-corpus gate command.** The plan's gate is a single command over the whole host corpus. That command aborts before running anything, because the vendored test framework pinned in this tree declares a virtual method this compiler insists be marked `override`; two further translation units fail behind it for the same generational reason. The corpus itself is unaffected: configured for debug and built keep-going, 52 binaries build and every one passes, 878 cases with no failure. The condition is present without the feature too, and no file this project touches appears in any diagnostic. Repairing the toolchain restores the single-command form.
 
-## 5. Compliance & Quality Review
+**5 — Rover shard.** The plan expects the Rover suite to pass outright. It reports 104 cases with a single failure: a pre-existing networking test that reconfigures and rebuilds the firmware in the middle of the run without the vendored-warning demotion the rest of the build uses, so its rebuild fails. The same test fails identically on a tree without this feature, and it also leaves the build configured for debug and PPP afterwards, which surprises the next run. The new Rover test passes inside that shard. Give that test's reconfigure the demotion, or land the one-line vendored fix upstream, and have it restore the configure it replaced.
 
-AAP deliverables and constraints cross-mapped to Blitzy's quality and compliance benchmarks. "Verified here" marks items re-measured during this assessment.
+**6 — Baseline figures.** The plan records absolute flash sizes of 4,437,069 B and 4,076,637 B and a corpus of 881 cases. This compiler generation produces 4,491,565 B and 4,126,749 B, and 878 cases — the same 878 on a tree without the feature, so the delta is environmental rather than attributable. Measured against an identically built pre-feature tree the feature costs +872 B on Copter and +776 B on Rover, about 0.02%, with no change in static or zero-initialised data. The plan itself notes that the size comparison is advisory by construction, so nothing here blocks release; only the absolute numbers in the plan are stale.
 
-| Benchmark / AAP Requirement | Status | Evidence / Notes |
-|-----------------------------|--------|------------------|
-| **Goal 1** — locate every PNT instance in the extraction target | ✅ Pass | AAP §0.6.1: 16 AHRS read sites → 6 accessor kinds, 2 clock couplings, 2 output paths; realized as a 94-row / 282-evidence-row catalog |
-| **Goal 2** — consolidate into ONE reusable service | ✅ Pass | Single module `libraries/AP_L1_Control/examples/AfsimL1/` = facade + adapter + ABI, 1,336 LOC of service code; no logic scattered elsewhere |
-| **Goal 3** — document current vs new locations **twice** | ✅ Pass | AAP §0.6.1 **and** the regenerated PDF; the "New Service Location" column and the dedicated mapping section were both confirmed in-browser (§4) |
-| Behavior preservation (L1 mathematics unchanged) | ✅ Pass | Seam default-off via in-class initializers; `dt`-clamp block **byte-identical** to baseline (verified here with `diff`); behavior-preservation Tests A/B/C green |
-| Public contracts preserved (`AP_Navigation`, existing `AP_L1_Control` signatures) | ✅ Pass | Only an **additive** `set_update_dt(float)`; no existing signature, override or interface changed; `AP_Navigation.h` untouched |
-| No vehicle firmware modified | ✅ Pass | Verified here: `git diff` restricted to all six vehicle trees returns **0 files**; `./waf plane` still links (3,473,811 B) |
-| "Make no other changes than specified" guardrail | ✅ Pass | Verified here: branch surface = **18 files** (14 A / 4 M), all in scope; **0** files in any AAP §0.2.2 excluded tree; **0** modified submodules |
-| Shared-library (`.so`) deliverable for an external host | ✅ Pass | `libafsim_l1.so` built by the standalone CMake path; needs only libstdc++/libm/libgcc/libc |
-| Exactly 8 C ABI exports with visibility control | ✅ Pass | Verified here: `nm -D --defined-only` → 8 `T L1_*`, **0** mangled; `-fvisibility=hidden` + generated version script |
-| Opaque handle — no C++ type crosses the boundary | ✅ Pass | `void*` / `L1_Handle` with `struct L1_Context` defined only in the ABI translation unit; only `double` scalars traverse the interface |
-| Injectable state and timing (dependency inversion) | ✅ Pass | `set_state_ne` → shim → the exact 6 accessors the controller reads; `set_update_dt` → injected `dt` and accumulated loiter timebase |
-| Facade / Adapter / ABI-boundary / DI / Strategy patterns applied | ✅ Pass | One file group per layer, matching AAP §0.3.3 |
-| AHRS decoupling option selected and guarded | ✅ Pass (Option B) | AAP §0.6.2 sanctions either option; Option B chosen (matching the user example's shim shape) with a hard `#error` guard, both build files setting `AFSIML1_L1_USES_SHIM_AHRS` automatically. Residual fidelity cross-validation is HT-3 |
-| Design decision to confirm (AAP §0.7.3) | ⚠ Awaiting human confirmation | The recommended additive, default-off seam was implemented; formal sign-off is HT-1a |
-| Timing seam default-off | ✅ Pass | `bool _dt_override = false;` in-class initializer (verified here); vehicles keep the `micros()`/`millis()` paths |
-| Input validation at the trust boundary (CWE-20) | ✅ Pass | `std::isfinite` on every ABI scalar; `set_update_dt` rejects non-finite and negative `dt`; verified here — NaN/Inf inputs leave outputs finite |
-| Handle-lifetime safety | ✅ Pass | Magic cookie + mutex-guarded live-handle registry checked before every dereference; verified here — NULL, bogus, stale and double-destroy are safe |
-| Zero-placeholder policy | ✅ Pass | No stubs, no `TODO`/`FIXME` in code; the only "placeholder" strings are prose describing the PDF's named format placeholders and its em-dash "no mapping" cell |
-| Code quality / diagnostics | ✅ Pass | 0 diagnostics under a 32-flag / 21-`-Werror` posture across 9 compiler × build-type configurations, and 0 in-scope diagnostics under waf's own 55-flag posture; `flake8` on the Python pipeline → 0 violations (verified here) |
-| Dependency policy — no new third-party dependency | ✅ Pass | Verified here: in-tree ArduPilot sources + pre-existing toolchain only; reportlab/poppler were already present for the PDF |
-| Test coverage for the service | ✅ Pass | 111-check unit suite + 2 CTest cases + 38-check pure-C ABI host + demo self-check; Valgrind-clean |
-| Both documented build paths operational | ✅ Pass | Standalone CMake and in-tree waf both build clean and produce identical output (verified here) |
-| Deliverable determinism and provenance | ✅ Pass | Byte-identical PDF regeneration, stable SHA256, harness gate, clean git tree (verified here) |
-| Commit hygiene and authorship | ✅ Pass | 16 implementation commits plus this documentation commit — every one authored **and** committed as `Blitzy Agent <agent@blitzy.com>`; staged by explicit path so no build or validation artifact was committed |
-| Library packaging / versioning | ⚠ Outstanding | SONAME is unversioned and there are **0** `install()` rules (verified here) → HT-4 |
-| CI coverage for the new service | ⚠ Outstanding | **0 of 27** existing workflows reference the service (verified here) → HT-4 |
-| Real host integration | ⚠ Outstanding | AFSIM unavailable in this environment → HT-2 |
+**7 — Helicopter builds.** The plan's impact analysis lists which vehicles gain the parameter and which stay inert, and omits traditional helicopters. They are Copter-class and share `ArduCopter/Parameters.cpp`, so their firmware carries `FS_PNT_FRESH_MS` and both threshold symbols and honours the gate exactly as a multirotor does. There is no defect — the behaviour is correct and consistent — but an audience the plan did not name will find the parameter on their aircraft. On a default helicopter configuration the pre-arm text is additionally suppressed by the pre-existing motor-interlock short-circuit until the interlock is low. Name helicopters in the release notes.
 
-**Fixes applied during autonomous validation** (all in-scope, all closed): in-tree waf build failing at the seam guard (rewritten `wscript` with a seam-tree writer and define injection); absence of a dedicated unit suite (866-LOC / 111-check suite added and wired to CTest); generator data contaminated by `pdftotext -layout` scrape artifacts (two-pass, oracle-verified repair of 166 rules / 236 replacements); a stale PDF page-count claim reconciled to the correct 43; overstated documentation claims corrected across 5 files; the standalone CMake build hardened from zero warning flags to an ArduPilot-equivalent posture.
+**8 — Out-of-range test coverage.** The plan fixes the test inventory at two Copter methods and one Rover method, and that is exactly what shipped. The consequence is that the clamp behaviour of divergence 3 — the most likely operator mistake, a negative or absurdly large threshold — has no committed regression test, even though it was confirmed by direct observation across the parameter's whole input domain. Any future edit to either seam could silently reintroduce the enabled-but-untrippable state. Add one test per vehicle asserting that a negative value publishes nothing and refuses nothing, and that an above-ceiling value gates at the ceiling and still fires.
 
-**Out-of-scope issues encountered, documented and *not* modified** (each lives in an AAP §0.2.2 excluded tree, each has a proven zero-edit workaround in Appendix E): vendored GoogleTest 1.8.0 vs `-Werror=suggest-override`; an unused local in `modules/littlefs/bd/lfs_filebd.c`; an upstream-authored `GTEST_SKIP()` in `AP_GSOF`. Ten residual build warnings live in two pre-existing out-of-scope files (`AP_Baro_BMP388.cpp` and a generated MAVLink header) and are warnings only.
+# 6. Risk Assessment
 
----
-
-## 6. Risk Assessment
+Forward-looking only: what could still go wrong once this is enabled on a real vehicle or run in continuous integration.
 
 | Risk | Category | Severity | Probability | Mitigation | Status |
-|------|----------|----------|-------------|-----------|--------|
-| **T1** · The timing seam edits `AP_L1_Control`, a controller shared by every fixed-wing and VTOL vehicle | Technical | Medium | Low | Additive only; default-off via in-class initializer; `dt`-clamp block byte-identical to baseline; behavior-preservation Tests A/B/C; `./waf plane` links at 3,473,811 B | Mitigated — pending review (HT-1) |
-| **T2** · The Option-B compile-time shim seam (`AFSIML1_L1_USES_SHIM_AHRS`) could be misconfigured by a downstream consumer | Technical | Low | Low | Hard `#error` guard fires immediately with a self-explaining message (reproduced during this assessment); both shipped build files define the macro automatically; README documents it | Mitigated |
-| **T3** · The shim synthesizes `Location` from a fixed datum — very large N/E offsets or lat/lon wrap could diverge from full `AP_AHRS` geodesy | Technical | Medium | Low–Medium | Conventions documented in the README; datum-stress and fidelity cross-validation scheduled as HT-3 | Open — largest technical unknown |
-| **T4** · Option B (service-local shim) was chosen over the AAP-recommended Option A (real `AP_AHRS` in external mode) | Technical | Low | Medium | Both options are AAP-sanctioned (§0.6.2); the shim mirrors the controller's exact 6-accessor read surface; residual numerical confirmation is HT-3 | Documented design choice |
-| **S1** · The C ABI could dereference a bogus or stale non-NULL `void*` handle | Security | Medium | Low | Two independent guards before any dereference — `L1_CONTEXT_MAGIC` cookie zeroed on destroy, plus membership lookup in a mutex-guarded live-handle registry that `L1_Destroy` atomically retires. Re-verified in this assessment with an independent pure-C host | Mitigated |
-| **S2** · Host-supplied NaN/Inf scalars could poison the guidance arithmetic (CWE-20) | Security | Low–Medium | Low | `std::isfinite` validation with safe substitution and range clamping on every state, leg and `dt` scalar; non-finite/negative `dt` rejected before latching. Re-verified: NaN/Inf input leaves both outputs finite | Mitigated |
-| **S3** · Minimal export surface reduces attack surface | Security | — (positive control) | — | `-fvisibility=hidden` + generated version script → exactly 8 exports, 0 mangled symbols | Implemented |
-| **S4** · Supply-chain exposure from new dependencies | Security | — (positive control) | — | No new third-party dependency; `readelf -d` shows only libstdc++/libm/libgcc/libc | Accepted by design |
-| **O1** · `libafsim_l1.so` carries an unversioned SONAME and has no `install()` rules → ABI-drift and deployment ambiguity for the host | Operational | Medium | Medium | Add SOVERSION, semantic versioning, install/package files (HT-4) | Open |
-| **O2** · None of the repository's 27 CI workflows builds or tests the service → a regression could land unnoticed | Operational | Medium | Medium | Add a CI job invoking the existing `afsim_l1_tests` / `ctest` / `generate.py` targets (HT-4) | Open |
-| **O3** · No in-service logging or telemetry | Operational | Low | — | Appropriate for a headless deterministic compute library; the host owns observability, and the demo/self-check provides a CI signal | Accepted by design |
-| **O4** · 1,061 MB of untracked validation artifacts (388 files under `blitzy/screenshots` and `blitzy/screen_recordings`) are not covered by `.gitignore` | Operational | Low | Medium | Stage by explicit path (as every agent commit did) or delete/ignore them before committing — folded into HT-1d | Open — housekeeping only |
-| **I1** · Real AFSIM host integration is untested; the shipped `main.cpp` is a demonstration driver | Integration | Medium–High | Medium | HT-2 (integration) then HT-3 (fidelity); the C ABI is already proven from an independent pure-C client | Open — primary remaining risk |
-| **I2** · The host must map units and frames correctly (position N/E metres, velocity ordered E then N, yaw in centidegrees, pitch in radians, roll returned in degrees, lateral accel in m/s²) | Integration | Medium | Medium | README "Units and conventions"; unit-suite assertions pin the N/E↔E/N ordering; confirm during HT-2 | Documented |
-| **I3** · Legs and state must share one datum origin | Integration | Low–Medium | Low | Documented in the README; verified as part of HT-3 datum stress | Open |
-| **I4** · Three pre-existing issues in AAP-excluded trees (vendored gtest 1.8.0, `modules/littlefs`, `AP_GSOF` `GTEST_SKIP`) | Integration | Low | — | Diagnosed with proven zero-edit environment recipes (Appendix E); none affects any in-scope gate; fixing them would require editing excluded files | Documented, not modified |
+|---|---|---|---|---|---|
+| The age has one-second granularity because the monitor runs on the existing 1 Hz arming task, so thresholds below roughly 2,000 ms cannot be resolved and an operator could configure a gate that never behaves as intended | Technical | Medium | Medium | The parameter's own description states the floor; guidance is to configure 2,000 ms or more. Enabling the feature also costs one telemetry message and roughly 1.9 KB per minute of log volume, which is why it is off by default | Accepted — documented |
+| Detection lags a real outage by up to one driver timeout, because the latch follows fix *status* and the GPS driver may hold a usable status for its own fixed four seconds after data stops | Technical | Medium | High | Stated in the monitor header and in the operator-facing description; thresholds should be chosen with that latency added. Binding to the status singleton is what keeps the signal vehicle-agnostic and free of the driver's self-re-arming timer | Accepted by design |
+| An unrepresentable integer parameter write terminates a simulated vehicle inside the shared float-to-integer conversion that every integer parameter uses; a crafted or fat-fingered ground-station write is enough to trigger it | Security | High | Low | For this parameter the seam clamp bounds the result to `0..60000`, so no unbounded threshold can result, and flight hardware installs no floating-point trap. The conversion needs an upstream bound covering all three integer widths | Open — 6 h in Section 2.2 |
+| The monitor's single-writer discipline is protected by review and an in-code contract rather than by continuous integration, so a future edit that reintroduces shared mutable state on the check path would ship unnoticed | Technical | Medium | Low | The threading contract is written into the header beside the state it governs; the guard described in Section 2.2 closes the gap | Open — 6 h in Section 2.2 |
+| The gate is bypassed when arming checks are disabled, and on Rover when arming is not required — correct and consistent with every other non-mandatory check, but an operator relying on this gate specifically may not expect it | Operational | Medium | Medium | Documented behaviour, confirmed at runtime on both paths, and called out in the Rover test so future editors do not disable it accidentally | Accepted — documented |
+| The feature has never driven a physical receiver, so real-world status transitions, receiver reacquisition timing and airframe-specific behaviour are unproven | Integration | Medium | Medium | Validation was scoped to simulation deliberately; run the hardware pass before enabling the parameter operationally | Open — 8 h in Section 2.2 |
+| Two acceptance gate commands cannot run green on this compiler generation, so a continuous-integration job invoking them literally reports red — at this commit and equally without the feature | Integration | Medium | High | The substitute route exercises the identical corpus and passes; both commands are restored by the two toolchain items in Section 2.2 | Open — 7 h in Section 2.2 |
+| Residual documentation and coverage gaps: helicopter builds receive the parameter without release-note coverage, ground-station rendering of the channel varies by station, and the rollover and GPS-disabled code paths are reasoned rather than run | Operational | Low | Medium | Release notes close the first two; the third is compile-verified in every permutation and unreachable in a bounded simulation | Open — 3 h in Section 2.2 |
 
----
+# 7. Visual Project Status
 
-## 7. Visual Project Status
-
-**Completed vs remaining hours** — Completed = Dark Blue `#5B39F3`, Remaining = White `#FFFFFF`:
+**Overall progress — 72.7% complete.** Chart convention throughout this guide: **Completed / AI work = Dark Blue `#5B39F3`**, **Remaining / not completed = White `#FFFFFF`**, headings and accents Violet-Black `#B23AF2`, highlights Mint `#A8FDD9`.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#FFFFFF','pieStrokeColor':'#B23AF2','pieOuterStrokeColor':'#B23AF2','pieStrokeWidth':'2px','pieSectionTextColor':'#B23AF2','pieTitleTextSize':'16px'}}}%%
-pie showData title Project Hours Breakdown (Total 149h)
-    "Completed Work" : 123
-    "Remaining Work" : 26
+pie title Project Hours Breakdown (165 h total)
+    "Completed Work" : 120
+    "Remaining Work" : 45
 ```
 
-**Remaining hours by task** (total 26 h):
+**Remaining work by priority** — the 45 remaining hours split High 14 h, Medium 27 h, Low 4 h. All three slices are remaining work, so all three carry the Remaining colour (`#FFFFFF`) against the completed 120 h shown above in `#5B39F3`.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'xyChartBarColor':'#5B39F3','backgroundColor':'#FFFFFF'}}}%%
-xychart-beta
-    title "Remaining Hours by Task (Total 26h)"
-    x-axis ["HT-1 Review", "HT-2 AFSIM", "HT-3 Fidelity", "HT-4 Pkg/CI"]
-    y-axis "Hours" 0 --> 12
-    bar [6, 10, 6, 4]
+pie title Remaining Work by Priority (45 h)
+    "High" : 14
+    "Medium" : 27
+    "Low" : 4
 ```
 
-**Remaining hours by priority** (total 26 h):
+**Remaining hours by category**
+
+| Category | Hours | Share of remaining |
+|---|---|---|
+| Continuous-integration and toolchain restoration | 7 | 15.6% |
+| Upstream robustness fix for the shared parameter conversion | 6 | 13.3% |
+| Missing regression guards (out-of-range values, threaded caller) | 10 | 22.2% |
+| Hardware validation | 8 | 17.8% |
+| Upstream contribution cycle and pull request | 7 | 15.6% |
+| Operator documentation | 3 | 6.7% |
+| Hygiene policy and design sign-off | 4 | 8.9% |
+| **Total** | **45** | **100%** |
+
+**Delivered surface at a glance**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'pie1':'#5B39F3','pie2':'#B23AF2','pie3':'#A8FDD9','pieStrokeColor':'#333333','pieStrokeWidth':'1px','pieTitleTextSize':'15px'}}}%%
-pie showData title Remaining Hours by Priority (26h)
-    "High (HT-1, HT-2)" : 16
-    "Medium (HT-3)" : 6
-    "Low (HT-4)" : 4
+graph LR
+    PARAM["FS_PNT_FRESH_MS<br/>Copter idx 11 · Rover idx 58<br/>default 0"]
+    TASK["Existing 1 Hz arming task<br/>consumed, not modified"]
+    MON["AP_PNTFreshness<br/>status latch · max-hold · atomic age"]
+    GATE["pnt_freshness_checks<br/>appended pre-arm term"]
+    TLM["GPSFresh named-value float<br/>+ dataflash row"]
+    GPS["Primary GPS fix status"]
+
+    TASK --> MON
+    GPS --> MON
+    PARAM --> GATE
+    PARAM --> MON
+    MON --> GATE
+    MON --> TLM
 ```
 
-> **Integrity:** the pie's "Remaining Work" (26) equals §1.2 Remaining Hours (26) and the §2.2 Hours total (26); "Completed Work" (123) equals §1.2 Completed Hours (123); 123 + 26 = 149 = §1.2 Total. The task bar chart sums to 6 + 10 + 6 + 4 = 26 and the priority pie to 16 + 6 + 4 = 26. ✔
+# 8. Summary & Recommendations
 
----
+**What was delivered.** PNT data-delivery consistency is now a configurable, observable property of an ArduPilot vehicle, in fourteen files: two new sources in the shared arming library holding a status-latched freshness monitor, four modified arming-library files wiring it into the pre-arm chain behind a per-vehicle threshold seam, eight vehicle files exposing `FS_PNT_FRESH_MS` on Copter and Rover with the metadata that generates their operator documentation, and two simulation suites gaining three purely additive tests. The feature reuses the existing 1 Hz arming task and the existing ground-station broadcast helper, so no scheduler table, no vehicle main file, no telemetry-layer file and no build manifest changed, and no vendored submodule moved. The whole change set is 506 added lines against a single removed line — the semicolon that moved to make room for the new chain term.
 
-## 8. Summary & Recommendations
+**What was verified.** Every capability was exercised rather than assumed. The age climbs monotonically through a total outage, straight past the GPS driver's own four-second timeout and on to tens of seconds, then collapses to zero one second after the receiver returns; the gate refuses a real arm command with the operator's own threshold in the message and coexists with every existing pre-arm rather than replacing one; the channel publishes at exactly 1 Hz armed and disarmed and is matched one-for-one by dataflash rows. The default-off contract was proved the hard way, against a purpose-built pre-feature binary: identical parameter sets, identical message-type sets, identical telemetry bandwidth, zero log rows, no measurable CPU or memory cost. The three new tests pass, the 30-case Copter shard is clean, the 104-case Rover suite has one pre-existing failure unrelated to this work, the 878-case host corpus is untouched, and the metadata, lint, hook and style gates are all green.
 
-**Achievements.** The refactor delivered exactly what the Agent Action Plan scoped, and nothing else. ArduPilot's L1 lateral-navigation guidance is now consumable as a standalone service: a 514-LOC facade exposes the six-method task API from the user's example, a 327-LOC adapter satisfies the controller's `AP_AHRS` read contract from host-injected state, and a 495-LOC `extern "C"` boundary presents eight functions over an opaque handle — verified to export exactly 8 symbols with zero C++ mangling and to be drivable from a pure-C client compiled by a different compiler front-end. The only change to existing library code is an additive, default-off `set_update_dt()` seam whose `dt`-clamp block is byte-identical to baseline, so every existing vehicle consumer is numerically unaffected and `bin/arduplane` still links. Both shipped build paths produce identical guidance output. The audit obligation was met twice, in the AAP and in a deterministic 43-page PDF whose mapping column was confirmed page-by-page in a real browser.
+**What remains.** The project stands at **72.7% of its AAP-scoped and path-to-production hours — 120 of 165 — with 45 hours outstanding.** None of that is unfinished feature code: all five plan requirements and all eleven implicit requirements are complete and verified. The remaining work is the path to a released, upstreamable change. Fourteen hours are release-blocking: raise the pull request, restore the two acceptance gate commands that this compiler generation breaks, and bound the shared parameter conversion so an unrepresentable write cannot terminate a process. Twenty-seven hours are the quality and integration tail: two missing regression guards, a hardware validation pass, operator release notes, and the upstream review cycle. Four hours are policy sign-off on the two deliberate design departures documented in Section 5.2.
 
-**Remaining gaps.** All 26 remaining hours are path-to-production, not missing features. Three of the four items are inherently human- or environment-gated: a flight-controls reviewer must sign off on a seam in shared guidance code (HT-1), the AFSIM host does not exist in this container so the first real binding must happen on the host side (HT-2), and the shim-vs-live-AHRS fidelity envelope needs measurement rather than construction-based assertion (HT-3). Only packaging and CI (HT-4) is purely mechanical.
+**Critical path to production.** Close the four high-priority items first, in that order — the pull request unblocks review, the toolchain repairs make continuous integration meaningful, and the conversion fix removes the only high-severity risk on the board. Then add the out-of-range and threaded-caller guards, because both protect properties that are correct today but unguarded against the next edit. Only after that does the hardware pass make sense: it is the last thing standing between a verified simulation result and a parameter an operator can safely enable in flight. Success is measurable — both gate commands green from a clean checkout, five committed tests instead of three, one hardware sortie showing the gate fire and clear on a real receiver, and release notes that name helicopters and state the one-second resolution floor.
 
-**Critical path to production.** HT-1 → HT-2 → HT-3 → HT-4. Review must precede integration because integration will harden against whatever the reviewer changes; fidelity testing needs a working host to drive; packaging is best done once the ABI is confirmed stable in a real consumer. The realistic sequence is one reviewer-day, then roughly two engineer-days of host integration and fidelity work, then a half-day of packaging.
+**Production readiness.** The feature is safe to merge and unsafe to enable blind — which is exactly what a default of `0` encodes. A vehicle that takes this firmware and never touches the parameter is indistinguishable from one that never had it, verified against a pre-feature build, so the merge risk is genuinely low. Enabling it is a different decision: the age lags a real outage by up to the driver's own timeout, it resolves to one second, and the gate is bypassed on the same paths every other non-mandatory check is. Those are properties to configure around, all three documented in the parameter's own description, not defects. Recommendation: merge behind the default, close the four high-priority items, then enable per airframe after the hardware pass.
 
-**Success metrics for the remaining work.**
+# 9. Development Guide
 
-| Metric | Target | Current |
-|--------|--------|---------|
-| In-scope test pass rate | 100 % | **100 %** (1,638 / 1,638) |
-| Exported ABI symbols / mangled symbols | 8 / 0 | **8 / 0** |
-| In-scope compiler diagnostics | 0 | **0** (9-config matrix + waf) |
-| Vehicle firmware regressions | 0 | **0** (`arduplane` links) |
-| Deliverable determinism | Byte-identical regeneration | **Byte-identical** |
-| AFSIM platform flying a service-driven route | Multi-leg route, stable outputs | Not started (HT-2) |
-| Documented fidelity envelope vs in-vehicle L1 | Published agreement bounds | Not started (HT-3) |
-| Versioned, installable artifact under CI | SOVERSION + green CI job | Not started (HT-4) |
+Every command below was executed on this branch and produced the output described. Run them from the repository root unless a step says otherwise.
 
-**Production readiness assessment.** The project is **82.6 % complete** (123 of 149 hours). The library itself is production-quality *as a component*: it compiles clean under a strict diagnostics posture across three compiler generations, passes 1,638 in-scope checks with zero failures, is Valgrind-clean, validates its trust boundary, and cannot destabilise existing firmware. It is **not yet production-*deployed***, because a shared-library component only becomes production-ready when a real host drives it, its numerical envelope is measured, and it is versioned under CI. Recommendation: **approve for merge after HT-1**, then treat HT-2/HT-3 as the gate for declaring the service flight-representative, and HT-4 as the gate for external distribution.
+## 9.1 System Prerequisites
 
----
+- Linux x86-64 (verified on Ubuntu 25.10). No container, database or service is required.
+- Python 3.13 with the project's tooling: `pymavlink`, `MAVProxy`, `pexpect`, `future`, `empy` (pinned at 3.3.4), `lxml`, `flake8`, `junitparser`, `numpy`.
+- GCC/G++ 15.2, `make`, `git`, `git-lfs`, `astyle`, `valgrind`, `lsof`, `screen`.
+- `ccache` is optional but strongly recommended — a warm rebuild of both vehicles takes seconds instead of minutes.
+- Roughly 4 GB of free disk for the build tree; 4 CPUs is comfortable for the simulation suites.
 
-## 9. Development Guide
+## 9.2 Environment Setup
 
-Every command below was executed in this environment during the assessment; the shown output is verbatim. Commands are copy-pasteable and the working directory is stated for each block.
-
-### 9.1 System Prerequisites
-
-| Requirement | Verified version | Notes |
-|-------------|------------------|-------|
-| OS | Ubuntu 25.10 (x86-64, 4 vCPU) | Any modern Linux with a C++11 toolchain works |
-| C++ compiler | GCC 15.2.0 (also verified with 11.5.0 and 12.5.0) | `-std=gnu++11`, matching ArduPilot |
-| CMake | 3.31.6 | Build declares `cmake_minimum_required(VERSION 3.5)` |
-| Binutils | `nm`, `readelf` | ABI verification |
-| Python | 3.13.7 | Only for the PDF pipeline and waf |
-| reportlab | 4.5.1 | PDF rendering (already installed; also present in the repo `.venv`) |
-| poppler-utils | 25.03.0 | `pdfinfo` / `pdftotext` / `pdftoppm` for PDF verification |
-| DejaVu fonts | system TTF (22 entries) | Unicode glyph fallback in the PDF |
-| Optional | Valgrind, flake8, Docker | Memory checking, Python lint |
-
-No package installation is required in this environment — every prerequisite above was already present.
-
-### 9.2 Environment Setup
+Non-interactive shells — including CI runners — do not read the login profile, so activate the project virtualenv explicitly. Where the tooling is also installed system-wide, an unactivated `python3` and `./waf` work too.
 
 ```bash
-# From the repository root
-cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
-
-# Confirm the toolchain (each line must print a version)
-g++ --version | head -1        # g++ (Ubuntu 15.2.0-4ubuntu4) 15.2.0
-cmake --version | head -1      # cmake version 3.31.6
-python3 --version              # Python 3.13.7
-python3 -c "import reportlab; print(reportlab.Version)"   # 4.5.1
-pdfinfo -v 2>&1 | head -1      # pdfinfo version 25.03.0
+source <path-to-project-venv>/bin/activate    # explicit: non-interactive shells skip the profile
+export PATH=/usr/lib/ccache:$PATH             # optional: fast rebuilds
+python3 --version                             # expect: Python 3.13.7
+gcc --version | head -1                       # expect: gcc (Ubuntu 15.2.0-...) 15.2.0
 ```
 
-There are **no** environment variables to configure for the library. The PDF pipeline uses one optional variable, `PNT_REPO_ROOT` (see §9.6 and Appendix E). No database, cache, message queue or network service is involved — the deliverable is a headless compute library.
+No environment variable and no secret is needed to build, run or test this feature.
 
-### 9.3 Dependency Installation
+## 9.3 Build
+
+The warning demotion below is required at this commit **and** at the commit this branch started from: a vendored block-device source carries an unused local that this simulation board promotes to an error. Do not edit the submodule or the board definition to work around it.
 
 ```bash
-# Nothing to install: the service links only in-tree ArduPilot sources and the
-# system C++ runtime. Verify that claim on the built artifact:
-readelf -d libafsim_l1.so | grep NEEDED
-#   -> libstdc++.so.6, libm.so.6, libgcc_s.so.1, libc.so.6   (no ArduPilot runtime dep)
-
-# Optional, only if reportlab/poppler are ever missing on a fresh machine:
-python3 -m pip install --break-system-packages 'reportlab==4.5.1'
-sudo apt-get install -y --no-install-recommends poppler-utils fonts-dejavu-core
+CFLAGS="-Wno-error=unused-variable" ./waf configure --board=sitl
+./waf copter rover
 ```
 
-### 9.4 Build — Primary Artifact (standalone shared library)
+Expected tail of a successful build:
+
+```text
+BUILD SUMMARY
+Target          Text (B)  Data (B)  BSS (B)  Total Flash Used (B)
+bin/arducopter   4293096    198469   278368               4491565
+bin/ardurover    3947336    179413   277088               4126749
+'rover' finished successfully
+```
+
+A full build reports 14 warnings, every one of them in vendored MAVLink headers, an unrelated barometer driver or the vendored block-device source. None comes from the feature's files.
+
+## 9.4 Run the Feature's Tests
 
 ```bash
-cd libraries/AP_L1_Control/examples/AfsimL1
-mkdir -p build && cd build
-cmake ..
-make -j"$(nproc)"
+export BUILDLOGS="$HOME/buildlogs"
+python3 Tools/autotest/autotest.py --no-clean --no-configure --junit test.Copter.PNTHealthGatePreArm
+python3 Tools/autotest/autotest.py --no-clean --no-configure --junit test.Copter.PNTHealthGateDisabledIsNoop
+python3 Tools/autotest/autotest.py --no-clean --no-configure --junit test.Rover.PNTHealthGatePreArm
 ```
 
-Expected: both commands exit 0 with **zero** `warning:`/`error:` lines, producing
+Each ends with `>>>> PASSED STEP` and writes a JUnit file with `tests="1" errors="0" failures="0"`. The gate test prints the evidence you care about:
 
-```
-libafsim_l1.so    ~175,648 B    the deliverable shared library
-afsim_l1_demo     ~16,472 B     "initialize a simple leg" demo driver
-afsim_l1_tests    ~217,984 B    111-check unit suite
+```text
+Healthy baseline GPSFresh=0.000000
+GPSFresh series while starved: [2000.0, 4000.0, 6000.0, ... 22000.0]
+AP: PreArm: PNT data stale (>3000 ms)
+Recovered GPSFresh=0.000000
 ```
 
-### 9.5 Verification Steps
+and the default-off test prints `Collected 10 STATUSTEXT and 0 NAMED_VALUE_FLOAT while disabled`.
+
+## 9.5 Run the Regression Shards
 
 ```bash
-# still in .../AfsimL1/build
+# Copter — 30 cases, ~2.5 minutes
+python3 Tools/autotest/autotest.py --no-clean --no-configure --junit test.CopterTests1a
 
-# 1. The C ABI must export EXACTLY 8 symbols and no mangled C++ symbols
-nm -D --defined-only libafsim_l1.so
-#   -> 8 lines: L1_Create L1_Destroy L1_Execute L1_GetLatAccel
-#               L1_GetRollDeg L1_Init L1_SetLegNE L1_SetStateNE
-nm -D --defined-only libafsim_l1.so | grep -c _Z
-#   -> 0
-
-# 2. Run the demo (locates the .so through the build-tree RPATH)
-./afsim_l1_demo
-#   -> roll_deg = -38.639999, lat_accel = -7.840306      (exit 0)
-
-# 3. Run the dedicated unit suite
-./afsim_l1_tests
-#   -> === AfsimL1 unit tests: 111 checks, 0 failures === (exit 0)
-
-# 4. Or run both registered cases through CTest
-ctest --output-on-failure
-#   -> 100% tests passed, 0 tests failed out of 2
-
-# 5. Optional: memory check
-valgrind --leak-check=full --error-exitcode=1 ./afsim_l1_tests
-#   -> 0 errors, 0 leaks
+# Rover — 104 cases, ~10 minutes; run from the repository root
+CFLAGS="-Wno-error=unused-variable" \
+  python3 Tools/autotest/autotest.py --no-clean --no-configure --junit test.Rover
 ```
+
+The Copter shard is clean. The Rover shard contains one pre-existing networking test that rebuilds the firmware mid-run: it needs the demotion above, it resolves the binary path relative to the working directory, and it leaves the tree configured for debug and PPP. Reconfigure with the Section 9.3 command after any Rover shard run.
+
+## 9.6 Run the Host Unit Corpus
+
+The single-command form aborts before running anything, on a vendored test framework this compiler rejects. Use this route, which exercises the identical corpus:
 
 ```bash
-# 6. In-tree waf example build (strict ArduPilot diagnostics posture)
-cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
-./waf configure --board linux
-./waf build --targets examples/AfsimL1
-./build/linux/examples/AfsimL1
-#   -> roll_deg = -38.639999, lat_accel = -7.840306   (byte-identical to the CMake demo)
+CFLAGS="-Wno-error=unused-variable" \
+CXXFLAGS="-Wno-error=suggest-override -Wno-error=missing-declarations -Wno-error=maybe-uninitialized" \
+  ./waf configure --board=sitl --debug
+./waf tests -k
+ulimit -c 0
+for t in build/sitl/tests/*; do "$t" >/dev/null || echo "FAILED $t"; done
 
-# 7. Prove the additive seam does not disturb vehicle firmware
-./waf plane
-#   -> 'plane' finished successfully; bin/arduplane, Total Flash Used 3,473,811 B
+# restore the release configure afterwards
+CFLAGS="-Wno-error=unused-variable" ./waf configure --board=sitl && ./waf copter rover
 ```
 
-### 9.6 Example Usage
+Expect 52 binaries, all passing, 878 cases, no failure. `./waf tests -k` reports exactly two translation units failing to compile; both are pre-existing and unrelated to this feature, and `-k` keeps going past them. The `--debug` configure is not optional — thirteen death-test cases fail without it.
 
-**Path A — through the C ABI (what an external host does).** Save as `host.c` and build with a C compiler; no ArduPilot header is needed:
-
-```c
-#include <dlfcn.h>
-#include <stdio.h>
-
-int main(void) {
-    void *lib = dlopen("./libafsim_l1.so", RTLD_NOW);
-    void*  (*create)(void)                                              = dlsym(lib, "L1_Create");
-    void   (*init)(void*)                                               = dlsym(lib, "L1_Init");
-    void   (*set_leg)(void*, double,double,double,double)               = dlsym(lib, "L1_SetLegNE");
-    void   (*set_state)(void*, double,double,double,double,double,double)= dlsym(lib, "L1_SetStateNE");
-    void   (*execute)(void*, double)                                    = dlsym(lib, "L1_Execute");
-    double (*get_roll)(void*)                                           = dlsym(lib, "L1_GetRollDeg");
-    double (*get_lat)(void*)                                            = dlsym(lib, "L1_GetLatAccel");
-    void   (*destroy)(void*)                                            = dlsym(lib, "L1_Destroy");
-
-    void *h = create();
-    init(h);
-    set_leg(h, 0.0, 0.0, 1000.0, 0.0);            /* prevN, prevE, nextN, nextE (m)      */
-    set_state(h, 0.0, 50.0, 0.0, 25.0, 0.0, 0.0); /* n, e, velE, velN, yaw_cd, pitch_rad */
-    execute(h, 0.02);                             /* host drives timing: dt = 20 ms      */
-    printf("roll=%.2f deg  lat=%.2f m/s^2\n", get_roll(h), get_lat(h));
-    destroy(h);
-    dlclose(lib);
-    return 0;
-}
-```
+## 9.7 Run the Delivery Gates
 
 ```bash
-gcc -std=c11 -Wall -Wextra -Werror -o host host.c -ldl -lm && ./host
-#   -> roll=-34.85 deg  lat=-6.83 m/s^2      (50 m cross-track on a 1 km northerly leg)
+CI_BUILD_TARGET=param_parse Tools/scripts/build_ci.sh          # 7 vehicle targets, "build OK"
+CI_BUILD_TARGET=python-cleanliness Tools/scripts/build_ci.sh    # 73 files, "build OK"
+./Tools/scripts/run_astyle.py --dry-run                         # exit 0
+pre-commit run --all-files                                      # 9 hooks, all Passed
+python3 -m flake8 Tools/autotest/arducopter.py Tools/autotest/rover.py
 ```
 
-**Path B — the C++ facade directly** (`#include "AfsimL1Behavior.h"`, requires the seam define; see §9.7): construct `AfsimL1Behavior`, call `init()`, then per step `set_state_ne(...)`, optionally `set_leg_ne(...)`, `execute(dt)`, and read `get_roll_deg()` / `get_lat_accel()`.
+## 9.8 Inspect and Exercise the Feature
 
-**Regenerating the PDF deliverable:**
+Read the operator documentation the metadata pipeline generates for the new parameter:
 
 ```bash
-cd /tmp/blitzy/ardupilot-blitzy/blitzy-46f5dfbd-4fd4-4fb7-b110-03ba60585668_f5c684
-PNT_REPO_ROOT="$(pwd)" python3 libraries/AP_L1_Control/examples/AfsimL1/generate.py
-#   -> harness: validating 94 main rows / 282 evidence rows against <repo root>
-#   -> HARNESS PASSED
-#   -> PDF written: <repo root>/ArduPilot_PNT_Reference_Audit.pdf
-
-pdfinfo ArduPilot_PNT_Reference_Audit.pdf | grep -E '^Pages|^Page size'
-#   -> Pages: 43   |   Page size: 841.89 x 595.276 pts (A4)
-sha256sum ArduPilot_PNT_Reference_Audit.pdf
-#   -> 1e9a5b0130ccf6e738c63630380eb2d14fecf5ef884622deac63a1e5a7a4baf2
-git status --porcelain ArduPilot_PNT_Reference_Audit.pdf | wc -l
-#   -> 0    (regeneration is deterministic: the tree stays clean)
+python3 Tools/autotest/param_metadata/param_parse.py --vehicle ArduCopter --format xml
+grep -A5 'FS_PNT_FRESH_MS' apm.pdef.xml
+rm -f apm.pdef.xml ParametersLatex.rst Parameters.rst Parameters.md Parameters.html tasklist.json
 ```
 
-### 9.7 Troubleshooting
+Confirm both tests are discoverable — this is also the runtime proof that the harness's docstring and unique-name rules are satisfied:
 
-| Symptom | Cause | Resolution |
-|---------|-------|------------|
-| `error: #error "AfsimL1Behavior requires the AP_AHRS -> AfsimL1_AHRS_Shim compile-time include seam: define AFSIML1_L1_USES_SHIM_AHRS…"` at `AfsimL1Behavior.h:81` | You are compiling the facade outside the shipped build files, so the Option-B seam is absent. This guard is deliberate: it refuses to build a facade whose controller would read never-written state | Build through the provided `CMakeLists.txt` or `wscript` (both set the define and the seam include directory automatically) rather than hand-invoking the compiler |
-| `./afsim_l1_demo: error while loading shared libraries: libafsim_l1.so` | The demo was moved away from its build tree, losing the RPATH | `LD_LIBRARY_PATH=. ./afsim_l1_demo`, or run it from the build directory (running it by absolute path from another cwd works as-is) |
-| `./waf configure --board sitl` fails at `modules/littlefs/bd/lfs_filebd.c:137` (`unused variable 'bd'`) | Pre-existing issue in a vendored, AAP-excluded module | Zero-edit prefix: `CFLAGS='-Wno-error=unused-variable' ./waf configure --board sitl` (then the same prefix on `./waf build`). `--board linux` needs no workaround and is the documented default |
-| `./waf check --alltests` fails across all 52 gtest binaries with `-Werror=suggest-override` | Vendored GoogleTest 1.8.0 predates the flag; `modules/**` is out of scope | Zero-edit prefix: `CXXFLAGS='-Wno-error=suggest-override -include stdint.h "-DGTEST_SKIP()=return GTEST_SUCCEED()"' ./waf configure --board linux && ./waf check --alltests` → 52/52, 881 cases. Delete the `test.xml` and `harmonicnotch_test*.csv` it drops at the repo root |
-| PDF generator exits before writing | A harness invariant failed — by design the pipeline refuses to render inconsistent data | Read the failing gate name in stdout; fix the offending row in `pnt_data.py`; re-run. `HARNESS PASSED` must appear before `PDF written` |
-| `generate.py` cannot find repository sources | It resolves evidence paths relative to the repository root | Run it with `PNT_REPO_ROOT="$(pwd)"` from the repository root |
-| Guidance output is `0.0` for every call | The handle was destroyed, or a NULL/bogus handle is being used — the ABI degrades safely instead of crashing | Re-create the handle with `L1_Create()`; never reuse a handle after `L1_Destroy()` |
-| Roll/lat-accel look mirrored or transposed | Argument-order mistake in `L1_SetStateNE`: position is **n, e** but velocity is **velE, velN** | Follow the README "Units and conventions"; the unit suite pins this ordering |
-| Repository suddenly shows ~1 GB of new files | `blitzy/screenshots` and `blitzy/screen_recordings` (388 files, 1,061 MB) are untracked and **not** covered by `.gitignore` | Stage by explicit path, never `git add -A`; delete or ignore those directories first |
+```bash
+python3 Tools/autotest/autotest.py --list-subtests-for-vehicle Copter | tr ' ' '\n' | grep PNTHealth
+python3 Tools/autotest/autotest.py --list-subtests-for-vehicle Rover  | tr ' ' '\n' | grep PNTHealth
+```
 
----
+Run the firmware interactively from a scratch directory outside the checkout, then connect a ground station or MAVProxy:
 
-## 10. Appendices
+```bash
+mkdir -p "$HOME/sitl-scratch" && cd "$HOME/sitl-scratch"
+"$OLDPWD/build/sitl/bin/arducopter" --model quad --speedup 10 \
+    --defaults "$OLDPWD/Tools/autotest/default_params/copter.parm" \
+    --home -35.363261,149.165230,584,353 --wipe -I0
+# SERIAL0 appears on tcp:127.0.0.1:5760 (add 10 per -I instance)
+```
 
-### Appendix A — Command Reference
+Then, from the ground station: read `FS_PNT_FRESH_MS` (it is `0`, and no `GPSFresh` message arrives); set it to `3000`; watch `GPSFresh` appear once per second; set `SIM_GPS1_ENABLE` to `0` and watch the value climb past 4,000 ms while `PreArm: PNT data stale (>3000 ms)` appears and arming is refused; set `SIM_GPS1_ENABLE` back to `1` and watch it collapse to zero.
 
-| Purpose | Command (from the stated directory) |
-|---------|-------------------------------------|
-| Build the shared library | `cd libraries/AP_L1_Control/examples/AfsimL1 && mkdir -p build && cd build && cmake .. && make -j"$(nproc)"` |
-| Verify the exported ABI | `nm -D --defined-only libafsim_l1.so` (expect 8 lines) · `nm -D --defined-only libafsim_l1.so \| grep -c _Z` (expect 0) |
-| Inspect runtime dependencies / SONAME | `readelf -d libafsim_l1.so \| grep -E 'NEEDED\|SONAME'` |
-| Run the demo | `./afsim_l1_demo` (or `LD_LIBRARY_PATH=. ./afsim_l1_demo`) |
-| Run the unit suite | `./afsim_l1_tests` |
-| Run registered tests | `ctest --output-on-failure` |
-| Memory check | `valgrind --leak-check=full --error-exitcode=1 ./afsim_l1_tests` |
-| In-tree example build | `./waf configure --board linux && ./waf build --targets examples/AfsimL1` (repo root) |
-| Run the in-tree example | `./build/linux/examples/AfsimL1` (repo root) |
-| Vehicle regression guard | `./waf plane` (repo root) |
-| Regenerate the PDF | `PNT_REPO_ROOT="$(pwd)" python3 libraries/AP_L1_Control/examples/AfsimL1/generate.py` (repo root) |
-| Inspect the PDF | `pdfinfo ArduPilot_PNT_Reference_Audit.pdf` · `pdftotext -layout ArduPilot_PNT_Reference_Audit.pdf -` |
-| Lint the Python pipeline | `python3 -m flake8 libraries/AP_L1_Control/examples/AfsimL1/*.py` |
-| Review the seam diff | `git diff 6148c3d422..HEAD -- libraries/AP_L1_Control/AP_L1_Control.h libraries/AP_L1_Control/AP_L1_Control.cpp` |
-| Audit branch scope | `git diff --name-status 6148c3d422..HEAD` (expect 18 files, all in scope) |
+## 9.9 Troubleshooting
 
-### Appendix B — Port Reference
+- **`configure` fails: unused variable `bd`.** A vendored block-device source trips this board's unconditional warning promotion. Prepend `CFLAGS="-Wno-error=unused-variable"`. Pre-existing; do not edit the submodule, the board definition or the build script.
+- **`./waf check-all` exits 1 on a `can be marked override` error in the vendored test framework.** Pre-existing on this compiler. Use Section 9.6 instead; the corpus is green there.
+- **`./waf tests` stops at the first broken translation unit.** Use `-k`. Two units fail for pre-existing reasons; the other 52 binaries build and pass.
+- **Thirteen unit cases fail with exit-expectation errors.** The corpus was configured without `--debug`. Reconfigure as in Section 9.6.
+- **`bind failed on port 5760` or `autotest is locked`.** Another simulator holds the default ports. For manual runs pass a different `-I<N>`; for suite runs wait for the other run to finish.
+- **The Rover shard's networking test fails and the next build comes out debug.** Expected: that test reconfigures the tree and does not restore it. Re-run the Section 9.3 configure and build.
+- **`git status` shows generated files after gates or shards.** Delete `ParametersLatex.rst`, `Parameters.{rst,md,html}`, `apm.pdef.{xml,json}`, `tasklist.json`, `harmonicnotch_test*.csv`, `core.*`, `eeprom.bin`, `logs/`, `terrain/` and `autotest-*.tlog`. Do not add ignore rules for them.
+- **The gate never fires even with a threshold set.** Check `ARMING_CHECK`, and on Rover `ARMING_REQUIRE`: at zero either one bypasses the shared pre-arm chain the gate lives in, exactly as for every other non-mandatory check.
+- **A threshold below ~2,000 ms behaves erratically.** The monitor runs at 1 Hz, so the age resolves to one second. Configure 2,000 ms or more.
 
-| Port | Service | Notes |
-|------|---------|-------|
-| — | none | The deliverable is a headless shared library and a PDF; it opens no socket and binds no port. Nothing needs to be running to build, test or use it. |
-| 8099 (assessment only) | `python3 -m http.server` | Used transiently during this assessment to serve the PDF to a browser for visual verification, then stopped. Not part of the product. |
+# 10. Appendices
 
-### Appendix C — Key File Locations
+## A. Command Reference
+
+| Purpose | Command |
+|---|---|
+| Activate the project virtualenv | `source <path-to-project-venv>/bin/activate` |
+| Configure for simulation | `CFLAGS="-Wno-error=unused-variable" ./waf configure --board=sitl` |
+| Build both participating vehicles | `./waf copter rover` |
+| Build every vehicle | `./waf copter heli plane rover sub blimp antennatracker` |
+| Run one feature test | `python3 Tools/autotest/autotest.py --no-clean --no-configure --junit test.Copter.PNTHealthGatePreArm` |
+| Run the Copter shard | `python3 Tools/autotest/autotest.py --no-clean --no-configure --junit test.CopterTests1a` |
+| Run the Rover suite | `CFLAGS="-Wno-error=unused-variable" python3 Tools/autotest/autotest.py --no-clean --no-configure --junit test.Rover` |
+| Configure for the unit corpus | `CFLAGS="-Wno-error=unused-variable" CXXFLAGS="-Wno-error=suggest-override -Wno-error=missing-declarations -Wno-error=maybe-uninitialized" ./waf configure --board=sitl --debug` |
+| Build and run the unit corpus | `./waf tests -k` then `ulimit -c 0; for t in build/sitl/tests/*; do "$t" >/dev/null \|\| echo "FAILED $t"; done` |
+| Parameter metadata gate | `CI_BUILD_TARGET=param_parse Tools/scripts/build_ci.sh` |
+| Python cleanliness gate | `CI_BUILD_TARGET=python-cleanliness Tools/scripts/build_ci.sh` |
+| Style-surface check | `./Tools/scripts/run_astyle.py --dry-run` |
+| Repository hook set | `pre-commit run --all-files` |
+| Lint the two suites directly | `python3 -m flake8 Tools/autotest/arducopter.py Tools/autotest/rover.py` |
+| List a vehicle's subtests | `python3 Tools/autotest/autotest.py --list-subtests-for-vehicle Copter` |
+| Confirm the change surface | `git diff --name-status main...HEAD` and `git diff --numstat main...HEAD` |
+
+## B. Port Reference
+
+| Port | Purpose |
+|---|---|
+| 5760 | Simulated vehicle SERIAL0 — primary MAVLink endpoint (`tcp:127.0.0.1:5760`) |
+| 5762 | Simulated vehicle SERIAL1 — second MAVLink link, used to prove channel fan-out |
+| 5760 + 10 × N | SERIAL0 for instance `-I<N>`; instance 3 listens on 5790 |
+| 5501 | MAVProxy/GCS output stream used by the test harness |
+| 9035 | Simulated IR-lock sensor endpoint opened by the simulator |
+
+No port needs to be open externally; everything is loopback.
+
+## C. Key File Locations
 
 | Path | Role |
-|------|------|
-| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1Behavior.h` / `.cpp` | Service facade — the task API (203 + 311 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/AfsimL1_AHRS_Shim.h` / `.cpp` | AHRS adapter — 6 read accessors + 4 injection setters (158 + 169 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/l1_c_api.h` / `.cpp` | `extern "C"` boundary — 8 exports, opaque `L1_Context` (168 + 327 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/CMakeLists.txt` | Standalone shared-library build, demo + tests targets, 2 CTest cases (556 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/wscript` | In-tree waf `ap_example` build with the Option-B seam (187 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/main.cpp` | "Initialize a simple leg" demo driver (212 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/README.md` | Integration and usage documentation (322 LOC, 14 sections) |
-| `libraries/AP_L1_Control/examples/AfsimL1/tests/test_afsim_l1.cpp` | 111-check unit suite (866 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/pnt_data.py` | Audit data model — 94 main rows / 282 evidence rows (1,344 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/pnt_render.py` | ReportLab renderer + verifier gates (1,444 LOC) |
-| `libraries/AP_L1_Control/examples/AfsimL1/generate.py` | Harness + render entry point (294 LOC) |
-| `libraries/AP_L1_Control/AP_L1_Control.h` / `.cpp` | Wrapped controller — **only** additive change is `set_update_dt` (+17 / +44 lines) |
-| `ArduPilot_PNT_Reference_Audit.pdf` | Final deliverable PDF at the repository root (43 pages, 237,310 B) |
-| `blitzy/documentation/Project Guide.md` | Blitzy project documentation |
-| `blitzy/screenshots/`, `blitzy/screen_recordings/` | Validation artifacts (untracked, 1,061 MB — do not commit) |
+|---|---|
+| `libraries/AP_Arming/AP_PNTFreshness.h` | Monitor declaration, threading contract, and the differentiation the feature is required to state in code |
+| `libraries/AP_Arming/AP_PNTFreshness.cpp` | The single `update()`: status latch, max-held age, one atomic publication, guarded `GPSFresh` send |
+| `libraries/AP_Arming/AP_Arming.h` | By-value monitor, the check declaration, the protected virtual threshold accessor, the shared range ceiling |
+| `libraries/AP_Arming/AP_Arming.cpp` | Monitor drive at the top of the 1 Hz `update()`, the check definition, the zero base default, the appended chain term |
+| `ArduCopter/Parameters.h`, `ArduCopter/Parameters.cpp` | `FS_PNT_FRESH_MS` member and its annotated table entry at extension-table index 11 |
+| `ArduCopter/AP_Arming_Copter.h`, `.cpp` | Copter threshold override with the range clamp |
+| `Rover/Parameters.h`, `Rover/Parameters.cpp` | The same parameter at `var_info` index 58 |
+| `Rover/AP_Arming_Rover.h`, `.cpp` | Rover threshold override, identical conversion |
+| `Tools/autotest/arducopter.py:13570`, `:13664` | `PNTHealthGatePreArm` and `PNTHealthGateDisabledIsNoop` |
+| `Tools/autotest/rover.py:6914` | The Rover `PNTHealthGatePreArm` twin |
 
-### Appendix D — Technology Versions
+## D. Technology Versions
 
-| Component | Version | Source |
-|-----------|---------|--------|
-| OS | Ubuntu 25.10 | `/etc/os-release` |
-| GCC / G++ (default) | 15.2.0 | `g++ --version` |
-| GCC / G++ (matrix) | 11.5.0, 12.5.0 | `g++-11`, `g++-12` |
-| C++ standard | `gnu++11` | ArduPilot board config |
-| CMake | 3.31.6 | `cmake --version` (build requires ≥ 3.5) |
-| waf | bundled Python 3 build system | `./waf` |
-| Python | 3.13.7 | `python3 --version` |
-| reportlab | 4.5.1 | system + repo `.venv` |
-| poppler-utils | 25.03.0 | `pdfinfo -v` |
-| DejaVu fonts | system TTF (22 fontconfig entries) | `fc-list` |
-| Git | with Git LFS | repository tooling |
-| New third-party dependencies added | **none** | AAP §0.5.2 |
+| Component | Version |
+|---|---|
+| Python | 3.13.7 |
+| GCC / G++ | 15.2.0 (Ubuntu 15.2.0-4ubuntu4) |
+| waf | 2.0.27 |
+| ccache | 4.11.2 |
+| pymavlink | 2.4.49 |
+| MAVProxy | 1.8.74 |
+| flake8 | 7.3.0 (pycodestyle 2.14.0, pyflakes 3.4.0) |
+| pre-commit | 4.6.2 |
+| astyle | 3.1 |
+| empy | 3.3.4 (the only pinned package) |
+| Vendored submodules | 15, all at their original pins |
 
-### Appendix E — Environment Variable Reference
+## E. Environment Variable Reference
 
-| Variable | Scope | Purpose | Example |
-|----------|-------|---------|---------|
-| `PNT_REPO_ROOT` | PDF pipeline | Repository root used to resolve audited source paths | `PNT_REPO_ROOT="$(pwd)" python3 .../generate.py` |
-| `LD_LIBRARY_PATH` | Runtime (optional) | Locate `libafsim_l1.so` when the RPATH does not apply | `LD_LIBRARY_PATH=. ./afsim_l1_demo` |
-| `CFLAGS` | waf configure/build (optional) | Zero-edit workaround for the vendored `modules/littlefs` unused variable on `--board sitl` | `CFLAGS='-Wno-error=unused-variable' ./waf configure --board sitl` |
-| `CXXFLAGS` | waf configure/check (optional) | Zero-edit workaround for vendored GoogleTest 1.8.0 when running the out-of-scope gtest suite | `CXXFLAGS='-Wno-error=suggest-override -include stdint.h "-DGTEST_SKIP()=return GTEST_SUCCEED()"' ./waf configure --board linux` |
-| `AFSIML1_L1_USES_SHIM_AHRS` | Compile-time define (set automatically) | Selects the Option-B AHRS include seam; both shipped build files define it — do not hand-manage it | set by `CMakeLists.txt` / `wscript` |
+| Variable | Purpose |
+|---|---|
+| `CFLAGS="-Wno-error=unused-variable"` | Required at configure time, and for any suite step that reconfigures, because a vendored block-device source has an unused local this board promotes to an error |
+| `CXXFLAGS="-Wno-error=suggest-override -Wno-error=missing-declarations -Wno-error=maybe-uninitialized"` | Needed only for the unit-corpus configure |
+| `BUILDLOGS` | Directory the test harness writes its per-test logs and JUnit files into |
+| `CI_BUILD_TARGET` | Selects which delivery gate `Tools/scripts/build_ci.sh` runs (`param_parse`, `python-cleanliness`, `astyle-cleanliness`) |
+| `PATH=/usr/lib/ccache:$PATH` | Optional; enables the compiler cache |
 
-The library itself requires **no** environment variable at runtime.
+The feature itself reads no environment variable and requires no secret.
 
-### Appendix F — Developer Tools Guide
+## F. Developer Tools Guide
 
-| Tool | Use in this project |
-|------|---------------------|
-| `cmake` + `make` | Primary build path for `libafsim_l1.so`, the demo and the unit suite |
-| `./waf` | In-tree ArduPilot build: the `examples/AfsimL1` target, `plane` regression guard, `check --alltests` |
-| `nm` | Assert the exported ABI (8 `L1_*`, 0 mangled) — the single most valuable review check |
-| `readelf` | Inspect SONAME and runtime `NEEDED` dependencies |
-| `ctest` | Run the two registered cases (unit suite + demo smoke) |
-| `valgrind` | Full leak-check on the demo, unit suite, `dlopen` host and in-tree binary |
-| `gcc` (C, not C++) | Compile a pure-C host to prove the ABI is toolchain-agnostic |
-| `pdfinfo` / `pdftotext` / `pdftoppm` | Verify the deliverable's page count, geometry and text content |
-| `flake8` | Lint the PDF generator (currently 0 violations) |
-| Headless Chrome / PDFium | Visual verification of the rendered deliverable |
-| `git diff --name-status <baseline>..HEAD` | Scope audit — confirm the 18-file surface and zero out-of-scope edits |
+| Task | How |
+|---|---|
+| Watch the freshness channel | Any ground station that shows named-value floats will render `GPSFresh`; the value is broadcast on the standard generic channel, so no message-specific support is needed to receive it. Rendering support differs between stations |
+| Simulate a receiver outage | Set `SIM_GPS1_ENABLE` to `0`. It must be set explicitly — the first instance self-enables when left unconfigured |
+| Force a pre-arm reporting pass | Send `MAV_CMD_RUN_PREARM_CHECKS`; failing checks otherwise re-display on the pre-existing ~30-second cadence |
+| Read the age from a log | Look for `NVF` rows named `GPSFresh`; one is written per publication where logging is enabled |
+| Confirm append-only discipline | `git diff --numstat main...HEAD -- Tools/autotest/` must show additions and zero deletions |
+| Check the parameter index space before adding another | Group indices span 0–63 with 0 aliasing 63, and a duplicate index is a fatal error at boot, not a warning |
 
-### Appendix G — Glossary
+## G. Glossary
 
 | Term | Meaning |
-|------|---------|
-| **PNT** | Position, Navigation and Timing — the behavior family this refactor consolidates |
-| **L1 guidance** | ArduPilot's L1 lateral-navigation control law (`AP_L1_Control`) producing roll and lateral-acceleration demands for a waypoint leg |
-| **AFSIM** | The external simulation host in the user's example; the intended consumer of `libafsim_l1.so` |
-| **AAP** | Agent Action Plan — the authoritative specification for this refactor |
-| **Facade** | `AfsimL1Behavior` — the small task-oriented API over the richer controller interface |
-| **Adapter / shim** | `AfsimL1_AHRS_Shim` — supplies the controller's `AP_AHRS` read contract from injected state |
-| **C ABI boundary** | The `extern "C"` layer that keeps C++ types (name mangling, vtables, RTTI, exceptions) from crossing to the host |
-| **Opaque handle** | `void*` / `L1_Handle` wrapping `struct L1_Context`; the host never sees a C++ type |
-| **Option A / Option B** | AAP §0.6.2 AHRS-decoupling alternatives — link the real `AP_AHRS` in external mode (A) vs a service-local shim behind a compile-time include seam (B, implemented) |
-| **Timing seam** | The additive, default-off `set_update_dt()` path letting the host own the timebase instead of `AP_HAL::micros()`/`millis()` |
-| **`dt` clamp** | The preserved rule that `dt > 1 s` reinitialises the cross-track integrator and `dt` is capped at 0.1 s |
-| **Default-off** | The seam is inert unless `set_update_dt()` is called, guaranteeing existing vehicle callers are unaffected |
-| **Oracle (PDF)** | The pre-scrape original PDF recovered from commit `5b67e27b0a` used as ground truth for the data-fidelity repair |
-| **Harness gate** | The generator's assertion layer (1,193 invariants) that refuses to render the PDF if any invariant fails |
-| **N/E, E/N** | North/East position ordering vs East/North velocity ordering — a deliberate convention of the injection API |
-| **Centidegrees (`cd`)** | Hundredths of a degree, ArduPilot's integer angle unit (`nav_roll_cd`, `yaw_cd`) |
-| **SOVERSION** | Shared-library ABI version encoded in the SONAME; currently absent (HT-4) |
+|---|---|
+| PNT | Position, navigation and timing — the vehicle's fix data considered as a delivered service |
+| Freshness / staleness | How long ago the primary GPS last reported a usable fix status. This is a delivery-cadence measure, not a solution-quality one |
+| Delivery cadence vs solution quality | This gate asks whether fix data is still arriving; the EKF variance and position-estimate pre-arms ask whether the fix is good. Distinct mechanisms with distinct thresholds |
+| Driver timeout | The GPS driver's own fixed four-second message timeout, which re-arms its own timer on expiry — which is why this feature latches on fix status instead |
+| Latch | The single stored timestamp of the last usable fix status; it stops advancing during an outage, which is what lets the age grow without bound |
+| Max-hold | Retaining the previously published age when a newly computed one is smaller, so the value saturates instead of folding through zero at the 32-bit millisecond boundary |
+| `GPSFresh` | The named-value-float channel carrying the age, published once per second while the feature is enabled |
+| Pre-arm check | A test evaluated before arming; the shared chain is deliberately non-short-circuit so every failure is reported |
+| SITL | Software-in-the-loop — the simulator all validation here was performed in |
+| Shard | A named group of simulation tests run as one continuous-integration step |
+| Extension table | A second parameter group table a vehicle uses once its primary table's index space is exhausted |
