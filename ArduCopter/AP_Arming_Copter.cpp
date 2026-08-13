@@ -421,8 +421,17 @@ bool AP_Arming_Copter::pnt_freshness_checks(bool display_failure)
         return true;
     }
 
-    // call parent pnt freshness checks
-    return AP_Arming::pnt_freshness_checks(display_failure);
+    // refuse arming once the monitor-owned latch shows delivery has been
+    // absent for longer than the operator's threshold.  The same local is used
+    // for the comparison and the message so the reported number is always the
+    // one that was actually applied, and the cast keeps the strict comparison
+    // free of a sign mismatch against the unsigned age.
+    if (copter.pnt_data_age_ms() > (uint32_t)threshold_ms) {
+        check_failed(display_failure, "PNT data stale (>%u ms)", (unsigned)threshold_ms);
+        return false;
+    }
+
+    return true;
 }
 
 // check ekf attitude is acceptable
